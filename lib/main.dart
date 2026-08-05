@@ -4,6 +4,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import 'constants/app_constants.dart';
+import 'utils/ros_messages.dart';
+import 'viewmodels/rover_device.dart';
+
 void main() => runApp(const XLineCarApp());
 
 class XLineCarApp extends StatelessWidget {
@@ -13,7 +17,7 @@ class XLineCarApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'XLine Rover',
+      title: AppConstants.appTitle,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xff2563eb),
@@ -50,56 +54,6 @@ class XLineCarApp extends StatelessWidget {
   }
 }
 
-class RoverDevice {
-  const RoverDevice({
-    required this.name,
-    required this.ip,
-    required this.port,
-    required this.domainId,
-    required this.type,
-    required this.connected,
-  });
-
-  final String name;
-  final String ip;
-  final int port;
-  final int domainId;
-  final String type;
-  final bool connected;
-
-  String get bridgeUrl => 'ws://$ip:$port';
-}
-
-enum BridgeState { disconnected, connecting, connected, failed }
-
-extension BridgeStateLabel on BridgeState {
-  String get label {
-    switch (this) {
-      case BridgeState.connecting:
-        return '连接中';
-      case BridgeState.connected:
-        return '已连接';
-      case BridgeState.failed:
-        return '连接失败';
-      case BridgeState.disconnected:
-        return '未连接';
-    }
-  }
-
-  Color get color {
-    switch (this) {
-      case BridgeState.connected:
-        return const Color(0xff22c55e);
-      case BridgeState.connecting:
-        return const Color(0xfff59e0b);
-      case BridgeState.failed:
-        return const Color(0xffef4444);
-      case BridgeState.disconnected:
-        return const Color(0xff64748b);
-    }
-  }
-}
-
 class RoverHomePage extends StatefulWidget {
   const RoverHomePage({super.key});
 
@@ -109,6 +63,7 @@ class RoverHomePage extends StatefulWidget {
 
 class _RoverHomePageState extends State<RoverHomePage> {
   int tabIndex = 0;
+  int homeModule = 0;
   bool lineRunning = false;
   bool printerEnabled = true;
   double speed = 0.34;
@@ -121,11 +76,11 @@ class _RoverHomePageState extends State<RoverHomePage> {
 
   final List<RoverDevice> devices = [
     const RoverDevice(
-      name: 'XLine-Car-01',
-      ip: '192.168.31.42',
-      port: 8765,
-      domainId: 0,
-      type: 'Foxglove Bridge',
+      name: AppConstants.defaultDeviceName,
+      ip: AppConstants.defaultIp,
+      port: AppConstants.defaultPort,
+      domainId: AppConstants.defaultDomainId,
+      type: AppConstants.defaultBridgeType,
       connected: true,
     ),
   ];
@@ -147,11 +102,8 @@ class _RoverHomePageState extends State<RoverHomePage> {
   @override
   Widget build(BuildContext context) {
     final tabs = const [
-      _TabItem('监控', Icons.dashboard_rounded),
-      _TabItem('地图', Icons.map_rounded),
-      _TabItem('控制', Icons.gamepad_rounded),
+      _TabItem('首页', Icons.home_rounded),
       _TabItem('任务', Icons.route_rounded),
-      _TabItem('设备', Icons.devices_other_rounded),
       _TabItem('设置', Icons.tune_rounded),
     ];
 
@@ -178,7 +130,10 @@ class _RoverHomePageState extends State<RoverHomePage> {
         selectedIndex: tabIndex,
         backgroundColor: const Color(0xff0f172a),
         indicatorColor: const Color(0xff1d4ed8),
-        onDestinationSelected: (value) => setState(() => tabIndex = value),
+        onDestinationSelected: (value) => setState(() {
+          tabIndex = value;
+          if (value == 0) homeModule = 0;
+        }),
         destinations: [
           for (final tab in tabs)
             NavigationDestination(icon: Icon(tab.icon), label: tab.label),
@@ -190,40 +145,68 @@ class _RoverHomePageState extends State<RoverHomePage> {
   Widget _buildPage() {
     switch (tabIndex) {
       case 1:
-        return _MapPage(lineRunning: lineRunning);
-      case 2:
-        return _ControlPage(
-          speed: speed,
-          printerEnabled: printerEnabled,
-          onSpeedChanged: (value) => setState(() => speed = value),
-          onPrinterChanged: (value) => setState(() => printerEnabled = value),
-          onDriveCommand: _sendDriveCommand,
-          onPrinterCommand: _sendPrinterCommand,
-        );
-      case 3:
+        if (bridgeState != BridgeState.connected) {
+          return _ConnectionRequiredPage(
+            onConnect: _connectActiveDevice,
+            onManageDevices: () => setState(() {
+              tabIndex = 0;
+              homeModule = 3;
+            }),
+          );
+        }
         return _MissionPage(
           lineRunning: lineRunning,
           onToggle: _toggleMission,
           onLnCommand: _sendLnCommand,
         );
-      case 4:
-        return _DevicePage(
-          devices: devices,
-          message: connectionMessage,
-          bridgeState: bridgeState,
-          logs: bridgeLogs,
-          onAddDevice: _openAddDeviceSheet,
-          onConnect: _connectDevice,
-          onTestActive: _connectActiveDevice,
-          onDisconnect: _disconnectBridge,
-        );
-      case 5:
+      case 2:
         return _SettingsPage(
           device: activeDevice,
           lineWidth: lineWidth,
           onLineWidthChanged: (value) => setState(() => lineWidth = value),
           onAddDevice: _openAddDeviceSheet,
           bridgeState: bridgeState,
+        );
+      default:
+        return _buildHomePage();
+    }
+  }
+
+  Widget _buildHomePage() {
+    switch (homeModule) {
+      case 1:
+        return _HomeModulePage(
+          title: '地图与路径',
+          onBack: () => setState(() => homeModule = 0),
+          child: _MapPage(lineRunning: lineRunning),
+        );
+      case 2:
+        return _HomeModulePage(
+          title: '手动控制',
+          onBack: () => setState(() => homeModule = 0),
+          child: _ControlPage(
+            speed: speed,
+            printerEnabled: printerEnabled,
+            onSpeedChanged: (value) => setState(() => speed = value),
+            onPrinterChanged: (value) => setState(() => printerEnabled = value),
+            onDriveCommand: _sendDriveCommand,
+            onPrinterCommand: _sendPrinterCommand,
+          ),
+        );
+      case 3:
+        return _HomeModulePage(
+          title: '设备管理',
+          onBack: () => setState(() => homeModule = 0),
+          child: _DevicePage(
+            devices: devices,
+            message: connectionMessage,
+            bridgeState: bridgeState,
+            logs: bridgeLogs,
+            onAddDevice: _openAddDeviceSheet,
+            onConnect: _connectDevice,
+            onTestActive: _connectActiveDevice,
+            onDisconnect: _disconnectBridge,
+          ),
         );
       default:
         return _DashboardPage(
@@ -233,6 +216,9 @@ class _RoverHomePageState extends State<RoverHomePage> {
           onStartMission: _toggleMission,
           onAddDevice: _openAddDeviceSheet,
           onConnect: _connectActiveDevice,
+          onOpenMap: () => setState(() => homeModule = 1),
+          onOpenControl: () => setState(() => homeModule = 2),
+          onOpenDevices: () => setState(() => homeModule = 3),
         );
     }
   }
@@ -262,7 +248,8 @@ class _RoverHomePageState extends State<RoverHomePage> {
       }
       devices.add(device);
       connectionMessage = '已添加并连接 ${device.name}';
-      tabIndex = 4;
+      tabIndex = 0;
+      homeModule = 3;
     });
     unawaited(_connectActiveDevice());
   }
@@ -353,55 +340,37 @@ class _RoverHomePageState extends State<RoverHomePage> {
   }
 
   void _subscribeCoreTopics() {
-    for (final topic in const [
-      '/imu',
-      '/robot_pose',
-      '/reflector_position',
-      '/printer_status',
-    ]) {
-      _sendBridge({'op': 'subscribe', 'topic': topic});
+    for (final topic in AppConstants.coreTopics) {
+      _sendBridge(RosMessages.subscribe(topic));
     }
   }
 
   void _sendDriveCommand(double linear, double angular) {
-    _sendBridge({
-      'op': 'publish',
-      'topic': '/cmd_vel',
-      'type': 'geometry_msgs/msg/Twist',
-      'msg': {
-        'linear': {'x': linear, 'y': 0.0, 'z': 0.0},
-        'angular': {'x': 0.0, 'y': 0.0, 'z': angular},
-      },
-    });
+    _sendBridge(RosMessages.cmdVel(linear, angular));
   }
 
   void _sendPrinterCommand(String action) {
-    _sendBridge({
-      'op': 'call_service',
-      'service': '/printer/quick_command',
-      'type': 'xline_msgs/srv/QuickCommand',
-      'args': {'printer_name': 'center', 'action': action, 'param': 0},
-    });
+    _sendBridge(RosMessages.printerCommand(action));
   }
 
   void _sendLnCommand(int commandType) {
-    _sendBridge({
-      'op': 'call_service',
-      'service': '/ln_driver/command_srv',
-      'type': 'xline_msgs/srv/LnCommand',
-      'args': {'command_type': commandType},
-    });
+    _sendBridge(RosMessages.lnCommand(commandType));
   }
 
   void _toggleMission() {
+    if (bridgeState != BridgeState.connected) {
+      setState(() {
+        connectionMessage = '小车未连接，无法执行任务';
+        _addLog('mission blocked: bridge offline');
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请先连接小车')));
+      return;
+    }
     final next = !lineRunning;
     setState(() => lineRunning = next);
-    _sendBridge({
-      'op': 'publish',
-      'topic': '/xline/mission_control',
-      'type': 'std_msgs/msg/String',
-      'msg': {'data': next ? 'start_line_task' : 'stop_line_task'},
-    });
+    _sendBridge(RosMessages.missionControl(next));
     if (next) {
       _sendPrinterCommand('start_print');
     } else {
@@ -416,7 +385,7 @@ class _RoverHomePageState extends State<RoverHomePage> {
       socket!.add(text);
       setState(() => _addLog('send $text'));
     } else {
-      setState(() => _addLog('offline queued $text'));
+      setState(() => _addLog('blocked while offline $text'));
     }
   }
 
@@ -493,6 +462,9 @@ class _DashboardPage extends StatelessWidget {
     required this.onStartMission,
     required this.onAddDevice,
     required this.onConnect,
+    required this.onOpenMap,
+    required this.onOpenControl,
+    required this.onOpenDevices,
   });
 
   final RoverDevice device;
@@ -501,6 +473,9 @@ class _DashboardPage extends StatelessWidget {
   final VoidCallback onStartMission;
   final VoidCallback onAddDevice;
   final VoidCallback onConnect;
+  final VoidCallback onOpenMap;
+  final VoidCallback onOpenControl;
+  final VoidCallback onOpenDevices;
 
   @override
   Widget build(BuildContext context) {
@@ -508,6 +483,39 @@ class _DashboardPage extends StatelessWidget {
       key: const ValueKey('dashboard'),
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
       children: [
+        _Panel(
+          title: '快捷功能',
+          child: Row(
+            children: [
+              Expanded(
+                child: _HomeShortcut(
+                  icon: Icons.map_rounded,
+                  label: '地图',
+                  onTap: onOpenMap,
+                  enabled: bridgeState == BridgeState.connected,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _HomeShortcut(
+                  icon: Icons.gamepad_rounded,
+                  label: '控制',
+                  onTap: onOpenControl,
+                  enabled: bridgeState == BridgeState.connected,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _HomeShortcut(
+                  icon: Icons.devices_other_rounded,
+                  label: '设备',
+                  onTap: onOpenDevices,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
         _Panel(
           title: '状态概览',
           trailing: _StatusChip(
@@ -543,51 +551,253 @@ class _DashboardPage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        const _MetricStrip(),
-        const SizedBox(height: 12),
-        _Panel(
-          title: '实时视图',
-          trailing: const Text(
-            'camera / map',
-            style: TextStyle(color: Color(0xff94a3b8), fontSize: 12),
+        if (bridgeState != BridgeState.connected)
+          _OfflinePanel(
+            connecting: bridgeState == BridgeState.connecting,
+            onConnect: onConnect,
+            onManageDevices: onOpenDevices,
           ),
-          child: SizedBox(
-            height: 178,
-            child: CustomPaint(
-              painter: _MiniOverviewPainter(lineRunning: lineRunning),
-              child: const SizedBox.expand(),
+        if (bridgeState == BridgeState.connected) const _MetricStrip(),
+        if (bridgeState == BridgeState.connected) const SizedBox(height: 12),
+        if (bridgeState == BridgeState.connected)
+          _Panel(
+            title: '实时视图',
+            trailing: const Text(
+              'camera / map',
+              style: TextStyle(color: Color(0xff94a3b8), fontSize: 12),
+            ),
+            child: SizedBox(
+              height: 178,
+              child: CustomPaint(
+                painter: _MiniOverviewPainter(lineRunning: lineRunning),
+                child: const SizedBox.expand(),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 12),
-        _Panel(
-          title: '当前任务',
-          trailing: _StatusChip(
-            text: lineRunning ? 'Running' : 'Ready',
-            color: lineRunning
-                ? const Color(0xfff59e0b)
-                : const Color(0xff22c55e),
-          ),
-          child: Column(
-            children: [
-              const _MissionStep(title: '定位与追踪', done: true),
-              _MissionStep(title: '路径执行', done: lineRunning),
-              _MissionStep(title: '喷码同步', done: lineRunning),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: onStartMission,
-                  icon: Icon(
-                    lineRunning ? Icons.stop_rounded : Icons.play_arrow_rounded,
+        if (bridgeState == BridgeState.connected) const SizedBox(height: 12),
+        if (bridgeState == BridgeState.connected)
+          _Panel(
+            title: '当前任务',
+            trailing: _StatusChip(
+              text: lineRunning ? 'Running' : 'Ready',
+              color: lineRunning
+                  ? const Color(0xfff59e0b)
+                  : const Color(0xff22c55e),
+            ),
+            child: Column(
+              children: [
+                const _MissionStep(title: '定位与追踪', done: true),
+                _MissionStep(title: '路径执行', done: lineRunning),
+                _MissionStep(title: '喷码同步', done: lineRunning),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: onStartMission,
+                    icon: Icon(
+                      lineRunning
+                          ? Icons.stop_rounded
+                          : Icons.play_arrow_rounded,
+                    ),
+                    label: Text(lineRunning ? '停止划线任务' : '开始划线任务'),
                   ),
-                  label: Text(lineRunning ? '停止划线任务' : '开始划线任务'),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _OfflinePanel extends StatelessWidget {
+  const _OfflinePanel({
+    required this.connecting,
+    required this.onConnect,
+    required this.onManageDevices,
+  });
+
+  final bool connecting;
+  final VoidCallback onConnect;
+  final VoidCallback onManageDevices;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Panel(
+      title: '等待连接',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        child: Column(
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: const BoxDecoration(
+                color: Color(0xff172554),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                connecting ? Icons.sync_rounded : Icons.sensors_off_rounded,
+                size: 30,
+                color: const Color(0xff60a5fa),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              connecting ? '正在连接小车' : '小车尚未连接',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '连接成功后将显示实时状态、地图和任务信息',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xff94a3b8)),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: connecting ? null : onConnect,
+                    icon: connecting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.link_rounded),
+                    label: Text(connecting ? '连接中' : '重新连接'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onManageDevices,
+                    icon: const Icon(Icons.settings_ethernet_rounded),
+                    label: const Text('设备管理'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ConnectionRequiredPage extends StatelessWidget {
+  const _ConnectionRequiredPage({
+    required this.onConnect,
+    required this.onManageDevices,
+  });
+
+  final VoidCallback onConnect;
+  final VoidCallback onManageDevices;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      key: const ValueKey('connection-required'),
+      padding: const EdgeInsets.all(14),
+      children: [
+        _OfflinePanel(
+          connecting: false,
+          onConnect: onConnect,
+          onManageDevices: onManageDevices,
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeModulePage extends StatelessWidget {
+  const _HomeModulePage({
+    required this.title,
+    required this.onBack,
+    required this.child,
+  });
+
+  final String title;
+  final VoidCallback onBack;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: ValueKey('home-$title'),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 14, 0),
+          child: Row(
+            children: [
+              IconButton(
+                tooltip: '返回首页',
+                onPressed: onBack,
+                icon: const Icon(Icons.arrow_back_rounded),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
           ),
         ),
+        Expanded(child: child),
       ],
+    );
+  }
+}
+
+class _HomeShortcut extends StatelessWidget {
+  const _HomeShortcut({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.enabled = true,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: 76,
+        decoration: BoxDecoration(
+          color: const Color(0xff101d33),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xff22304a)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: enabled
+                  ? const Color(0xff60a5fa)
+                  : const Color(0xff475569),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              label,
+              style: TextStyle(
+                color: enabled ? null : const Color(0xff64748b),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -688,7 +898,7 @@ class _DevicePage extends StatelessWidget {
               _InfoRow(
                 Icons.edit_location_alt_rounded,
                 '手动输入 IP',
-                '适合实验室局域网，连接 ws://小车IP:8765。',
+                '适合实验室局域网，默认连接 ws://小车IP:8000。',
               ),
               _InfoRow(
                 Icons.qr_code_scanner_rounded,
@@ -717,10 +927,10 @@ class _AddDeviceSheet extends StatefulWidget {
 
 class _AddDeviceSheetState extends State<_AddDeviceSheet> {
   final nameController = TextEditingController(text: 'XLine-Car-02');
-  final ipController = TextEditingController(text: '192.168.31.42');
-  final portController = TextEditingController(text: '8765');
+  final ipController = TextEditingController(text: '192.168.0.100');
+  final portController = TextEditingController(text: '8000');
   final domainController = TextEditingController(text: '0');
-  String type = 'Foxglove Bridge';
+  String type = 'FastAPI Backend';
   String testStatus = '未测试';
   bool testing = false;
 
@@ -803,6 +1013,10 @@ class _AddDeviceSheetState extends State<_AddDeviceSheet> {
               ),
               items: const [
                 DropdownMenuItem(
+                  value: 'FastAPI Backend',
+                  child: Text('FastAPI Backend'),
+                ),
+                DropdownMenuItem(
                   value: 'Foxglove Bridge',
                   child: Text('Foxglove Bridge'),
                 ),
@@ -881,7 +1095,7 @@ class _AddDeviceSheetState extends State<_AddDeviceSheet> {
   void _saveDevice() {
     final ip = ipController.text.trim();
     final name = nameController.text.trim();
-    final port = int.tryParse(portController.text.trim()) ?? 8765;
+    final port = int.tryParse(portController.text.trim()) ?? 8000;
     final domainId = int.tryParse(domainController.text.trim()) ?? 0;
     if (ip.isEmpty || name.isEmpty) {
       setState(() => testStatus = '失败：设备名称和 IP 不能为空');

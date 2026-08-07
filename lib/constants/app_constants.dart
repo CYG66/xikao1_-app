@@ -1,3 +1,7 @@
+/// App 的全局默认参数。
+///
+/// 常用修改点：默认小车 IP、端口、ROS Domain 和设备名称。
+/// 这些只是新安装 App 时的初始值，用户在设备页可以再次修改。
 class AppConstants {
   const AppConstants._();
 
@@ -9,6 +13,7 @@ class AppConstants {
   static const defaultDomainId = 0;
   static const defaultBridgeType = 'FastAPI Backend';
 
+  /// WebSocket 连接成功后 App 会自动订阅的 ROS2 话题。
   static const coreTopics = [
     '/imu',
     '/robot_pose',

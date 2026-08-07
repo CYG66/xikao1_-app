@@ -65,6 +65,36 @@ App
 
 ## 4. Flutter 客户端分层
 
+### 基本目录结构
+
+```text
+- lib
+  |
+  |-- api             # 存放网络请求、WebSocket 和 ROS Bridge 接口配置
+  |
+  |-- assets          # 存放图片、图标、字体等资源说明
+  |
+  |-- components      # 存放按钮、面板、状态卡等公共组件
+  |
+  |-- constants       # 存放 IP、端口、Topic 和全局常量
+  |
+  |-- viewmodels      # 存放小车设备、遥测和任务数据模型
+  |
+  |-- pages           # 存放首页、任务、设置等页面
+  |
+  |-- routes          # 存放页面路由配置
+  |
+  |-- stores          # 存放连接、遥测和任务全局状态
+  |
+  |-- utils           # 存放 ROS JSON 构建器和通用工具类
+  |
+  `-- main.dart       # Flutter App 入口
+```
+
+
+
+### 当前实际文件
+
 ```text
 lib/
 ├── main.dart                     # App 入口、页面组合、当前主状态与交互逻辑

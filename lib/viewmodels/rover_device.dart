@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+/// 一台可连接的 XLine 小车配置。
+///
+/// 页面添加设备后会创建该对象，[bridgeUrl] 根据 IP 和端口
+/// 自动生成 WebSocket 地址。
 class RoverDevice {
   const RoverDevice({
     required this.name,
@@ -20,8 +24,10 @@ class RoverDevice {
   String get bridgeUrl => 'ws://$ip:$port';
 }
 
+/// App 到 FastAPI/ROS2 Bridge 的连接状态机。
 enum BridgeState { disconnected, connecting, connected, failed }
 
+/// 将连接状态转成界面可直接使用的文字和颜色。
 extension BridgeStateLabel on BridgeState {
   String get label {
     switch (this) {

@@ -1,0 +1,68 @@
+flowchart LR
+    user["操作人员"]
+
+    subgraph flutterApp ["Flutter Android App"]
+        direction TB
+        pages["页面层<br/>首页・任务・设置"]
+        components["组件层<br/>状态卡・控制器・地图"]
+        appState["状态层<br/>连接・设备・任务"]
+        messages["通信层<br/>ROS Bridge JSON"]
+        webSocket["WebSocket 客户端"]
+
+        pages --> components
+        components --> appState
+        appState --> messages
+        messages --> webSocket
+    end
+
+    subgraph fastApi ["Python FastAPI Bridge"]
+        direction TB
+        wsApi["WebSocket / HTTP 接口"]
+        dispatcher["指令解析与路由"]
+        robotState["小车状态快照"]
+        rosAdapter["rclpy 适配层"]
+
+        wsApi --> dispatcher
+        dispatcher --> robotState
+        dispatcher --> rosAdapter
+        robotState --> wsApi
+    end
+
+    subgraph ros2System ["Ubuntu ROS2 Humble"]
+        direction TB
+        topics["ROS2 Topics<br/>/cmd_vel・/imu・/robot_pose"]
+        services["ROS2 Services<br/>喷码机・LN150"]
+        nodes["XLine ROS2 Nodes<br/>底盘・定位・路径・任务"]
+
+        topics <--> nodes
+        services <--> nodes
+    end
+
+    subgraph hardware ["小车硬件"]
+        direction TB
+        base["底盘与电机"]
+        ln150["LN150 全站仪"]
+        printer["喷码机"]
+        sensors["IMU 与定位传感器"]
+    end
+
+    user -->|"触摸操作"| pages
+    webSocket <-->|"JSON WebSocket<br/>ws://192.168.0.100:8000"| wsApi
+    rosAdapter -->|"发布 / 订阅"| topics
+    rosAdapter -->|"调用服务"| services
+    nodes --> base
+    nodes --> ln150
+    nodes --> printer
+    sensors --> nodes
+
+    classDef actor fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e,stroke-width:2px;
+    classDef app fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:1.5px;
+    classDef bridge fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:1.5px;
+    classDef ros fill:#fef3c7,stroke:#d97706,color:#78350f,stroke-width:1.5px;
+    classDef device fill:#fee2e2,stroke:#dc2626,color:#7f1d1d,stroke-width:1.5px;
+
+    class user actor;
+    class pages,components,appState,messages,webSocket app;
+    class wsApi,dispatcher,robotState,rosAdapter bridge;
+    class topics,services,nodes ros;
+    class base,ln150,printer,sensors device;

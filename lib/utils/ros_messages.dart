@@ -1,10 +1,16 @@
+/// 构建 App 发给 FastAPI Bridge 的 JSON ROS Bridge 消息。
+///
+/// 本类不负责网络发送，只负责产生格式正确的 Map。
+/// Topic、Service 类型或自定义消息发生变化时，应在这里同步修改。
 class RosMessages {
   const RosMessages._();
 
+  /// 订阅一个 ROS2 话题。
   static Map<String, Object?> subscribe(String topic) {
     return {'op': 'subscribe', 'topic': topic};
   }
 
+  /// 构建底盘速度指令：[linear] 为线速度，[angular] 为角速度。
   static Map<String, Object?> cmdVel(double linear, double angular) {
     return {
       'op': 'publish',
@@ -17,6 +23,7 @@ class RosMessages {
     };
   }
 
+  /// 调用中间喷码机的快捷指令服务。
   static Map<String, Object?> printerCommand(String action) {
     return {
       'op': 'call_service',
@@ -26,6 +33,7 @@ class RosMessages {
     };
   }
 
+  /// 调用 LN150 服务，[commandType] 的含义由小车端 `LnCommand` 定义。
   static Map<String, Object?> lnCommand(int commandType) {
     return {
       'op': 'call_service',
@@ -35,6 +43,7 @@ class RosMessages {
     };
   }
 
+  /// 启动或停止划线任务。
   static Map<String, Object?> missionControl(bool running) {
     return {
       'op': 'publish',

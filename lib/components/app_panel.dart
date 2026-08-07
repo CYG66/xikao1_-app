@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+/// 通用内容面板，统一提供背景、边框、圆角和内边距。
+///
+/// 页面拆分后可优先复用该组件，不要在每个页面重复编写卡片样式。
 class AppPanel extends StatelessWidget {
   const AppPanel({
     required this.child,

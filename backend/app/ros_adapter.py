@@ -96,6 +96,9 @@ class RobotRosAdapter:
 
 
 class RobotBackendNode(Node):
+    control_nodes = {"differential_wheels_driver", "cmd_vel_mux"}
+    mission_nodes = control_nodes | {"localization", "path_planner", "base_controller"}
+
     def __init__(self) -> None:
         super().__init__("xline_app_backend")
         self.cmd_vel_pub = self.create_publisher(Twist, topics.cmd_vel, 10)
@@ -112,6 +115,14 @@ class RobotBackendNode(Node):
         self._subscribe_json(topics.robot_pose, "robot_pose")
         self._subscribe_json(topics.reflector_position, "reflector_position")
         self._subscribe_json(topics.printer_status, "printer_status")
+        self.create_timer(1.0, self._update_graph_readiness)
+
+    def _update_graph_readiness(self) -> None:
+        """Reflect ROS graph availability without inventing hardware telemetry."""
+        available = set(self.get_node_names())
+        robot_state.control_ready = self.control_nodes.issubset(available)
+        robot_state.mission_nodes_ready = self.mission_nodes.issubset(available)
+        robot_state.missing_required_nodes = sorted(self.mission_nodes - available)
 
     def _subscribe_json(self, topic: str, key: str) -> None:
         def handle(message: Any) -> None:

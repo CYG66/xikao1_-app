@@ -1,3 +1,7 @@
+// XLine 划线小车 App 的当前主实现文件。
+//
+// 本文件集中了应用入口、页面切换、WebSocket 通信、业务页面、
+// 通用组件和地图绘制。修改功能前可根据下方的分区注释定位。
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -10,6 +14,12 @@ import 'viewmodels/rover_device.dart';
 
 void main() => runApp(const XLineCarApp());
 
+// -----------------------------------------------------------------------------
+// 应用入口与全局主题
+// -----------------------------------------------------------------------------
+
+/// App 根组件：设置 Material 3 主题、色彩和首页。
+/// 如需修改全局配色、字体或按钮样式，从这里入手。
 class XLineCarApp extends StatelessWidget {
   const XLineCarApp({super.key});
 
@@ -54,6 +64,7 @@ class XLineCarApp extends StatelessWidget {
   }
 }
 
+/// App 的主容器，承载“首页 / 任务 / 设置”三个底部栏入口。
 class RoverHomePage extends StatefulWidget {
   const RoverHomePage({super.key});
 
@@ -61,6 +72,10 @@ class RoverHomePage extends StatefulWidget {
   State<RoverHomePage> createState() => _RoverHomePageState();
 }
 
+/// 主页面运行状态和业务调度中心。
+///
+/// 这里管理页面切换、设备列表、WebSocket、任务、速度和日志。
+/// 项目扩展后，建议将通信与状态逐步拆分到 `api/` 和 `stores/`。
 class _RoverHomePageState extends State<RoverHomePage> {
   int tabIndex = 0;
   int homeModule = 0;
@@ -68,6 +83,16 @@ class _RoverHomePageState extends State<RoverHomePage> {
   bool printerEnabled = true;
   double speed = 0.34;
   double lineWidth = 80;
+  bool rosAvailable = false;
+  bool backendOnline = false;
+  bool controlReady = false;
+  bool missionNodesReady = false;
+  int? batteryPercent;
+  double? linearVelocity;
+  double? localizationAccuracyMm;
+  Map<String, dynamic> robotPose = const {};
+  Map<String, dynamic> reflectorPosition = const {};
+  String? printerStatus;
   String connectionMessage = '已加载默认设备，等待连接测试';
   BridgeState bridgeState = BridgeState.disconnected;
   WebSocket? socket;
@@ -85,12 +110,24 @@ class _RoverHomePageState extends State<RoverHomePage> {
     ),
   ];
 
+  /// 返回当前选中的小车；若无已连接设备，则返回第一台。
   RoverDevice get activeDevice {
     return devices.firstWhere(
       (device) => device.connected,
       orElse: () => devices.first,
     );
   }
+
+  bool get localizationReady =>
+      robotPose.isNotEmpty || reflectorPosition.isNotEmpty;
+
+  bool get missionReady =>
+      bridgeState == BridgeState.connected &&
+      rosAvailable &&
+      backendOnline &&
+      missionNodesReady &&
+      localizationReady &&
+      printerStatus != null;
 
   @override
   void dispose() {
@@ -142,6 +179,8 @@ class _RoverHomePageState extends State<RoverHomePage> {
     );
   }
 
+  /// 根据底部栏索引组装三个一级页面。
+  /// 任务页在离线时会被连接引导页替代。
   Widget _buildPage() {
     switch (tabIndex) {
       case 1:
@@ -172,6 +211,7 @@ class _RoverHomePageState extends State<RoverHomePage> {
     }
   }
 
+  /// 组装首页内部模块：概览、地图、控制和设备管理。
   Widget _buildHomePage() {
     switch (homeModule) {
       case 1:
@@ -213,6 +253,15 @@ class _RoverHomePageState extends State<RoverHomePage> {
           device: activeDevice,
           lineRunning: lineRunning,
           bridgeState: bridgeState,
+          rosAvailable: rosAvailable,
+          controlReady: controlReady,
+          batteryPercent: batteryPercent,
+          linearVelocity: linearVelocity,
+          localizationAccuracyMm: localizationAccuracyMm,
+          robotPose: robotPose,
+          localizationReady: localizationReady,
+          printerStatus: printerStatus,
+          missionReady: missionReady,
           onStartMission: _toggleMission,
           onAddDevice: _openAddDeviceSheet,
           onConnect: _connectActiveDevice,
@@ -223,6 +272,7 @@ class _RoverHomePageState extends State<RoverHomePage> {
     }
   }
 
+  /// 打开“添加设备”弹窗，保存后切换到新设备并尝试连接。
   Future<void> _openAddDeviceSheet() async {
     final device = await showModalBottomSheet<RoverDevice>(
       context: context,
@@ -254,6 +304,7 @@ class _RoverHomePageState extends State<RoverHomePage> {
     unawaited(_connectActiveDevice());
   }
 
+  /// 将指定设备设为当前设备，然后重新连接。
   void _connectDevice(int selectedIndex) {
     setState(() {
       for (var index = 0; index < devices.length; index++) {
@@ -272,6 +323,8 @@ class _RoverHomePageState extends State<RoverHomePage> {
     unawaited(_connectActiveDevice());
   }
 
+  /// 关闭旧连接，然后连接当前设备的 WebSocket Bridge。
+  /// 成功后订阅核心 ROS2 话题；4 秒内未成功则进入失败状态。
   Future<void> _connectActiveDevice() async {
     await socketSub?.cancel();
     await socket?.close();
@@ -320,6 +373,7 @@ class _RoverHomePageState extends State<RoverHomePage> {
     }
   }
 
+  /// 主动断开 WebSocket，清理订阅并将界面设为离线。
   Future<void> _disconnectBridge() async {
     await socketSub?.cancel();
     await socket?.close();
@@ -332,31 +386,73 @@ class _RoverHomePageState extends State<RoverHomePage> {
     });
   }
 
+  /// 处理后端推送的消息。
+  ///
+  /// 当前先写入通信日志。要展示真实电量、位姿和喷码状态，
+  /// 需在此将 JSON 解析为遥测数据模型并更新界面。
   void _handleBridgeMessage(dynamic data) {
     if (!mounted) return;
-    setState(() {
-      _addLog('recv ${data.toString()}');
-    });
+    try {
+      final decoded = data is String ? jsonDecode(data) : data;
+      if (decoded is! Map) return;
+      final envelope = Map<String, dynamic>.from(decoded);
+      final rawStatus = envelope['op'] == 'status' ? envelope['msg'] : envelope;
+      if (rawStatus is! Map) return;
+      final status = Map<String, dynamic>.from(rawStatus);
+      setState(() {
+        rosAvailable = status['ros_available'] == true;
+        backendOnline = status['online'] == true;
+        controlReady = status['control_ready'] == true;
+        missionNodesReady = status['mission_nodes_ready'] == true;
+        batteryPercent = (status['battery'] as num?)?.round();
+        linearVelocity = (status['linear_velocity'] as num?)?.toDouble();
+        localizationAccuracyMm = (status['localization_accuracy_mm'] as num?)
+            ?.toDouble();
+        robotPose = _asStringMap(status['robot_pose']);
+        reflectorPosition = _asStringMap(status['reflector_position']);
+        final rawPrinter = status['printer_status']?.toString();
+        printerStatus =
+            rawPrinter == null || rawPrinter.isEmpty || rawPrinter == 'unknown'
+            ? null
+            : rawPrinter;
+        if (status['mission_running'] is bool) {
+          lineRunning = status['mission_running'] as bool;
+        }
+        _addLog('status updated');
+      });
+    } catch (error) {
+      setState(() => _addLog('invalid bridge message: $error'));
+    }
   }
 
+  Map<String, dynamic> _asStringMap(Object? value) {
+    return value is Map ? Map<String, dynamic>.from(value) : const {};
+  }
+
+  /// 连接成功后订阅 [AppConstants.coreTopics] 中的所有话题。
   void _subscribeCoreTopics() {
     for (final topic in AppConstants.coreTopics) {
       _sendBridge(RosMessages.subscribe(topic));
     }
   }
 
+  /// 将线速度和角速度转成 `/cmd_vel` 指令。
   void _sendDriveCommand(double linear, double angular) {
     _sendBridge(RosMessages.cmdVel(linear, angular));
   }
 
+  /// 调用喷码机指令，[action] 例如 `start_print` 或 `stop_print`。
   void _sendPrinterCommand(String action) {
     _sendBridge(RosMessages.printerCommand(action));
   }
 
+  /// 发送 LN150 命令类型，其数字含义须与小车端定义一致。
   void _sendLnCommand(int commandType) {
     _sendBridge(RosMessages.lnCommand(commandType));
   }
 
+  /// 启动或停止划线任务，并联动喷码机与底盘停车。
+  /// 离线时会直接拦截，不会修改任务状态。
   void _toggleMission() {
     if (bridgeState != BridgeState.connected) {
       setState(() {
@@ -366,6 +462,12 @@ class _RoverHomePageState extends State<RoverHomePage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('请先连接小车')));
+      return;
+    }
+    if (!lineRunning && !missionReady) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('定位或喷码设备尚未上报，任务暂不可执行')));
       return;
     }
     final next = !lineRunning;
@@ -379,6 +481,8 @@ class _RoverHomePageState extends State<RoverHomePage> {
     }
   }
 
+  /// 所有 ROS Bridge 指令的统一发送入口。
+  /// 只有 WebSocket 已连接时才真正发送，否则只记录拦截日志。
   void _sendBridge(Map<String, Object?> payload) {
     final text = jsonEncode(payload);
     if (bridgeState == BridgeState.connected && socket != null) {
@@ -389,6 +493,7 @@ class _RoverHomePageState extends State<RoverHomePage> {
     }
   }
 
+  /// 插入一条带时间的界面日志，最多保留 30 条。
   void _addLog(String line) {
     final time = TimeOfDay.now().format(context);
     bridgeLogs.insert(0, '$time  $line');
@@ -396,6 +501,11 @@ class _RoverHomePageState extends State<RoverHomePage> {
   }
 }
 
+// -----------------------------------------------------------------------------
+// 业务页面与页面级导航
+// -----------------------------------------------------------------------------
+
+/// 顶部栏：显示 App 名称、当前设备地址和 Bridge 状态。
 class _Header extends StatelessWidget {
   const _Header({
     required this.device,
@@ -454,11 +564,22 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// 首页概览：快捷入口、连接区、实时状态和当前任务。
+/// 离线时隐藏所有遥测值，只显示连接引导。
 class _DashboardPage extends StatelessWidget {
   const _DashboardPage({
     required this.device,
     required this.lineRunning,
     required this.bridgeState,
+    required this.rosAvailable,
+    required this.controlReady,
+    required this.batteryPercent,
+    required this.linearVelocity,
+    required this.localizationAccuracyMm,
+    required this.robotPose,
+    required this.localizationReady,
+    required this.printerStatus,
+    required this.missionReady,
     required this.onStartMission,
     required this.onAddDevice,
     required this.onConnect,
@@ -470,6 +591,15 @@ class _DashboardPage extends StatelessWidget {
   final RoverDevice device;
   final bool lineRunning;
   final BridgeState bridgeState;
+  final bool rosAvailable;
+  final bool controlReady;
+  final int? batteryPercent;
+  final double? linearVelocity;
+  final double? localizationAccuracyMm;
+  final Map<String, dynamic> robotPose;
+  final bool localizationReady;
+  final String? printerStatus;
+  final bool missionReady;
   final VoidCallback onStartMission;
   final VoidCallback onAddDevice;
   final VoidCallback onConnect;
@@ -492,7 +622,7 @@ class _DashboardPage extends StatelessWidget {
                   icon: Icons.map_rounded,
                   label: '地图',
                   onTap: onOpenMap,
-                  enabled: bridgeState == BridgeState.connected,
+                  enabled: localizationReady,
                 ),
               ),
               const SizedBox(width: 10),
@@ -501,7 +631,7 @@ class _DashboardPage extends StatelessWidget {
                   icon: Icons.gamepad_rounded,
                   label: '控制',
                   onTap: onOpenControl,
-                  enabled: bridgeState == BridgeState.connected,
+                  enabled: controlReady,
                 ),
               ),
               const SizedBox(width: 10),
@@ -557,21 +687,25 @@ class _DashboardPage extends StatelessWidget {
             onConnect: onConnect,
             onManageDevices: onOpenDevices,
           ),
-        if (bridgeState == BridgeState.connected) const _MetricStrip(),
+        if (bridgeState == BridgeState.connected)
+          _MetricStrip(
+            batteryPercent: batteryPercent,
+            linearVelocity: linearVelocity,
+            localizationAccuracyMm: localizationAccuracyMm,
+            localizationReady: localizationReady,
+            printerStatus: printerStatus,
+          ),
         if (bridgeState == BridgeState.connected) const SizedBox(height: 12),
         if (bridgeState == BridgeState.connected)
           _Panel(
             title: '实时视图',
-            trailing: const Text(
-              'camera / map',
+            trailing: Text(
+              robotPose.isEmpty ? '等待数据' : '/robot_pose',
               style: TextStyle(color: Color(0xff94a3b8), fontSize: 12),
             ),
-            child: SizedBox(
-              height: 178,
-              child: CustomPaint(
-                painter: _MiniOverviewPainter(lineRunning: lineRunning),
-                child: const SizedBox.expand(),
-              ),
+            child: _RealtimeRobotView(
+              rosAvailable: rosAvailable,
+              pose: robotPose,
             ),
           ),
         if (bridgeState == BridgeState.connected) const SizedBox(height: 12),
@@ -579,27 +713,47 @@ class _DashboardPage extends StatelessWidget {
           _Panel(
             title: '当前任务',
             trailing: _StatusChip(
-              text: lineRunning ? 'Running' : 'Ready',
+              text: lineRunning
+                  ? '执行中'
+                  : missionReady
+                  ? '可执行'
+                  : '未就绪',
               color: lineRunning
                   ? const Color(0xfff59e0b)
-                  : const Color(0xff22c55e),
+                  : missionReady
+                  ? const Color(0xff22c55e)
+                  : const Color(0xff64748b),
             ),
             child: Column(
               children: [
-                const _MissionStep(title: '定位与追踪', done: true),
-                _MissionStep(title: '路径执行', done: lineRunning),
-                _MissionStep(title: '喷码同步', done: lineRunning),
+                _MissionStep(title: '定位与追踪', done: localizationReady),
+                _MissionStep(
+                  title: '路径执行',
+                  done: lineRunning && localizationReady,
+                ),
+                _MissionStep(
+                  title: '喷码同步',
+                  done: lineRunning && printerStatus != null,
+                ),
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
-                    onPressed: onStartMission,
+                    onPressed: lineRunning || missionReady
+                        ? onStartMission
+                        : null,
                     icon: Icon(
                       lineRunning
                           ? Icons.stop_rounded
                           : Icons.play_arrow_rounded,
                     ),
-                    label: Text(lineRunning ? '停止划线任务' : '开始划线任务'),
+                    label: Text(
+                      lineRunning
+                          ? '停止划线任务'
+                          : missionReady
+                          ? '开始划线任务'
+                          : '等待定位与喷码设备',
+                    ),
                   ),
                 ),
               ],
@@ -610,6 +764,7 @@ class _DashboardPage extends StatelessWidget {
   }
 }
 
+/// 离线空状态：解释功能不可用的原因，并提供重连和设备管理入口。
 class _OfflinePanel extends StatelessWidget {
   const _OfflinePanel({
     required this.connecting,
@@ -686,6 +841,7 @@ class _OfflinePanel extends StatelessWidget {
   }
 }
 
+/// 未连接时替代任务页的安全拦截页。
 class _ConnectionRequiredPage extends StatelessWidget {
   const _ConnectionRequiredPage({
     required this.onConnect,
@@ -711,6 +867,7 @@ class _ConnectionRequiredPage extends StatelessWidget {
   }
 }
 
+/// 首页子模块的统一外壳，提供标题和“返回首页”按钮。
 class _HomeModulePage extends StatelessWidget {
   const _HomeModulePage({
     required this.title,
@@ -753,6 +910,7 @@ class _HomeModulePage extends StatelessWidget {
   }
 }
 
+/// 首页功能入口，支持离线禁用样式。
 class _HomeShortcut extends StatelessWidget {
   const _HomeShortcut({
     required this.icon,
@@ -802,6 +960,7 @@ class _HomeShortcut extends StatelessWidget {
   }
 }
 
+/// 设备管理页：切换小车、测试/断开连接、查看 Bridge 日志。
 class _DevicePage extends StatelessWidget {
   const _DevicePage({
     required this.devices,
@@ -918,6 +1077,7 @@ class _DevicePage extends StatelessWidget {
   }
 }
 
+/// 添加小车的底部弹窗入口。
 class _AddDeviceSheet extends StatefulWidget {
   const _AddDeviceSheet();
 
@@ -925,6 +1085,7 @@ class _AddDeviceSheet extends StatefulWidget {
   State<_AddDeviceSheet> createState() => _AddDeviceSheetState();
 }
 
+/// 管理设备表单、输入校验和测试状态。
 class _AddDeviceSheetState extends State<_AddDeviceSheet> {
   final nameController = TextEditingController(text: 'XLine-Car-02');
   final ipController = TextEditingController(text: '192.168.0.100');
@@ -1077,6 +1238,8 @@ class _AddDeviceSheetState extends State<_AddDeviceSheet> {
     );
   }
 
+  /// 表单内的连接检查。
+  /// 当前为 UI 流程检查；若要进行真实网络测试，应在此请求 `/health`。
   Future<void> _testConnection() async {
     setState(() {
       testing = true;
@@ -1092,6 +1255,7 @@ class _AddDeviceSheetState extends State<_AddDeviceSheet> {
     });
   }
 
+  /// 校验必填项，生成 [RoverDevice] 并关闭弹窗。
   void _saveDevice() {
     final ip = ipController.text.trim();
     final name = nameController.text.trim();
@@ -1115,6 +1279,7 @@ class _AddDeviceSheetState extends State<_AddDeviceSheet> {
   }
 }
 
+/// 地图与划线路径页。当前由 [_MapPainter] 绘制演示地图。
 class _MapPage extends StatelessWidget {
   const _MapPage({required this.lineRunning});
 
@@ -1166,6 +1331,7 @@ class _MapPage extends StatelessWidget {
   }
 }
 
+/// 手动控制页：速度调节、方向控制和喷码机快捷指令。
 class _ControlPage extends StatelessWidget {
   const _ControlPage({
     required this.speed,
@@ -1305,6 +1471,7 @@ class _ControlPage extends StatelessWidget {
   }
 }
 
+/// 任务页：展示划线步骤，控制任务并发送 LN150 指令。
 class _MissionPage extends StatelessWidget {
   const _MissionPage({
     required this.lineRunning,
@@ -1390,6 +1557,7 @@ class _MissionPage extends StatelessWidget {
   }
 }
 
+/// 设置页：查看当前设备并调整划线宽度等 App 参数。
 class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
     required this.device,
@@ -1460,6 +1628,11 @@ class _SettingsPage extends StatelessWidget {
   }
 }
 
+// -----------------------------------------------------------------------------
+// 可复用界面组件
+// -----------------------------------------------------------------------------
+
+/// 紧凑的当前设备摘要行。
 class _CompactDeviceRow extends StatelessWidget {
   const _CompactDeviceRow({required this.device});
 
@@ -1504,33 +1677,156 @@ class _CompactDeviceRow extends StatelessWidget {
   }
 }
 
+/// 首页遥测指标条。所有值均来自后端状态，未上报时显示未知状态。
 class _MetricStrip extends StatelessWidget {
-  const _MetricStrip();
+  const _MetricStrip({
+    required this.batteryPercent,
+    required this.linearVelocity,
+    required this.localizationAccuracyMm,
+    required this.localizationReady,
+    required this.printerStatus,
+  });
+
+  final int? batteryPercent;
+  final double? linearVelocity;
+  final double? localizationAccuracyMm;
+  final bool localizationReady;
+  final String? printerStatus;
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    final localizationText = localizationAccuracyMm != null
+        ? '±${localizationAccuracyMm!.toStringAsFixed(0)}mm'
+        : localizationReady
+        ? '已定位'
+        : '未定位';
+    return Row(
       children: [
         Expanded(
-          child: _MiniMetric(label: '电量', value: '82%'),
+          child: _MiniMetric(
+            label: '电量',
+            value: batteryPercent == null ? '--' : '$batteryPercent%',
+          ),
         ),
-        SizedBox(width: 8),
+        const SizedBox(width: 8),
         Expanded(
-          child: _MiniMetric(label: '速度', value: '0.34'),
+          child: _MiniMetric(
+            label: '速度',
+            value: linearVelocity == null
+                ? '--'
+                : '${linearVelocity!.toStringAsFixed(2)}m/s',
+          ),
         ),
-        SizedBox(width: 8),
+        const SizedBox(width: 8),
         Expanded(
-          child: _MiniMetric(label: '定位', value: '±8mm'),
+          child: _MiniMetric(label: '定位', value: localizationText),
         ),
-        SizedBox(width: 8),
+        const SizedBox(width: 8),
         Expanded(
-          child: _MiniMetric(label: '喷码', value: 'Ready'),
+          child: _MiniMetric(label: '喷码', value: printerStatus ?? '未知'),
         ),
       ],
     );
   }
 }
 
+/// 显示后端实际上报的机器人位姿。
+/// 没有 `/robot_pose` 数据时不绘制虚构地图或路径。
+class _RealtimeRobotView extends StatelessWidget {
+  const _RealtimeRobotView({required this.rosAvailable, required this.pose});
+
+  final bool rosAvailable;
+  final Map<String, dynamic> pose;
+
+  String _number(String key) {
+    final value = pose[key];
+    return value is num ? value.toStringAsFixed(2) : '--';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (pose.isEmpty) {
+      return SizedBox(
+        height: 178,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                rosAvailable
+                    ? Icons.location_searching_rounded
+                    : Icons.hub_outlined,
+                size: 38,
+                color: const Color(0xff64748b),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                rosAvailable ? '等待定位数据' : 'ROS2 节点未就绪',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                '收到 /robot_pose 后将显示实时位姿',
+                style: TextStyle(color: Color(0xff94a3b8), fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 178,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.my_location_rounded,
+            size: 36,
+            color: Color(0xff22c55e),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _PoseValue(label: 'X', value: _number('x')),
+              ),
+              Expanded(
+                child: _PoseValue(label: 'Y', value: _number('y')),
+              ),
+              Expanded(
+                child: _PoseValue(label: '航向', value: _number('theta')),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PoseValue extends StatelessWidget {
+  const _PoseValue({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(color: Color(0xff94a3b8))),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+        ),
+      ],
+    );
+  }
+}
+
+/// 单个紧凑遥测值卡片。
 class _MiniMetric extends StatelessWidget {
   const _MiniMetric({required this.label, required this.value});
 
@@ -1569,6 +1865,7 @@ class _MiniMetric extends StatelessWidget {
   }
 }
 
+/// 设备列表项，显示小车配置并允许切换连接。
 class _DeviceTile extends StatelessWidget {
   const _DeviceTile({required this.device, required this.onConnect});
 
@@ -1607,6 +1904,7 @@ class _DeviceTile extends StatelessWidget {
   }
 }
 
+/// 主文件内使用的标准内容面板，统一标题、边框和内边距。
 class _Panel extends StatelessWidget {
   const _Panel({required this.title, required this.child, this.trailing});
 
@@ -1648,6 +1946,7 @@ class _Panel extends StatelessWidget {
   }
 }
 
+/// 大型指标卡，用于航点数、路径长度等统计值。
 class _MetricCard extends StatelessWidget {
   const _MetricCard({
     required this.title,
@@ -1696,6 +1995,7 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
+/// 状态标签，文字和颜色由上层业务状态决定。
 class _StatusChip extends StatelessWidget {
   const _StatusChip({required this.text, required this.color});
 
@@ -1734,6 +2034,7 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
+/// 任务流程中的单个步骤和完成状态。
 class _MissionStep extends StatelessWidget {
   const _MissionStep({required this.title, required this.done});
 
@@ -1760,6 +2061,7 @@ class _MissionStep extends StatelessWidget {
   }
 }
 
+/// 简化的 ROS2 运行日志面板。
 class _LogPanel extends StatelessWidget {
   const _LogPanel();
 
@@ -1780,6 +2082,7 @@ class _LogPanel extends StatelessWidget {
   }
 }
 
+/// 一条带颜色状态点的日志。
 class _LogLine extends StatelessWidget {
   const _LogLine(this.time, this.text);
 
@@ -1809,6 +2112,7 @@ class _LogLine extends StatelessWidget {
   }
 }
 
+/// 方向控制区，将按钮点击映射为线速度和角速度。
 class _Joystick extends StatelessWidget {
   const _Joystick();
 
@@ -1847,6 +2151,7 @@ class _Joystick extends StatelessWidget {
   }
 }
 
+/// 带图标的通用指令按钮。
 class _CommandButton extends StatelessWidget {
   const _CommandButton({
     required this.label,
@@ -1868,6 +2173,7 @@ class _CommandButton extends StatelessWidget {
   }
 }
 
+/// 任务列表项，展示业务名称、ROS2 模块名和运行状态。
 class _TaskTile extends StatelessWidget {
   const _TaskTile(this.title, this.subtitle, this.done);
 
@@ -1889,6 +2195,7 @@ class _TaskTile extends StatelessWidget {
   }
 }
 
+/// ROS2 Topic 名称与消息类型说明行。
 class _TopicRow extends StatelessWidget {
   const _TopicRow(this.topic, this.type);
 
@@ -1907,6 +2214,7 @@ class _TopicRow extends StatelessWidget {
   }
 }
 
+/// 设置页中的键值配置行。
 class _ConfigRow extends StatelessWidget {
   const _ConfigRow(this.label, this.value);
 
@@ -1938,6 +2246,7 @@ class _ConfigRow extends StatelessWidget {
   }
 }
 
+/// 带图标、标题和说明的信息行。
 class _InfoRow extends StatelessWidget {
   const _InfoRow(this.icon, this.title, this.desc);
 
@@ -1956,6 +2265,7 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
+/// 添加设备表单使用的统一输入框。
 class _Field extends StatelessWidget {
   const _Field({
     required this.label,
@@ -1997,6 +2307,12 @@ InputDecoration _inputDecoration(String label, IconData icon) {
   );
 }
 
+// -----------------------------------------------------------------------------
+// Canvas 地图与路径演示绘制
+// -----------------------------------------------------------------------------
+
+/// 绘制完整地图、网格、路径、小车和终点。
+/// 要接入真实地图时，应将路径点、位姿和地图数据作为构造参数传入。
 class _MapPainter extends CustomPainter {
   _MapPainter({required this.lineRunning});
 
@@ -2093,97 +2409,7 @@ class _MapPainter extends CustomPainter {
       oldDelegate.lineRunning != lineRunning;
 }
 
-class _MiniOverviewPainter extends CustomPainter {
-  _MiniOverviewPainter({required this.lineRunning});
-
-  final bool lineRunning;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final bg = Paint()..color = const Color(0xff0f172a);
-    final border = Paint()
-      ..color = const Color(0xff22304a)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    final rect = RRect.fromRectAndRadius(
-      Offset.zero & size,
-      const Radius.circular(18),
-    );
-    canvas.drawRRect(rect, bg);
-    canvas.drawRRect(rect, border);
-
-    final grid = Paint()
-      ..color = const Color(0x3322304a)
-      ..strokeWidth = 1;
-    for (double x = 18; x < size.width; x += 28) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), grid);
-    }
-    for (double y = 18; y < size.height; y += 28) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
-    }
-
-    final path = Path()
-      ..moveTo(size.width * .12, size.height * .72)
-      ..cubicTo(
-        size.width * .30,
-        size.height * .42,
-        size.width * .56,
-        size.height * .76,
-        size.width * .82,
-        size.height * .24,
-      );
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = const Color(0xff60a5fa)
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 4,
-    );
-
-    final mark = Paint()
-      ..color = lineRunning ? const Color(0xfff59e0b) : const Color(0xff22c55e)
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < 4; i++) {
-      canvas.drawLine(
-        Offset(size.width * .16, size.height * (.34 + i * .10)),
-        Offset(size.width * .40, size.height * (.30 + i * .10)),
-        mark,
-      );
-    }
-
-    final robot = Offset(size.width * .54, size.height * .54);
-    canvas.drawCircle(robot, 15, Paint()..color = const Color(0xff22c55e));
-    canvas.drawCircle(robot, 25, Paint()..color = const Color(0x2222c55e));
-    canvas.drawCircle(
-      Offset(size.width * .82, size.height * .24),
-      8,
-      Paint()..color = const Color(0xfff59e0b),
-    );
-
-    final labelPainter = TextPainter(
-      text: TextSpan(
-        text: lineRunning ? 'RUNNING' : 'READY',
-        style: TextStyle(
-          color: lineRunning
-              ? const Color(0xfffbbf24)
-              : const Color(0xff86efac),
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    labelPainter.paint(canvas, const Offset(14, 12));
-  }
-
-  @override
-  bool shouldRepaint(covariant _MiniOverviewPainter oldDelegate) {
-    return oldDelegate.lineRunning != lineRunning;
-  }
-}
-
+/// 底部导航项的简单数据模型。
 class _TabItem {
   const _TabItem(this.label, this.icon);
 

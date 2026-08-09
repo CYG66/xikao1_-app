@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -81,18 +82,29 @@ class _RoverHomePageState extends State<RoverHomePage> {
   int homeModule = 0;
   bool lineRunning = false;
   bool printerEnabled = true;
-  double speed = 0.34;
-  double lineWidth = 80;
+  double linearSpeed = 0.05;
+  double angularSpeed = 0.40;
   bool rosAvailable = false;
   bool backendOnline = false;
   bool controlReady = false;
+  bool driveDeviceConnected = false;
+  bool motorDriverReady = false;
+  String driveTransport = 'usb2can';
   bool missionNodesReady = false;
-  int? batteryPercent;
   double? linearVelocity;
   double? localizationAccuracyMm;
   Map<String, dynamic> robotPose = const {};
+  Map<String, dynamic> odometry = const {};
   Map<String, dynamic> reflectorPosition = const {};
-  String? printerStatus;
+  Map<String, dynamic> gridMap = const {};
+  List<Map<String, dynamic>> plannedPaths = const [];
+  Map<String, dynamic> printerStatus = const {};
+  String missionStage = 'idle';
+  String missionFile = 'test_pattern.json';
+  int? missionCurrentId;
+  int missionCompleted = 0;
+  int missionTotal = 0;
+  String missionError = '';
   String connectionMessage = '已加载默认设备，等待连接测试';
   BridgeState bridgeState = BridgeState.disconnected;
   WebSocket? socket;
@@ -127,7 +139,19 @@ class _RoverHomePageState extends State<RoverHomePage> {
       backendOnline &&
       missionNodesReady &&
       localizationReady &&
-      printerStatus != null;
+      centerPrinterConnected;
+
+  Map<String, dynamic> get centerPrinter =>
+      _asStringMap(printerStatus['printer_center']);
+
+  bool get centerPrinterConnected =>
+      centerPrinter['connected'] == true && centerPrinter['enabled'] == true;
+
+  String get centerPrinterLabel {
+    if (centerPrinter.isEmpty) return '未知';
+    return centerPrinter['status']?.toString() ??
+        (centerPrinter['connected'] == true ? '已连接' : '已断开');
+  }
 
   @override
   void dispose() {
@@ -145,6 +169,15 @@ class _RoverHomePageState extends State<RoverHomePage> {
     ];
 
     return Scaffold(
+      floatingActionButton: FloatingActionButton.small(
+        heroTag: 'agent_fab',
+        tooltip: '智能助手',
+        onPressed: _openAgentSheet,
+        backgroundColor: const Color(0xff2563eb),
+        foregroundColor: Colors.white,
+        child: const Icon(Icons.smart_toy_rounded),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: SafeArea(
         child: Column(
           children: [
@@ -195,14 +228,19 @@ class _RoverHomePageState extends State<RoverHomePage> {
         }
         return _MissionPage(
           lineRunning: lineRunning,
+          missionStage: missionStage,
+          missionFile: missionFile,
+          missionCurrentId: missionCurrentId,
+          completed: missionCompleted,
+          total: missionTotal,
+          error: missionError,
+          onFileChanged: (value) => setState(() => missionFile = value),
           onToggle: _toggleMission,
           onLnCommand: _sendLnCommand,
         );
       case 2:
         return _SettingsPage(
           device: activeDevice,
-          lineWidth: lineWidth,
-          onLineWidthChanged: (value) => setState(() => lineWidth = value),
           onAddDevice: _openAddDeviceSheet,
           bridgeState: bridgeState,
         );
@@ -218,17 +256,27 @@ class _RoverHomePageState extends State<RoverHomePage> {
         return _HomeModulePage(
           title: '地图与路径',
           onBack: () => setState(() => homeModule = 0),
-          child: _MapPage(lineRunning: lineRunning),
+          child: _MapPage(
+            connected: bridgeState == BridgeState.connected,
+            lineRunning: lineRunning,
+            gridMap: gridMap,
+            plannedPaths: plannedPaths,
+            robotPose: robotPose,
+          ),
         );
       case 2:
         return _HomeModulePage(
           title: '手动控制',
           onBack: () => setState(() => homeModule = 0),
           child: _ControlPage(
-            speed: speed,
+            linearSpeed: linearSpeed,
+            angularSpeed: angularSpeed,
             printerEnabled: printerEnabled,
-            onSpeedChanged: (value) => setState(() => speed = value),
-            onPrinterChanged: (value) => setState(() => printerEnabled = value),
+            onLinearSpeedChanged: (value) =>
+                setState(() => linearSpeed = value),
+            onAngularSpeedChanged: (value) =>
+                setState(() => angularSpeed = value),
+            onPrinterChanged: _setPrinterActive,
             onDriveCommand: _sendDriveCommand,
             onPrinterCommand: _sendPrinterCommand,
           ),
@@ -255,12 +303,14 @@ class _RoverHomePageState extends State<RoverHomePage> {
           bridgeState: bridgeState,
           rosAvailable: rosAvailable,
           controlReady: controlReady,
-          batteryPercent: batteryPercent,
+          driveDeviceConnected: driveDeviceConnected,
+          motorDriverReady: motorDriverReady,
+          driveTransport: driveTransport,
           linearVelocity: linearVelocity,
           localizationAccuracyMm: localizationAccuracyMm,
           robotPose: robotPose,
           localizationReady: localizationReady,
-          printerStatus: printerStatus,
+          printerStatus: centerPrinterLabel,
           missionReady: missionReady,
           onStartMission: _toggleMission,
           onAddDevice: _openAddDeviceSheet,
@@ -270,6 +320,54 @@ class _RoverHomePageState extends State<RoverHomePage> {
           onOpenDevices: () => setState(() => homeModule = 3),
         );
     }
+  }
+
+  Future<void> _openAgentSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: const Color(0xff0b1220),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => FractionallySizedBox(
+        heightFactor: 0.92,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 8, 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.smart_toy_rounded, color: Color(0xff60a5fa)),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      '智能助手',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: '关闭助手',
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _AgentPage(
+                device: activeDevice,
+                bridgeConnected: bridgeState == BridgeState.connected,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// 打开“添加设备”弹窗，保存后切换到新设备并尝试连接。
@@ -403,18 +501,28 @@ class _RoverHomePageState extends State<RoverHomePage> {
         rosAvailable = status['ros_available'] == true;
         backendOnline = status['online'] == true;
         controlReady = status['control_ready'] == true;
+        driveDeviceConnected = status['drive_device_connected'] == true;
+        motorDriverReady = status['motor_driver_ready'] == true;
+        driveTransport = status['drive_transport']?.toString() ?? 'usb2can';
         missionNodesReady = status['mission_nodes_ready'] == true;
-        batteryPercent = (status['battery'] as num?)?.round();
         linearVelocity = (status['linear_velocity'] as num?)?.toDouble();
         localizationAccuracyMm = (status['localization_accuracy_mm'] as num?)
             ?.toDouble();
         robotPose = _asStringMap(status['robot_pose']);
+        odometry = _asStringMap(status['odometry']);
         reflectorPosition = _asStringMap(status['reflector_position']);
-        final rawPrinter = status['printer_status']?.toString();
-        printerStatus =
-            rawPrinter == null || rawPrinter.isEmpty || rawPrinter == 'unknown'
-            ? null
-            : rawPrinter;
+        gridMap = _asStringMap(status['grid_map']);
+        plannedPaths = _asMapList(status['planned_paths']);
+        printerStatus = _asStringMap(status['printer_status']);
+        final center = _asStringMap(printerStatus['printer_center']);
+        if (center['enabled'] is bool) {
+          printerEnabled = center['enabled'] as bool;
+        }
+        missionStage = status['mission_stage']?.toString() ?? 'idle';
+        missionCurrentId = (status['mission_current_id'] as num?)?.toInt();
+        missionCompleted = (status['mission_completed'] as num?)?.toInt() ?? 0;
+        missionTotal = (status['mission_total'] as num?)?.toInt() ?? 0;
+        missionError = status['mission_error']?.toString() ?? '';
         if (status['mission_running'] is bool) {
           lineRunning = status['mission_running'] as bool;
         }
@@ -429,6 +537,11 @@ class _RoverHomePageState extends State<RoverHomePage> {
     return value is Map ? Map<String, dynamic>.from(value) : const {};
   }
 
+  List<Map<String, dynamic>> _asMapList(Object? value) {
+    if (value is! List) return const [];
+    return value.whereType<Map>().map(Map<String, dynamic>.from).toList();
+  }
+
   /// 连接成功后订阅 [AppConstants.coreTopics] 中的所有话题。
   void _subscribeCoreTopics() {
     for (final topic in AppConstants.coreTopics) {
@@ -438,12 +551,23 @@ class _RoverHomePageState extends State<RoverHomePage> {
 
   /// 将线速度和角速度转成 `/cmd_vel` 指令。
   void _sendDriveCommand(double linear, double angular) {
+    if ((linear != 0 || angular != 0) && !controlReady) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('USB2CAN 电机驱动尚未就绪')));
+      return;
+    }
     _sendBridge(RosMessages.cmdVel(linear, angular));
   }
 
   /// 调用喷码机指令，[action] 例如 `start_print` 或 `stop_print`。
   void _sendPrinterCommand(String action) {
     _sendBridge(RosMessages.printerCommand(action));
+  }
+
+  void _setPrinterActive(bool active) {
+    setState(() => printerEnabled = active);
+    _sendBridge(RosMessages.printerActive(active));
   }
 
   /// 发送 LN150 命令类型，其数字含义须与小车端定义一致。
@@ -471,12 +595,8 @@ class _RoverHomePageState extends State<RoverHomePage> {
       return;
     }
     final next = !lineRunning;
-    setState(() => lineRunning = next);
-    _sendBridge(RosMessages.missionControl(next));
-    if (next) {
-      _sendPrinterCommand('start_print');
-    } else {
-      _sendPrinterCommand('stop_print');
+    _sendBridge(RosMessages.missionControl(next, fileName: missionFile));
+    if (!next) {
       _sendDriveCommand(0, 0);
     }
   }
@@ -573,7 +693,9 @@ class _DashboardPage extends StatelessWidget {
     required this.bridgeState,
     required this.rosAvailable,
     required this.controlReady,
-    required this.batteryPercent,
+    required this.driveDeviceConnected,
+    required this.motorDriverReady,
+    required this.driveTransport,
     required this.linearVelocity,
     required this.localizationAccuracyMm,
     required this.robotPose,
@@ -593,12 +715,14 @@ class _DashboardPage extends StatelessWidget {
   final BridgeState bridgeState;
   final bool rosAvailable;
   final bool controlReady;
-  final int? batteryPercent;
+  final bool driveDeviceConnected;
+  final bool motorDriverReady;
+  final String driveTransport;
   final double? linearVelocity;
   final double? localizationAccuracyMm;
   final Map<String, dynamic> robotPose;
   final bool localizationReady;
-  final String? printerStatus;
+  final String printerStatus;
   final bool missionReady;
   final VoidCallback onStartMission;
   final VoidCallback onAddDevice;
@@ -688,8 +812,16 @@ class _DashboardPage extends StatelessWidget {
             onManageDevices: onOpenDevices,
           ),
         if (bridgeState == BridgeState.connected)
+          _DriveStatusPanel(
+            transport: driveTransport,
+            deviceConnected: driveDeviceConnected,
+            motorDriverReady: motorDriverReady,
+            controlReady: controlReady,
+          ),
+        if (bridgeState == BridgeState.connected) const SizedBox(height: 12),
+        if (bridgeState == BridgeState.connected)
           _MetricStrip(
-            batteryPercent: batteryPercent,
+            controlReady: controlReady,
             linearVelocity: linearVelocity,
             localizationAccuracyMm: localizationAccuracyMm,
             localizationReady: localizationReady,
@@ -733,7 +865,7 @@ class _DashboardPage extends StatelessWidget {
                 ),
                 _MissionStep(
                   title: '喷码同步',
-                  done: lineRunning && printerStatus != null,
+                  done: lineRunning && printerStatus != '未知',
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -1049,29 +1181,6 @@ class _DevicePage extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 14),
-        const _Panel(
-          title: '添加方式',
-          child: Column(
-            children: [
-              _InfoRow(
-                Icons.edit_location_alt_rounded,
-                '手动输入 IP',
-                '适合实验室局域网，默认连接 ws://小车IP:8000。',
-              ),
-              _InfoRow(
-                Icons.qr_code_scanner_rounded,
-                '扫码绑定',
-                '后续可扫描贴在小车上的二维码自动填入配置。',
-              ),
-              _InfoRow(
-                Icons.wifi_find_rounded,
-                '局域网发现',
-                '后续可通过 mDNS/UDP 广播发现在线小车。',
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -1091,7 +1200,7 @@ class _AddDeviceSheetState extends State<_AddDeviceSheet> {
   final ipController = TextEditingController(text: '192.168.0.100');
   final portController = TextEditingController(text: '8000');
   final domainController = TextEditingController(text: '0');
-  String type = 'FastAPI Backend';
+  static const String type = 'FastAPI Backend';
   String testStatus = '未测试';
   bool testing = false;
 
@@ -1166,32 +1275,7 @@ class _AddDeviceSheetState extends State<_AddDeviceSheet> {
               ],
             ),
             const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              initialValue: type,
-              decoration: _inputDecoration(
-                '连接类型',
-                Icons.wifi_tethering_rounded,
-              ),
-              items: const [
-                DropdownMenuItem(
-                  value: 'FastAPI Backend',
-                  child: Text('FastAPI Backend'),
-                ),
-                DropdownMenuItem(
-                  value: 'Foxglove Bridge',
-                  child: Text('Foxglove Bridge'),
-                ),
-                DropdownMenuItem(
-                  value: 'ROS2 Web Bridge',
-                  child: Text('ROS2 Web Bridge'),
-                ),
-                DropdownMenuItem(
-                  value: 'Mock Device',
-                  child: Text('Mock Device'),
-                ),
-              ],
-              onChanged: (value) => setState(() => type = value ?? type),
-            ),
+            const _ConfigRow('连接类型', 'FastAPI ROS2 Bridge'),
             const SizedBox(height: 12),
             Container(
               width: double.infinity,
@@ -1238,20 +1322,45 @@ class _AddDeviceSheetState extends State<_AddDeviceSheet> {
     );
   }
 
-  /// 表单内的连接检查。
-  /// 当前为 UI 流程检查；若要进行真实网络测试，应在此请求 `/health`。
+  /// 请求后端 `/health`，只有收到 `ok: true` 才判定连接测试成功。
   Future<void> _testConnection() async {
     setState(() {
       testing = true;
-      testStatus = '正在测试 Foxglove / ROS2 Bridge...';
+      testStatus = '正在检查 FastAPI ROS2 Bridge...';
     });
-    await Future<void>.delayed(const Duration(milliseconds: 900));
+    final ip = ipController.text.trim();
+    final port = int.tryParse(portController.text.trim());
+    String result;
+    if (ip.isEmpty || port == null) {
+      result = '失败：请填写有效的 IP 和端口';
+    } else {
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 3);
+      try {
+        final request = await client.getUrl(
+          Uri.parse('http://$ip:$port/health'),
+        );
+        final response = await request.close().timeout(
+          const Duration(seconds: 4),
+        );
+        final body = await utf8.decoder.bind(response).join();
+        final decoded = jsonDecode(body);
+        result =
+            response.statusCode == 200 &&
+                decoded is Map &&
+                decoded['ok'] == true
+            ? '测试通过：后端健康检查正常'
+            : '失败：后端响应无效';
+      } catch (error) {
+        result = '失败：无法访问后端';
+      } finally {
+        client.close(force: true);
+      }
+    }
     if (!mounted) return;
     setState(() {
       testing = false;
-      testStatus = ipController.text.trim().isEmpty
-          ? '失败：请填写机器人 IP'
-          : '测试通过：可保存设备';
+      testStatus = result;
     });
   }
 
@@ -1279,11 +1388,41 @@ class _AddDeviceSheetState extends State<_AddDeviceSheet> {
   }
 }
 
-/// 地图与划线路径页。当前由 [_MapPainter] 绘制演示地图。
+/// 地图与划线路径页，严格显示规划器发布的栅格、MarkerArray 和定位位姿。
 class _MapPage extends StatelessWidget {
-  const _MapPage({required this.lineRunning});
+  const _MapPage({
+    required this.connected,
+    required this.lineRunning,
+    required this.gridMap,
+    required this.plannedPaths,
+    required this.robotPose,
+  });
 
+  final bool connected;
   final bool lineRunning;
+  final Map<String, dynamic> gridMap;
+  final List<Map<String, dynamic>> plannedPaths;
+  final Map<String, dynamic> robotPose;
+
+  int get waypointCount => plannedPaths.fold<int>(
+    0,
+    (total, path) => total + ((path['points'] as List?)?.length ?? 0),
+  );
+
+  double get pathLength {
+    var total = 0.0;
+    for (final path in plannedPaths) {
+      final points = path['points'] as List? ?? const [];
+      for (var index = 1; index < points.length; index++) {
+        final a = points[index - 1] as List;
+        final b = points[index] as List;
+        final dx = (b[0] as num).toDouble() - (a[0] as num).toDouble();
+        final dy = (b[1] as num).toDouble() - (a[1] as num).toDouble();
+        total += Offset(dx, dy).distance;
+      }
+    }
+    return total;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1293,57 +1432,97 @@ class _MapPage extends StatelessWidget {
       children: [
         _Panel(
           title: '地图与划线路径',
-          trailing: const Text(
-            'grid_maps/site_a.yaml',
+          trailing: Text(
+            gridMap['frame_id']?.toString() ?? '等待 map frame',
             style: TextStyle(color: Color(0xff94a3b8), fontSize: 12),
           ),
           child: SizedBox(
             height: 390,
-            child: CustomPaint(painter: _MapPainter(lineRunning: lineRunning)),
+            child: !connected
+                ? const _MapEmptyState(text: '连接小车后显示规划地图')
+                : gridMap.isEmpty && plannedPaths.isEmpty
+                ? const _MapEmptyState(text: '等待路径规划器发布地图')
+                : ClipRect(
+                    child: InteractiveViewer(
+                      minScale: 0.7,
+                      maxScale: 8,
+                      boundaryMargin: const EdgeInsets.all(120),
+                      child: CustomPaint(
+                        size: const Size(700, 700),
+                        painter: _MapPainter(
+                          lineRunning: lineRunning,
+                          gridMap: gridMap,
+                          plannedPaths: plannedPaths,
+                          robotPose: robotPose,
+                        ),
+                      ),
+                    ),
+                  ),
           ),
         ),
         const SizedBox(height: 14),
-        const Row(
+        Row(
           children: [
             Expanded(
               child: _MetricCard(
                 title: '航点',
-                value: '12',
-                note: 'A* 路径',
+                value: waypointCount == 0 ? '--' : '$waypointCount',
+                note: '规划器轨迹点',
                 icon: Icons.timeline_rounded,
               ),
             ),
             SizedBox(width: 12),
             Expanded(
               child: _MetricCard(
-                title: '剩余',
-                value: '18.6m',
-                note: '划线长度',
+                title: '总长度',
+                value: pathLength == 0
+                    ? '--'
+                    : '${pathLength.toStringAsFixed(2)}m',
+                note: '真实规划路径',
                 icon: Icons.straighten_rounded,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 14),
-        const _LogPanel(),
       ],
     );
   }
 }
 
+class _MapEmptyState extends StatelessWidget {
+  const _MapEmptyState({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.map_outlined, size: 42, color: Color(0xff64748b)),
+        const SizedBox(height: 12),
+        Text(text, style: const TextStyle(color: Color(0xff94a3b8))),
+      ],
+    ),
+  );
+}
+
 /// 手动控制页：速度调节、方向控制和喷码机快捷指令。
 class _ControlPage extends StatelessWidget {
   const _ControlPage({
-    required this.speed,
-    required this.onSpeedChanged,
+    required this.linearSpeed,
+    required this.angularSpeed,
+    required this.onLinearSpeedChanged,
+    required this.onAngularSpeedChanged,
     required this.printerEnabled,
     required this.onPrinterChanged,
     required this.onDriveCommand,
     required this.onPrinterCommand,
   });
 
-  final double speed;
-  final ValueChanged<double> onSpeedChanged;
+  final double linearSpeed;
+  final double angularSpeed;
+  final ValueChanged<double> onLinearSpeedChanged;
+  final ValueChanged<double> onAngularSpeedChanged;
   final bool printerEnabled;
   final ValueChanged<bool> onPrinterChanged;
   final void Function(double linear, double angular) onDriveCommand;
@@ -1358,7 +1537,7 @@ class _ControlPage extends StatelessWidget {
         _Panel(
           title: '遥控底盘',
           trailing: const Text(
-            '/cmd_vel',
+            '/tablet_cmd_vel',
             style: TextStyle(color: Color(0xff94a3b8), fontSize: 12),
           ),
           child: Column(
@@ -1371,48 +1550,74 @@ class _ControlPage extends StatelessWidget {
                 runSpacing: 10,
                 alignment: WrapAlignment.center,
                 children: [
-                  _CommandButton(
+                  _DriveCommandButton(
                     label: '前进',
                     icon: Icons.arrow_upward_rounded,
-                    onPressed: () => onDriveCommand(speed, 0),
+                    onStart: () => onDriveCommand(linearSpeed, 0),
+                    onStop: () => onDriveCommand(0, 0),
                   ),
-                  _CommandButton(
+                  _DriveCommandButton(
                     label: '左转',
                     icon: Icons.turn_left_rounded,
-                    onPressed: () => onDriveCommand(0, speed),
+                    onStart: () => onDriveCommand(0, angularSpeed),
+                    onStop: () => onDriveCommand(0, 0),
                   ),
                   _CommandButton(
                     label: '停止',
                     icon: Icons.stop_rounded,
                     onPressed: () => onDriveCommand(0, 0),
                   ),
-                  _CommandButton(
+                  _DriveCommandButton(
                     label: '右转',
                     icon: Icons.turn_right_rounded,
-                    onPressed: () => onDriveCommand(0, -speed),
+                    onStart: () => onDriveCommand(0, -angularSpeed),
+                    onStop: () => onDriveCommand(0, 0),
                   ),
-                  _CommandButton(
+                  _DriveCommandButton(
                     label: '后退',
                     icon: Icons.arrow_downward_rounded,
-                    onPressed: () => onDriveCommand(-speed, 0),
+                    onStart: () => onDriveCommand(-linearSpeed, 0),
+                    onStop: () => onDriveCommand(0, 0),
                   ),
                 ],
               ),
               const SizedBox(height: 18),
               Row(
                 children: [
-                  const Text('速度限制'),
+                  const SizedBox(width: 72, child: Text('线速度')),
                   Expanded(
                     child: Slider(
-                      value: speed,
-                      min: 0.1,
-                      max: 1.2,
-                      divisions: 11,
-                      label: '${speed.toStringAsFixed(2)} m/s',
-                      onChanged: onSpeedChanged,
+                      value: linearSpeed,
+                      min: 0.01,
+                      max: 1.0,
+                      divisions: 99,
+                      label: '${linearSpeed.toStringAsFixed(2)} m/s',
+                      onChanged: onLinearSpeedChanged,
                     ),
                   ),
-                  Text('${speed.toStringAsFixed(2)}m/s'),
+                  SizedBox(
+                    width: 70,
+                    child: Text('${linearSpeed.toStringAsFixed(2)}m/s'),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  const SizedBox(width: 72, child: Text('角速度')),
+                  Expanded(
+                    child: Slider(
+                      value: angularSpeed,
+                      min: 0.1,
+                      max: 1.5,
+                      divisions: 14,
+                      label: '${angularSpeed.toStringAsFixed(1)} rad/s',
+                      onChanged: onAngularSpeedChanged,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 70,
+                    child: Text('${angularSpeed.toStringAsFixed(1)}rad/s'),
+                  ),
                 ],
               ),
             ],
@@ -1452,9 +1657,9 @@ class _ControlPage extends StatelessWidget {
                     onPressed: () => onPrinterCommand('start_print'),
                   ),
                   _CommandButton(
-                    label: '模拟打印',
+                    label: '测试打印',
                     icon: Icons.science_rounded,
-                    onPressed: () => onPrinterCommand('simulate'),
+                    onPressed: () => onPrinterCommand('test_print'),
                   ),
                   _CommandButton(
                     label: '停止打印',
@@ -1475,11 +1680,25 @@ class _ControlPage extends StatelessWidget {
 class _MissionPage extends StatelessWidget {
   const _MissionPage({
     required this.lineRunning,
+    required this.missionStage,
+    required this.missionFile,
+    required this.missionCurrentId,
+    required this.completed,
+    required this.total,
+    required this.error,
+    required this.onFileChanged,
     required this.onToggle,
     required this.onLnCommand,
   });
 
   final bool lineRunning;
+  final String missionStage;
+  final String missionFile;
+  final int? missionCurrentId;
+  final int completed;
+  final int total;
+  final String error;
+  final ValueChanged<String> onFileChanged;
   final VoidCallback onToggle;
   final ValueChanged<int> onLnCommand;
 
@@ -1492,16 +1711,56 @@ class _MissionPage extends StatelessWidget {
         _Panel(
           title: '划线任务编排',
           trailing: Text(
-            lineRunning ? '执行中' : '待启动',
+            _missionStageLabel(missionStage),
             style: const TextStyle(color: Color(0xff94a3b8)),
           ),
           child: Column(
             children: [
-              _TaskTile('导入 CAD / DXF 路径', 'cad/line_task_0728.dxf', true),
-              _TaskTile('生成划线路径', 'xline_path_planner', true),
-              _TaskTile('LN150 定位闭环', '/reflector_position', true),
-              _TaskTile('底盘跟随控制', 'xline_base_controller', lineRunning),
-              _TaskTile('喷码机同步喷印', 'xline_inkjet_printer', lineRunning),
+              DropdownButtonFormField<String>(
+                initialValue: missionFile,
+                decoration: _inputDecoration(
+                  'CAD 转换任务',
+                  Icons.description_rounded,
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'test_pattern.json',
+                    child: Text('test_pattern.json'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'huanong_skeleton.json',
+                    child: Text('huanong_skeleton.json'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'square_image.json',
+                    child: Text('square_image.json'),
+                  ),
+                ],
+                onChanged: lineRunning
+                    ? null
+                    : (value) {
+                        if (value != null) onFileChanged(value);
+                      },
+              ),
+              const SizedBox(height: 12),
+              _TaskTile(
+                '路径规划',
+                '/plan_path',
+                missionStage != 'idle' && missionStage != 'failed',
+              ),
+              _TaskTile('定位闭环', '/robot_pose', lineRunning || completed > 0),
+              _TaskTile('路径执行', '/execute_plan', lineRunning || completed > 0),
+              _TaskTile(
+                '执行进度',
+                total == 0
+                    ? '等待规划结果'
+                    : '$completed / $total · 当前 ID ${missionCurrentId ?? '--'}',
+                missionStage == 'completed',
+              ),
+              if (error.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(error, style: const TextStyle(color: Color(0xffef4444))),
+              ],
               const SizedBox(height: 10),
               Wrap(
                 spacing: 10,
@@ -1530,11 +1789,9 @@ class _MissionPage extends StatelessWidget {
                 child: FilledButton.icon(
                   onPressed: onToggle,
                   icon: Icon(
-                    lineRunning
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
+                    lineRunning ? Icons.stop_rounded : Icons.play_arrow_rounded,
                   ),
-                  label: Text(lineRunning ? '暂停任务' : '执行任务'),
+                  label: Text(lineRunning ? '取消并停车' : '规划并执行'),
                 ),
               ),
             ],
@@ -1548,8 +1805,351 @@ class _MissionPage extends StatelessWidget {
               _TopicRow('/imu', 'sensor_msgs/Imu'),
               _TopicRow('/robot_pose', 'geometry_msgs/PoseStamped'),
               _TopicRow('/reflector_position', 'geometry_msgs/PointStamped'),
-              _TopicRow('/cmd_vel', 'geometry_msgs/Twist'),
+              _TopicRow('/plan_path', 'xline_path_planner/PlanPath'),
+              _TopicRow('/execute_plan', 'xline_msgs/ExecutePlan'),
+              _TopicRow('/tablet_cmd_vel', 'geometry_msgs/Twist'),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  static String _missionStageLabel(String stage) {
+    const labels = {
+      'idle': '待启动',
+      'planning': '规划中',
+      'executing': '执行中',
+      'completed': '已完成',
+      'cancelled': '已取消',
+      'failed': '失败',
+    };
+    return labels[stage] ?? stage;
+  }
+}
+
+/// 设置页：查看当前设备并调整划线宽度等 App 参数。
+class _AgentPage extends StatefulWidget {
+  const _AgentPage({required this.device, required this.bridgeConnected});
+
+  final RoverDevice device;
+  final bool bridgeConnected;
+
+  @override
+  State<_AgentPage> createState() => _AgentPageState();
+}
+
+class _AgentPageState extends State<_AgentPage> {
+  final TextEditingController _controller = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final List<_AgentChatItem> _messages = [
+    const _AgentChatItem(
+      role: 'assistant',
+      content: '我可以检查设备状态、解释故障、规划操作，并在你确认后调用机器人工具。',
+    ),
+  ];
+  bool _sending = false;
+  int _inputTokens = 0;
+  int _outputTokens = 0;
+
+  int get _totalTokens => _inputTokens + _outputTokens;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send([String? suggested]) async {
+    final text = (suggested ?? _controller.text).trim();
+    if (text.isEmpty || _sending) return;
+    if (!widget.bridgeConnected) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请先连接小车后端')));
+      return;
+    }
+
+    final history = _messages
+        .where((item) => item.content.isNotEmpty)
+        .map((item) => {'role': item.role, 'content': item.content})
+        .toList();
+    setState(() {
+      _messages.add(_AgentChatItem(role: 'user', content: text));
+      _controller.clear();
+      _sending = true;
+    });
+    _scrollToBottom();
+
+    try {
+      final result = await _post('/api/agent/chat', {
+        'message': text,
+        'history': history,
+      });
+      final usage = result['usage'] is Map
+          ? Map<String, dynamic>.from(result['usage'] as Map)
+          : const <String, dynamic>{};
+      final pending = result['pending_action'] is Map
+          ? Map<String, dynamic>.from(result['pending_action'] as Map)
+          : null;
+      if (!mounted) return;
+      setState(() {
+        _inputTokens += (usage['input_tokens'] as num?)?.toInt() ?? 0;
+        _outputTokens += (usage['output_tokens'] as num?)?.toInt() ?? 0;
+        _messages.add(
+          _AgentChatItem(
+            role: 'assistant',
+            content: result['message']?.toString() ?? '助手没有返回内容。',
+            pendingAction: pending,
+            isError: result['ok'] != true,
+          ),
+        );
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _messages.add(
+          _AgentChatItem(
+            role: 'assistant',
+            content: '请求失败：$error',
+            isError: true,
+          ),
+        );
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _sending = false);
+        _scrollToBottom();
+      }
+    }
+  }
+
+  Future<void> _confirm(Map<String, dynamic> action, bool approved) async {
+    final id = action['id']?.toString();
+    if (id == null || _sending) return;
+    setState(() => _sending = true);
+    try {
+      final result = await _post('/api/agent/confirm', {
+        'action_id': id,
+        'approved': approved,
+      });
+      if (!mounted) return;
+      setState(() {
+        for (var index = 0; index < _messages.length; index++) {
+          if (_messages[index].pendingAction?['id'] == id) {
+            _messages[index] = _messages[index].copyWith(pendingAction: null);
+          }
+        }
+        _messages.add(
+          _AgentChatItem(
+            role: 'assistant',
+            content: result['message']?.toString() ?? '操作已处理。',
+            isError: result['ok'] != true,
+          ),
+        );
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _messages.add(
+          _AgentChatItem(
+            role: 'assistant',
+            content: '确认失败：$error',
+            isError: true,
+          ),
+        );
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _sending = false);
+        _scrollToBottom();
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> _post(
+    String path,
+    Map<String, Object?> body,
+  ) async {
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+    try {
+      final request = await client.postUrl(
+        Uri.parse('http://${widget.device.ip}:${widget.device.port}$path'),
+      );
+      request.headers.contentType = ContentType.json;
+      request.write(jsonEncode(body));
+      final response = await request.close().timeout(
+        const Duration(seconds: 55),
+      );
+      final raw = await response.transform(utf8.decoder).join();
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) throw const FormatException('后端响应格式错误');
+      if (response.statusCode >= 400) {
+        throw HttpException(
+          decoded['detail']?.toString() ?? 'HTTP ${response.statusCode}',
+        );
+      }
+      return Map<String, dynamic>.from(decoded);
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const suggestions = ['检查小车是否可以开始任务', '解释当前未就绪的原因', '规划一个 5×3 米矩形'];
+    return Column(
+      children: [
+        Container(
+          margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xff111827),
+            border: Border.all(color: const Color(0xff22304a)),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.smart_toy_rounded, color: Color(0xff60a5fa)),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'XLine Agent',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    Text(
+                      '建议可直接查看，设备操作需要确认',
+                      style: TextStyle(color: Color(0xff94a3b8), fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              _StatusChip(
+                text: widget.bridgeConnected ? '在线' : '离线',
+                color: widget.bridgeConnected
+                    ? const Color(0xff22c55e)
+                    : const Color(0xff64748b),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView(
+            controller: _scrollController,
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+            children: [
+              if (_messages.length == 1)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final suggestion in suggestions)
+                      ActionChip(
+                        avatar: const Icon(
+                          Icons.auto_awesome_rounded,
+                          size: 16,
+                        ),
+                        label: Text(suggestion),
+                        onPressed: () => _send(suggestion),
+                      ),
+                  ],
+                ),
+              if (_messages.length == 1) const SizedBox(height: 14),
+              for (final message in _messages)
+                _AgentBubble(
+                  item: message,
+                  onConfirm: message.pendingAction == null
+                      ? null
+                      : (approved) =>
+                            _confirm(message.pendingAction!, approved),
+                ),
+              if (_sending)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 10),
+                      Text('正在分析机器人状态…'),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+          decoration: const BoxDecoration(
+            color: Color(0xff0f172a),
+            border: Border(top: BorderSide(color: Color(0xff22304a))),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        enabled: !_sending,
+                        minLines: 1,
+                        maxLines: 4,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _send(),
+                        decoration: _inputDecoration(
+                          '输入任务或问题',
+                          Icons.chat_bubble_outline_rounded,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    IconButton.filled(
+                      tooltip: '发送',
+                      onPressed: _sending ? null : _send,
+                      icon: const Icon(Icons.send_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.token_rounded,
+                      size: 15,
+                      color: Color(0xff64748b),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      '输入 $_inputTokens · 输出 $_outputTokens · 总计 $_totalTokens tokens',
+                      style: const TextStyle(
+                        color: Color(0xff64748b),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -1557,19 +2157,122 @@ class _MissionPage extends StatelessWidget {
   }
 }
 
-/// 设置页：查看当前设备并调整划线宽度等 App 参数。
+class _AgentChatItem {
+  const _AgentChatItem({
+    required this.role,
+    required this.content,
+    this.pendingAction,
+    this.isError = false,
+  });
+
+  final String role;
+  final String content;
+  final Map<String, dynamic>? pendingAction;
+  final bool isError;
+
+  _AgentChatItem copyWith({Map<String, dynamic>? pendingAction}) {
+    return _AgentChatItem(
+      role: role,
+      content: content,
+      pendingAction: pendingAction,
+      isError: isError,
+    );
+  }
+}
+
+class _AgentBubble extends StatelessWidget {
+  const _AgentBubble({required this.item, this.onConfirm});
+
+  final _AgentChatItem item;
+  final ValueChanged<bool>? onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    final user = item.role == 'user';
+    final color = item.isError
+        ? const Color(0xff3b1720)
+        : user
+        ? const Color(0xff1d4ed8)
+        : const Color(0xff111827);
+    return Align(
+      alignment: user ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 620),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: color,
+          border: Border.all(
+            color: item.isError
+                ? const Color(0xffef4444)
+                : const Color(0xff22304a),
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(item.content, style: const TextStyle(height: 1.45)),
+            if (item.pendingAction != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xff0b1220),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.build_circle_outlined,
+                      color: Color(0xfff59e0b),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        item.pendingAction!['label']?.toString() ?? '机器人操作',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => onConfirm?.call(false),
+                      child: const Text('取消'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => onConfirm?.call(true),
+                      icon: const Icon(Icons.check_rounded),
+                      label: const Text('确认执行'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
     required this.device,
-    required this.lineWidth,
-    required this.onLineWidthChanged,
     required this.onAddDevice,
     required this.bridgeState,
   });
 
   final RoverDevice device;
-  final double lineWidth;
-  final ValueChanged<double> onLineWidthChanged;
   final VoidCallback onAddDevice;
   final BridgeState bridgeState;
 
@@ -1597,33 +2300,360 @@ class _SettingsPage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
-        _Panel(
-          title: '划线参数',
+        const _Panel(
+          title: 'ROS2 接口',
           child: Column(
             children: [
-              Row(
-                children: [
-                  const Text('线宽'),
-                  Expanded(
-                    child: Slider(
-                      value: lineWidth,
-                      min: 40,
-                      max: 160,
-                      divisions: 12,
-                      label: '${lineWidth.round()} mm',
-                      onChanged: onLineWidthChanged,
-                    ),
-                  ),
-                  Text('${lineWidth.round()}mm'),
-                ],
-              ),
-              const _ConfigRow('喷码高度', '≤ 15mm'),
-              const _ConfigRow('定位来源', 'LN150 + IMU'),
-              const _ConfigRow('控制模式', '自动 / 手动'),
+              _ConfigRow('定位来源', 'LN150 + IMU'),
+              _ConfigRow('手动控制', '/tablet_cmd_vel'),
+              _ConfigRow('路径规划', '/plan_path'),
+              _ConfigRow('任务执行', '/execute_plan'),
             ],
           ),
         ),
+        const SizedBox(height: 14),
+        _AiSettingsPanel(
+          device: device,
+          bridgeConnected: bridgeState == BridgeState.connected,
+        ),
       ],
+    );
+  }
+}
+
+class _AiSettingsPanel extends StatefulWidget {
+  const _AiSettingsPanel({required this.device, required this.bridgeConnected});
+
+  final RoverDevice device;
+  final bool bridgeConnected;
+
+  @override
+  State<_AiSettingsPanel> createState() => _AiSettingsPanelState();
+}
+
+class _AiSettingsPanelState extends State<_AiSettingsPanel> {
+  static const Map<String, String> providerLabels = {
+    'openai': 'OpenAI',
+    'anthropic': 'Claude（Anthropic）',
+    'gemini': 'Gemini（Google）',
+    'deepseek': 'DeepSeek',
+    'qwen': '通义千问（Qwen）',
+    'kimi': 'Kimi（月之暗面）',
+    'glm': '智谱 GLM',
+    'minimax': 'MiniMax',
+    'local': '本地诊断助手（零 Token）',
+  };
+
+  static const Map<String, List<String>> modelsByProvider = {
+    'openai': ['gpt-5.1', 'gpt-5-mini', 'gpt-5-nano', 'gpt-4.1'],
+    'anthropic': ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'],
+    'gemini': [
+      'gemini-3.6-flash',
+      'gemini-3.5-flash',
+      'gemini-3.1-pro-preview',
+      'gemini-2.5-pro',
+    ],
+    'deepseek': ['deepseek-v4-pro', 'deepseek-v4-flash'],
+    'qwen': ['qwen3.7-max', 'qwen3.7-plus', 'qwen3.6-flash'],
+    'kimi': ['kimi-k2.5', 'kimi-k2-thinking', 'moonshot-v1-auto'],
+    'glm': ['glm-5', 'glm-4.7', 'glm-4.5-air'],
+    'minimax': ['MiniMax-M2.7', 'MiniMax-M2.7-highspeed', 'MiniMax-M2.5'],
+    'local': ['xline-local-diagnostics'],
+  };
+
+  final TextEditingController apiKeyController = TextEditingController();
+  String mode = 'openai';
+  String model = 'gpt-5.1';
+  bool apiKeyConfigured = false;
+  Set<String> configuredProviders = {};
+  bool showApiKey = false;
+  bool loading = false;
+  String message = '连接小车后读取 AI 配置';
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.bridgeConnected) unawaited(_load());
+  }
+
+  @override
+  void didUpdateWidget(covariant _AiSettingsPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.bridgeConnected && widget.bridgeConnected) {
+      unawaited(_load());
+    }
+  }
+
+  @override
+  void dispose() {
+    apiKeyController.dispose();
+    super.dispose();
+  }
+
+  Future<Map<String, dynamic>> _request(String method, {Object? body}) async {
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+    try {
+      final uri = Uri.parse(
+        'http://${widget.device.ip}:${widget.device.port}/api/agent/config',
+      );
+      final request = method == 'GET'
+          ? await client.getUrl(uri)
+          : await client.postUrl(uri);
+      request.headers.contentType = ContentType.json;
+      if (body != null) request.write(jsonEncode(body));
+      final response = await request.close().timeout(
+        const Duration(seconds: 6),
+      );
+      final text = await utf8.decoder.bind(response).join();
+      final decoded = jsonDecode(text);
+      if (response.statusCode != 200 || decoded is! Map) {
+        throw const FormatException('AI 配置响应无效');
+      }
+      return Map<String, dynamic>.from(decoded);
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  Future<void> _load() async {
+    setState(() => loading = true);
+    try {
+      final result = await _request('GET');
+      if (!mounted) return;
+      setState(() {
+        final loadedMode = result['mode']?.toString() ?? 'openai';
+        mode = modelsByProvider.containsKey(loadedMode) ? loadedMode : 'openai';
+        final loadedModel = result['model']?.toString();
+        model = modelsByProvider[mode]!.contains(loadedModel)
+            ? loadedModel!
+            : modelsByProvider[mode]!.first;
+        apiKeyConfigured = result['api_key_configured'] == true;
+        configuredProviders = ((result['configured_providers'] as List?) ?? const [])
+            .map((item) => item.toString())
+            .toSet();
+        message = '配置已同步';
+      });
+    } catch (_) {
+      if (mounted) setState(() => message = '无法读取后端 AI 配置');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _save() async {
+    if (!widget.bridgeConnected) {
+      setState(() => message = '请先连接小车');
+      return;
+    }
+    setState(() {
+      loading = true;
+      message = '正在保存...';
+    });
+    try {
+      final result = await _request(
+        'POST',
+        body: {
+          'mode': mode,
+          'model': model,
+          if (apiKeyController.text.trim().isNotEmpty)
+            'api_key': apiKeyController.text.trim(),
+          'clear_api_key': false,
+        },
+      );
+      if (!mounted) return;
+      setState(() {
+        apiKeyConfigured = result['api_key_configured'] == true;
+        configuredProviders = ((result['configured_providers'] as List?) ?? const [])
+            .map((item) => item.toString())
+            .toSet();
+        apiKeyController.clear();
+        message = 'AI 配置已保存';
+      });
+    } catch (_) {
+      if (mounted) setState(() => message = '保存失败，请检查后端连接');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+
+  Future<void> _clearApiKey() async {
+    if (!widget.bridgeConnected) {
+      setState(() => message = '请先连接小车');
+      return;
+    }
+    setState(() => loading = true);
+    try {
+      final result = await _request(
+        'POST',
+        body: {
+          'mode': mode,
+          'model': model,
+          'clear_api_key': true,
+        },
+      );
+      if (!mounted) return;
+      setState(() {
+        apiKeyConfigured = result['api_key_configured'] == true;
+        configuredProviders = ((result['configured_providers'] as List?) ?? const [])
+            .map((item) => item.toString())
+            .toSet();
+        apiKeyController.clear();
+        message = 'API Key 已清除';
+      });
+    } catch (_) {
+      if (mounted) setState(() => message = '清除失败，请检查后端连接');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _testConnection() async {
+    if (!widget.bridgeConnected) {
+      setState(() => message = '请先连接小车');
+      return;
+    }
+    setState(() {
+      loading = true;
+      message = '正在测试 AI 服务...';
+    });
+    try {
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+      final request = await client.postUrl(
+        Uri.parse('http://${widget.device.ip}:${widget.device.port}/api/agent/test'),
+      );
+      request.headers.contentType = ContentType.json;
+      final response = await request.close().timeout(const Duration(seconds: 18));
+      final result = jsonDecode(await utf8.decoder.bind(response).join());
+      client.close(force: true);
+      if (!mounted) return;
+      setState(() => message = result is Map
+          ? result['message']?.toString() ?? '测试完成'
+          : 'AI 服务响应无效');
+    } catch (_) {
+      if (mounted) setState(() => message = '测试失败，请检查网络和后端');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cloudProvider = mode != 'local';
+    final serviceReady = !cloudProvider || apiKeyConfigured;
+    final availableModels = modelsByProvider[mode]!;
+    return _Panel(
+      title: 'AI 服务',
+      trailing: _StatusChip(
+        text: serviceReady ? '可用' : '缺少 API Key',
+        color: serviceReady ? const Color(0xff22c55e) : const Color(0xfff59e0b),
+      ),
+      child: Column(
+        children: [
+          DropdownButtonFormField<String>(
+            key: ValueKey('agent-mode-$mode'),
+            initialValue: mode,
+            decoration: _inputDecoration('AI 类型', Icons.psychology_rounded),
+            items: providerLabels.entries
+                .map(
+                  (entry) => DropdownMenuItem(
+                    value: entry.key,
+                    child: Text(
+                      configuredProviders.contains(entry.key)
+                          ? '${entry.value}  ·  已配置'
+                          : entry.value,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: loading
+                ? null
+                : (value) => setState(() {
+                    mode = value ?? mode;
+                    model = modelsByProvider[mode]!.first;
+                    apiKeyConfigured = configuredProviders.contains(mode);
+                    apiKeyController.clear();
+                    message = mode == 'local' ? '本地模式无需密钥' : '请选择模型并保存配置';
+                  }),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            key: ValueKey('agent-model-$model-$mode'),
+            initialValue: availableModels.contains(model) ? model : availableModels.first,
+            decoration: _inputDecoration('模型', Icons.memory_rounded),
+            items: availableModels
+                .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+                .toList(),
+            onChanged: !loading
+                ? (value) => setState(() => model = value ?? model)
+                : null,
+          ),
+          const SizedBox(height: 10),
+          if (cloudProvider) ...[
+            TextField(
+              controller: apiKeyController,
+              obscureText: !showApiKey,
+              enableSuggestions: false,
+              autocorrect: false,
+              decoration: _inputDecoration(
+                apiKeyConfigured ? 'API Key（已配置，留空则保持）' : 'API Key',
+                Icons.key_rounded,
+              ).copyWith(
+                suffixIcon: IconButton(
+                  tooltip: showApiKey ? '隐藏 API Key' : '显示 API Key',
+                  onPressed: () => setState(() => showApiKey = !showApiKey),
+                  icon: Icon(showApiKey ? Icons.visibility_off : Icons.visibility),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            _ConfigRow('密钥状态', apiKeyConfigured ? '已安全保存在小车' : '未配置'),
+          ],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              message,
+              style: const TextStyle(color: Color(0xff94a3b8)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: loading ? null : _testConnection,
+                  icon: const Icon(Icons.wifi_tethering_rounded),
+                  label: const Text('测试连接'),
+                ),
+              ),
+              if (cloudProvider && apiKeyConfigured) ...[
+                const SizedBox(width: 10),
+                IconButton.outlined(
+                  tooltip: '清除 API Key',
+                  onPressed: loading ? null : _clearApiKey,
+                  icon: const Icon(Icons.delete_outline_rounded),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: loading ? null : _save,
+              icon: loading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_rounded),
+              label: const Text('保存 AI 配置'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1678,20 +2708,54 @@ class _CompactDeviceRow extends StatelessWidget {
 }
 
 /// 首页遥测指标条。所有值均来自后端状态，未上报时显示未知状态。
+class _DriveStatusPanel extends StatelessWidget {
+  const _DriveStatusPanel({
+    required this.transport,
+    required this.deviceConnected,
+    required this.motorDriverReady,
+    required this.controlReady,
+  });
+
+  final String transport;
+  final bool deviceConnected;
+  final bool motorDriverReady;
+  final bool controlReady;
+
+  @override
+  Widget build(BuildContext context) {
+    final ready = controlReady;
+    return _Panel(
+      title: '底盘驱动',
+      trailing: _StatusChip(
+        text: ready ? '可控制' : '未就绪',
+        color: ready ? const Color(0xff22c55e) : const Color(0xfff59e0b),
+      ),
+      child: Column(
+        children: [
+          _ConfigRow('通信方式', transport.toUpperCase()),
+          _ConfigRow('电机型号', 'M1505'),
+          _ConfigRow('USB2CAN', deviceConnected ? '已识别' : '未识别'),
+          _ConfigRow('电机节点', motorDriverReady ? '运行中' : '未运行'),
+        ],
+      ),
+    );
+  }
+}
+
 class _MetricStrip extends StatelessWidget {
   const _MetricStrip({
-    required this.batteryPercent,
+    required this.controlReady,
     required this.linearVelocity,
     required this.localizationAccuracyMm,
     required this.localizationReady,
     required this.printerStatus,
   });
 
-  final int? batteryPercent;
+  final bool controlReady;
   final double? linearVelocity;
   final double? localizationAccuracyMm;
   final bool localizationReady;
-  final String? printerStatus;
+  final String printerStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -1703,10 +2767,7 @@ class _MetricStrip extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: _MiniMetric(
-            label: '电量',
-            value: batteryPercent == null ? '--' : '$batteryPercent%',
-          ),
+          child: _MiniMetric(label: '底盘', value: controlReady ? '已就绪' : '未就绪'),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -1723,7 +2784,7 @@ class _MetricStrip extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _MiniMetric(label: '喷码', value: printerStatus ?? '未知'),
+          child: _MiniMetric(label: '喷码', value: printerStatus),
         ),
       ],
     );
@@ -2061,57 +3122,6 @@ class _MissionStep extends StatelessWidget {
   }
 }
 
-/// 简化的 ROS2 运行日志面板。
-class _LogPanel extends StatelessWidget {
-  const _LogPanel();
-
-  @override
-  Widget build(BuildContext context) {
-    return const _Panel(
-      title: '运行日志',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _LogLine('12:01', 'LN150 初始化完成，开始自动追踪。'),
-          _LogLine('12:02', '加载 CAD 任务，生成 12 个航点。'),
-          _LogLine('12:03', '定位融合启动，发布 /robot_pose。'),
-          _LogLine('12:05', '等待 start_print 指令。'),
-        ],
-      ),
-    );
-  }
-}
-
-/// 一条带颜色状态点的日志。
-class _LogLine extends StatelessWidget {
-  const _LogLine(this.time, this.text);
-
-  final String time;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(
-        children: [
-          Text(
-            time,
-            style: const TextStyle(
-              color: Color(0xff60a5fa),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(text, style: const TextStyle(color: Color(0xffcbd5e1))),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// 方向控制区，将按钮点击映射为线速度和角速度。
 class _Joystick extends StatelessWidget {
   const _Joystick();
@@ -2152,6 +3162,62 @@ class _Joystick extends StatelessWidget {
 }
 
 /// 带图标的通用指令按钮。
+class _DriveCommandButton extends StatefulWidget {
+  const _DriveCommandButton({
+    required this.label,
+    required this.icon,
+    required this.onStart,
+    required this.onStop,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onStart;
+  final VoidCallback onStop;
+
+  @override
+  State<_DriveCommandButton> createState() => _DriveCommandButtonState();
+}
+
+class _DriveCommandButtonState extends State<_DriveCommandButton> {
+  Timer? _repeatTimer;
+
+  void _start() {
+    _repeatTimer?.cancel();
+    widget.onStart();
+    _repeatTimer = Timer.periodic(
+      const Duration(milliseconds: 100),
+      (_) => widget.onStart(),
+    );
+  }
+
+  void _stop() {
+    _repeatTimer?.cancel();
+    _repeatTimer = null;
+    widget.onStop();
+  }
+
+  @override
+  void dispose() {
+    _repeatTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: (_) => _start(),
+      onPointerUp: (_) => _stop(),
+      onPointerCancel: (_) => _stop(),
+      child: OutlinedButton.icon(
+        onPressed: () {},
+        icon: Icon(widget.icon),
+        label: Text(widget.label),
+      ),
+    );
+  }
+}
+
 class _CommandButton extends StatelessWidget {
   const _CommandButton({
     required this.label,
@@ -2246,25 +3312,6 @@ class _ConfigRow extends StatelessWidget {
   }
 }
 
-/// 带图标、标题和说明的信息行。
-class _InfoRow extends StatelessWidget {
-  const _InfoRow(this.icon, this.title, this.desc);
-
-  final IconData icon;
-  final String title;
-  final String desc;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: const Color(0xff60a5fa)),
-      title: Text(title),
-      subtitle: Text(desc),
-    );
-  }
-}
-
 /// 添加设备表单使用的统一输入框。
 class _Field extends StatelessWidget {
   const _Field({
@@ -2308,105 +3355,136 @@ InputDecoration _inputDecoration(String label, IconData icon) {
 }
 
 // -----------------------------------------------------------------------------
-// Canvas 地图与路径演示绘制
+// ROS2 栅格地图与规划路径绘制
 // -----------------------------------------------------------------------------
 
-/// 绘制完整地图、网格、路径、小车和终点。
-/// 要接入真实地图时，应将路径点、位姿和地图数据作为构造参数传入。
+/// 数据源严格对应 xline_path_planner 的 foxglove/grid_map、
+/// foxglove/planned_paths，以及 xline_localization 的 /robot_pose。
 class _MapPainter extends CustomPainter {
-  _MapPainter({required this.lineRunning});
+  _MapPainter({
+    required this.lineRunning,
+    required this.gridMap,
+    required this.plannedPaths,
+    required this.robotPose,
+  });
 
   final bool lineRunning;
+  final Map<String, dynamic> gridMap;
+  final List<Map<String, dynamic>> plannedPaths;
+  final Map<String, dynamic> robotPose;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final gridPaint = Paint()
-      ..color = const Color(0xff22304a)
-      ..strokeWidth = 1;
-    for (double x = 0; x < size.width; x += 28) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-    }
-    for (double y = 0; y < size.height; y += 28) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xff07111f),
+    );
+    final width = (gridMap['width'] as num?)?.toInt() ?? 0;
+    final height = (gridMap['height'] as num?)?.toInt() ?? 0;
+    final resolution = (gridMap['resolution'] as num?)?.toDouble() ?? 0;
+    final originX = (gridMap['origin_x'] as num?)?.toDouble() ?? 0;
+    final originY = (gridMap['origin_y'] as num?)?.toDouble() ?? 0;
+    if (width <= 0 || height <= 0 || resolution <= 0) return;
 
-    final obstaclePaint = Paint()..color = const Color(0x33ef4444);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(size.width * .12, size.height * .18, 92, 54),
-        const Radius.circular(10),
-      ),
-      obstaclePaint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(size.width * .58, size.height * .26, 110, 70),
-        const Radius.circular(10),
-      ),
-      obstaclePaint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(size.width * .34, size.height * .68, 120, 46),
-        const Radius.circular(10),
-      ),
-      obstaclePaint,
+    const margin = 24.0;
+    final scale = (size.width - margin * 2) / (width * resolution);
+    final scaleY = (size.height - margin * 2) / (height * resolution);
+    final pixelsPerMeter = scale < scaleY ? scale : scaleY;
+    final mapWidth = width * resolution * pixelsPerMeter;
+    final mapHeight = height * resolution * pixelsPerMeter;
+    final left = (size.width - mapWidth) / 2;
+    final top = (size.height - mapHeight) / 2;
+    final cellW = mapWidth / width;
+    final cellH = mapHeight / height;
+
+    Offset world(double x, double y) => Offset(
+      left + (x - originX) * pixelsPerMeter,
+      top + mapHeight - (y - originY) * pixelsPerMeter,
     );
 
-    final path = Path()
-      ..moveTo(size.width * .12, size.height * .82)
-      ..cubicTo(
-        size.width * .26,
-        size.height * .72,
-        size.width * .30,
-        size.height * .52,
-        size.width * .46,
-        size.height * .52,
-      )
-      ..cubicTo(
-        size.width * .62,
-        size.height * .52,
-        size.width * .58,
-        size.height * .18,
-        size.width * .86,
-        size.height * .14,
+    for (final raw in gridMap['runs'] as List? ?? const []) {
+      if (raw is! List || raw.length < 3 || (raw[2] as num).toInt() < 50) {
+        continue;
+      }
+      var index = (raw[0] as num).toInt();
+      var remaining = (raw[1] as num).toInt();
+      while (remaining > 0) {
+        final row = index ~/ width;
+        final column = index % width;
+        final count = remaining < width - column ? remaining : width - column;
+        canvas.drawRect(
+          Rect.fromLTWH(
+            left + column * cellW,
+            top + mapHeight - (row + 1) * cellH,
+            count * cellW + .5,
+            cellH + .5,
+          ),
+          Paint()..color = const Color(0xff475569),
+        );
+        index += count;
+        remaining -= count;
+      }
+    }
+
+    for (final segment in plannedPaths) {
+      final points = segment['points'] as List? ?? const [];
+      if (points.length < 2) continue;
+      final path = Path();
+      for (var i = 0; i < points.length; i++) {
+        final point = points[i] as List;
+        final offset = world(
+          (point[0] as num).toDouble(),
+          (point[1] as num).toDouble(),
+        );
+        i == 0
+            ? path.moveTo(offset.dx, offset.dy)
+            : path.lineTo(offset.dx, offset.dy);
+      }
+      final drawing =
+          segment['namespace'] == 'path_lines' &&
+          (((segment['color'] as Map?)?['b'] as num?)?.toDouble() ?? 0) > .8;
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = drawing
+              ? (lineRunning
+                    ? const Color(0xff22c55e)
+                    : const Color(0xff3b82f6))
+              : const Color(0xfffacc15)
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..strokeWidth = drawing ? 3.5 : 2.5,
       );
+    }
 
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = const Color(0xff60a5fa)
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 5,
-    );
-
-    final markPaint = Paint()
-      ..color = lineRunning ? const Color(0xfff59e0b) : const Color(0xff22c55e)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    for (int i = 0; i < 7; i++) {
-      final y = size.height * .30 + i * 20;
+    final poseFrame = robotPose['frame_id']?.toString();
+    final mapFrame = gridMap['frame_id']?.toString();
+    if (robotPose.isNotEmpty && (poseFrame == null || poseFrame == mapFrame)) {
+      final rover = world(
+        (robotPose['x'] as num).toDouble(),
+        (robotPose['y'] as num).toDouble(),
+      );
+      final theta = (robotPose['theta'] as num?)?.toDouble() ?? 0;
+      canvas.drawCircle(rover, 13, Paint()..color = const Color(0xff22c55e));
+      canvas.drawCircle(rover, 21, Paint()..color = const Color(0x3322c55e));
       canvas.drawLine(
-        Offset(size.width * .13, y),
-        Offset(size.width * .38, y),
-        markPaint,
+        rover,
+        rover + Offset(22 * math.cos(theta), -22 * math.sin(theta)),
+        Paint()
+          ..color = Colors.white
+          ..strokeWidth = 3
+          ..strokeCap = StrokeCap.round,
       );
     }
-
-    final rover = Offset(size.width * .44, size.height * .52);
-    canvas.drawCircle(rover, 15, Paint()..color = const Color(0xff22c55e));
-    canvas.drawCircle(rover, 27, Paint()..color = const Color(0x3322c55e));
-    canvas.drawCircle(
-      Offset(size.width * .86, size.height * .14),
-      10,
-      Paint()..color = const Color(0xfff59e0b),
-    );
   }
 
   @override
   bool shouldRepaint(covariant _MapPainter oldDelegate) =>
-      oldDelegate.lineRunning != lineRunning;
+      oldDelegate.lineRunning != lineRunning ||
+      oldDelegate.gridMap != gridMap ||
+      oldDelegate.plannedPaths != plannedPaths ||
+      oldDelegate.robotPose != robotPose;
 }
 
 /// 底部导航项的简单数据模型。

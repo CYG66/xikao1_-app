@@ -10,11 +10,11 @@ class RosMessages {
     return {'op': 'subscribe', 'topic': topic};
   }
 
-  /// 构建底盘速度指令：[linear] 为线速度，[angular] 为角速度。
+  /// 构建平板底盘指令；由 cmd_vel_mux 转发到最终 `/cmd_vel`。
   static Map<String, Object?> cmdVel(double linear, double angular) {
     return {
       'op': 'publish',
-      'topic': '/cmd_vel',
+      'topic': '/tablet_cmd_vel',
       'type': 'geometry_msgs/msg/Twist',
       'msg': {
         'linear': {'x': linear, 'y': 0.0, 'z': 0.0},
@@ -33,6 +33,15 @@ class RosMessages {
     };
   }
 
+  static Map<String, Object?> printerActive(bool active) {
+    return {
+      'op': 'call_service',
+      'service': '/printer/set_active',
+      'type': 'xline_msgs/srv/SetPrinterActive',
+      'args': {'printer_name': 'center', 'active': active},
+    };
+  }
+
   /// 调用 LN150 服务，[commandType] 的含义由小车端 `LnCommand` 定义。
   static Map<String, Object?> lnCommand(int commandType) {
     return {
@@ -44,12 +53,10 @@ class RosMessages {
   }
 
   /// 启动或停止划线任务。
-  static Map<String, Object?> missionControl(bool running) {
-    return {
-      'op': 'publish',
-      'topic': '/xline/mission_control',
-      'type': 'std_msgs/msg/String',
-      'msg': {'data': running ? 'start_line_task' : 'stop_line_task'},
-    };
+  static Map<String, Object?> missionControl(
+    bool running, {
+    String fileName = 'test_pattern.json',
+  }) {
+    return {'op': 'mission_control', 'running': running, 'file_name': fileName};
   }
 }

@@ -7,8 +7,8 @@ class RosBridgeApi {
 
   static const protocolName = 'JSON ROS Bridge'; // App 和后端之间的消息协议名称。
   static const defaultPort = 8000;
-  static const commandVelocityTopic = '/cmd_vel';
-  static const missionControlTopic = '/xline/mission_control';
+  static const commandVelocityTopic = '/tablet_cmd_vel';
+  static const missionAction = '/execute_plan';
   static const printerService = '/printer/quick_command';
   static const lnDriverService = '/ln_driver/command_srv';
 }

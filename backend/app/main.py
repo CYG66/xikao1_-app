@@ -6,7 +6,18 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from .ros_adapter import ros_adapter
-from .schemas import ApiResult, Ln150Command, MissionCommand, PrinterCommand, VelocityCommand
+from .agent_service import robot_agent
+from .schemas import (
+    AgentChatRequest,
+    AgentConfirmRequest,
+    AgentConfigCommand,
+    ApiResult,
+    Ln150Command,
+    MissionCommand,
+    PrinterActiveCommand,
+    PrinterCommand,
+    VelocityCommand,
+)
 from .state import robot_state
 
 app = FastAPI(title="XLine Rover Backend", version="0.1.0")
@@ -45,10 +56,61 @@ def logs() -> dict[str, list[str]]:
     return {"logs": robot_state.logs}
 
 
+@app.get("/api/agent/status")
+def agent_status() -> dict[str, object]:
+    return robot_agent.config()
+
+
+@app.get("/api/agent/config")
+def agent_config() -> dict[str, object]:
+    return robot_agent.config()
+
+
+@app.post("/api/agent/config")
+def update_agent_config(command: AgentConfigCommand) -> dict[str, object]:
+    return robot_agent.update_config(
+        command.mode,
+        command.model,
+        command.api_key,
+        command.clear_api_key,
+    )
+
+
+@app.post("/api/agent/test")
+def test_agent_config() -> dict[str, object]:
+    return robot_agent.test_connection()
+
+
+@app.post("/api/agent/chat")
+def agent_chat(command: AgentChatRequest) -> dict[str, object]:
+    try:
+        return robot_agent.chat(
+            command.message,
+            [message.model_dump() for message in command.history],
+        )
+    except RuntimeError as error:
+        robot_state.add_log(f"agent error: {error}")
+        return {
+            "ok": False,
+            "configured": robot_agent.configured,
+            "message": str(error),
+            "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+            "pending_action": None,
+        }
+
+
+@app.post("/api/agent/confirm")
+def agent_confirm(command: AgentConfirmRequest) -> dict[str, object]:
+    return robot_agent.confirm(command.action_id, command.approved)
+
+
 @app.post("/api/cmd_vel", response_model=ApiResult)
 def cmd_vel(command: VelocityCommand) -> ApiResult:
-    ros_adapter.publish_velocity(command.linear, command.angular)
-    return ApiResult(ok=True, message="velocity command sent")
+    ok = ros_adapter.publish_velocity(command.linear, command.angular)
+    return ApiResult(
+        ok=ok,
+        message="velocity command sent" if ok else "USB2CAN motor driver is not ready",
+    )
 
 
 @app.post("/api/printer/quick_command", response_model=ApiResult)
@@ -65,8 +127,14 @@ def ln150(command: Ln150Command) -> ApiResult:
 
 @app.post("/api/mission/control", response_model=ApiResult)
 def mission(command: MissionCommand) -> ApiResult:
-    ros_adapter.control_mission(command.running)
-    return ApiResult(ok=True, message="mission state updated")
+    ok = ros_adapter.control_mission(command.running, command.file_name)
+    return ApiResult(ok=ok, message="mission request accepted" if ok else robot_state.mission_error or "mission request rejected")
+
+
+@app.post("/api/printer/set_active", response_model=ApiResult)
+def printer_active(command: PrinterActiveCommand) -> ApiResult:
+    ok = ros_adapter.set_printer_active(command.printer_name, command.active)
+    return ApiResult(ok=ok, message="printer active state submitted" if ok else "printer/set_active unavailable")
 
 
 @app.websocket("/ws/status")
@@ -108,20 +176,24 @@ def handle_rosbridge_payload(payload: dict[str, object]) -> dict[str, object]:
         robot_state.add_log(f"subscribe {topic}")
         return {"op": "subscribed", "topic": topic, "ok": True}
 
-    if op == "publish" and topic == "/cmd_vel":
+    if op == "publish" and topic == "/tablet_cmd_vel":
         message = payload.get("msg")
         if isinstance(message, dict):
             linear = _nested_number(message, "linear", "x")
             angular = _nested_number(message, "angular", "z")
-            ros_adapter.publish_velocity(linear, angular)
-            return {"op": "published", "topic": topic, "ok": True}
+            ok = ros_adapter.publish_velocity(linear, angular)
+            return {
+                "op": "published",
+                "topic": topic,
+                "ok": ok,
+                "message": "velocity command sent" if ok else "USB2CAN motor driver is not ready",
+            }
 
-    if op == "publish" and topic == "/xline/mission_control":
-        message = payload.get("msg")
-        data = message.get("data") if isinstance(message, dict) else ""
-        running = data == "start_line_task"
-        ros_adapter.control_mission(running)
-        return {"op": "published", "topic": topic, "ok": True}
+    if op == "mission_control":
+        running = payload.get("running") is True
+        file_name = str(payload.get("file_name", "test_pattern.json"))
+        ok = ros_adapter.control_mission(running, file_name)
+        return {"op": "mission_response", "ok": ok, "message": robot_state.mission_error}
 
     if op == "call_service" and service == "/printer/quick_command":
         args = payload.get("args")
@@ -130,6 +202,14 @@ def handle_rosbridge_payload(payload: dict[str, object]) -> dict[str, object]:
                 str(args.get("printer_name", "center")),
                 str(args.get("action", "beep")),
                 int(args.get("param", 0)),
+            )
+            return {"op": "service_response", "service": service, "ok": ok}
+
+    if op == "call_service" and service == "/printer/set_active":
+        args = payload.get("args")
+        if isinstance(args, dict):
+            ok = ros_adapter.set_printer_active(
+                str(args.get("printer_name", "center")), args.get("active") is True
             )
             return {"op": "service_response", "service": service, "ok": ok}
 

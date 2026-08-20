@@ -11,9 +11,9 @@
 ## Ubuntu 小车端启动
 
 ```bash
-cd ~/xline_ws2
+cd ~/xline_cyg
 source /opt/ros/humble/setup.bash
-source install/setup.bash
+source install_ws3/setup.bash
 
 cd /path/to/test1/backend
 python3 -m pip install -r requirements.txt

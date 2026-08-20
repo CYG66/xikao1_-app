@@ -10,6 +10,11 @@ class RosMessages {
     return {'op': 'subscribe', 'topic': topic};
   }
 
+  static Map<String, Object?> claimControl() => {'op': 'claim_control'};
+  static Map<String, Object?> controlHeartbeat() => {'op': 'control_heartbeat'};
+  static Map<String, Object?> releaseControl() => {'op': 'release_control'};
+  static Map<String, Object?> stopAgentMotion() => {'op': 'stop_agent_motion'};
+
   /// 构建平板底盘指令；由 cmd_vel_mux 转发到最终 `/cmd_vel`。
   static Map<String, Object?> cmdVel(double linear, double angular) {
     return {
@@ -24,23 +29,49 @@ class RosMessages {
   }
 
   /// 调用中间喷码机的快捷指令服务。
-  static Map<String, Object?> printerCommand(String action) {
+  static Map<String, Object?> printerCommand(
+    String action, {
+    String printerName = 'center',
+  }) {
     return {
       'op': 'call_service',
       'service': '/printer/quick_command',
       'type': 'xline_msgs/srv/QuickCommand',
-      'args': {'printer_name': 'center', 'action': action, 'param': 0},
+      'args': {'printer_name': printerName, 'action': action, 'param': 0},
     };
   }
 
-  static Map<String, Object?> printerActive(bool active) {
+  static Map<String, Object?> printerActive(
+    bool active, {
+    String printerName = 'center',
+  }) {
     return {
       'op': 'call_service',
       'service': '/printer/set_active',
       'type': 'xline_msgs/srv/SetPrinterActive',
-      'args': {'printer_name': 'center', 'active': active},
+      'args': {'printer_name': printerName, 'active': active},
     };
   }
+
+  static Map<String, Object?> printerEnabled(
+    bool enabled, {
+    String printerName = 'center',
+  }) => {
+    'op': 'call_service',
+    'service': '/printer/set_enabled',
+    'type': 'xline_msgs/srv/SetPrinterEnabled',
+    'args': {'printer_name': printerName, 'enabled': enabled},
+  };
+
+  static Map<String, Object?> printerRawCommand(
+    String jsonData, {
+    String printerName = 'center',
+  }) => {
+    'op': 'call_service',
+    'service': '/printer/send_command',
+    'type': 'xline_msgs/srv/PrinterCommand',
+    'args': {'printer_name': printerName, 'json_data': jsonData},
+  };
 
   /// 调用 LN150 服务，[commandType] 的含义由小车端 `LnCommand` 定义。
   static Map<String, Object?> lnCommand(int commandType) {
@@ -52,6 +83,13 @@ class RosMessages {
     };
   }
 
+  static Map<String, Object?> calibrateLocalization() => {
+    'op': 'call_service',
+    'service': '/localization/calibrate_pose',
+    'type': 'std_srvs/srv/Trigger',
+    'args': <String, Object?>{},
+  };
+
   /// 启动或停止划线任务。
   static Map<String, Object?> missionControl(
     bool running, {
@@ -59,4 +97,14 @@ class RosMessages {
   }) {
     return {'op': 'mission_control', 'running': running, 'file_name': fileName};
   }
+
+  static Map<String, Object?> missionAction(
+    String action, {
+    String fileName = 'test_pattern.json',
+  }) => {'op': 'mission_control', 'action': action, 'file_name': fileName};
+
+  static Map<String, Object?> emergencyStop(bool active) => {
+    'op': 'emergency_stop',
+    'active': active,
+  };
 }

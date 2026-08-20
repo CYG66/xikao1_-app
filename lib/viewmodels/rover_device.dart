@@ -21,7 +21,40 @@ class RoverDevice {
   final String type;
   final bool connected;
 
+  bool get isConfigured => name.trim().isNotEmpty && ip.trim().isNotEmpty;
+
   String get bridgeUrl => 'ws://$ip:$port';
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'ip': ip,
+    'port': port,
+    'domain_id': domainId,
+    'type': type,
+  };
+
+  factory RoverDevice.fromJson(
+    Map<String, dynamic> json, {
+    bool connected = false,
+  }) {
+    return RoverDevice(
+      name: json['name']?.toString() ?? '',
+      ip: json['ip']?.toString() ?? '',
+      port: (json['port'] as num?)?.toInt() ?? 8000,
+      domainId: (json['domain_id'] as num?)?.toInt() ?? 0,
+      type: json['type']?.toString() ?? 'FastAPI Backend',
+      connected: connected,
+    );
+  }
+
+  static const unconfigured = RoverDevice(
+    name: '未配置小车',
+    ip: '',
+    port: 8000,
+    domainId: 0,
+    type: 'FastAPI Backend',
+    connected: false,
+  );
 }
 
 /// App 到 FastAPI/ROS2 Bridge 的连接状态机。

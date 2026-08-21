@@ -87,7 +87,12 @@ def planned_ink_fingerprint(segment: dict[str, Any]) -> str | None:
             )
             if key in segment
         }
-    ink = segment.get("ink", {})
+    # Mixed-version planner output may explicitly use null for ink on travel
+    # segments. Keep this parser defensive even when the segment classifier
+    # normally filters those segments out first.
+    ink = segment.get("ink")
+    if not isinstance(ink, dict):
+        ink = {}
     identity = {
         "type": geometry_type,
         "geometry": geometry,
@@ -195,6 +200,7 @@ class RobotRosAdapter:
     def stop(self) -> None:
         self.fail_safe_stop("backend shutdown")
         if self.node is not None:
+            self.node.cancel_test_print_auto_stops()
             self.node.destroy_node()
         if rclpy is not None and rclpy.ok():
             rclpy.shutdown()
@@ -698,6 +704,9 @@ class RobotBackendNode(Node):
 
     def __init__(self) -> None:
         super().__init__("xline_app_backend")
+        self._printer_test_stop_timers: dict[str, threading.Timer] = {}
+        self._printer_test_stop_generations: dict[str, int] = {}
+        self._printer_test_stop_lock = threading.Lock()
         self.cmd_vel_pub = self.create_publisher(Twist, topics.tablet_cmd_vel, 10)
         self.emergency_stop_pub = self.create_publisher(Bool, topics.emergency_stop, 10)
         self.emergency_stop_reset_client = (
@@ -1116,16 +1125,150 @@ class RobotBackendNode(Node):
             robot_state.localization_calibration = "failed"
             robot_state.add_log(f"localization calibration failed: {error}")
 
+    def _reset_relative_origin_for_planning(self, timeout: float = 3.0) -> bool:
+        """Anchor a no-total-station plan at the rover's current heading.
+
+        xline_cyg's odom/IMU localization exposes the reset service as the
+        relative-origin operation. Planning must happen only after that
+        reset completes; otherwise a newly selected drawing can be interpreted
+        in the previous task's coordinate frame.
+        """
+        if robot_state.localization_source != "odom_imu_relative":
+            return True
+        client = self.calibration_client
+        if client is None or not client.wait_for_service(timeout_sec=timeout):
+            robot_state.localization_calibration = "unavailable"
+            robot_state.add_log(
+                "relative planning blocked: /localization/calibrate_pose unavailable"
+            )
+            return False
+
+        completed = threading.Event()
+        outcome = {"success": False, "message": ""}
+
+        def handle_response(future: Any) -> None:
+            try:
+                response = future.result()
+                outcome["success"] = bool(response and response.success)
+                outcome["message"] = str(getattr(response, "message", ""))
+            except Exception as exc:
+                outcome["message"] = str(exc)
+            finally:
+                completed.set()
+
+        robot_state.localization_calibration = "calibrating"
+        client.call_async(Trigger.Request()).add_done_callback(handle_response)
+        if not completed.wait(timeout):
+            robot_state.localization_calibration = "failed"
+            robot_state.add_log("relative origin reset timed out")
+            return False
+        if not outcome["success"]:
+            robot_state.localization_calibration = "failed"
+            robot_state.add_log(
+                "relative origin reset failed: " + (outcome["message"] or "unknown error")
+            )
+            return False
+        robot_state.localization_calibration = "accepted"
+        robot_state.add_log("relative origin reset to current rover pose and heading")
+        return True
+
     def call_printer(self, printer_name: str, action: str, param: int) -> bool:
         if self.printer_client is None:
             robot_state.add_log("QuickCommand service type not available")
             return False
+
+        # A manual stop or a new explicit printer action invalidates any
+        # delayed cleanup left by a previous test_print request.
+        if action != "test_print":
+            self._cancel_test_print_auto_stop(printer_name)
+
         request = QuickCommand.Request()
         request.printer_name = printer_name
         request.action = action
         request.param = param
-        self.printer_client.call_async(request)
+        try:
+            future = self.printer_client.call_async(request)
+        except Exception as error:
+            robot_state.add_log(f"printer {printer_name} {action} failed to send: {error}")
+            return False
+
+        if action == "test_print":
+            generation = self._next_test_print_generation(printer_name)
+
+            def handle_test_print_response(done: Any) -> None:
+                try:
+                    response = done.result()
+                    success = bool(getattr(response, "success", False))
+                    message = str(getattr(response, "message", ""))
+                except Exception as error:
+                    robot_state.add_log(
+                        f"printer {printer_name} test_print response failed: {error}"
+                    )
+                    return
+                if not success:
+                    robot_state.add_log(
+                        f"printer {printer_name} test_print failed"
+                        + (f": {message}" if message else "")
+                    )
+                    return
+                self._schedule_test_print_auto_stop(printer_name, generation)
+                robot_state.add_log(
+                    f"printer {printer_name} test_print completed; stop_print scheduled"
+                )
+
+            future.add_done_callback(handle_test_print_response)
         return True
+
+    def _next_test_print_generation(self, printer_name: str) -> int:
+        with self._printer_test_stop_lock:
+            generation = self._printer_test_stop_generations.get(printer_name, 0) + 1
+            self._printer_test_stop_generations[printer_name] = generation
+            return generation
+
+    def _cancel_test_print_auto_stop(self, printer_name: str) -> None:
+        with self._printer_test_stop_lock:
+            timer = self._printer_test_stop_timers.pop(printer_name, None)
+            self._printer_test_stop_generations[printer_name] = (
+                self._printer_test_stop_generations.get(printer_name, 0) + 1
+            )
+        if timer is not None:
+            timer.cancel()
+
+    def _schedule_test_print_auto_stop(self, printer_name: str, generation: int) -> None:
+        # Keep the delay short enough for a test command, while allowing the
+        # printer node to finish its response and release its command lock.
+        delay = 1.0
+        with self._printer_test_stop_lock:
+            previous = self._printer_test_stop_timers.pop(printer_name, None)
+            if previous is not None:
+                previous.cancel()
+            timer = threading.Timer(
+                delay,
+                self._auto_stop_test_print,
+                args=(printer_name, generation),
+            )
+            timer.daemon = True
+            self._printer_test_stop_timers[printer_name] = timer
+            timer.start()
+
+    def _auto_stop_test_print(self, printer_name: str, generation: int) -> None:
+        with self._printer_test_stop_lock:
+            current = self._printer_test_stop_generations.get(printer_name, 0)
+            timer = self._printer_test_stop_timers.get(printer_name)
+            if current != generation or timer is None:
+                return
+            self._printer_test_stop_timers.pop(printer_name, None)
+        self.call_printer(printer_name, "stop_print", 0)
+        robot_state.add_log(f"printer {printer_name} test_print auto-stopped")
+
+    def cancel_test_print_auto_stops(self) -> None:
+        with self._printer_test_stop_lock:
+            timers = list(self._printer_test_stop_timers.values())
+            self._printer_test_stop_timers.clear()
+            for printer_name in self._printer_test_stop_generations:
+                self._printer_test_stop_generations[printer_name] += 1
+        for timer in timers:
+            timer.cancel()
 
     def call_ln150(self, command_type: int) -> bool:
         if self.ln150_client is None:
@@ -1180,6 +1323,12 @@ class RobotBackendNode(Node):
         if Path(file_name).name != file_name or Path(file_name).suffix.lower() != ".json":
             robot_state.mission_error = "任务文件必须是 cad 目录中的 JSON 文件名"
             return False
+        if not self._reset_relative_origin_for_planning():
+            robot_state.mission_error = (
+                "无全站仪时无法将当前车头设为路径起点："
+                + ("相对原点重置服务不可用或调用失败" )
+            )
+            return False
         robot_state.mission_running = True
         robot_state.mission_paused = False
         robot_state.mission_stage = "planning"
@@ -1204,6 +1353,12 @@ class RobotBackendNode(Node):
             return False
         if Path(file_name).name != file_name or Path(file_name).suffix.lower() != ".json":
             robot_state.mission_error = "任务文件必须是 cad 目录中的 JSON 文件名"
+            return False
+        if not self._reset_relative_origin_for_planning():
+            robot_state.mission_error = (
+                "无全站仪时无法将当前车头设为路径起点："
+                + ("相对原点重置服务不可用或调用失败" )
+            )
             return False
         self._mission_segments.clear()
         robot_state.mission_running = False
@@ -1444,9 +1599,10 @@ class RobotBackendNode(Node):
         if duplicate_count:
             robot_state.add_log(f"filtered {duplicate_count} duplicate ink paths")
         robot_state.mission_required_printers = sorted({
-            str(item.get("ink", {}).get("printer", "center")).lower()
+            str(ink.get("printer", "center")).lower()
             for item in self._mission_segments
-            if isinstance(item.get("ink"), dict) and item["ink"].get("enabled") is True
+            for ink in [item.get("ink")]
+            if isinstance(ink, dict) and ink.get("enabled") is True
         })
         summary, validation = analyze_mission(
             self._mission_segments,

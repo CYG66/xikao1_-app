@@ -76,6 +76,15 @@ class MapAdapterTest(unittest.TestCase):
             planned_ink_fingerprint(reversed_printing),
         )
 
+    def test_null_ink_on_travel_segment_does_not_raise(self) -> None:
+        travel = {
+            "type": "line",
+            "layer_id": 1_000_000,
+            "work": False,
+            "ink": None,
+        }
+        self.assertIsNone(planned_ink_fingerprint(travel))
+
     def test_xline_ws3_paths_and_text_markers_are_preserved(self) -> None:
         message = SimpleNamespace(
             markers=[

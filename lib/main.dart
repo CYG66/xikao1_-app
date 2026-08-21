@@ -444,6 +444,7 @@ class _RoverHomePageState extends State<RoverHomePage>
           onCancel: _confirmCancelMission,
           ln150Ready: ln150Ready,
           localizationSource: localizationSource,
+          localizationValid: localizationValid,
           localizationCalibrationAvailable: localizationCalibrationAvailable,
           onLnCommand: _sendLnCommand,
           onCalibrateLocalization: () =>

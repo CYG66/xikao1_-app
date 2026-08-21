@@ -4,9 +4,11 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from app.mission_analysis import analyze_mission
 from app.mission_ledger import MissionLedgerStore
+import app.ros_adapter as ros_adapter_module
 from app.ros_adapter import RobotBackendNode, classify_planned_segment
 from app.state import robot_state
 
@@ -115,6 +117,84 @@ class SegmentVerificationTest(unittest.TestCase):
             line(1_000_000, printing=False, start_x=0, end_x=1000)
         )
         self.assertTrue(result["ok"])
+
+
+class PrinterTestPrintLifecycleTest(unittest.TestCase):
+    class FakeFuture:
+        def __init__(self, response=None, error=None):
+            self.response = response
+            self.error = error
+            self.callbacks = []
+
+        def add_done_callback(self, callback):
+            self.callbacks.append(callback)
+            return self
+
+        def result(self):
+            if self.error is not None:
+                raise self.error
+            return self.response
+
+        def complete(self):
+            for callback in list(self.callbacks):
+                callback(self)
+
+    class FakeClient:
+        def __init__(self, response):
+            self.response = response
+            self.requests = []
+            self.futures = []
+
+        def call_async(self, request):
+            self.requests.append(request)
+            future = PrinterTestPrintLifecycleTest.FakeFuture(self.response)
+            self.futures.append(future)
+            return future
+
+    class FakeQuickCommand:
+        class Request:
+            def __init__(self):
+                self.printer_name = ""
+                self.action = ""
+                self.param = 0
+
+    def setUp(self):
+        self.node = object.__new__(RobotBackendNode)
+        self.node._printer_test_stop_timers = {}
+        self.node._printer_test_stop_generations = {}
+        import threading
+        self.node._printer_test_stop_lock = threading.Lock()
+
+    def test_successful_test_print_schedules_stop(self):
+        client = self.FakeClient(type("Response", (), {"success": True, "message": "ok"})())
+        self.node.printer_client = client
+        with patch.object(ros_adapter_module, "QuickCommand", self.FakeQuickCommand):
+            self.assertTrue(self.node.call_printer("center", "test_print", 0))
+            client.futures[0].complete()
+            timer = self.node._printer_test_stop_timers["center"]
+            timer.cancel()
+            self.node._auto_stop_test_print("center", 1)
+        self.assertEqual([request.action for request in client.requests], ["test_print", "stop_print"])
+
+    def test_stop_print_cancels_pending_auto_stop(self):
+        client = self.FakeClient(type("Response", (), {"success": True, "message": "ok"})())
+        self.node.printer_client = client
+        with patch.object(ros_adapter_module, "QuickCommand", self.FakeQuickCommand):
+            self.node.call_printer("center", "test_print", 0)
+        client.futures[0].complete()
+        self.assertIn("center", self.node._printer_test_stop_timers)
+        with patch.object(ros_adapter_module, "QuickCommand", self.FakeQuickCommand):
+            self.assertTrue(self.node.call_printer("center", "stop_print", 0))
+        self.assertNotIn("center", self.node._printer_test_stop_timers)
+        self.assertEqual([request.action for request in client.requests], ["test_print", "stop_print"])
+
+    def test_failed_test_print_does_not_schedule_stop(self):
+        client = self.FakeClient(type("Response", (), {"success": False, "message": "failed"})())
+        self.node.printer_client = client
+        with patch.object(ros_adapter_module, "QuickCommand", self.FakeQuickCommand):
+            self.node.call_printer("center", "test_print", 0)
+        client.futures[0].complete()
+        self.assertNotIn("center", self.node._printer_test_stop_timers)
 
 
 if __name__ == "__main__":

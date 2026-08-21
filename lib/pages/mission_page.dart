@@ -199,6 +199,7 @@ class _MissionPage extends StatelessWidget {
     required this.localizationCalibration,
     required this.ln150Ready,
     required this.localizationSource,
+    required this.localizationValid,
     required this.localizationCalibrationAvailable,
   });
 
@@ -233,6 +234,7 @@ class _MissionPage extends StatelessWidget {
   final String localizationCalibration;
   final bool ln150Ready;
   final String localizationSource;
+  final bool localizationValid;
   final bool localizationCalibrationAvailable;
 
   @override
@@ -364,7 +366,11 @@ class _MissionPage extends StatelessWidget {
             ),
     );
     final executionPanel = _Panel(
-      title: '任务执行',
+      title: localizationSource == 'ln150_imu'
+          ? '全站仪任务执行'
+          : localizationSource == 'odom_imu_relative'
+          ? '相对定位任务执行'
+          : '任务执行（定位未就绪）',
       trailing: _StatusChip(
         text: _missionStageLabel(missionStage),
         color: missionStage == 'failed'
@@ -375,6 +381,13 @@ class _MissionPage extends StatelessWidget {
       ),
       child: Column(
         children: [
+          _MissionLocalizationModeCard(
+            totalStationMode: localizationSource == 'ln150_imu',
+            relativeMode: localizationSource == 'odom_imu_relative',
+            localizationValid: localizationValid,
+            calibrationAvailable: localizationCalibrationAvailable,
+          ),
+          const SizedBox(height: 12),
           _TaskTile(
             '路径规划',
             '/plan_path',
@@ -398,9 +411,25 @@ class _MissionPage extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: emergencyStopped || !hasDrawing ? null : onStart,
+                onPressed:
+                    emergencyStopped ||
+                        !hasDrawing ||
+                        localizationSource == 'unavailable' ||
+                        (localizationSource == 'odom_imu_relative' &&
+                            !localizationCalibrationAvailable)
+                    ? null
+                    : onStart,
                 icon: const Icon(Icons.play_arrow_rounded),
-                label: Text(emergencyStopped ? '急停锁定中' : '规划并执行'),
+                label: Text(
+                  emergencyStopped
+                      ? '急停锁定中'
+                      : localizationSource == 'odom_imu_relative' &&
+                            !localizationCalibrationAvailable
+                      ? '相对原点服务不可用'
+                      : localizationSource == 'unavailable'
+                      ? '等待定位模式'
+                      : '规划并执行',
+                ),
               ),
             )
           else
@@ -433,7 +462,11 @@ class _MissionPage extends StatelessWidget {
       ),
     );
     final setupPanel = _Panel(
-      title: '定位准备',
+      title: localizationSource == 'ln150_imu'
+          ? '全站仪定位准备'
+          : localizationSource == 'odom_imu_relative'
+          ? '相对定位准备'
+          : '定位准备',
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
@@ -533,6 +566,101 @@ class _MissionPage extends StatelessWidget {
       'failed': '失败',
     };
     return labels[stage] ?? stage;
+  }
+}
+
+class _MissionLocalizationModeCard extends StatelessWidget {
+  const _MissionLocalizationModeCard({
+    required this.totalStationMode,
+    required this.relativeMode,
+    required this.localizationValid,
+    required this.calibrationAvailable,
+  });
+
+  final bool totalStationMode;
+  final bool relativeMode;
+  final bool localizationValid;
+  final bool calibrationAvailable;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color;
+    final IconData icon;
+    final String title;
+    final String detail;
+    final String state;
+    if (totalStationMode) {
+      color = const Color(0xff047857);
+      icon = Icons.public_rounded;
+      title = '全站仪任务执行';
+      detail = '使用 LN150 + IMU 工程坐标闭环，路径按全局坐标规划与执行';
+      state = localizationValid ? '全局定位有效' : '等待全局定位';
+    } else if (relativeMode) {
+      color = const Color(0xffb45309);
+      icon = Icons.trip_origin_rounded;
+      title = '相对定位任务执行';
+      detail = calibrationAvailable
+          ? '规划前将当前车体位置设为相对原点 0,0，当前车头方向设为 0°；路径仅在本次相对坐标系内执行'
+          : '无法执行：xline_cyg 未提供相对原点重置服务';
+      state = calibrationAvailable ? '相对原点服务可用' : '相对原点服务不可用';
+    } else {
+      color = const Color(0xff64748b);
+      icon = Icons.location_disabled_rounded;
+      title = '定位模式未就绪';
+      detail = '后端尚未确认全站仪或相对定位来源，任务执行已锁定';
+      state = '不可执行';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        border: Border.all(color: color.withValues(alpha: 0.55)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    Text(
+                      state,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  detail,
+                  style: const TextStyle(
+                    color: Color(0xff475569),
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

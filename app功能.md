@@ -40,6 +40,7 @@ http://192.168.0.100:8000
 - 显示当前线速度。
 - 显示定位是否有效以及定位来源。
 - 显示喷码机节点和连接状态。
+- 喷码机节点存在不代表喷头已连接；只有实际喷头上报在线/连接后，后端才将喷码能力标记为可用。
 - 显示当前任务阶段和完成进度。
 - 显示实时地图、车辆位置、航向和轨迹。
 - 提供地图、手动控制和设备管理快捷入口。
@@ -90,7 +91,7 @@ http://192.168.0.100:8000
 - 使用 LN150 与 IMU 提供绝对定位。
 - 显示绝对位置、航向、规划路径和车辆轨迹。
 - LN150 节点和服务存在时提供初始化、自动追踪和自动调平操作。
-- 可用时支持定位校准。
+- ROS2 提供定位校准服务时支持定位校准；服务不存在时按钮保持禁用。
 
 ### 6.2 无全站仪模式
 
@@ -100,7 +101,7 @@ http://192.168.0.100:8000
 - 根据 `/localization/valid` 判断定位数据是否新鲜有效。
 - 地图显示相对位置、航向、规划路径和行驶轨迹。
 - 不显示 LN150 专用按钮。
-- 只有 ROS2 存在对应服务时才允许重置相对原点；没有服务时显示禁用状态。
+- 只有 ROS2 存在 `/localization/calibrate_pose` 服务时才允许重置相对原点；没有服务时显示禁用状态。
 
 ### 6.3 地图数据
 
@@ -176,6 +177,7 @@ http://192.168.0.100:8000
 - 支持读取墨量等状态。
 - 支持发送经过 JSON 格式校验的原始喷码命令。
 - 未取得控制权或喷码机节点未就绪时阻止硬件操作。
+- 喷码节点在线但所有喷头均未连接时，状态页显示喷码能力不可用，并阻止需要喷头的任务。
 
 ## 10. AI 助手
 
@@ -263,6 +265,7 @@ http://192.168.0.100:8000
 - 后端登记实际设备能力、运动限制和 ROS2 主题/服务接口；登记信息用于进阶模式设计与规划参考。
 - 设备能力登记包含模型、软件版本、底盘限制、定位能力、已配置接口和当前 ROS2 图中发现的接口。
 - 数据库提供 schema 迁移状态、SQLite 一致性备份和审计筛选；这些历史运维数据不参与实时控制。
+- 数据库能力登记和历史审计不能替代实时 ROS2/CAN 状态；急停、控制权、电机和任务门禁始终读取实时状态。
 - 项目详情接口提供项目时间线，关联图纸版本、规划任务、执行任务和执行分段。
 - 后端重启后默认保持软件急停状态，不会自动恢复运动。
 - 进阶模式检测到任务账本中断时，会将项目标记为可恢复失败，保留最后已验证分段；必须重新规划并由用户确认后才能继续。
@@ -271,15 +274,15 @@ http://192.168.0.100:8000
 
 - 后端部署目录：`/home/qingz/xline_app_backend`。
 - ROS2 工作空间：`/home/qingz/xline_cyg`。
-- 后端加载：`/home/qingz/xline_cyg/install_ws3/setup.bash`。
+- 后端实际加载：`/home/qingz/xline_cyg/install_app/setup.bash`，与当前 `xline-cyg-runtime.service` 使用的环境一致。
 - FastAPI 监听：`0.0.0.0:8000`。
 - systemd 服务：`xline-app-backend.service`。
 - 后端服务支持开机自启。
-- 后端可检测并启动 `xline_cyg` 的硬件运行环境。
+- `xline-cyg-runtime.service` 负责开机启动 ROS2 运行环境；`xline-app-backend.service` 依赖该服务并负责启动 FastAPI。
 - 后端不会修改 `xline_cyg/src` 源代码。
 - `odom_imu_localization.py` 的部署产物会在启动时检查可执行权限。
 
-当前后端启动脚本、环境模板和默认配置已经统一使用 `install_ws3`；`install_app` 不属于当前 `xline_cyg` 运行环境。
+当前后端启动脚本、环境模板和默认配置已经统一使用 `install_app`。小车同时保留其他历史构建目录，但当前运行服务不使用它们。
 
 ## 13. 当前模式
 
@@ -319,10 +322,13 @@ http://192.168.0.100:8000
 - `GET /api/agent/cases`：查询进阶模式 AI 成功/失败案例。
 - `GET /api/agent/device-capabilities`：查询设备能力和 ROS2 接口登记。
 - `GET /api/agent/device-capabilities/{device_id}`：查询指定设备登记。
+- `GET /api/database/summary`：查询数据库表计数和持久化健康状态。
 - `GET /api/database/migrations`：查询数据库 schema 版本和迁移记录。
 - `POST /api/database/backup`：创建包含已提交 WAL 数据的一致性备份。
 - `GET /api/agent/audit?event=&tool=&ok=`：按事件、工具和结果筛选审计记录。
 - `WebSocket /`：App 实时状态和 ROS Bridge 兼容控制通道。
+- `WebSocket /ws/status`：App 状态推送通道。
+- `WebSocket /ws/rosbridge`：ROS Bridge 兼容通道。
 
 ## 15. 当前限制与注意事项
 
@@ -333,5 +339,7 @@ http://192.168.0.100:8000
 - 超长 AI 运动序列虽然不限制总时长和段数，但执行过程中必须保持 App 控制租约、后端连接和底盘状态正常。
 - 实车测试应先架空车轮并确保硬件急停可立即触达，再从低速度和短时间开始。
 - Flutter 测试、APK 构建和安装由项目使用者手动执行。
+- 当前实车状态曾验证为：ROS2、CAN、底盘控制和相对定位有效；喷码节点存在，但喷头未连接时 `printer_ready=false`。
+- `/imu` 使用 ROS2 sensor-data 的 `BEST_EFFORT` QoS，后端已匹配该 QoS，避免 IMU 数据因可靠性不兼容而丢失。
 - 当前后端复查已确认 `/tablet_cmd_vel`、`/cmd_vel`、`/task_cmd_vel`、`/odom`、`/robot_pose`、`/plan_path`、`/execute_plan`、暂停/恢复服务、喷码服务和 LN150 服务与 `xline_cyg` 源码接口一致。
-- `xline_cyg` 的 `planner.yaml` 仍将部分 CAD 和规划结果路径写为 `/home/qingz/xline_ws3/...`；后端保留该结果目录的兼容读取，直到小车 ROS2 代码统一修改路径。后端不会修改该 ROS2 工作区。
+- `xline_cyg` 的部分规划配置仍可能引用历史 `/home/qingz/xline_ws3/...` 路径；后端保留兼容读取，直到小车 ROS2 代码统一修改路径。后端不会修改该 ROS2 工作区。

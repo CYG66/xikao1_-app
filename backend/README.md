@@ -13,7 +13,7 @@
 ```bash
 cd ~/xline_cyg
 source /opt/ros/humble/setup.bash
-source install_ws3/setup.bash
+source install_app/setup.bash
 
 cd /path/to/test1/backend
 python3 -m pip install -r requirements.txt

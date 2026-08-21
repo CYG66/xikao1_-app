@@ -745,7 +745,9 @@ class RobotBackendNode(Node):
         self._goal_handle: Any = None
         self._mission_feedback_id: int | None = None
         self._oscillation_detector = HeadingOscillationDetector()
-        self.create_subscription(Imu, topics.imu, self._handle_imu, 10)
+        self.create_subscription(
+            Imu, topics.imu, self._handle_imu, rclpy.qos.qos_profile_sensor_data
+        )
         self.create_subscription(PoseStamped, topics.robot_pose, self._handle_robot_pose, 10)
         self.create_subscription(
             Bool, topics.localization_valid, self._handle_localization_valid, 10
@@ -821,11 +823,31 @@ class RobotBackendNode(Node):
             robot_state.localization_source = "odom_imu_relative"
         else:
             robot_state.localization_source = "unavailable"
-        robot_state.printer_ready = "inkjet_printer_node" in available
-        robot_state.localization_calibration_available = (
-            self.calibration_client is not None
-            and self.calibration_client.service_is_ready()
+        printer_node_ready = "inkjet_printer_node" in available
+        printer_connected = any(
+            isinstance(status, dict)
+            and (status.get("connected") is True or status.get("is_online") is True)
+            for status in robot_state.printer_status.values()
         )
+        robot_state.printer_ready = printer_node_ready and printer_connected
+
+        # service_is_ready() can lag during graph discovery. The configured
+        # service name and type are authoritative for UI availability; the
+        # actual call still goes through the ROS2 client and its result.
+        calibration_available = False
+        if self.calibration_client is not None:
+            try:
+                calibration_available = self.calibration_client.service_is_ready()
+                if not calibration_available:
+                    discovered = dict(self.get_service_names_and_types())
+                    calibration_available = any(
+                        service_name == services.localization_calibrate
+                        and "std_srvs/srv/Trigger" in service_types
+                        for service_name, service_types in discovered.items()
+                    )
+            except Exception:
+                calibration_available = False
+        robot_state.localization_calibration_available = calibration_available
 
     def _handle_odometry(self, message: Any) -> None:
         orientation = message.pose.pose.orientation
@@ -998,6 +1020,12 @@ class RobotBackendNode(Node):
                 except json.JSONDecodeError:
                     pass
             setattr(robot_state, key, value)
+            if key == "printer_status" and isinstance(value, dict):
+                robot_state.printer_ready = any(
+                    isinstance(status, dict)
+                    and (status.get("connected") is True or status.get("is_online") is True)
+                    for status in value.values()
+                )
             if key == "motor_status" and isinstance(value, dict):
                 robot_state.motor_driver_ready = value.get("ready") is True
                 robot_state.drive_device_connected = value.get("connected") is True

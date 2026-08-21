@@ -54,7 +54,7 @@ WHEEL_BASE_M = 0.255
 # older deployments without changing the ROS2 workspace.
 XLINE_WS_DIR = os.getenv("XLINE_WS_DIR", "/home/qingz/xline_cyg").strip()
 XLINE_SETUP_FILE = os.getenv(
-    "XLINE_SETUP_FILE", "/home/qingz/xline_cyg/install_ws3/setup.bash"
+    "XLINE_SETUP_FILE", "/home/qingz/xline_cyg/install_app/setup.bash"
 ).strip()
 USE_TOTAL_STATION = os.getenv("XLINE_USE_TOTAL_STATION", "false").strip().lower() in {
     "1", "true", "yes", "on",

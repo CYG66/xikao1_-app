@@ -10,13 +10,244 @@ from .mission_analysis import segment_length_m
 from .state import robot_state
 
 
+# Drawing editor templates are also local Agent skills.  Keeping the aliases
+# and dimensions here makes template recognition independent of an LLM call.
+DRAWING_TEMPLATE_SKILLS: dict[str, dict[str, Any]] = {
+    "room": {
+        "label": "矩形房间",
+        "aliases": ("矩形房间", "房间", "矩形室内", "room"),
+        "category": "建筑",
+        "width_m": 6.0,
+        "height_m": 4.0,
+    },
+    "two_rooms": {
+        "label": "两室布局",
+        "aliases": ("两室布局", "两室", "双房间", "two rooms"),
+        "category": "建筑",
+        "width_m": 8.0,
+        "height_m": 6.0,
+    },
+    "corridor": {
+        "label": "长走廊",
+        "aliases": ("长走廊", "走廊", "通道", "corridor"),
+        "category": "建筑",
+        "width_m": 12.0,
+        "height_m": 2.0,
+    },
+    "parking": {
+        "label": "标准车位",
+        "aliases": ("标准车位", "单个车位", "停车位", "parking spot"),
+        "category": "场地",
+        "width_m": 2.5,
+        "height_m": 5.0,
+    },
+    "parking_lot": {
+        "label": "停车场",
+        "aliases": ("停车场", "停车区", "停车位阵列", "parking lot"),
+        "category": "场地",
+        "width_m": 12.0,
+        "height_m": 6.0,
+    },
+    "basketball": {
+        "label": "篮球场",
+        "aliases": ("篮球场", "篮球场地", "basketball court"),
+        "category": "场地",
+        "width_m": 28.0,
+        "height_m": 15.0,
+    },
+    "badminton": {
+        "label": "羽毛球场",
+        "aliases": ("羽毛球场", "羽毛球场地", "badminton court"),
+        "category": "场地",
+        "width_m": 13.4,
+        "height_m": 6.1,
+    },
+    "warehouse": {
+        "label": "仓库网格",
+        "aliases": ("仓库网格", "仓库", "仓储网格", "warehouse"),
+        "category": "施工",
+        "width_m": 20.0,
+        "height_m": 12.0,
+    },
+    "grid": {
+        "label": "施工轴网",
+        "aliases": ("施工轴网", "轴网", "网格", "grid"),
+        "category": "施工",
+        "width_m": 4.0,
+        "height_m": 4.0,
+    },
+    "foundation": {
+        "label": "圆形基础",
+        "aliases": ("圆形基础", "圆基础", "基础圆", "circular foundation"),
+        "category": "施工",
+        "radius_m": 3.0,
+    },
+}
+
+
+def recognize_drawing_template(prompt: str) -> dict[str, Any] | None:
+    """Recognize one editor template without spending a model request."""
+    normalized = prompt.lower().replace("×", "x")
+    # Longer aliases first avoids matching “停车位” inside “停车位阵列”.
+    candidates = sorted(
+        DRAWING_TEMPLATE_SKILLS.items(),
+        key=lambda item: max(map(len, item[1]["aliases"])),
+        reverse=True,
+    )
+    for key, skill in candidates:
+        if any(alias.lower() in normalized for alias in skill["aliases"]):
+            result = {"template": key, **skill}
+            size_match = re.search(
+                r"(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)", normalized
+            )
+            if size_match and "width_m" in result:
+                result["width_m"] = float(size_match.group(1))
+                result["height_m"] = float(size_match.group(2))
+            radius_match = re.search(r"半径\s*(\d+(?:\.\d+)?)", normalized)
+            if radius_match and "radius_m" in result:
+                result["radius_m"] = float(radius_match.group(1))
+            return result
+    return None
+
+
+def _rectangle_points(width: float, height: float) -> list[list[float]]:
+    width_mm, height_mm = width * 1000, height * 1000
+    return [
+        [-width_mm / 2, -height_mm / 2],
+        [width_mm / 2, -height_mm / 2],
+        [width_mm / 2, height_mm / 2],
+        [-width_mm / 2, height_mm / 2],
+        [-width_mm / 2, -height_mm / 2],
+    ]
+
+
+def drawing_template_geometries(match: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build CAD JSON geometry for an identified template."""
+    template = str(match["template"])
+    width = float(match.get("width_m", 1.0))
+    height = float(match.get("height_m", 1.0))
+    geometries: list[dict[str, Any]] = [
+        {
+            "id": 1,
+            "type": "polyline",
+            "layer_id": 1,
+            "vertices": [
+                {"x": point[0], "y": point[1], "z": 0.0}
+                for point in _rectangle_points(width, height)
+            ],
+            "closed": True,
+        }
+    ]
+    def line(identifier: int, start: tuple[float, float], end: tuple[float, float]) -> dict[str, Any]:
+        return {
+            "id": identifier,
+            "type": "line",
+            "layer_id": 1,
+            "start": {"x": start[0] * 1000, "y": start[1] * 1000, "z": 0.0},
+            "end": {"x": end[0] * 1000, "y": end[1] * 1000, "z": 0.0},
+        }
+
+    if template == "two_rooms":
+        geometries.append(line(2, (0, -height / 2), (0, height / 2)))
+    elif template == "basketball":
+        geometries.append(line(2, (0, -height / 2), (0, height / 2)))
+        geometries.append({
+            "id": 3,
+            "type": "circle",
+            "layer_id": 1,
+            "center": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "radius": 1800.0,
+        })
+    elif template == "badminton":
+        for identifier, x in enumerate((-2.1, 0.0, 2.1), start=2):
+            geometries.append(line(identifier, (x, -height / 2), (x, height / 2)))
+    elif template == "parking_lot":
+        for identifier, x in enumerate(range(-5, 6, 2), start=2):
+            geometries.append(line(identifier, (float(x), -height / 2), (float(x), height / 2)))
+    elif template == "warehouse":
+        for identifier, x in enumerate(range(-8, 9, 4), start=2):
+            geometries.append(line(identifier, (float(x), -height / 2), (float(x), height / 2)))
+    elif template == "grid":
+        identifier = 2
+        for value in range(-2, 3):
+            geometries.append(line(identifier, (float(value), -2), (float(value), 2)))
+            identifier += 1
+            geometries.append(line(identifier, (-2, float(value)), (2, float(value))))
+            identifier += 1
+    elif template == "foundation":
+        geometries = [{
+            "id": 1,
+            "type": "circle",
+            "layer_id": 1,
+            "center": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "radius": float(match.get("radius_m", 3.0)) * 1000,
+        }]
+    return geometries
+
+
+def drawing_template_motion_steps(match: dict[str, Any]) -> list[dict[str, float]]:
+    """Create an open-loop base-mode preview from a template perimeter."""
+    geometries = drawing_template_geometries(match)
+    points: list[tuple[float, float]] = []
+    for geometry in geometries:
+        if geometry["type"] == "polyline":
+            points.extend(
+                (float(point["x"]) / 1000, float(point["y"]) / 1000)
+                for point in geometry["vertices"]
+            )
+        elif geometry["type"] == "line":
+            points.extend(
+                (
+                    (float(geometry["start"]["x"]) / 1000, float(geometry["start"]["y"]) / 1000),
+                    (float(geometry["end"]["x"]) / 1000, float(geometry["end"]["y"]) / 1000),
+                )
+            )
+        elif geometry["type"] == "circle":
+            radius = float(geometry["radius"]) / 1000
+            points.extend(
+                (
+                    radius * math.cos(2 * math.pi * index / 24),
+                    radius * math.sin(2 * math.pi * index / 24),
+                )
+                for index in range(25)
+            )
+    if len(points) < 2:
+        return []
+    origin_x, origin_y = points[0]
+    translated = [(x - origin_x, y - origin_y) for x, y in points]
+    steps: list[dict[str, float]] = []
+    heading = 0.0
+    for start, end in zip(translated, translated[1:]):
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        distance = math.hypot(dx, dy)
+        if distance < 0.01:
+            continue
+        target = math.atan2(dy, dx)
+        turn = (target - heading + math.pi) % (2 * math.pi) - math.pi
+        if abs(turn) > 0.03:
+            turn_duration = abs(turn) / 0.4
+            steps.append({
+                "linear": 0.0,
+                "angular": 0.4 if turn > 0 else -0.4,
+                "duration_seconds": round(turn_duration, 3),
+            })
+        drive_duration = distance / 0.1
+        remaining = drive_duration
+        while remaining > 0:
+            duration = min(30.0, remaining)
+            steps.append({"linear": 0.1, "angular": 0.0, "duration_seconds": round(duration, 3)})
+            remaining -= duration
+        heading = target
+    return steps
+
+
 def _default_printer() -> str | None:
     """Select a real printer reported by the ROS2 printer status topic."""
     available: list[str] = []
     for key, value in robot_state.printer_status.items():
         if not key.startswith("printer_") or not isinstance(value, dict):
             continue
-        if value.get("connected") is True and value.get("is_online", True) is not False:
+        if value.get("connected") is True and value.get("enabled") is True:
             name = key.removeprefix("printer_")
             if name in {"left", "center", "right"}:
                 available.append(name)

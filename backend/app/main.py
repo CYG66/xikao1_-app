@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import threading
+import time
 from datetime import datetime
 from math import cos, pi, sin
 from pathlib import Path
@@ -809,8 +811,19 @@ async def websocket_rosbridge(websocket: WebSocket) -> None:
                 if isinstance(payload.get("client_id"), str):
                     connection_client_id = str(payload["client_id"])
                 result = handle_rosbridge_payload(payload)
-                await websocket.send_json(result)
-                await websocket.send_json({"op": "status", "msg": robot_state.snapshot()})
+                is_drive_command = (
+                    payload.get("op") == "publish"
+                    and payload.get("topic") == "/tablet_cmd_vel"
+                )
+                # A joystick command is a 20-40 Hz real-time stream. Sending
+                # a full status snapshot for every packet creates a queue of
+                # stale responses and makes the next command arrive late.
+                # Successful drive packets need no acknowledgement; errors
+                # still go back immediately so the UI can report them.
+                if not is_drive_command or result.get("ok") is not True:
+                    await websocket.send_json(result)
+                if not is_drive_command:
+                    await websocket.send_json({"op": "status", "msg": robot_state.snapshot()})
             except asyncio.TimeoutError:
                 await websocket.send_json({"op": "status", "msg": robot_state.snapshot()})
     except WebSocketDisconnect:
@@ -968,7 +981,82 @@ def handle_rosbridge_payload(payload: dict[str, object]) -> dict[str, object]:
                 str(tool_args["action"]),
                 int(tool_args["param"]),
             )
-            return {"op": "service_response", "service": service, "ok": ok}
+            message = "" if ok else _printer_unready_message(str(tool_args["printer_name"]))
+            return {
+                "op": "service_response",
+                "service": service,
+                "ok": ok,
+                "message": message,
+            }
+
+    if op == "printer_spray":
+        printer_name = str(payload.get("printer_name", "center"))
+        spraying = payload.get("spraying") is True
+        if f"printer_{printer_name}" not in robot_state.printer_status:
+            return {
+                "op": "printer_spray_response",
+                "ok": False,
+                "spraying": False,
+                "message": "喷码机未配置",
+            }
+        if not ros_adapter.owns_control(client_id):
+            return {
+                "op": "printer_spray_response",
+                "ok": False,
+                "spraying": False,
+                "message": "control lease required",
+            }
+        if spraying:
+            printer = robot_state.printer_status.get(f"printer_{printer_name}")
+            if not isinstance(printer, dict) or printer.get("connected") is not True:
+                return {
+                    "op": "printer_spray_response",
+                    "ok": False,
+                    "spraying": False,
+                    "message": "喷码机未连接",
+                }
+            active_ok = ros_adapter.set_printer_active(printer_name, True)
+            if not active_ok:
+                return {
+                    "op": "printer_spray_response",
+                    "ok": False,
+                    "spraying": False,
+                    "message": "喷码机激活服务不可用",
+                }
+            # xline_cyg's active flag only permits commands. Load a printable
+            # message before triggering, otherwise the UI can appear active
+            # while the print head has no content to emit.
+            def start_manual_spray() -> None:
+                time.sleep(0.35)
+                ok = ros_adapter.call_printer(
+                    printer_name,
+                    "test_print",
+                    0,
+                    allow_activation_race=True,
+                    auto_stop_test_print=False,
+                    manual_spray=True,
+                )
+                if not ok:
+                    robot_state.add_log(
+                        f"printer {printer_name} manual spray preparation failed"
+                    )
+
+            threading.Thread(target=start_manual_spray, daemon=True).start()
+            return {
+                "op": "printer_spray_response",
+                "ok": True,
+                "spraying": False,
+                "message": "正在加载喷墨内容，准备完成后可同时遥控小车",
+            }
+
+        stop_ok = ros_adapter.call_printer(printer_name, "stop_print", 0)
+        active_ok = ros_adapter.set_printer_active(printer_name, False)
+        return {
+            "op": "printer_spray_response",
+            "ok": stop_ok and active_ok,
+            "spraying": False,
+            "message": "喷墨已停止" if stop_ok and active_ok else "停止喷墨失败",
+        }
 
     if op == "call_service" and service == "/printer/set_active":
         args = payload.get("args")
@@ -989,7 +1077,12 @@ def handle_rosbridge_payload(payload: dict[str, object]) -> dict[str, object]:
             if not decision.allowed:
                 return {"op": "service_response", "service": service, "ok": False, "message": decision.message}
             ok = ros_adapter.set_printer_active(printer_name, args.get("active") is True)
-            return {"op": "service_response", "service": service, "ok": ok}
+            return {
+                "op": "service_response",
+                "service": service,
+                "ok": ok,
+                "message": "" if ok else "喷码机未连接或服务调用失败",
+            }
 
     if op == "call_service" and service == "/printer/set_enabled":
         args = payload.get("args")
@@ -1004,7 +1097,12 @@ def handle_rosbridge_payload(payload: dict[str, object]) -> dict[str, object]:
                 robot_state.printer_status[f"printer_{printer_name}"]["auto_connect"] = enabled
                 return {"op": "service_response", "service": service, "ok": True}
             ok = ros_adapter.set_printer_enabled(printer_name, enabled)
-            return {"op": "service_response", "service": service, "ok": ok}
+            return {
+                "op": "service_response",
+                "service": service,
+                "ok": ok,
+                "message": "" if ok else "喷码机未连接或服务调用失败",
+            }
 
     if op == "call_service" and service == "/printer/send_command":
         args = payload.get("args")
@@ -1064,3 +1162,14 @@ def _nested_number(data: dict[str, object], group: str, key: str) -> float:
         if isinstance(raw, int | float):
             return float(raw)
     return 0.0
+
+
+def _printer_unready_message(printer_name: str) -> str:
+    status = robot_state.printer_status.get(f"printer_{printer_name}")
+    if not isinstance(status, dict):
+        return "喷码机未配置或状态尚未上报"
+    if status.get("connected") is not True:
+        return "喷码机未连接"
+    if status.get("enabled") is not True:
+        return "喷码机未启用"
+    return "喷码服务调用失败，请检查喷码机节点日志"

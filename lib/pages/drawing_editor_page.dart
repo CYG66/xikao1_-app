@@ -14,12 +14,16 @@ class _DrawingEditorPage extends StatefulWidget {
   const _DrawingEditorPage({
     required this.device,
     required this.bridgeConnected,
+    required this.previewMode,
     required this.localizationSource,
+    this.embedded = false,
   });
 
   final RoverDevice device;
   final bool bridgeConnected;
+  final bool previewMode;
   final String localizationSource;
+  final bool embedded;
 
   @override
   State<_DrawingEditorPage> createState() => _DrawingEditorPageState();
@@ -28,6 +32,7 @@ class _DrawingEditorPage extends StatefulWidget {
 class _DrawingEditorPageState extends State<_DrawingEditorPage> {
   double pixelsPerMeter = 42;
   final TextEditingController promptController = TextEditingController();
+  final OfflineSpeechService drawingSpeech = OfflineSpeechService();
   final List<_SketchPath> paths = [];
   final List<List<_SketchPath>> undoStack = [];
   final List<List<_SketchPath>> redoStack = [];
@@ -44,18 +49,161 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
   double snapStep = 0.1;
   bool selectionDragRecorded = false;
   String status = '单位：米 · 保存前请核对尺寸';
+  bool transformingView = false;
+  Matrix4 gestureBaseTransform = Matrix4.identity();
+  bool drawingSpeechStarting = false;
+  bool drawingListening = false;
+  String drawingSpeechPrefix = '';
+  Timer? drawingSpeechTimer;
 
   @override
   void dispose() {
+    drawingSpeechTimer?.cancel();
+    unawaited(drawingSpeech.dispose());
     promptController.dispose();
     viewController.dispose();
     super.dispose();
   }
 
+  Future<void> _toggleDrawingSpeech() async {
+    if (drawingListening) {
+      drawingSpeechTimer?.cancel();
+      setState(() {
+        drawingListening = false;
+        drawingSpeechStarting = true;
+        status = '录音结束，正在本地转换为文字...';
+      });
+      try {
+        final spoken = await drawingSpeech.stopAndRecognize();
+        if (!mounted) return;
+        final text = drawingSpeechPrefix.isEmpty
+            ? spoken
+            : spoken.isEmpty
+            ? drawingSpeechPrefix
+            : '$drawingSpeechPrefix $spoken';
+        setState(() {
+          promptController.value = TextEditingValue(
+            text: text,
+            selection: TextSelection.collapsed(offset: text.length),
+          );
+          drawingSpeechStarting = false;
+          status = spoken.isEmpty
+              ? '没有识别到语音，请靠近平板麦克风后重试'
+              : '语音已转成图纸描述，请检查后再生成草图';
+        });
+      } catch (error) {
+        if (!mounted) return;
+        setState(() {
+          drawingSpeechStarting = false;
+          status = error is OfflineSpeechException
+              ? error.message
+              : '离线语音识别失败：$error';
+        });
+      }
+      return;
+    }
+
+    setState(() {
+      drawingSpeechStarting = true;
+      status = '正在加载高精度离线中文模型...';
+    });
+    try {
+      drawingSpeechPrefix = promptController.text.trimRight();
+      await drawingSpeech.start();
+      if (!mounted) {
+        await drawingSpeech.cancel();
+        return;
+      }
+      setState(() {
+        drawingListening = true;
+        drawingSpeechStarting = false;
+        status = '正在录音，再次点击麦克风结束并转成图纸描述';
+      });
+      drawingSpeechTimer?.cancel();
+      drawingSpeechTimer = Timer(const Duration(seconds: 60), () {
+        if (mounted && drawingListening) {
+          unawaited(_toggleDrawingSpeech());
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        drawingListening = false;
+        drawingSpeechStarting = false;
+        status = error is OfflineSpeechException
+            ? error.message
+            : '离线语音识别失败：$error';
+      });
+    }
+  }
+
   Offset _toWorld(Offset local) => Offset(
-    (local.dx - canvasSize.width / 2) / pixelsPerMeter,
-    (canvasSize.height / 2 - local.dy) / pixelsPerMeter,
+    (viewController.toScene(local).dx - canvasSize.width / 2) / pixelsPerMeter,
+    (canvasSize.height / 2 - viewController.toScene(local).dy) / pixelsPerMeter,
   );
+
+  void _gestureStart(ScaleStartDetails details) {
+    transformingView = details.pointerCount > 1;
+    gestureBaseTransform = viewController.value.clone();
+    if (transformingView) {
+      draft = null;
+      selectionDragRecorded = false;
+      setState(() {});
+      return;
+    }
+    if (tool == _DrawingTool.pan) {
+      cursorWorld = _toWorld(details.localFocalPoint);
+      setState(() {});
+      return;
+    }
+    _start(
+      DragStartDetails(
+        localPosition: details.localFocalPoint,
+        globalPosition: details.focalPoint,
+      ),
+    );
+  }
+
+  void _gestureUpdate(ScaleUpdateDetails details) {
+    if (details.pointerCount > 1 || transformingView) {
+      if (!transformingView) {
+        transformingView = true;
+        draft = null;
+        selectionDragRecorded = false;
+        gestureBaseTransform = viewController.value.clone();
+      }
+      final focal = details.localFocalPoint;
+      final next = gestureBaseTransform.clone()
+        ..translate(details.focalPointDelta.dx, details.focalPointDelta.dy)
+        ..translate(focal.dx, focal.dy)
+        ..rotateZ(details.rotation)
+        ..scale(details.scale)
+        ..translate(-focal.dx, -focal.dy);
+      viewController.value = next;
+      setState(() {});
+      return;
+    }
+    _update(
+      DragUpdateDetails(
+        localPosition: details.localFocalPoint,
+        globalPosition: details.focalPoint,
+      ),
+    );
+  }
+
+  void _gestureEnd(ScaleEndDetails details) {
+    if (transformingView) {
+      transformingView = false;
+      draft = null;
+      setState(() {});
+      return;
+    }
+    _end(
+      DragEndDetails(
+        primaryVelocity: details.velocity.pixelsPerSecond.distance,
+      ),
+    );
+  }
 
   List<_SketchPath> _snapshot() => paths.map((path) => path.copy()).toList();
 
@@ -430,6 +578,9 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
   }
 
   Future<Map<String, dynamic>> _post(String endpoint, Object body) async {
+    if (widget.previewMode) {
+      throw StateError('布局预览模式不会发送后端请求');
+    }
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
     try {
       final request = await client.postUrl(
@@ -774,356 +925,529 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
     }
   }
 
+  List<_SketchPath> _templatePaths(String template) {
+    _SketchPath rectangle(
+      double width,
+      double height, [
+      Offset origin = Offset.zero,
+    ]) {
+      final left = origin.dx - width / 2;
+      final right = origin.dx + width / 2;
+      final bottom = origin.dy - height / 2;
+      final top = origin.dy + height / 2;
+      return _SketchPath([
+        Offset(left, bottom),
+        Offset(right, bottom),
+        Offset(right, top),
+        Offset(left, top),
+        Offset(left, bottom),
+      ]);
+    }
+
+    _SketchPath circle(double radius, [Offset center = Offset.zero]) =>
+        _SketchPath([
+          for (var index = 0; index <= 48; index++)
+            center +
+                Offset(
+                  radius * math.cos(index * math.pi * 2 / 48),
+                  radius * math.sin(index * math.pi * 2 / 48),
+                ),
+        ]);
+
+    return switch (template) {
+      'room' => [rectangle(6, 4)],
+      'two_rooms' => [
+        rectangle(8, 6),
+        _SketchPath([const Offset(0, -3), const Offset(0, 3)]),
+      ],
+      'parking' => [rectangle(2.5, 5)],
+      'basketball' => [
+        rectangle(28, 15),
+        _SketchPath([const Offset(0, -7.5), const Offset(0, 7.5)]),
+        circle(1.8),
+      ],
+      'grid' => [
+        for (var value = -2; value <= 2; value++)
+          _SketchPath([
+            Offset(value.toDouble(), -2),
+            Offset(value.toDouble(), 2),
+          ]),
+        for (var value = -2; value <= 2; value++)
+          _SketchPath([
+            Offset(-2, value.toDouble()),
+            Offset(2, value.toDouble()),
+          ]),
+      ],
+      'foundation' => [circle(3)],
+      'corridor' => [rectangle(12, 2)],
+      'warehouse' => [
+        rectangle(20, 12),
+        for (var x = -8; x <= 8; x += 4)
+          _SketchPath([Offset(x.toDouble(), -6), Offset(x.toDouble(), 6)]),
+      ],
+      'badminton' => [
+        rectangle(13.4, 6.1),
+        _SketchPath([const Offset(0, -3.05), const Offset(0, 3.05)]),
+        _SketchPath([const Offset(-2.1, -3.05), const Offset(-2.1, 3.05)]),
+        _SketchPath([const Offset(2.1, -3.05), const Offset(2.1, 3.05)]),
+      ],
+      'parking_lot' => [
+        rectangle(12, 6),
+        for (var x = -5; x <= 5; x += 2)
+          _SketchPath([Offset(x.toDouble(), -3), Offset(x.toDouble(), 3)]),
+      ],
+      _ => const [],
+    };
+  }
+
+  void _applyTemplate(String template, String label) {
+    final generated = _templatePaths(template);
+    if (generated.isEmpty) return;
+    _recordChange();
+    setState(() {
+      paths
+        ..clear()
+        ..addAll(generated);
+      selectedIndex = null;
+      tool = _DrawingTool.select;
+      status = '已载入$label，可继续选择、编辑或精确调整';
+      viewController.value = Matrix4.identity();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final liveCheck = _preflight();
     final liveErrors = (liveCheck['errors'] as List).length;
     final liveWarnings = (liveCheck['warnings'] as List).length;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('图纸编辑器'),
-        actions: [
-          IconButton(
-            tooltip: '撤销',
-            onPressed: undoStack.isEmpty ? null : _undo,
-            icon: const Icon(Icons.undo_rounded),
-          ),
-          IconButton(
-            tooltip: '重做',
-            onPressed: redoStack.isEmpty ? null : _redo,
-            icon: const Icon(Icons.redo_rounded),
-          ),
-          IconButton(
-            tooltip: '精确绘制',
-            onPressed: busy ? null : _showPreciseCreateDialog,
-            icon: const Icon(Icons.square_foot_rounded),
-          ),
-          IconButton(
-            tooltip: '编辑选中对象',
-            onPressed: selectedIndex == null ? null : _editSelected,
-            icon: const Icon(Icons.tune_rounded),
-          ),
-          IconButton(
-            tooltip: '删除选中图形',
-            onPressed: selectedIndex == null
-                ? null
-                : () {
-                    _recordChange();
-                    setState(() {
-                      paths.removeAt(selectedIndex!);
-                      selectedIndex = null;
-                    });
-                  },
-            icon: const Icon(Icons.delete_outline_rounded),
-          ),
-          IconButton(
-            tooltip: '保存任务',
-            onPressed: busy ? null : _save,
-            icon: const Icon(Icons.save_rounded),
+    final appBar = AppBar(
+      title: const Text('图纸编辑器'),
+      actions: [
+        IconButton(
+          tooltip: '撤销',
+          onPressed: undoStack.isEmpty ? null : _undo,
+          icon: const Icon(Icons.undo_rounded),
+        ),
+        IconButton(
+          tooltip: '重做',
+          onPressed: redoStack.isEmpty ? null : _redo,
+          icon: const Icon(Icons.redo_rounded),
+        ),
+        IconButton(
+          tooltip: '精确绘制',
+          onPressed: busy ? null : _showPreciseCreateDialog,
+          icon: const Icon(Icons.square_foot_rounded),
+        ),
+        IconButton(
+          tooltip: '编辑选中对象',
+          onPressed: selectedIndex == null ? null : _editSelected,
+          icon: const Icon(Icons.tune_rounded),
+        ),
+        IconButton(
+          tooltip: '删除选中图形',
+          onPressed: selectedIndex == null
+              ? null
+              : () {
+                  _recordChange();
+                  setState(() {
+                    paths.removeAt(selectedIndex!);
+                    selectedIndex = null;
+                  });
+                },
+          icon: const Icon(Icons.delete_outline_rounded),
+        ),
+        IconButton(
+          tooltip: '保存任务',
+          onPressed: busy ? null : _save,
+          icon: const Icon(Icons.save_rounded),
+        ),
+      ],
+    );
+    final toolBar = Container(
+      height: 50,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xffdce3ea)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x180f172a),
+            blurRadius: 12,
+            offset: Offset(0, 4),
           ),
         ],
       ),
-      body: Column(
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         children: [
-          Container(
-            height: 52,
-            margin: const EdgeInsets.fromLTRB(10, 6, 10, 0),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xffdce3ea)),
-            ),
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: FilterChip(
-                    selected: snapEnabled,
-                    onSelected: (value) => setState(() => snapEnabled = value),
-                    avatar: const Icon(Icons.grid_4x4_rounded, size: 17),
-                    label: Text('吸附 ${(snapStep * 1000).round()}mm'),
-                    showCheckmark: false,
-                  ),
-                ),
-                _DrawingToolButton(
-                  tool: _DrawingTool.pan,
-                  selected: tool,
-                  icon: Icons.pan_tool_alt_rounded,
-                  label: '视图',
-                  onTap: _setTool,
-                ),
-                _DrawingToolButton(
-                  tool: _DrawingTool.select,
-                  selected: tool,
-                  icon: Icons.near_me_rounded,
-                  label: '选择',
-                  onTap: _setTool,
-                ),
-                _DrawingToolButton(
-                  tool: _DrawingTool.line,
-                  selected: tool,
-                  icon: Icons.horizontal_rule_rounded,
-                  label: '直线',
-                  onTap: _setTool,
-                ),
-                _DrawingToolButton(
-                  tool: _DrawingTool.rectangle,
-                  selected: tool,
-                  icon: Icons.rectangle_outlined,
-                  label: '矩形',
-                  onTap: _setTool,
-                ),
-                _DrawingToolButton(
-                  tool: _DrawingTool.circle,
-                  selected: tool,
-                  icon: Icons.circle_outlined,
-                  label: '圆',
-                  onTap: _setTool,
-                ),
-                _DrawingToolButton(
-                  tool: _DrawingTool.freehand,
-                  selected: tool,
-                  icon: Icons.gesture_rounded,
-                  label: '折线',
-                  onTap: _setTool,
-                ),
-              ],
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: FilterChip(
+              selected: snapEnabled,
+              onSelected: (value) => setState(() => snapEnabled = value),
+              avatar: const Icon(Icons.grid_4x4_rounded, size: 17),
+              label: Text('吸附 ${(snapStep * 1000).round()}mm'),
+              showCheckmark: false,
             ),
           ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
-            alignment: Alignment.center,
-            child: Text(
-              _toolHint,
-              style: const TextStyle(color: Color(0xff94a3b8), fontSize: 12),
-            ),
+          _DrawingToolButton(
+            tool: _DrawingTool.pan,
+            selected: tool,
+            icon: Icons.pan_tool_alt_rounded,
+            label: '视图',
+            onTap: _setTool,
           ),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
-                final canvas = Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CustomPaint(
-                      size: canvasSize,
-                      painter: _DrawingCanvasPainter(
-                        paths: paths,
-                        travelPaths: _travelPreview,
-                        draft: draft,
-                        selectedIndex: selectedIndex,
-                        pixelsPerMeter: pixelsPerMeter,
-                        relativeMode:
-                            widget.localizationSource == 'odom_imu_relative',
-                        errorSegments:
-                            liveCheck['error_segments'] as Set<String>,
-                        warningSegments:
-                            liveCheck['warning_segments'] as Set<String>,
-                      ),
-                    ),
-                    if (paths.isEmpty && draft == null)
-                      const IgnorePointer(
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.draw_outlined,
-                                color: Color(0xff64748b),
-                                size: 34,
-                              ),
-                              SizedBox(height: 8),
-                              Text(
-                                '画布为空',
-                                style: TextStyle(
-                                  color: Color(0xff94a3b8),
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              SizedBox(height: 3),
-                              Text(
-                                '选择上方工具开始绘制',
-                                style: TextStyle(
-                                  color: Color(0xff64748b),
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    Positioned(
-                      left: 12,
-                      bottom: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: const Color(0xffdce3ea)),
-                        ),
-                        child: Text(
-                          '${cursorWorld.dx.toStringAsFixed(2)}, '
-                          '${cursorWorld.dy.toStringAsFixed(2)} m',
-                          style: const TextStyle(
-                            color: Color(0xffcbd5e1),
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      right: 10,
-                      bottom: 10,
-                      child: Row(
-                        children: [
-                          _CanvasViewButton(
-                            tooltip: '缩小',
-                            icon: Icons.remove_rounded,
-                            onPressed: () => setState(
-                              () => pixelsPerMeter = math.max(
-                                20,
-                                pixelsPerMeter - 6,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          _CanvasViewButton(
-                            tooltip: '放大',
-                            icon: Icons.add_rounded,
-                            onPressed: () => setState(
-                              () => pixelsPerMeter = math.min(
-                                96,
-                                pixelsPerMeter + 6,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          _CanvasViewButton(
-                            tooltip: '重置视图',
-                            icon: Icons.center_focus_strong_rounded,
-                            onPressed: () => setState(() {
-                              pixelsPerMeter = 42;
-                              viewController.value = Matrix4.identity();
-                              selectedIndex = null;
-                              cursorWorld = Offset.zero;
-                            }),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-                if (tool == _DrawingTool.pan) {
-                  return InteractiveViewer(
-                    transformationController: viewController,
-                    minScale: 0.5,
-                    maxScale: 8,
-                    boundaryMargin: const EdgeInsets.all(300),
-                    child: SizedBox(
-                      width: canvasSize.width,
-                      height: canvasSize.height,
-                      child: canvas,
-                    ),
-                  );
-                }
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onPanStart: _start,
-                  onPanUpdate: _update,
-                  onPanEnd: _end,
-                  child: canvas,
-                );
-              },
-            ),
+          _DrawingToolButton(
+            tool: _DrawingTool.select,
+            selected: tool,
+            icon: Icons.near_me_rounded,
+            label: '选择',
+            onTap: _setTool,
           ),
-          Container(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-            decoration: const BoxDecoration(
-              color: Color(0xff0f172a),
-              border: Border(top: BorderSide(color: Color(0xff22304a))),
-            ),
-            child: SafeArea(
-              top: false,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    status,
-                    style: const TextStyle(
-                      color: Color(0xff94a3b8),
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    '草稿 · 喷墨 ${(liveCheck['printing_length_m'] as double).toStringAsFixed(2)}m · '
-                    '预计转场 ${(liveCheck['travel_length_m'] as double).toStringAsFixed(2)}m · '
-                    '错误 $liveErrors · 警告 $liveWarnings',
-                    style: TextStyle(
-                      color: liveErrors > 0
-                          ? const Color(0xfff87171)
-                          : liveWarnings > 0
-                          ? const Color(0xfffbbf24)
-                          : const Color(0xff86efac),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: promptController,
-                          minLines: 1,
-                          maxLines: 2,
-                          decoration: _inputDecoration(
-                            '让助手帮你画图',
-                            Icons.smart_toy_rounded,
-                          ),
-                          onSubmitted: (_) => _generate(),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      if (selectedIndex != null) ...[
-                        IconButton.filledTonal(
-                          tooltip: 'AI 局部重绘选中对象',
-                          onPressed: busy
-                              ? null
-                              : () => _generate(replaceSelected: true),
-                          icon: const Icon(Icons.auto_fix_high_rounded),
-                        ),
-                        const SizedBox(width: 6),
-                      ],
-                      IconButton.filled(
-                        tooltip: '生成草图',
-                        onPressed: busy ? null : _generate,
-                        icon: busy
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.arrow_upward_rounded),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+          _DrawingToolButton(
+            tool: _DrawingTool.line,
+            selected: tool,
+            icon: Icons.horizontal_rule_rounded,
+            label: '直线',
+            onTap: _setTool,
+          ),
+          _DrawingToolButton(
+            tool: _DrawingTool.rectangle,
+            selected: tool,
+            icon: Icons.rectangle_outlined,
+            label: '矩形',
+            onTap: _setTool,
+          ),
+          _DrawingToolButton(
+            tool: _DrawingTool.circle,
+            selected: tool,
+            icon: Icons.circle_outlined,
+            label: '圆',
+            onTap: _setTool,
+          ),
+          _DrawingToolButton(
+            tool: _DrawingTool.freehand,
+            selected: tool,
+            icon: Icons.gesture_rounded,
+            label: '折线',
+            onTap: _setTool,
           ),
         ],
       ),
     );
+    final editorContent = Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          alignment: Alignment.center,
+          child: Text(
+            _toolHint,
+            style: const TextStyle(color: Color(0xff94a3b8), fontSize: 12),
+          ),
+        ),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
+              final drawingLayer = Stack(
+                fit: StackFit.expand,
+                children: [
+                  CustomPaint(
+                    painter: _DrawingCanvasPainter(
+                      paths: paths,
+                      travelPaths: _travelPreview,
+                      draft: draft,
+                      selectedIndex: selectedIndex,
+                      pixelsPerMeter: pixelsPerMeter,
+                      relativeMode:
+                          widget.localizationSource == 'odom_imu_relative',
+                      errorSegments: liveCheck['error_segments'] as Set<String>,
+                      warningSegments:
+                          liveCheck['warning_segments'] as Set<String>,
+                      drawGrid: false,
+                    ),
+                  ),
+                  if (paths.isEmpty && draft == null)
+                    const IgnorePointer(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.draw_outlined,
+                              color: Color(0xff64748b),
+                              size: 34,
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              '画布为空',
+                              style: TextStyle(
+                                color: Color(0xff94a3b8),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            SizedBox(height: 3),
+                            Text(
+                              '选择上方工具开始绘制',
+                              style: TextStyle(
+                                color: Color(0xff64748b),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              );
+              final canvas = Stack(
+                fit: StackFit.expand,
+                children: [
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _InfiniteGridPainter(
+                        transform: viewController.value,
+                        pixelsPerMeter: pixelsPerMeter,
+                        relativeMode:
+                            widget.localizationSource == 'odom_imu_relative',
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onScaleStart: _gestureStart,
+                      onScaleUpdate: _gestureUpdate,
+                      onScaleEnd: _gestureEnd,
+                      child: Transform(
+                        alignment: Alignment.topLeft,
+                        transform: viewController.value,
+                        child: SizedBox(
+                          width: canvasSize.width,
+                          height: canvasSize.height,
+                          child: drawingLayer,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    bottom: 12,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 560),
+                        child: toolBar,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 12,
+                    bottom: 72,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xffdce3ea)),
+                      ),
+                      child: Text(
+                        '${cursorWorld.dx.toStringAsFixed(2)}, '
+                        '${cursorWorld.dy.toStringAsFixed(2)} m',
+                        style: const TextStyle(
+                          color: Color(0xffcbd5e1),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 10,
+                    bottom: 70,
+                    child: Row(
+                      children: [
+                        _CanvasViewButton(
+                          tooltip: '缩小',
+                          icon: Icons.remove_rounded,
+                          onPressed: () => setState(
+                            () => pixelsPerMeter = math.max(
+                              20,
+                              pixelsPerMeter - 6,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        _CanvasViewButton(
+                          tooltip: '放大',
+                          icon: Icons.add_rounded,
+                          onPressed: () => setState(
+                            () => pixelsPerMeter = math.min(
+                              96,
+                              pixelsPerMeter + 6,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        _CanvasViewButton(
+                          tooltip: '重置视图',
+                          icon: Icons.center_focus_strong_rounded,
+                          onPressed: () => setState(() {
+                            pixelsPerMeter = 42;
+                            viewController.value = Matrix4.identity();
+                            selectedIndex = null;
+                            cursorWorld = Offset.zero;
+                          }),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+              return canvas;
+            },
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(top: BorderSide(color: Color(0xffdce3ea))),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  status,
+                  style: const TextStyle(
+                    color: Color(0xff64748b),
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '草稿 · 喷墨 ${(liveCheck['printing_length_m'] as double).toStringAsFixed(2)}m · '
+                  '预计转场 ${(liveCheck['travel_length_m'] as double).toStringAsFixed(2)}m · '
+                  '错误 $liveErrors · 警告 $liveWarnings',
+                  style: TextStyle(
+                    color: liveErrors > 0
+                        ? const Color(0xfff87171)
+                        : liveWarnings > 0
+                        ? const Color(0xfffbbf24)
+                        : const Color(0xff15803d),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: promptController,
+                        enabled:
+                            !drawingSpeechStarting &&
+                            !drawingListening &&
+                            !busy,
+                        minLines: 1,
+                        maxLines: 2,
+                        decoration: _inputDecoration(
+                          drawingListening ? '正在录音，再次点击麦克风结束' : '让助手帮你画图',
+                          drawingListening
+                              ? Icons.graphic_eq_rounded
+                              : Icons.smart_toy_rounded,
+                        ),
+                        onSubmitted: (_) => _generate(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: drawingListening
+                          ? '结束录音并在本机转换'
+                          : drawingSpeechStarting
+                          ? '正在加载离线语音模型'
+                          : '离线语音输入图纸描述',
+                      onPressed: busy || drawingSpeechStarting
+                          ? null
+                          : _toggleDrawingSpeech,
+                      style: IconButton.styleFrom(
+                        foregroundColor: drawingListening
+                            ? const Color(0xffdc2626)
+                            : const Color(0xff475569),
+                        backgroundColor: drawingListening
+                            ? const Color(0xffffe4e6)
+                            : const Color(0xfff1f5f9),
+                      ),
+                      icon: Icon(
+                        drawingListening
+                            ? Icons.mic_rounded
+                            : Icons.mic_none_rounded,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    if (selectedIndex != null) ...[
+                      IconButton.filledTonal(
+                        tooltip: 'AI 局部重绘选中对象',
+                        onPressed: busy
+                            ? null
+                            : () => _generate(replaceSelected: true),
+                        icon: const Icon(Icons.auto_fix_high_rounded),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    IconButton.filled(
+                      tooltip: '生成草图',
+                      onPressed: busy ? null : _generate,
+                      icon: busy
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.arrow_upward_rounded),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+    final content = LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 900) return editorContent;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: 310,
+              child: _DrawingTemplateLibrary(onSelected: _applyTemplate),
+            ),
+            const VerticalDivider(width: 1, color: Color(0xffdce3ea)),
+            Expanded(child: editorContent),
+          ],
+        );
+      },
+    );
+    if (widget.embedded) {
+      return Material(
+        color: const Color(0xfff8fafc),
+        child: Column(
+          children: [
+            appBar,
+            Expanded(child: content),
+          ],
+        ),
+      );
+    }
+    return Scaffold(appBar: appBar, body: content);
   }
 
   void _setTool(_DrawingTool value) => setState(() {
@@ -1157,14 +1481,188 @@ class _CanvasViewButton extends StatelessWidget {
     tooltip: tooltip,
     onPressed: onPressed,
     style: IconButton.styleFrom(
-      backgroundColor: const Color(0xee111827),
-      foregroundColor: const Color(0xffcbd5e1),
-      side: const BorderSide(color: Color(0xff22304a)),
+      backgroundColor: Colors.white,
+      foregroundColor: const Color(0xff475569),
+      side: const BorderSide(color: Color(0xffcbd5e1)),
       minimumSize: const Size(36, 36),
       maximumSize: const Size(36, 36),
       padding: EdgeInsets.zero,
     ),
     icon: Icon(icon, size: 18),
+  );
+}
+
+class _DrawingTemplateLibrary extends StatefulWidget {
+  const _DrawingTemplateLibrary({required this.onSelected});
+
+  final void Function(String template, String label) onSelected;
+
+  @override
+  State<_DrawingTemplateLibrary> createState() =>
+      _DrawingTemplateLibraryState();
+}
+
+class _DrawingTemplateLibraryState extends State<_DrawingTemplateLibrary> {
+  String category = '全部';
+
+  static const templates = [
+    ('room', '矩形房间', '6 x 4 m', Icons.crop_square_rounded, '建筑'),
+    ('two_rooms', '两室布局', '8 x 6 m · 含隔墙', Icons.view_week_outlined, '建筑'),
+    ('corridor', '长走廊', '12 x 2 m', Icons.horizontal_rule_rounded, '建筑'),
+    ('parking', '标准车位', '2.5 x 5 m', Icons.local_parking_rounded, '场地'),
+    ('parking_lot', '停车场', '12 x 6 m · 车位线', Icons.local_parking, '场地'),
+    ('basketball', '篮球场', '28 x 15 m', Icons.sports_basketball_rounded, '场地'),
+    ('badminton', '羽毛球场', '13.4 x 6.1 m', Icons.sports_tennis_rounded, '场地'),
+    ('warehouse', '仓库网格', '20 x 12 m', Icons.warehouse_outlined, '施工'),
+    ('grid', '施工轴网', '5 x 5 网格', Icons.grid_on_rounded, '施工'),
+    ('foundation', '圆形基础', '半径 3 m', Icons.circle_outlined, '施工'),
+  ];
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+    color: const Color(0xfff8fafc),
+    child: Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.dashboard_customize_outlined, size: 20),
+              SizedBox(width: 8),
+              Text(
+                '图纸模板',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '选择常用结构后可继续精确编辑',
+            style: TextStyle(color: Color(0xff64748b), fontSize: 12),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            height: 38,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: const Color(0xffe8edf5),
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Row(
+              children: [
+                for (final label in const ['全部', '建筑', '场地', '施工'])
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => category = label),
+                      child: _DrawingCategoryLabel(
+                        label,
+                        selected: category == label,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Expanded(
+            child: GridView.builder(
+              itemCount: templates
+                  .where((item) => category == '全部' || item.$5 == category)
+                  .length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 0.82,
+              ),
+              itemBuilder: (context, index) {
+                final visible = templates
+                    .where((item) => category == '全部' || item.$5 == category)
+                    .toList();
+                final item = visible[index];
+                return InkWell(
+                  onTap: () => widget.onSelected(item.$1, item.$2),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Ink(
+                    padding: const EdgeInsets.all(9),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xffdce3ea)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: const Color(0xffeef3f9),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Icon(
+                              item.$4,
+                              color: const Color(0xff64809f),
+                              size: 34,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          item.$2,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        Text(
+                          item.$3,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xff64748b),
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _DrawingCategoryLabel extends StatelessWidget {
+  const _DrawingCategoryLabel(this.label, {this.selected = false});
+
+  final String label;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    alignment: Alignment.center,
+    decoration: selected
+        ? BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(5),
+            boxShadow: const [
+              BoxShadow(color: Color(0x160f172a), blurRadius: 4),
+            ],
+          )
+        : null,
+    child: Text(
+      label,
+      style: TextStyle(
+        color: selected ? const Color(0xff1e293b) : const Color(0xff64748b),
+        fontSize: 11,
+        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+      ),
+    ),
   );
 }
 
@@ -1205,6 +1703,131 @@ class _DrawingToolButton extends StatelessWidget {
   }
 }
 
+class _InfiniteGridPainter extends CustomPainter {
+  _InfiniteGridPainter({
+    required this.transform,
+    required this.pixelsPerMeter,
+    required this.relativeMode,
+  });
+
+  final Matrix4 transform;
+  final double pixelsPerMeter;
+  final bool relativeMode;
+
+  Offset _transformPoint(Offset point) {
+    final values = transform.storage;
+    return Offset(
+      values[0] * point.dx + values[4] * point.dy + values[12],
+      values[1] * point.dx + values[5] * point.dy + values[13],
+    );
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xfff8fbff),
+    );
+
+    final sceneCorners = [
+      Offset.zero,
+      Offset(size.width, 0),
+      Offset(0, size.height),
+      Offset(size.width, size.height),
+    ].map((point) => _scenePoint(point)).toList();
+    final minSceneX = sceneCorners.map((point) => point.dx).reduce(math.min);
+    final maxSceneX = sceneCorners.map((point) => point.dx).reduce(math.max);
+    final minSceneY = sceneCorners.map((point) => point.dy).reduce(math.min);
+    final maxSceneY = sceneCorners.map((point) => point.dy).reduce(math.max);
+    final center = Offset(size.width / 2, size.height / 2);
+    final minWorldX = ((minSceneX - center.dx) / pixelsPerMeter).floor() - 1;
+    final maxWorldX = ((maxSceneX - center.dx) / pixelsPerMeter).ceil() + 1;
+    final minWorldY = ((center.dy - maxSceneY) / pixelsPerMeter).floor() - 1;
+    final maxWorldY = ((center.dy - minSceneY) / pixelsPerMeter).ceil() + 1;
+    final grid = Paint()..strokeWidth = 1;
+
+    Offset scene(double x, double y) =>
+        Offset(center.dx + x * pixelsPerMeter, center.dy - y * pixelsPerMeter);
+
+    for (var value = minWorldX; value <= maxWorldX; value++) {
+      final major = value % 5 == 0;
+      grid.color = major ? const Color(0xffc7d5e5) : const Color(0xffe6edf5);
+      canvas.drawLine(
+        _transformPoint(scene(value.toDouble(), minWorldY.toDouble())),
+        _transformPoint(scene(value.toDouble(), maxWorldY.toDouble())),
+        grid,
+      );
+    }
+    for (var value = minWorldY; value <= maxWorldY; value++) {
+      final major = value % 5 == 0;
+      grid.color = major ? const Color(0xffc7d5e5) : const Color(0xffe6edf5);
+      canvas.drawLine(
+        _transformPoint(scene(minWorldX.toDouble(), value.toDouble())),
+        _transformPoint(scene(maxWorldX.toDouble(), value.toDouble())),
+        grid,
+      );
+    }
+
+    final axis = Paint()..color = const Color(0xff7ea6d2);
+    canvas.drawLine(
+      _transformPoint(scene(0, minWorldY.toDouble())),
+      _transformPoint(scene(0, maxWorldY.toDouble())),
+      axis,
+    );
+    canvas.drawLine(
+      _transformPoint(scene(minWorldX.toDouble(), 0)),
+      _transformPoint(scene(maxWorldX.toDouble(), 0)),
+      axis,
+    );
+
+    void label(String text, Offset point) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: const TextStyle(color: Color(0xff64748b), fontSize: 10),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final position = _transformPoint(point);
+      if (position.dx > -40 &&
+          position.dx < size.width + 10 &&
+          position.dy > -20 &&
+          position.dy < size.height + 10) {
+        painter.paint(canvas, position + const Offset(3, 3));
+      }
+    }
+
+    for (var value = minWorldX; value <= maxWorldX; value++) {
+      label('${value}m', scene(value.toDouble(), 0));
+    }
+    for (var value = minWorldY; value <= maxWorldY; value++) {
+      label('${value}m', scene(0, value.toDouble()));
+    }
+  }
+
+  Offset _scenePoint(Offset viewportPoint) {
+    final values = transform.storage;
+    final a = values[0];
+    final b = values[1];
+    final c = values[4];
+    final d = values[5];
+    final tx = viewportPoint.dx - values[12];
+    final ty = viewportPoint.dy - values[13];
+    final determinant = a * d - b * c;
+    if (determinant.abs() < 0.000001) return viewportPoint;
+    return Offset(
+      (d * tx - c * ty) / determinant,
+      (-b * tx + a * ty) / determinant,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _InfiniteGridPainter oldDelegate) =>
+      oldDelegate.transform != transform ||
+      oldDelegate.pixelsPerMeter != pixelsPerMeter ||
+      oldDelegate.relativeMode != relativeMode;
+}
+
 class _DrawingCanvasPainter extends CustomPainter {
   _DrawingCanvasPainter({
     required this.paths,
@@ -1215,6 +1838,7 @@ class _DrawingCanvasPainter extends CustomPainter {
     required this.relativeMode,
     required this.errorSegments,
     required this.warningSegments,
+    this.drawGrid = true,
   });
 
   final List<_SketchPath> paths;
@@ -1225,43 +1849,98 @@ class _DrawingCanvasPainter extends CustomPainter {
   final bool relativeMode;
   final Set<String> errorSegments;
   final Set<String> warningSegments;
+  final bool drawGrid;
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = const Color(0xff07111f),
-    );
+    if (!drawGrid) {
+      _drawContent(canvas, size);
+      return;
+    }
+    _drawContent(canvas, size);
+  }
+
+  void _drawContent(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final grid = Paint()..strokeWidth = 1;
-    for (
-      var x = center.dx % pixelsPerMeter;
-      x < size.width;
-      x += pixelsPerMeter
-    ) {
-      final major = ((x - center.dx) / pixelsPerMeter).round() % 5 == 0;
-      grid.color = major ? const Color(0xff24344d) : const Color(0xff152238);
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), grid);
+    if (drawGrid) {
+      canvas.drawRect(
+        Offset.zero & size,
+        Paint()..color = const Color(0xfff8fbff),
+      );
+      final grid = Paint()..strokeWidth = 1;
+      for (
+        var x = center.dx % pixelsPerMeter;
+        x < size.width;
+        x += pixelsPerMeter
+      ) {
+        final major = ((x - center.dx) / pixelsPerMeter).round() % 5 == 0;
+        grid.color = major ? const Color(0xffc7d5e5) : const Color(0xffe6edf5);
+        canvas.drawLine(Offset(x, 0), Offset(x, size.height), grid);
+      }
+      for (
+        var x = center.dx % pixelsPerMeter - pixelsPerMeter;
+        x >= 0;
+        x -= pixelsPerMeter
+      ) {
+        final major = ((x - center.dx) / pixelsPerMeter).round() % 5 == 0;
+        grid.color = major ? const Color(0xffc7d5e5) : const Color(0xffe6edf5);
+        canvas.drawLine(Offset(x, 0), Offset(x, size.height), grid);
+      }
+      for (
+        var y = center.dy % pixelsPerMeter;
+        y < size.height;
+        y += pixelsPerMeter
+      ) {
+        final major = ((y - center.dy) / pixelsPerMeter).round() % 5 == 0;
+        grid.color = major ? const Color(0xffc7d5e5) : const Color(0xffe6edf5);
+        canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
+      }
+      for (
+        var y = center.dy % pixelsPerMeter - pixelsPerMeter;
+        y >= 0;
+        y -= pixelsPerMeter
+      ) {
+        final major = ((y - center.dy) / pixelsPerMeter).round() % 5 == 0;
+        grid.color = major ? const Color(0xffc7d5e5) : const Color(0xffe6edf5);
+        canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
+      }
+      canvas.drawLine(
+        Offset(0, center.dy),
+        Offset(size.width, center.dy),
+        Paint()..color = const Color(0xff7ea6d2),
+      );
+      canvas.drawLine(
+        Offset(center.dx, 0),
+        Offset(center.dx, size.height),
+        Paint()..color = const Color(0xff7ea6d2),
+      );
+
+      // Keep coordinate labels attached to the visible viewport so the whole
+      // workspace remains readable when the tablet canvas gets wider.
+      void drawAxisLabel(String text, Offset position) {
+        final painter = TextPainter(
+          text: TextSpan(
+            text: text,
+            style: const TextStyle(color: Color(0xff64748b), fontSize: 10),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        painter.paint(canvas, position);
+      }
+
+      final minX = (-center.dx / pixelsPerMeter).floor();
+      final maxX = ((size.width - center.dx) / pixelsPerMeter).ceil();
+      for (var value = minX; value <= maxX; value++) {
+        final x = center.dx + value * pixelsPerMeter;
+        drawAxisLabel('${value}m', Offset(x + 3, center.dy + 7));
+      }
+      final minY = ((center.dy - size.height) / pixelsPerMeter).floor();
+      final maxY = (center.dy / pixelsPerMeter).ceil();
+      for (var value = minY; value <= maxY; value++) {
+        final y = center.dy - value * pixelsPerMeter;
+        drawAxisLabel('${value}m', Offset(5, y - 14));
+      }
     }
-    for (
-      var y = center.dy % pixelsPerMeter;
-      y < size.height;
-      y += pixelsPerMeter
-    ) {
-      final major = ((y - center.dy) / pixelsPerMeter).round() % 5 == 0;
-      grid.color = major ? const Color(0xff24344d) : const Color(0xff152238);
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
-    }
-    canvas.drawLine(
-      Offset(0, center.dy),
-      Offset(size.width, center.dy),
-      Paint()..color = const Color(0xff3b82f6),
-    );
-    canvas.drawLine(
-      Offset(center.dx, 0),
-      Offset(center.dx, size.height),
-      Paint()..color = const Color(0xff3b82f6),
-    );
 
     final roverWidth = 0.55 * pixelsPerMeter;
     final roverLength = 0.75 * pixelsPerMeter;

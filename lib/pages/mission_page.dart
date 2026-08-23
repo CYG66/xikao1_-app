@@ -194,10 +194,6 @@ class _MissionPage extends StatelessWidget {
     required this.onPause,
     required this.onResume,
     required this.onCancel,
-    required this.onLnCommand,
-    required this.onCalibrateLocalization,
-    required this.localizationCalibration,
-    required this.ln150Ready,
     required this.localizationSource,
     required this.localizationValid,
     required this.localizationCalibrationAvailable,
@@ -229,10 +225,6 @@ class _MissionPage extends StatelessWidget {
   final VoidCallback onPause;
   final VoidCallback onResume;
   final VoidCallback onCancel;
-  final ValueChanged<int> onLnCommand;
-  final VoidCallback onCalibrateLocalization;
-  final String localizationCalibration;
-  final bool ln150Ready;
   final String localizationSource;
   final bool localizationValid;
   final bool localizationCalibrationAvailable;
@@ -461,60 +453,6 @@ class _MissionPage extends StatelessWidget {
         ],
       ),
     );
-    final setupPanel = _Panel(
-      title: localizationSource == 'ln150_imu'
-          ? '全站仪定位准备'
-          : localizationSource == 'odom_imu_relative'
-          ? '相对定位准备'
-          : '定位准备',
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          if (ln150Ready) ...[
-            _CommandButton(
-              label: 'LN150 初始化',
-              icon: Icons.power_settings_new_rounded,
-              onPressed: () => onLnCommand(1),
-            ),
-            _CommandButton(
-              label: '自动追踪',
-              icon: Icons.gps_fixed_rounded,
-              onPressed: () => onLnCommand(2),
-            ),
-            _CommandButton(
-              label: '自动调平',
-              icon: Icons.balance_rounded,
-              onPressed: () => onLnCommand(3),
-            ),
-          ],
-          _CommandButton(
-            label: localizationCalibration == 'calibrating'
-                ? localizationSource == 'odom_imu_relative'
-                      ? '正在重置原点'
-                      : '定位校准中'
-                : localizationSource == 'odom_imu_relative'
-                ? '重置相对原点'
-                : '定位校准',
-            icon: Icons.my_location_rounded,
-            onPressed:
-                localizationCalibrationAvailable &&
-                    localizationCalibration != 'calibrating'
-                ? onCalibrateLocalization
-                : null,
-          ),
-          if (!localizationCalibrationAvailable)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 10),
-              child: Text(
-                '当前定位模式未提供校准或原点重置服务',
-                style: TextStyle(color: Color(0xff94a3b8), fontSize: 12),
-              ),
-            ),
-        ],
-      ),
-    );
-
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 840) {
@@ -525,30 +463,30 @@ class _MissionPage extends StatelessWidget {
               drawingPanel,
               const SizedBox(height: 12),
               executionPanel,
-              const SizedBox(height: 12),
-              setupPanel,
             ],
           );
         }
         return SingleChildScrollView(
           key: const ValueKey('mission-wide'),
           padding: const EdgeInsets.all(24),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(flex: 62, child: drawingPanel),
-              const SizedBox(width: 16),
-              Expanded(
-                flex: 38,
-                child: Column(
-                  children: [
-                    executionPanel,
-                    const SizedBox(height: 16),
-                    setupPanel,
-                  ],
+          child: SizedBox(
+            height: constraints.hasBoundedHeight
+                ? constraints.maxHeight - 48
+                : null,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 62, child: drawingPanel),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 38,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [Expanded(child: executionPanel)],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },

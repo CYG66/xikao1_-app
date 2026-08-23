@@ -6,24 +6,12 @@ class _SettingsPage extends StatelessWidget {
     required this.localizationSource,
     required this.onAddDevice,
     required this.bridgeState,
-    required this.printerEnabled,
-    required this.printerStatus,
-    required this.onPrinterChanged,
-    required this.onPrinterEnabledChanged,
-    required this.onPrinterCommand,
-    required this.onPrinterRawCommand,
   });
 
   final RoverDevice device;
   final String localizationSource;
   final VoidCallback onAddDevice;
   final BridgeState bridgeState;
-  final bool printerEnabled;
-  final Map<String, dynamic> printerStatus;
-  final void Function(String printerName, bool active) onPrinterChanged;
-  final void Function(String printerName, bool enabled) onPrinterEnabledChanged;
-  final void Function(String printerName, String action) onPrinterCommand;
-  final void Function(String printerName, String jsonData) onPrinterRawCommand;
 
   @override
   Widget build(BuildContext context) {
@@ -59,15 +47,6 @@ class _SettingsPage extends StatelessWidget {
               _ConfigRow('任务执行', '/execute_plan'),
             ],
           ),
-        ),
-        const SizedBox(height: 14),
-        _PrinterControlPanel(
-          enabled: printerEnabled,
-          status: printerStatus,
-          onPrinterChanged: onPrinterChanged,
-          onPrinterEnabledChanged: onPrinterEnabledChanged,
-          onPrinterCommand: onPrinterCommand,
-          onPrinterRawCommand: onPrinterRawCommand,
         ),
         const SizedBox(height: 14),
         _AiSettingsPanel(

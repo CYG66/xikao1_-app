@@ -4,17 +4,27 @@ import unittest
 from unittest.mock import patch
 
 from app.agent_skills import (
+    DRAWING_TEMPLATE_SKILLS,
     check_drawing_feasibility,
     clarify_requirements,
+    drawing_template_motion_steps,
     layer_drawing_paths,
     parameterize_design,
     recommend_recovery,
+    recognize_drawing_template,
     score_design_variant,
 )
 from app.state import robot_state
 
 
 class AgentSkillsTest(unittest.TestCase):
+    def test_every_drawing_editor_template_has_local_skill_and_motion_preview(self) -> None:
+        for skill in DRAWING_TEMPLATE_SKILLS.values():
+            match = recognize_drawing_template(skill["aliases"][0])
+            self.assertIsNotNone(match)
+            steps = drawing_template_motion_steps(match)
+            self.assertGreaterEqual(len(steps), 2, skill["label"])
+
     def test_parameterization_reports_missing_printer(self) -> None:
         with patch.object(robot_state, "printer_status", {}):
             result = parameterize_design("画一个 5x3 米矩形")

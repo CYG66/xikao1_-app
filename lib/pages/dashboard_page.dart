@@ -29,7 +29,18 @@ class _DashboardPage extends StatelessWidget {
     required this.motorStatus,
     required this.battery,
     required this.localizationReady,
+    required this.localizationSource,
+    required this.localizationCalibration,
+    required this.localizationCalibrationAvailable,
+    required this.ln150Ready,
+    required this.onLnCommand,
+    required this.onCalibrateLocalization,
     required this.printerStatus,
+    required this.printerStatusData,
+    required this.onPrinterChanged,
+    required this.onPrinterEnabledChanged,
+    required this.onPrinterCommand,
+    required this.onPrinterRawCommand,
     required this.missionReady,
     required this.onStartMission,
     required this.onAddDevice,
@@ -64,7 +75,18 @@ class _DashboardPage extends StatelessWidget {
   final Map<String, dynamic> motorStatus;
   final int? battery;
   final bool localizationReady;
+  final String localizationSource;
+  final String localizationCalibration;
+  final bool localizationCalibrationAvailable;
+  final bool ln150Ready;
+  final ValueChanged<int> onLnCommand;
+  final VoidCallback onCalibrateLocalization;
   final String printerStatus;
+  final Map<String, dynamic> printerStatusData;
+  final void Function(String printerName, bool active) onPrinterChanged;
+  final void Function(String printerName, bool enabled) onPrinterEnabledChanged;
+  final void Function(String printerName, String action) onPrinterCommand;
+  final void Function(String printerName, String jsonData) onPrinterRawCommand;
   final bool missionReady;
   final VoidCallback onStartMission;
   final VoidCallback onAddDevice;
@@ -138,7 +160,7 @@ class _DashboardPage extends StatelessWidget {
       localizationReady: localizationReady,
       printerStatus: printerStatus,
     );
-    final map = _Panel(
+    Widget map({double? height}) => _Panel(
       title: '实时地图',
       trailing: IconButton(
         tooltip: '打开完整地图',
@@ -153,49 +175,24 @@ class _DashboardPage extends StatelessWidget {
         poseTrace: poseTrace,
         lineRunning: lineRunning,
         onTap: onOpenMap,
+        height: height,
       ),
     );
-    final task = _Panel(
-      title: '当前任务',
-      trailing: _StatusChip(
-        text: lineRunning
-            ? '执行中'
-            : missionReady
-            ? '可执行'
-            : '未就绪',
-        color: lineRunning
-            ? const Color(0xfff59e0b)
-            : missionReady
-            ? const Color(0xff16a66a)
-            : const Color(0xff64748b),
-      ),
-      child: Column(
-        children: [
-          _MissionStep(title: '定位与追踪', done: localizationReady),
-          _MissionStep(title: '路径执行', done: lineRunning && localizationReady),
-          _MissionStep(
-            title: '喷码同步',
-            done: lineRunning && printerStatus != '未知',
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: lineRunning || missionReady ? onStartMission : null,
-              icon: Icon(
-                lineRunning ? Icons.stop_rounded : Icons.play_arrow_rounded,
-              ),
-              label: Text(
-                lineRunning
-                    ? '停止划线任务'
-                    : missionReady
-                    ? '开始划线任务'
-                    : '等待设备就绪',
-              ),
-            ),
-          ),
-        ],
-      ),
+    final printer = _PrinterControlPanel(
+      enabled: printerStatus == 'Ready' || printerStatus == 'ready',
+      status: printerStatusData,
+      onPrinterChanged: onPrinterChanged,
+      onPrinterEnabledChanged: onPrinterEnabledChanged,
+      onPrinterCommand: onPrinterCommand,
+      onPrinterRawCommand: onPrinterRawCommand,
+    );
+    final localization = _HomeLocalizationPanel(
+      localizationSource: localizationSource,
+      localizationCalibration: localizationCalibration,
+      localizationCalibrationAvailable: localizationCalibrationAvailable,
+      ln150Ready: ln150Ready,
+      onLnCommand: onLnCommand,
+      onCalibrateLocalization: onCalibrateLocalization,
     );
     final diagnostics = Column(
       children: [
@@ -282,43 +279,131 @@ class _DashboardPage extends StatelessWidget {
               const SizedBox(height: 12),
               metrics,
               const SizedBox(height: 12),
-              map,
+              map(),
               const SizedBox(height: 12),
-              task,
+              printer,
+              const SizedBox(height: 12),
+              localization,
               const SizedBox(height: 12),
               diagnostics,
             ],
           );
         }
-        return SingleChildScrollView(
+        return Row(
           key: const ValueKey('dashboard-wide'),
-          padding: const EdgeInsets.all(24),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 38,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: 38,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 24, 8, 24),
                 child: Column(
                   children: [
                     shortcuts,
                     const SizedBox(height: 12),
                     metrics,
                     const SizedBox(height: 12),
+                    printer,
+                    const SizedBox(height: 12),
+                    localization,
+                    const SizedBox(height: 12),
                     diagnostics,
                   ],
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                flex: 62,
-                child: Column(
-                  children: [map, const SizedBox(height: 16), task],
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 62,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 24, 24, 24),
+                child: map(
+                  height: constraints.hasBoundedHeight
+                      ? math.max(260, constraints.maxHeight - 48)
+                      : null,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         );
       },
+    );
+  }
+}
+
+class _HomeLocalizationPanel extends StatelessWidget {
+  const _HomeLocalizationPanel({
+    required this.localizationSource,
+    required this.localizationCalibration,
+    required this.localizationCalibrationAvailable,
+    required this.ln150Ready,
+    required this.onLnCommand,
+    required this.onCalibrateLocalization,
+  });
+
+  final String localizationSource;
+  final String localizationCalibration;
+  final bool localizationCalibrationAvailable;
+  final bool ln150Ready;
+  final ValueChanged<int> onLnCommand;
+  final VoidCallback onCalibrateLocalization;
+
+  @override
+  Widget build(BuildContext context) {
+    final relative = localizationSource == 'odom_imu_relative';
+    final totalStation = localizationSource == 'ln150_imu';
+    return _Panel(
+      title: totalStation
+          ? '全站仪定位准备'
+          : relative
+          ? '相对定位准备'
+          : '定位准备',
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          if (ln150Ready && totalStation) ...[
+            _CommandButton(
+              label: 'LN150 初始化',
+              icon: Icons.power_settings_new_rounded,
+              onPressed: () => onLnCommand(1),
+            ),
+            _CommandButton(
+              label: '自动追踪',
+              icon: Icons.gps_fixed_rounded,
+              onPressed: () => onLnCommand(2),
+            ),
+            _CommandButton(
+              label: '自动调平',
+              icon: Icons.balance_rounded,
+              onPressed: () => onLnCommand(3),
+            ),
+          ],
+          _CommandButton(
+            label: localizationCalibration == 'calibrating'
+                ? relative
+                      ? '正在重置原点'
+                      : '定位校准中'
+                : relative
+                ? '重置相对原点'
+                : '定位校准',
+            icon: Icons.my_location_rounded,
+            onPressed:
+                localizationCalibrationAvailable &&
+                    localizationCalibration != 'calibrating'
+                ? onCalibrateLocalization
+                : null,
+          ),
+          if (!localizationCalibrationAvailable)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: Text(
+                '当前定位模式未提供校准或原点重置服务',
+                style: TextStyle(color: Color(0xff94a3b8), fontSize: 12),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

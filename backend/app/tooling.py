@@ -182,6 +182,13 @@ class PrinterArguments(ToolArguments):
     param: int = Field(default=0, ge=0, le=10000)
 
 
+class PrinterSprayArguments(ToolArguments):
+    """持续手动喷墨开关，和一次性的喷码机指令分开。"""
+
+    printer_name: Literal["left", "center", "right"] = "center"
+    spraying: bool
+
+
 Risk = Literal["read", "safe_stop", "configuration", "motion", "hardware"]
 
 
@@ -368,6 +375,13 @@ TOOL_REGISTRY = {
             "control_printer",
             "控制指定喷码机。",
             PrinterArguments,
+            "hardware",
+            True,
+        ),
+        ToolSpec(
+            "printer_spray",
+            "打开或关闭持续喷墨；基础模式仅在用户明确要求喷墨时可用，运动期间可保持喷墨。",
+            PrinterSprayArguments,
             "hardware",
             True,
         ),

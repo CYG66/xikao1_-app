@@ -1,6 +1,6 @@
 part of '../main.dart';
 
-/// 手动控制页：速度调节、方向控制和喷码机快捷指令。
+/// 手动控制页：速度调节和摇杆底盘控制。
 class _ControlPage extends StatelessWidget {
   const _ControlPage({
     required this.linearSpeed,
@@ -8,6 +8,10 @@ class _ControlPage extends StatelessWidget {
     required this.onLinearSpeedChanged,
     required this.onAngularSpeedChanged,
     required this.onDriveCommand,
+    required this.printerStatus,
+    required this.onPrinterChanged,
+    this.fixedLayout = false,
+    this.showPrinterPanel = true,
   });
 
   final double linearSpeed;
@@ -15,11 +19,16 @@ class _ControlPage extends StatelessWidget {
   final ValueChanged<double> onLinearSpeedChanged;
   final ValueChanged<double> onAngularSpeedChanged;
   final void Function(double linear, double angular) onDriveCommand;
+  final Map<String, dynamic> printerStatus;
+  final void Function(String printerName, bool active) onPrinterChanged;
+  final bool fixedLayout;
+  final bool showPrinterPanel;
 
   @override
   Widget build(BuildContext context) {
     final drive = _Panel(
       title: '遥控底盘',
+      expandChild: fixedLayout,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -36,66 +45,67 @@ class _ControlPage extends StatelessWidget {
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
             '/tablet_cmd_vel',
             style: TextStyle(color: Color(0xff64748b), fontSize: 12),
           ),
           const SizedBox(height: 8),
-          _Joystick(
-            maxLinearSpeed: linearSpeed,
-            maxAngularSpeed: angularSpeed,
-            onCommand: onDriveCommand,
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            alignment: WrapAlignment.center,
-            children: [
-              _DriveCommandButton(
-                label: '前进',
-                icon: Icons.arrow_upward_rounded,
-                onStart: () => onDriveCommand(linearSpeed, 0),
-                onStop: () => onDriveCommand(0, 0),
+          if (fixedLayout)
+            Expanded(
+              child: _Joystick(
+                maxLinearSpeed: linearSpeed,
+                maxAngularSpeed: angularSpeed,
+                onCommand: onDriveCommand,
               ),
-              _DriveCommandButton(
-                label: '左转',
-                icon: Icons.turn_left_rounded,
-                onStart: () => onDriveCommand(0, angularSpeed),
-                onStop: () => onDriveCommand(0, 0),
-              ),
-              _CommandButton(
-                label: '停止',
-                icon: Icons.stop_rounded,
-                onPressed: () => onDriveCommand(0, 0),
-              ),
-              _DriveCommandButton(
-                label: '右转',
-                icon: Icons.turn_right_rounded,
-                onStart: () => onDriveCommand(0, -angularSpeed),
-                onStop: () => onDriveCommand(0, 0),
-              ),
-              _DriveCommandButton(
-                label: '后退',
-                icon: Icons.arrow_downward_rounded,
-                onStart: () => onDriveCommand(-linearSpeed, 0),
-                onStop: () => onDriveCommand(0, 0),
-              ),
-            ],
-          ),
+            )
+          else
+            _Joystick(
+              maxLinearSpeed: linearSpeed,
+              maxAngularSpeed: angularSpeed,
+              onCommand: onDriveCommand,
+            ),
         ],
       ),
     );
     return LayoutBuilder(
       builder: (context, constraints) {
+        final content = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: drive),
+            if (showPrinterPanel) ...[
+              const SizedBox(height: 8),
+              _PrinterTogglePanel(
+                status: printerStatus,
+                onSprayChanged: onPrinterChanged,
+              ),
+            ],
+          ],
+        );
+        if (fixedLayout && constraints.hasBoundedHeight) {
+          return SizedBox.expand(child: content);
+        }
         return SingleChildScrollView(
           key: const ValueKey('control'),
           padding: EdgeInsets.all(constraints.maxWidth < 840 ? 16 : 24),
+          physics: fixedLayout ? const NeverScrollableScrollPhysics() : null,
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 760),
-              child: drive,
+              child: Column(
+                children: [
+                  drive,
+                  if (showPrinterPanel) ...[
+                    const SizedBox(height: 12),
+                    _PrinterTogglePanel(
+                      status: printerStatus,
+                      onSprayChanged: onPrinterChanged,
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         );
@@ -195,6 +205,95 @@ class _ControlPage extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PrinterTogglePanel extends StatelessWidget {
+  const _PrinterTogglePanel({
+    required this.status,
+    required this.onSprayChanged,
+  });
+
+  final Map<String, dynamic> status;
+  final void Function(String printerName, bool spraying) onSprayChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final printers =
+        status.keys
+            .where((key) => key.startsWith('printer_') && status[key] is Map)
+            .map((key) => key.substring('printer_'.length))
+            .toList()
+          ..sort();
+    return _Panel(
+      title: '喷码机开关',
+      trailing: const Icon(Icons.print_rounded, size: 19),
+      child: printers.isEmpty
+          ? const SizedBox(
+              height: 42,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('未检测到喷码机'),
+              ),
+            )
+          : Column(
+              children: [
+                for (final name in printers)
+                  _PrinterSwitchRow(
+                    name: name,
+                    status: Map<String, dynamic>.from(
+                      status['printer_$name'] as Map,
+                    ),
+                    onActiveChanged: (value) => onSprayChanged(name, value),
+                  ),
+              ],
+            ),
+    );
+  }
+}
+
+class _PrinterSwitchRow extends StatelessWidget {
+  const _PrinterSwitchRow({
+    required this.name,
+    required this.status,
+    required this.onActiveChanged,
+  });
+
+  final String name;
+  final Map<String, dynamic> status;
+  final ValueChanged<bool> onActiveChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final connected = status['connected'] == true;
+    final spraying = connected && status['spraying'] == true;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          const Icon(Icons.print_rounded, color: Color(0xff16a66a), size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              name.toUpperCase(),
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          _StatusChip(
+            text: connected ? '已连接' : '未连接',
+            color: connected
+                ? const Color(0xff16a66a)
+                : const Color(0xff64748b),
+          ),
+          const SizedBox(width: 10),
+          const Text('喷墨', style: TextStyle(color: Color(0xff64748b))),
+          Switch(
+            value: spraying,
+            onChanged: connected ? onActiveChanged : null,
+          ),
+        ],
       ),
     );
   }

@@ -62,5 +62,6 @@ cd /d D:\xikao\test1
 D:\flutter\bin\flutter.bat clean
 D:\flutter\bin\flutter.bat pub get --offline
 D:\flutter\bin\flutter.bat test
-D:\flutter\bin\flutter.bat build apk --release
+D:\flutter\bin\flutter.bat build apk --release     #预览模式
+D:\flutter\bin\flutter.bat build apk --release --dart-define=XLINE_LAYOUT_PREVIEW=false   #真
 D:\ai\android\platform-tools\adb.exe -s emulator-5554 install -r D:\xikao\test1\build\app\outputs\flutter-apk\app-release.apk

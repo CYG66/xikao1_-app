@@ -5,16 +5,24 @@ class _AgentPage extends StatefulWidget {
   const _AgentPage({
     required this.device,
     required this.bridgeConnected,
+    required this.previewMode,
     required this.agentMotionNotifier,
     required this.onStopAgentMotion,
     required this.clientId,
+    required this.onPreviewPathsChanged,
+    required this.printerStatus,
+    required this.onPrinterSprayChanged,
   });
 
   final RoverDevice device;
   final bool bridgeConnected;
+  final bool previewMode;
   final ValueListenable<int> agentMotionNotifier;
   final VoidCallback onStopAgentMotion;
   final String clientId;
+  final ValueChanged<List<Map<String, dynamic>>> onPreviewPathsChanged;
+  final Map<String, dynamic> printerStatus;
+  final void Function(String printerName, bool spraying) onPrinterSprayChanged;
 
   @override
   State<_AgentPage> createState() => _AgentPageState();
@@ -29,6 +37,23 @@ class _AgentPageState extends State<_AgentPage> {
     content: '我可以检查设备状态、解释故障、规划操作，并在你确认后调用机器人工具。',
   );
   final TextEditingController _controller = TextEditingController();
+  final OfflineSpeechService _speech = OfflineSpeechService();
+  bool _speechStarting = false;
+  bool _listening = false;
+  String _speechPrefix = '';
+  String? _speechMessage;
+  bool _speechMessageIsError = false;
+  Timer? _speechTimer;
+
+  Map<String, dynamic> get _centerPrinter {
+    final value = widget.printerStatus['printer_center'];
+    return value is Map ? Map<String, dynamic>.from(value) : const {};
+  }
+
+  bool get _printerConnected => _centerPrinter['connected'] == true;
+
+  bool get _printerSpraying =>
+      _printerConnected && _centerPrinter['spraying'] == true;
   final ScrollController _scrollController = ScrollController();
   final List<_AgentConversation> _conversations = [];
   List<_AgentChatItem> _messages = [_welcomeMessage];
@@ -54,7 +79,9 @@ class _AgentPageState extends State<_AgentPage> {
       unawaited(_loadProjects());
     }
     _projectTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-      if (widget.bridgeConnected && _agentMode == 'advanced' && !_projectsLoading) {
+      if (widget.bridgeConnected &&
+          _agentMode == 'advanced' &&
+          !_projectsLoading) {
         unawaited(_loadProjects(silent: true));
       }
     });
@@ -81,9 +108,92 @@ class _AgentPageState extends State<_AgentPage> {
   void dispose() {
     unawaited(_persistHistory());
     _projectTimer?.cancel();
+    _speechTimer?.cancel();
+    unawaited(_speech.dispose());
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _toggleSpeechInput() async {
+    if (_listening) {
+      _speechTimer?.cancel();
+      setState(() {
+        _listening = false;
+        _speechStarting = true;
+        _speechMessage = '录音结束，正在本地转换为文字…';
+        _speechMessageIsError = false;
+      });
+      try {
+        final spoken = await _speech.stopAndRecognize();
+        if (!mounted) return;
+        final text = _speechPrefix.isEmpty
+            ? spoken
+            : spoken.isEmpty
+            ? _speechPrefix
+            : '$_speechPrefix $spoken';
+        setState(() {
+          _controller.value = TextEditingValue(
+            text: text,
+            selection: TextSelection.collapsed(offset: text.length),
+          );
+          _speechStarting = false;
+          _speechMessage = spoken.isEmpty
+              ? '没有识别到语音，请靠近平板麦克风后重试'
+              : '高精度语音已在本机转换为文字，可以修改后发送';
+          _speechMessageIsError = spoken.isEmpty;
+        });
+      } catch (error) {
+        if (!mounted) return;
+        setState(() {
+          _speechStarting = false;
+          _speechMessage = _friendlySpeechException(error);
+          _speechMessageIsError = true;
+        });
+      }
+      return;
+    }
+
+    setState(() {
+      _speechStarting = true;
+      _speechMessage = '正在加载高精度离线中文模型并检查麦克风权限…';
+      _speechMessageIsError = false;
+    });
+    try {
+      _speechPrefix = _controller.text.trimRight();
+      await _speech.start();
+      if (!mounted) {
+        await _speech.cancel();
+        return;
+      }
+      setState(() {
+        _listening = true;
+        _speechStarting = false;
+        _speechMessage = '正在录音，再次点击麦克风结束并转成文字';
+        _speechMessageIsError = false;
+      });
+      _speechTimer?.cancel();
+      _speechTimer = Timer(const Duration(seconds: 60), () {
+        if (mounted && _listening) unawaited(_toggleSpeechInput());
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _listening = false;
+        _speechStarting = false;
+        _speechMessage = _friendlySpeechException(error);
+        _speechMessageIsError = true;
+      });
+    }
+  }
+
+  String _friendlySpeechException(Object error) {
+    if (error is OfflineSpeechException) return error.message;
+    final value = error.toString();
+    if (value.toLowerCase().contains('permission')) {
+      return '麦克风权限未开启，请在系统设置中允许 X-LINE2 使用麦克风';
+    }
+    return '离线语音识别失败：$value';
   }
 
   Map<String, dynamic>? get _selectedProject {
@@ -94,8 +204,11 @@ class _AgentPageState extends State<_AgentPage> {
   }
 
   Future<void> _loadProjects({bool silent = false}) async {
-    if (!widget.bridgeConnected || _agentMode != 'advanced' || _projectsLoading)
+    if (!widget.bridgeConnected ||
+        _agentMode != 'advanced' ||
+        _projectsLoading) {
       return;
+    }
     _projectsLoading = true;
     if (!silent && mounted) setState(() {});
     try {
@@ -109,9 +222,8 @@ class _AgentPageState extends State<_AgentPage> {
       // project detail as well so planning/execution/report fields are not
       // left one polling cycle behind the backend lifecycle.
       final selectedId = _selectedProjectId;
-      if (selectedId != null && projects.any(
-        (item) => item['id']?.toString() == selectedId,
-      )) {
+      if (selectedId != null &&
+          projects.any((item) => item['id']?.toString() == selectedId)) {
         try {
           final detail = await _get('/api/agent/projects/$selectedId');
           final value = detail['project'];
@@ -291,6 +403,7 @@ class _AgentPageState extends State<_AgentPage> {
     );
     _conversations.insert(0, conversation);
     _activateConversation(conversation, notify: false);
+    widget.onPreviewPathsChanged(const []);
     _saveHistory();
     if (notify && mounted) setState(() {});
   }
@@ -328,6 +441,7 @@ class _AgentPageState extends State<_AgentPage> {
     _messages = List<_AgentChatItem>.from(conversation.messages);
     _inputTokens = conversation.inputTokens;
     _outputTokens = conversation.outputTokens;
+    widget.onPreviewPathsChanged(_latestPreviewPaths(_messages));
     if (notify && mounted) {
       setState(() {});
       _scrollToBottom();
@@ -349,39 +463,45 @@ class _AgentPageState extends State<_AgentPage> {
             shrinkWrap: true,
             children: [
               for (final conversation in current)
-                ListTile(
-                  dense: true,
-                  title: Text(
-                    conversation.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    '${conversation.messages.length} 条消息',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: IconButton(
-                    tooltip: '删除会话',
-                    icon: const Icon(
-                      Icons.delete_outline,
-                      color: Color(0xffdc2626),
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    dense: true,
+                    title: Text(
+                      conversation.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    onPressed: () => Navigator.pop(context, conversation.id),
+                    subtitle: Text(
+                      '${conversation.messages.length} 条消息',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    trailing: IconButton(
+                      tooltip: '删除会话',
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: Color(0xffdc2626),
+                      ),
+                      onPressed: () => Navigator.pop(context, conversation.id),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _activateConversation(conversation);
+                    },
                   ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _activateConversation(conversation);
-                  },
                 ),
               const Divider(),
-              ListTile(
-                dense: true,
-                leading: const Icon(
-                  Icons.delete_sweep_outlined,
-                  color: Color(0xffdc2626),
+              Material(
+                color: Colors.transparent,
+                child: ListTile(
+                  dense: true,
+                  leading: const Icon(
+                    Icons.delete_sweep_outlined,
+                    color: Color(0xffdc2626),
+                  ),
+                  title: const Text('清空当前设备的全部会话'),
+                  onTap: () => Navigator.pop(context, '__clear__'),
                 ),
-                title: const Text('清空当前设备的全部会话'),
-                onTap: () => Navigator.pop(context, '__clear__'),
               ),
             ],
           ),
@@ -596,6 +716,14 @@ class _AgentPageState extends State<_AgentPage> {
           : null;
       final responseText = result['message']?.toString() ?? streamedText;
       final pendingPreview = _agentPreviewPaths(pending?['preview_paths']);
+      final motionPreview = _agentMotionPreviewPaths(
+        pending?['motion_json'] ?? pending?['arguments'],
+      );
+      final responsePreview = pendingPreview.isNotEmpty
+          ? pendingPreview
+          : motionPreview.isNotEmpty
+          ? motionPreview
+          : _agentPreviewPathsFromJson(responseText);
       if (!mounted) return;
       setState(() {
         _inputTokens += (usage['input_tokens'] as num?)?.toInt() ?? 0;
@@ -604,15 +732,18 @@ class _AgentPageState extends State<_AgentPage> {
           role: 'assistant',
           content: responseText,
           pendingAction: pending,
-          previewPaths: pendingPreview.isNotEmpty
-              ? pendingPreview
-              : _agentPreviewPathsFromJson(responseText),
+          previewPaths: responsePreview,
           jsonText:
-              _agentJsonText(pending?['motion_json'] ?? pending?['arguments']) ??
+              _agentJsonText(
+                pending?['motion_json'] ?? pending?['arguments'],
+              ) ??
               _agentJsonTextFromContent(responseText),
           isError: result['ok'] != true,
         );
       });
+      if (responsePreview.isNotEmpty) {
+        widget.onPreviewPathsChanged(responsePreview);
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -660,24 +791,28 @@ class _AgentPageState extends State<_AgentPage> {
                     separatorBuilder: (_, __) => const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final version = versions[index];
-                      return ListTile(
-                        dense: true,
-                        title: Text(
-                          'V${version['version'] ?? '-'} · ${version['file_name'] ?? ''}',
+                      return Material(
+                        color: Colors.transparent,
+                        child: ListTile(
+                          dense: true,
+                          title: Text(
+                            'V${version['version'] ?? '-'} · ${version['file_name'] ?? ''}',
+                          ),
+                          subtitle: Text(
+                            version['change_summary']?.toString().isNotEmpty ==
+                                    true
+                                ? version['change_summary'].toString()
+                                : '无修改说明',
+                          ),
+                          trailing: const Icon(Icons.restore_rounded),
+                          enabled: !{
+                            'planning',
+                            'pending_execution',
+                            'executing',
+                            'paused',
+                          }.contains(status),
+                          onTap: () => Navigator.of(context).pop(version),
                         ),
-                        subtitle: Text(
-                          version['change_summary']?.toString().isNotEmpty == true
-                              ? version['change_summary'].toString()
-                              : '无修改说明',
-                        ),
-                        trailing: const Icon(Icons.restore_rounded),
-                        enabled: !{
-                          'planning',
-                          'pending_execution',
-                          'executing',
-                          'paused',
-                        }.contains(status),
-                        onTap: () => Navigator.of(context).pop(version),
                       );
                     },
                   ),
@@ -704,9 +839,9 @@ class _AgentPageState extends State<_AgentPage> {
       await _loadProjects(silent: true);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('读取或回退图纸版本失败：$error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('读取或回退图纸版本失败：$error')));
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -765,6 +900,16 @@ class _AgentPageState extends State<_AgentPage> {
           result['next_action'] == 'plan_preview' &&
           result['file_name'] is String;
       if (!mounted) return;
+      final resultPaths = _agentPreviewPaths(result['preview_paths']);
+      final actionPaths = _agentPreviewPaths(action['preview_paths']);
+      final motionPaths = _agentMotionPreviewPaths(
+        action['motion_json'] ?? action['arguments'],
+      );
+      final resultPreview = resultPaths.isNotEmpty
+          ? resultPaths
+          : actionPaths.isNotEmpty
+          ? actionPaths
+          : motionPaths;
       setState(() {
         for (var index = 0; index < _messages.length; index++) {
           if (_messages[index].pendingAction?['id'] == id) {
@@ -775,12 +920,15 @@ class _AgentPageState extends State<_AgentPage> {
           _AgentChatItem(
             role: 'assistant',
             content: result['message']?.toString() ?? '操作已处理。',
-            previewPaths: _agentPreviewPaths(result['preview_paths']),
+            previewPaths: resultPreview,
             jsonText: _agentJsonText(result['drawing_json']),
             isError: result['ok'] != true,
           ),
         );
       });
+      if (resultPreview.isNotEmpty) {
+        widget.onPreviewPathsChanged(resultPreview);
+      }
       if (shouldPlan) {
         await _prepareAgentDrawing(result['file_name'] as String);
       }
@@ -809,6 +957,9 @@ class _AgentPageState extends State<_AgentPage> {
     String path,
     Map<String, Object?> body,
   ) async {
+    if (widget.previewMode) {
+      throw StateError('布局预览模式不会发送后端请求');
+    }
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
     try {
       final request = await client.postUrl(
@@ -892,6 +1043,61 @@ class _AgentPageState extends State<_AgentPage> {
   static List<Map<String, dynamic>> _agentPreviewPaths(Object? value) {
     if (value is! List) return const [];
     return value.whereType<Map>().map(Map<String, dynamic>.from).toList();
+  }
+
+  static List<Map<String, dynamic>> _agentMotionPreviewPaths(Object? value) {
+    if (value is! Map) return const [];
+    final payload = Map<String, dynamic>.from(value);
+    final rawSteps = payload['steps'] is List
+        ? payload['steps'] as List
+        : payload.containsKey('linear') && payload.containsKey('angular')
+        ? [payload]
+        : const [];
+    if (rawSteps.isEmpty) return const [];
+
+    var x = 0.0;
+    var y = 0.0;
+    var heading = 0.0;
+    final points = <List<double>>[
+      [x, y],
+    ];
+    for (final rawStep in rawSteps) {
+      if (rawStep is! Map) continue;
+      final step = Map<String, dynamic>.from(rawStep);
+      final linear = (step['linear'] as num?)?.toDouble() ?? 0.0;
+      final angular = (step['angular'] as num?)?.toDouble() ?? 0.0;
+      final duration = (step['duration_seconds'] as num?)?.toDouble() ?? 0.0;
+      if (duration <= 0) continue;
+      final samples = math.max(1, (duration / 0.08).ceil());
+      final deltaTime = duration / samples;
+      for (var sample = 0; sample < samples; sample++) {
+        final middleHeading = heading + angular * deltaTime / 2;
+        x += linear * math.cos(middleHeading) * deltaTime;
+        y += linear * math.sin(middleHeading) * deltaTime;
+        heading += angular * deltaTime;
+        points.add([x, y]);
+      }
+    }
+    if (points.length < 2) return const [];
+    return [
+      {
+        'namespace': 'agent_motion_json',
+        'frame_id': 'relative_map',
+        'route_type': 'transition',
+        'points': points,
+      },
+    ];
+  }
+
+  static List<Map<String, dynamic>> _latestPreviewPaths(
+    List<_AgentChatItem> messages,
+  ) {
+    for (var index = messages.length - 1; index >= 0; index--) {
+      if (messages[index].previewPaths.isNotEmpty) {
+        return messages[index].previewPaths;
+      }
+    }
+    return const [];
   }
 
   static String? _agentJsonText(Object? value) {
@@ -988,6 +1194,8 @@ class _AgentPageState extends State<_AgentPage> {
     final payload = decoded is Map
         ? Map<String, dynamic>.from(decoded)
         : <String, dynamic>{'paths': decoded};
+    final motionPaths = _agentMotionPreviewPaths(payload);
+    if (motionPaths.isNotEmpty) return motionPaths;
     final raw =
         payload['paths'] ??
         payload['preview_paths'] ??
@@ -1069,6 +1277,9 @@ class _AgentPageState extends State<_AgentPage> {
   }
 
   Future<Map<String, dynamic>> _get(String path) async {
+    if (widget.previewMode) {
+      throw StateError('布局预览模式不会发送后端请求');
+    }
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
     try {
       final response = await (await client.getUrl(
@@ -1083,6 +1294,9 @@ class _AgentPageState extends State<_AgentPage> {
   }
 
   Future<Map<String, dynamic>> _delete(String path) async {
+    if (widget.previewMode) {
+      throw StateError('布局预览模式不会发送后端请求');
+    }
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
     try {
       final response = await (await client.deleteUrl(
@@ -1263,6 +1477,31 @@ class _AgentPageState extends State<_AgentPage> {
                     ? const Color(0xff22c55e)
                     : const Color(0xff64748b),
               ),
+              if (_agentMode == 'base') ...[
+                const SizedBox(width: 4),
+                Tooltip(
+                  message: _printerConnected ? '基础模式喷墨：打开后可边控制小车边喷墨' : '喷码机未连接',
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.print_rounded,
+                        size: 17,
+                        color: Color(0xff64748b),
+                      ),
+                      const SizedBox(width: 2),
+                      const Text('喷墨', style: TextStyle(fontSize: 12)),
+                      Switch.adaptive(
+                        value: _printerSpraying,
+                        onChanged: _printerConnected && !_sending
+                            ? (value) =>
+                                  widget.onPrinterSprayChanged('center', value)
+                            : null,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               IconButton(
                 tooltip: '最近会话',
                 icon: const Icon(Icons.history_rounded),
@@ -1360,81 +1599,152 @@ class _AgentPageState extends State<_AgentPage> {
             ],
           ),
         ),
-        Container(
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            border: Border(top: BorderSide(color: Color(0xffe2e8f0))),
+        AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(context).bottom,
           ),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              children: [
-                ValueListenableBuilder<int>(
-                  valueListenable: widget.agentMotionNotifier,
-                  builder: (context, remainingMs, _) {
-                    if (remainingMs < 0) return const SizedBox.shrink();
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xffdc2626),
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size.fromHeight(50),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: Color(0xffe2e8f0))),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  ValueListenableBuilder<int>(
+                    valueListenable: widget.agentMotionNotifier,
+                    builder: (context, remainingMs, _) {
+                      if (remainingMs < 0) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xffdc2626),
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.fromHeight(50),
+                          ),
+                          onPressed: widget.onStopAgentMotion,
+                          icon: const Icon(Icons.stop_circle_rounded),
+                          label: Text(
+                            '停止 AI 控制小车运动'
+                            '${remainingMs > 0 ? ' · ${(remainingMs / 1000).ceil()} 秒' : ''}',
+                          ),
                         ),
-                        onPressed: widget.onStopAgentMotion,
-                        icon: const Icon(Icons.stop_circle_rounded),
-                        label: Text(
-                          '停止 AI 控制小车运动'
-                          '${remainingMs > 0 ? ' · ${(remainingMs / 1000).ceil()} 秒' : ''}',
+                      );
+                    },
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          enabled: !_sending && _historyLoaded,
+                          minLines: 1,
+                          maxLines: 4,
+                          style: const TextStyle(
+                            color: Color(0xff0f172a),
+                            fontSize: 15,
+                          ),
+                          scrollPadding: const EdgeInsets.only(bottom: 120),
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: (_) => _send(),
+                          decoration: _inputDecoration(
+                            _listening ? '正在录音，再次点击麦克风结束' : '输入任务或问题',
+                            _listening
+                                ? Icons.graphic_eq_rounded
+                                : Icons.chat_bubble_outline_rounded,
+                          ),
                         ),
                       ),
-                    );
-                  },
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _controller,
-                        enabled: !_sending && _historyLoaded,
-                        minLines: 1,
-                        maxLines: 4,
-                        textInputAction: TextInputAction.send,
-                        onSubmitted: (_) => _send(),
-                        decoration: _inputDecoration(
-                          '输入任务或问题',
-                          Icons.chat_bubble_outline_rounded,
+                      const SizedBox(width: 6),
+                      IconButton(
+                        tooltip: _listening
+                            ? '结束录音并在本机转换'
+                            : _speechStarting
+                            ? '正在加载离线语音模型'
+                            : '离线语音转文字',
+                        onPressed:
+                            _sending || !_historyLoaded || _speechStarting
+                            ? null
+                            : _toggleSpeechInput,
+                        style: IconButton.styleFrom(
+                          foregroundColor: _listening
+                              ? const Color(0xffdc2626)
+                              : const Color(0xff475569),
+                          backgroundColor: _listening
+                              ? const Color(0xffffe4e6)
+                              : const Color(0xfff1f5f9),
+                        ),
+                        icon: Icon(
+                          _listening
+                              ? Icons.mic_rounded
+                              : Icons.mic_none_rounded,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    IconButton.filled(
-                      tooltip: '发送',
-                      onPressed: _sending || !_historyLoaded ? null : _send,
-                      icon: const Icon(Icons.send_rounded),
+                      const SizedBox(width: 10),
+                      IconButton.filled(
+                        tooltip: '发送',
+                        onPressed: _sending || !_historyLoaded || _listening
+                            ? null
+                            : _send,
+                        icon: const Icon(Icons.send_rounded),
+                      ),
+                    ],
+                  ),
+                  if (_speechMessage != null) ...[
+                    const SizedBox(height: 7),
+                    Row(
+                      children: [
+                        Icon(
+                          _speechMessageIsError
+                              ? Icons.error_outline_rounded
+                              : _listening
+                              ? Icons.graphic_eq_rounded
+                              : Icons.mic_none_rounded,
+                          size: 15,
+                          color: _speechMessageIsError
+                              ? const Color(0xffdc2626)
+                              : const Color(0xff2563eb),
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            _speechMessage!,
+                            style: TextStyle(
+                              color: _speechMessageIsError
+                                  ? const Color(0xffb91c1c)
+                                  : const Color(0xff475569),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
-                ),
-                const SizedBox(height: 7),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.token_rounded,
-                      size: 15,
-                      color: Color(0xff64748b),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      '输入 $_inputTokens · 输出 $_outputTokens · 总计 $_totalTokens tokens',
-                      style: const TextStyle(
+                  const SizedBox(height: 7),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.token_rounded,
+                        size: 15,
                         color: Color(0xff64748b),
-                        fontSize: 11,
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      const SizedBox(width: 5),
+                      Text(
+                        '输入 $_inputTokens · 输出 $_outputTokens · 总计 $_totalTokens tokens',
+                        style: const TextStyle(
+                          color: Color(0xff64748b),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1536,22 +1846,14 @@ class _AgentPageState extends State<_AgentPage> {
     return switch (status) {
       'designing' || 'ready_for_planning' => 1,
       'planning' || 'planning_ready' || 'planning_failed' => 2,
-      'pending_execution' ||
-      'executing' ||
-      'paused' ||
-      'execution_failed' => 3,
+      'pending_execution' || 'executing' || 'paused' || 'execution_failed' => 3,
       'completed' || 'cancelled' => 4,
       _ => 0,
     };
   }
 
-  static String _projectStepLabel(int step) => const [
-        '需求',
-        '设计',
-        '规划',
-        '执行',
-        '验收',
-      ][step.clamp(0, 4).toInt()];
+  static String _projectStepLabel(int step) =>
+      const ['需求', '设计', '规划', '执行', '验收'][step.clamp(0, 4).toInt()];
 
   Widget _buildProjectStepBar(int currentStep) {
     const labels = ['需求', '设计', '规划', '执行', '验收'];
@@ -2084,6 +2386,63 @@ class _AgentBubble extends StatelessWidget {
   final VoidCallback? onRegenerate;
   final ValueChanged<bool>? onConfirm;
 
+  Future<void> _showActions(
+    BuildContext context,
+    LongPressStartDetails details,
+  ) async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final point = details.globalPosition;
+    final action = await showMenu<String>(
+      context: context,
+      color: const Color(0xff374151),
+      elevation: 10,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      position: RelativeRect.fromLTRB(
+        point.dx.clamp(12, overlay.size.width - 12),
+        math.max(12, point.dy - 88),
+        math.max(12, overlay.size.width - point.dx),
+        math.max(12, overlay.size.height - point.dy),
+      ),
+      items: [
+        PopupMenuItem<String>(
+          enabled: false,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          child: Builder(
+            builder: (menuContext) => Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _AgentActionMenuButton(
+                  icon: Icons.copy_rounded,
+                  label: '复制',
+                  onTap: () => Navigator.pop(menuContext, 'copy'),
+                ),
+                _AgentActionMenuButton(
+                  icon: Icons.format_quote_rounded,
+                  label: '引用',
+                  onTap: () => Navigator.pop(menuContext, 'quote'),
+                ),
+                if (onRegenerate != null)
+                  _AgentActionMenuButton(
+                    icon: Icons.refresh_rounded,
+                    label: '重新生成',
+                    onTap: () => Navigator.pop(menuContext, 'regenerate'),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+    switch (action) {
+      case 'copy':
+        onCopy?.call();
+      case 'quote':
+        onQuote?.call();
+      case 'regenerate':
+        onRegenerate?.call();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = item.role == 'user';
@@ -2097,169 +2456,182 @@ class _AgentBubble extends StatelessWidget {
         : const Color(0xfff1f5f9);
     return Align(
       alignment: user ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 620),
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          color: color,
-          border: Border.all(
-            color: item.isError
-                ? const Color(0xffef4444)
-                : const Color(0xff22304a),
-          ),
-          borderRadius: BorderRadius.circular(8),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onLongPressStart: (details) => _showActions(context, details),
+        onSecondaryTapDown: (details) => _showActions(
+          context,
+          LongPressStartDetails(globalPosition: details.globalPosition),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SelectableText(displayContent, style: const TextStyle(height: 1.45)),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  tooltip: '复制',
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  onPressed: onCopy,
-                  icon: const Icon(Icons.copy_all_outlined, size: 17),
-                ),
-                IconButton(
-                  tooltip: '引用',
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  onPressed: onQuote,
-                  icon: const Icon(Icons.format_quote_rounded, size: 18),
-                ),
-                if (onRegenerate != null)
-                  IconButton(
-                    tooltip: '重新生成',
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                    onPressed: onRegenerate,
-                    icon: const Icon(Icons.refresh_rounded, size: 18),
-                  ),
-              ],
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 620),
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            color: color,
+            border: Border.all(
+              color: item.isError
+                  ? const Color(0xffef4444)
+                  : const Color(0xff22304a),
             ),
-            if (item.jsonText != null) ...[
-              const SizedBox(height: 8),
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                childrenPadding: EdgeInsets.zero,
-                dense: true,
-                title: const Text('查看 JSON', style: TextStyle(fontSize: 12)),
-                children: [
-                  Container(
-                    width: double.infinity,
-                    constraints: const BoxConstraints(maxHeight: 240),
-                    padding: const EdgeInsets.all(8),
-                    color: const Color(0xff0f172a),
-                    child: SingleChildScrollView(
-                      child: SelectableText(
-                        item.jsonText!,
-                        style: const TextStyle(
-                          color: Color(0xffe2e8f0),
-                          fontFamily: 'monospace',
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            if (item.previewPaths.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                height: 220,
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  color: const Color(0xfff8fafc),
-                  border: Border.all(color: const Color(0xffcbd5e1)),
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: CustomPaint(
-                  painter: _MapPainter(
-                    lineRunning: false,
-                    gridMap: const {},
-                    plannedPaths: item.previewPaths,
-                    robotPose: const {},
-                    poseTrace: const [],
-                    showPlan: false,
-                    showTrace: false,
-                    showRobot: false,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'AI JSON 草稿预览 · 保存图纸不等于执行任务',
-                style: TextStyle(color: Color(0xff64748b), fontSize: 11),
-              ),
-            ],
-            if (!user &&
-                item.pendingAction != null &&
-                (item.pendingAction!['name']?.toString() == 'drive_robot' ||
-                    item.pendingAction!['name']?.toString() ==
-                        'drive_sequence')) ...[
-              const SizedBox(height: 6),
-              const Text(
-                '这是有限时移动演示，不保证精确距离、角度或闭合图形。需要精确路线时请切换到进阶模式。',
-                style: TextStyle(color: Color(0xffb45309), fontSize: 11),
-              ),
-            ],
-            if (item.pendingAction != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: Row(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(displayContent, style: const TextStyle(height: 1.45)),
+              if (item.jsonText != null) ...[
+                const SizedBox(height: 8),
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text('查看 JSON', style: TextStyle(fontSize: 12)),
                   children: [
-                    const Icon(
-                      Icons.build_circle_outlined,
-                      color: Color(0xfff59e0b),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        item.pendingAction!['label']?.toString() ?? '机器人操作',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+                    Container(
+                      width: double.infinity,
+                      constraints: const BoxConstraints(maxHeight: 240),
+                      padding: const EdgeInsets.all(8),
+                      color: const Color(0xff0f172a),
+                      child: SingleChildScrollView(
+                        child: SelectableText(
+                          item.jsonText!,
+                          style: const TextStyle(
+                            color: Color(0xffe2e8f0),
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                          ),
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => onConfirm?.call(false),
-                      child: const Text('取消'),
+              ],
+              if (item.previewPaths.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  height: 220,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    color: const Color(0xfff8fafc),
+                    border: Border.all(color: const Color(0xffcbd5e1)),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: CustomPaint(
+                    painter: _MapPainter(
+                      lineRunning: false,
+                      gridMap: const {},
+                      plannedPaths: item.previewPaths,
+                      robotPose: const {},
+                      poseTrace: const [],
+                      showPlan: false,
+                      showTrace: false,
+                      showRobot: false,
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () => onConfirm?.call(true),
-                      icon: const Icon(Icons.check_rounded),
-                      label: const Text('确认执行'),
-                    ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'AI JSON 草稿预览 · 保存图纸不等于执行任务',
+                  style: TextStyle(color: Color(0xff64748b), fontSize: 11),
+                ),
+              ],
+              if (!user &&
+                  item.pendingAction != null &&
+                  (item.pendingAction!['name']?.toString() == 'drive_robot' ||
+                      item.pendingAction!['name']?.toString() ==
+                          'drive_sequence')) ...[
+                const SizedBox(height: 6),
+                const Text(
+                  '这是有限时移动演示，不保证精确距离、角度或闭合图形。需要精确路线时请切换到进阶模式。',
+                  style: TextStyle(color: Color(0xffb45309), fontSize: 11),
+                ),
+              ],
+              if (item.pendingAction != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(7),
                   ),
-                ],
-              ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.build_circle_outlined,
+                        color: Color(0xfff59e0b),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          item.pendingAction!['label']?.toString() ?? '机器人操作',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => onConfirm?.call(false),
+                        child: const Text('取消'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () => onConfirm?.call(true),
+                        icon: const Icon(Icons.check_rounded),
+                        label: const Text('确认执行'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _AgentActionMenuButton extends StatelessWidget {
+  const _AgentActionMenuButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(6),
+    child: SizedBox(
+      width: 76,
+      height: 58,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: Colors.white, size: 21),
+          const SizedBox(height: 5),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 String _friendlyAgentContent(String content) {

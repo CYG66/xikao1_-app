@@ -189,7 +189,9 @@ class AgentDrawingTest(unittest.TestCase):
             result = robot_agent._execute_confirmed(action)
 
         self.assertTrue(result["ok"])
-        publish.assert_called_once_with(-0.1, -0.2, 0.2)
+        # xline_cyg follows the standard ROS2 convention: positive
+        # linear.x is forward and positive angular.z is left.
+        publish.assert_called_once_with(0.1, 0.2, 0.2)
 
     def test_forward_distance_creates_confirmable_drive_action(self) -> None:
         result = robot_agent._local_intent("前进3米")

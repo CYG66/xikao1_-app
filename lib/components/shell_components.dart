@@ -19,7 +19,6 @@ class _DraggableAgentBallState extends State<_DraggableAgentBall> {
   static const double visualSize = 48;
   static const double edgeInset = 12;
   Offset? position;
-  bool pointerMoved = false;
 
   @override
   Widget build(BuildContext context) {
@@ -42,20 +41,19 @@ class _DraggableAgentBallState extends State<_DraggableAgentBall> {
             Positioned(
               left: current.dx,
               top: current.dy,
-              child: Listener(
-                behavior: HitTestBehavior.translucent,
-                onPointerDown: (_) => pointerMoved = false,
-                onPointerMove: (event) => setState(() {
-                  pointerMoved = true;
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: widget.onTap,
+                onPanUpdate: (details) => setState(() {
                   final last = position ?? current;
                   position = Offset(
-                    (last.dx + event.delta.dx)
+                    (last.dx + details.delta.dx)
                         .clamp(
                           edgeInset,
                           constraints.maxWidth - hitSize - edgeInset,
                         )
                         .toDouble(),
-                    (last.dy + event.delta.dy)
+                    (last.dy + details.delta.dy)
                         .clamp(
                           edgeInset,
                           constraints.maxHeight - hitSize - edgeInset,
@@ -63,11 +61,7 @@ class _DraggableAgentBallState extends State<_DraggableAgentBall> {
                         .toDouble(),
                   );
                 }),
-                onPointerUp: (_) {
-                  if (!pointerMoved) {
-                    widget.onTap();
-                    return;
-                  }
+                onPanEnd: (_) {
                   setState(() {
                     final last = position ?? current;
                     position = Offset(

@@ -19,9 +19,12 @@ from .audit_store import agent_audit
 from .agent_skills import (
     check_drawing_feasibility,
     clarify_requirements,
+    drawing_template_geometries,
+    drawing_template_motion_steps,
     layer_drawing_paths,
     parameterize_design,
     recommend_recovery,
+    recognize_drawing_template,
     score_design_variant,
 )
 from .creative_projects import creative_projects
@@ -448,8 +451,9 @@ class RobotAgentService:
                 "【当前模式：基础】这是底盘运动控制模式。用户描述前进、后退、转弯、绕圈、"
                 "正方形、圆形、折线或任意运动图形时，必须生成合法运动 JSON，并调用 drive_robot 或 drive_sequence；"
                 "任意图形都可以拆成多段 linear、angular、duration_seconds 运动步骤，不要求精确距离和角度。"
-                "先返回待确认的运动操作，用户确认后才执行。基础模式只允许 get_robot_status、stop_robot、"
-                "drive_robot、drive_sequence，不创建项目、不生成图纸、不规划路径、不喷墨、不调用喷码机。"
+                "先返回待确认的运动操作，用户确认后才执行。基础模式通常只处理底盘运动；"
+                "只有用户明确要求打开或关闭喷墨时，才允许使用 printer_spray，且必须再次确认。"
+                "不创建项目、不生成图纸、不规划路径。默认喷墨关闭，打开后可与运动演示同时进行。"
                 "运动 JSON 必须通过严格 Schema 和安全门禁。\n"
                 + message
             )
@@ -655,6 +659,10 @@ class RobotAgentService:
             })
         if mode == "advanced" and any(word in text for word in ("喷码", "喷墨", "喷头", "墨量")):
             names.add("control_printer")
+        if mode == "base" and any(
+            word in text for word in ("喷码", "喷墨", "喷头", "墨量")
+        ):
+            names.add("printer_spray")
         if mode == "advanced" and any(word in text for word in ("ln150", "全站仪", "追踪", "调平")):
             names.add("control_ln150")
         if mode == "advanced" and any(word in text for word in ("故障", "异常", "恢复", "怎么办")):
@@ -909,11 +917,31 @@ class RobotAgentService:
         self, message: str, *, allow_design: bool = True
     ) -> dict[str, Any] | None:
         normalized = message.lower().replace("×", "x").replace("*", "x")
+        spray_intent = self._local_spray_intent(normalized)
+        if spray_intent is not None:
+            spraying, printer_name = spray_intent
+            arguments = {"printer_name": printer_name, "spraying": spraying}
+            return self._result(
+                "已识别为持续喷墨控制。确认后才会改变喷墨状态；打开后可同时控制小车移动。"
+                if spraying
+                else "已识别为停止持续喷墨。确认后才会停止喷墨。",
+                self._empty_usage(),
+                self._register_pending("printer_spray", arguments),
+            )
         if any(word in normalized for word in ("当前状态", "小车状态", "是否就绪", "能否控制")):
             return self._result(self._local_diagnosis(), self._empty_usage())
         if normalized.strip() in {"停车", "停止", "立即停车", "停下"}:
             output = self._execute_safe("stop_robot", {})
             return self._result(str(output["message"]), self._empty_usage())
+        template_match = recognize_drawing_template(normalized)
+        if template_match is not None:
+            template_action = self._local_template_intent(
+                raw_message=message,
+                match=template_match,
+                allow_design=allow_design,
+            )
+            if template_action is not None:
+                return template_action
         motion_sequence = self._local_motion_sequence_intent(normalized)
         if motion_sequence is not None:
             return motion_sequence
@@ -962,7 +990,9 @@ class RobotAgentService:
                     self._empty_usage(),
                     self._register_pending("drive_sequence", {"steps": steps}),
                 )
+        if not allow_design:
             return None
+
         if not any(word in normalized for word in ("矩形", "长方形", "rectangle")):
             if not any(word in normalized for word in ("圆形", "圆", "circle")):
                 return None
@@ -1059,6 +1089,83 @@ class RobotAgentService:
         return self._result(
             f"已创建创意项目“{project['name']}”和一个候选方案。项目编号：{project['id']}。"
             "下一步可提交 ROS2 规划预览，规划不会启动小车。",
+            self._empty_usage(),
+        )
+
+    @staticmethod
+    def _local_spray_intent(message: str) -> tuple[bool, str] | None:
+        """识别明确的喷墨开关指令，避免基础模式误触发喷墨。"""
+        if not any(word in message for word in ("喷墨", "喷码", "喷头")):
+            return None
+        printer_name = "center"
+        if "左" in message:
+            printer_name = "left"
+        elif "右" in message:
+            printer_name = "right"
+        stop_words = ("关闭", "停止", "关掉", "不要喷", "停喷", "关闭喷头")
+        start_words = ("打开", "开启", "开始", "启用", "打开喷头", "边走边喷")
+        if any(word in message for word in stop_words):
+            return False, printer_name
+        if any(word in message for word in start_words):
+            return True, printer_name
+        return None
+
+    def _local_template_intent(
+        self,
+        *,
+        raw_message: str,
+        match: dict[str, Any],
+        allow_design: bool,
+    ) -> dict[str, Any] | None:
+        """Handle drawing-editor template names without an LLM round trip."""
+        label = str(match["label"])
+        if not allow_design:
+            steps = drawing_template_motion_steps(match)
+            if len(steps) < 2:
+                return self._result(
+                    f"已识别{label}模板，但基础模式暂时无法将它转换为有效运动步骤。",
+                    self._empty_usage(),
+                )
+            return self._result(
+                f"基础模式已识别“{label}”模板，生成 {len(steps)} 段底盘运动演示。"
+                "这是开环运动，不代表精确图纸或喷墨任务；请确认环境后执行。",
+                self._empty_usage(),
+                self._register_pending("drive_sequence", {"steps": steps}),
+            )
+
+        geometries = drawing_template_geometries(match)
+        project = creative_projects.create(
+            f"{label}快速方案",
+            raw_message,
+            {
+                "shape": match["template"],
+                "template": match["template"],
+                "dimensions": {
+                    key: value
+                    for key, value in match.items()
+                    if key.endswith("_m") and isinstance(value, (int, float))
+                },
+                "printer": "center",
+                "origin": "current_robot_pose",
+                "units": "m",
+            },
+            {},
+            [],
+        )
+        assessment = score_design_variant(geometries)
+        variant = creative_projects.add_variant(
+            project["id"],
+            f"{label}候选方案",
+            geometries,
+            f"根据图纸模板“{label}”本地快速生成",
+            assessment,
+            preview_paths({"lines": geometries}),
+        )
+        if variant is not None:
+            creative_projects.select_variant(project["id"], variant["id"])
+        return self._result(
+            f"已本地识别“{label}”模板，创建项目“{project['name']}”和候选方案。"
+            "下一步将进入 xline_cyg 路径规划预览，不会直接启动小车。",
             self._empty_usage(),
         )
 
@@ -1517,8 +1624,8 @@ class RobotAgentService:
             semantic_linear = float(args["linear"])
             semantic_angular = float(args["angular"])
             ok = ros_adapter.publish_timed_velocity(
-                -semantic_linear,
-                -semantic_angular,
+                semantic_linear,
+                semantic_angular,
                 float(args["duration_seconds"]),
             )
             duration = float(args["duration_seconds"])
@@ -1530,8 +1637,8 @@ class RobotAgentService:
         if action.name == "drive_sequence":
             steps = [
                 {
-                    "linear": -float(step["linear"]),
-                    "angular": -float(step["angular"]),
+                    "linear": float(step["linear"]),
+                    "angular": float(step["angular"]),
                     "duration_seconds": float(step["duration_seconds"]),
                 }
                 for step in args["steps"]
@@ -1571,6 +1678,32 @@ class RobotAgentService:
                 int(args["param"]),
             )
             return {"ok": ok, "message": "喷码机指令已提交。" if ok else "喷码机服务不可用。"}
+        if action.name == "printer_spray":
+            printer_name = str(args["printer_name"])
+            spraying = bool(args["spraying"])
+            if spraying:
+                if not ros_adapter.set_printer_active(printer_name, True):
+                    return {"ok": False, "message": "喷码机激活服务不可用。"}
+                ok = ros_adapter.call_printer(
+                    printer_name,
+                    "test_print",
+                    0,
+                    allow_activation_race=True,
+                    auto_stop_test_print=False,
+                    manual_spray=True,
+                )
+                return {
+                    "ok": ok,
+                    "message": "已打开持续喷墨，可同时控制小车移动。"
+                    if ok
+                    else "喷墨启动失败，请检查喷码机连接和墨路。",
+                }
+            stop_ok = ros_adapter.call_printer(printer_name, "stop_print", 0)
+            active_ok = ros_adapter.set_printer_active(printer_name, False)
+            return {
+                "ok": stop_ok and active_ok,
+                "message": "已停止喷墨。" if stop_ok and active_ok else "停止喷墨失败。",
+            }
         return {"ok": False, "message": "不支持的 Agent 操作。"}
 
     @staticmethod
@@ -1676,6 +1809,7 @@ class RobotAgentService:
             "execute_prepared_mission": "执行已预览的规划路径",
             "control_ln150": "执行 LN150 操作",
             "control_printer": "执行喷码机操作",
+            "printer_spray": "打开持续喷墨" if arguments.get("spraying") else "关闭持续喷墨",
             "create_rectangle_drawing": "创建矩形 JSON 图纸",
             "create_drawing": "生成并保存 CAD JSON 图纸草稿",
         }

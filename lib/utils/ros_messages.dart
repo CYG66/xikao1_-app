@@ -53,6 +53,16 @@ class RosMessages {
     };
   }
 
+  /// 开始或停止手动随车喷墨。
+  static Map<String, Object?> printerSpray(
+    bool spraying, {
+    String printerName = 'center',
+  }) => {
+    'op': 'printer_spray',
+    'printer_name': printerName,
+    'spraying': spraying,
+  };
+
   static Map<String, Object?> printerEnabled(
     bool enabled, {
     String printerName = 'center',

@@ -13,6 +13,7 @@ import 'constants/app_constants.dart';
 import 'models/vehicle_status.dart';
 import 'services/agent_chat_preferences.dart';
 import 'services/device_preferences.dart';
+import 'services/offline_speech_service.dart';
 import 'utils/ros_messages.dart';
 import 'viewmodels/rover_device.dart';
 
@@ -239,8 +240,133 @@ class _RoverHomePageState extends State<RoverHomePage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    unawaited(_restoreDevices());
+    if (AppConstants.layoutPreviewMode) {
+      _enableLayoutPreview();
+    } else {
+      unawaited(_restoreDevices());
+    }
   }
+
+  /// Populate realistic read-only data for Android layout work.
+  /// Outbound commands are blocked by [_sendBridge] below.
+  void _enableLayoutPreview() {
+    const previewDevice = RoverDevice(
+      name: 'XLine Rover · 布局预览',
+      ip: '192.168.0.100',
+      port: 8000,
+      domainId: 0,
+      type: 'FastAPI Backend',
+      connected: true,
+    );
+    devices
+      ..clear()
+      ..add(previewDevice);
+    bridgeState = BridgeState.connected;
+    connectionMessage = '已连接（布局预览）';
+    rosAvailable = true;
+    backendOnline = true;
+    emergencyStopped = false;
+    controlGranted = true;
+    controlOwner = controlClientId;
+    controlReady = true;
+    driveDeviceConnected = true;
+    motorDriverReady = true;
+    missionNodesReady = true;
+    localizationValid = true;
+    localizationSource = 'odom_imu_relative';
+    localizationCalibration = 'accepted';
+    localizationCalibrationAvailable = true;
+    ln150Ready = false;
+    printerReady = true;
+    printerEnabled = true;
+    linearVelocity = 0.0;
+    telemetryAgeMs = 32;
+    battery = 86;
+    robotPose = const {'x': 0.0, 'y': 0.0, 'theta': 0.0, 'frame_id': 'map'};
+    odometry = const {'x': 0.0, 'y': 0.0, 'theta': 0.0, 'frame_id': 'odom'};
+    gridMap = const {
+      'frame_id': 'map',
+      'resolution': 0.05,
+      'width': 160,
+      'height': 120,
+      'origin_x': -4.0,
+      'origin_y': -3.0,
+      'runs': <List<Object>>[],
+    };
+    plannedPaths = _previewPaths;
+    missionPreviewPaths = _previewPaths;
+    missionPreviewFile = missionFile;
+    printerStatus = const {
+      'printer_center': {
+        'connected': true,
+        'is_online': true,
+        'enabled': false,
+        'spraying': false,
+        'status': 'ready',
+      },
+    };
+    obstacleDistances = const {
+      'front': 2.4,
+      'back': 2.8,
+      'left': 1.6,
+      'right': 1.7,
+    };
+    obstacleAgeMs = 120;
+    wheelSpeeds = const {'left_mps': 0.0, 'right_mps': 0.0};
+    motorStatus = const {'ready': true, 'error': ''};
+    pathAnnotations = const [];
+    poseTrace = const [
+      [0.0, 0.0],
+      [0.12, 0.0],
+      [0.24, 0.02],
+      [0.36, 0.04],
+    ];
+    mapAgeMs = 32;
+    pathsAgeMs = 32;
+    vehicleStatus = const VehicleStatus(
+      deviceId: 'preview-rover',
+      model: 'XLine Rover',
+      softwareVersion: 'layout-preview',
+      online: true,
+      rosAvailable: true,
+      controlReady: true,
+      localizationValid: true,
+      localizationSource: 'odom_imu_relative',
+      emergencyStopped: false,
+      capabilities: VehicleCapabilities(
+        manualDrive: true,
+        pathPlanning: true,
+        pathExecution: true,
+        localization: true,
+        printing: true,
+        emergencyStop: true,
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> get _previewPaths => const [
+    {
+      'id': 0,
+      'frame_id': 'map',
+      'route_type': 'transition',
+      'points': [
+        [-0.8, -0.8],
+        [0.0, 0.0],
+      ],
+    },
+    {
+      'id': 1,
+      'frame_id': 'map',
+      'route_type': 'drawing',
+      'points': [
+        [0.0, 0.0],
+        [1.2, 0.0],
+        [1.2, 0.8],
+        [0.0, 0.8],
+        [0.0, 0.0],
+      ],
+    },
+  ];
 
   Future<void> _restoreDevices() async {
     try {
@@ -442,14 +568,9 @@ class _RoverHomePageState extends State<RoverHomePage>
           onPause: () => _controlMission('pause'),
           onResume: () => _controlMission('resume'),
           onCancel: _confirmCancelMission,
-          ln150Ready: ln150Ready,
           localizationSource: localizationSource,
           localizationValid: localizationValid,
           localizationCalibrationAvailable: localizationCalibrationAvailable,
-          onLnCommand: _sendLnCommand,
-          onCalibrateLocalization: () =>
-              _sendBridge(RosMessages.calibrateLocalization()),
-          localizationCalibration: localizationCalibration,
         );
       case 2:
         return _SettingsPage(
@@ -457,12 +578,6 @@ class _RoverHomePageState extends State<RoverHomePage>
           localizationSource: localizationSource,
           onAddDevice: _openAddDeviceSheet,
           bridgeState: bridgeState,
-          printerEnabled: printerEnabled,
-          printerStatus: printerStatus,
-          onPrinterChanged: _setNamedPrinterActive,
-          onPrinterEnabledChanged: _setNamedPrinterEnabled,
-          onPrinterCommand: _sendPrinterCommand,
-          onPrinterRawCommand: _sendPrinterRawCommand,
         );
       default:
         return _buildHomePage();
@@ -475,6 +590,7 @@ class _RoverHomePageState extends State<RoverHomePage>
         builder: (context) => _DrawingEditorPage(
           device: activeDevice,
           bridgeConnected: bridgeState == BridgeState.connected,
+          previewMode: AppConstants.layoutPreviewMode,
           localizationSource: localizationSource,
         ),
       ),
@@ -487,6 +603,12 @@ class _RoverHomePageState extends State<RoverHomePage>
   }
 
   Future<void> _openJsonImporter() async {
+    if (AppConstants.layoutPreviewMode) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('布局预览模式不会写入小车图纸')));
+      return;
+    }
     final fileName = await showDialog<String>(
       context: context,
       builder: (context) => _JsonDrawingDialog(device: activeDevice),
@@ -508,6 +630,14 @@ class _RoverHomePageState extends State<RoverHomePage>
       missionPreviewFile = null;
       missionPreviewPaths = const [];
     });
+    if (AppConstants.layoutPreviewMode) {
+      setState(() {
+        missionPreviewFile = fileName;
+        missionPreviewPaths = _previewPaths;
+        plannedPaths = _previewPaths;
+      });
+      return;
+    }
     if (bridgeState != BridgeState.connected) return;
 
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
@@ -565,18 +695,85 @@ class _RoverHomePageState extends State<RoverHomePage>
           ),
         );
       case 2:
-        return _HomeModulePage(
-          title: '手动控制',
-          onBack: () => setState(() => homeModule = 0),
-          child: _ControlPage(
-            linearSpeed: linearSpeed,
-            angularSpeed: angularSpeed,
-            onLinearSpeedChanged: (value) =>
-                setState(() => linearSpeed = value),
-            onAngularSpeedChanged: (value) =>
-                setState(() => angularSpeed = value),
-            onDriveCommand: _sendDriveCommand,
-          ),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final control = _ControlPage(
+              linearSpeed: linearSpeed,
+              angularSpeed: angularSpeed,
+              onLinearSpeedChanged: (value) =>
+                  setState(() => linearSpeed = value),
+              onAngularSpeedChanged: (value) =>
+                  setState(() => angularSpeed = value),
+              onDriveCommand: _sendDriveCommand,
+              printerStatus: printerStatus,
+              onPrinterChanged: _setNamedPrinterActive,
+              fixedLayout: true,
+              showPrinterPanel: false,
+            );
+            if (MediaQuery.sizeOf(context).width >= 840) {
+              final realtimeMap = _Panel(
+                title: '实时地图',
+                trailing: IconButton(
+                  tooltip: '打开完整地图',
+                  onPressed: () => setState(() => homeModule = 1),
+                  icon: const Icon(Icons.open_in_full_rounded, size: 20),
+                ),
+                child: _RealtimeRobotView(
+                  rosAvailable: rosAvailable,
+                  pose: robotPose,
+                  gridMap: gridMap,
+                  plannedPaths: _displayedPlannedPaths,
+                  poseTrace: poseTrace,
+                  lineRunning: lineRunning,
+                  onTap: () => setState(() => homeModule = 1),
+                  height: constraints.hasBoundedHeight
+                      ? math.max(260, constraints.maxHeight - 72)
+                      : null,
+                ),
+              );
+              final printerPanel = _PrinterTogglePanel(
+                status: printerStatus,
+                onSprayChanged: _setNamedPrinterActive,
+              );
+              return _HomeModulePage(
+                title: '手动控制 · 地图',
+                onBack: () => setState(() => homeModule = 0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(flex: 62, child: realtimeMap),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 38,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(flex: 28, child: printerPanel),
+                          const SizedBox(height: 8),
+                          Expanded(flex: 72, child: control),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return _HomeModulePage(
+              title: '手动控制',
+              onBack: () => setState(() => homeModule = 0),
+              child: _ControlPage(
+                linearSpeed: linearSpeed,
+                angularSpeed: angularSpeed,
+                onLinearSpeedChanged: (value) =>
+                    setState(() => linearSpeed = value),
+                onAngularSpeedChanged: (value) =>
+                    setState(() => angularSpeed = value),
+                onDriveCommand: _sendDriveCommand,
+                printerStatus: printerStatus,
+                onPrinterChanged: _setNamedPrinterActive,
+              ),
+            );
+          },
         );
       case 3:
         return _HomeModulePage(
@@ -621,7 +818,19 @@ class _RoverHomePageState extends State<RoverHomePage>
           motorStatus: motorStatus,
           battery: battery,
           localizationReady: localizationReady,
+          localizationSource: localizationSource,
+          localizationCalibration: localizationCalibration,
+          localizationCalibrationAvailable: localizationCalibrationAvailable,
+          ln150Ready: ln150Ready,
+          onLnCommand: _sendLnCommand,
+          onCalibrateLocalization: () =>
+              _sendBridge(RosMessages.calibrateLocalization()),
           printerStatus: centerPrinterLabel,
+          printerStatusData: printerStatus,
+          onPrinterChanged: _setNamedPrinterActive,
+          onPrinterEnabledChanged: _setNamedPrinterEnabled,
+          onPrinterCommand: _sendPrinterCommand,
+          onPrinterRawCommand: _sendPrinterRawCommand,
           missionReady: missionReady,
           onStartMission: () =>
               _controlMission(lineRunning ? 'cancel' : 'start'),
@@ -635,74 +844,174 @@ class _RoverHomePageState extends State<RoverHomePage>
   }
 
   Future<void> _openAgentSheet() async {
+    var agentPreviewPaths = const <Map<String, dynamic>>[];
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.white,
+      constraints: const BoxConstraints(maxWidth: double.infinity),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) => FractionallySizedBox(
-        heightFactor: 0.92,
-        child: Column(
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(top: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xff334155),
-                  borderRadius: BorderRadius.circular(999),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => SizedBox(
+          width: double.infinity,
+          height: MediaQuery.sizeOf(context).height * 0.92,
+          child: Column(
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(top: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xff334155),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 8, 2),
-              child: Row(
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: const Color(0xff172554),
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    child: const Icon(
-                      Icons.smart_toy_rounded,
-                      size: 19,
-                      color: Color(0xff60a5fa),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      '智能助手',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 8, 8, 2),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: const Color(0xff172554),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: const Icon(
+                        Icons.smart_toy_rounded,
+                        size: 19,
+                        color: Color(0xff60a5fa),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: '关闭助手',
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        '智能助手',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: '关闭助手',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Expanded(
-              child: _AgentPage(
-                device: activeDevice,
-                bridgeConnected: bridgeState == BridgeState.connected,
-                agentMotionNotifier: agentMotionNotifier,
-                onStopAgentMotion: _stopAgentMotion,
-                clientId: controlClientId,
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wide = MediaQuery.sizeOf(context).width >= 840;
+                    final agent = _AgentPage(
+                      device: activeDevice,
+                      bridgeConnected: bridgeState == BridgeState.connected,
+                      previewMode: AppConstants.layoutPreviewMode,
+                      agentMotionNotifier: agentMotionNotifier,
+                      onStopAgentMotion: _stopAgentMotion,
+                      clientId: controlClientId,
+                      printerStatus: printerStatus,
+                      onPrinterSprayChanged: (printerName, spraying) {
+                        _setNamedPrinterActive(printerName, spraying);
+                        setSheetState(() {});
+                      },
+                      onPreviewPathsChanged: (paths) {
+                        setSheetState(
+                          () => agentPreviewPaths = List.unmodifiable(paths),
+                        );
+                      },
+                    );
+                    if (!wide) return agent;
+                    final usesTotalStation =
+                        localizationSource == 'ln150_imu' && ln150Ready;
+                    final relativePlanning = !usesTotalStation;
+                    final planningGrid = usesTotalStation && gridMap.isNotEmpty
+                        ? gridMap
+                        : <String, dynamic>{
+                            'width': 20,
+                            'height': 20,
+                            'resolution': 0.5,
+                            'origin_x': -5.0,
+                            'origin_y': -5.0,
+                            'frame_id': usesTotalStation
+                                ? 'map'
+                                : 'relative_map',
+                          };
+                    final planningPose = usesTotalStation
+                        ? robotPose
+                        : const <String, dynamic>{
+                            'x': 0.0,
+                            'y': 0.0,
+                            'theta': 0.0,
+                            'frame_id': 'relative_map',
+                          };
+                    final planningMap = _Panel(
+                      title: usesTotalStation
+                          ? 'AI 规划路径 · 全站仪定位'
+                          : 'AI 规划路径 · 相对定位',
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _StatusChip(
+                            text: relativePlanning ? '车头为坐标原点' : '全局坐标系',
+                            color: relativePlanning
+                                ? const Color(0xff2563eb)
+                                : const Color(0xff16a66a),
+                          ),
+                          const SizedBox(width: 6),
+                          _StatusChip(
+                            text: agentPreviewPaths.isEmpty
+                                ? '等待 JSON'
+                                : '${agentPreviewPaths.length} 段路径',
+                            color: agentPreviewPaths.isEmpty
+                                ? const Color(0xff64748b)
+                                : const Color(0xff16a66a),
+                          ),
+                          IconButton(
+                            tooltip: '清除规划路径',
+                            onPressed: agentPreviewPaths.isEmpty
+                                ? null
+                                : () => setSheetState(
+                                    () => agentPreviewPaths = const [],
+                                  ),
+                            icon: const Icon(Icons.clear_all_rounded, size: 20),
+                          ),
+                        ],
+                      ),
+                      child: _RealtimeRobotView(
+                        rosAvailable: usesTotalStation && rosAvailable,
+                        pose: planningPose,
+                        gridMap: planningGrid,
+                        plannedPaths: agentPreviewPaths,
+                        poseTrace: const [],
+                        lineRunning: false,
+                        onTap: () {},
+                        showPoseOverlay: usesTotalStation || relativePlanning,
+                        height: constraints.hasBoundedHeight
+                            ? math.max(260, constraints.maxHeight - 48)
+                            : null,
+                      ),
+                    );
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(flex: 44, child: agent),
+                        const VerticalDivider(width: 1),
+                        Expanded(flex: 56, child: planningMap),
+                      ],
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -823,6 +1132,11 @@ class _RoverHomePageState extends State<RoverHomePage>
   /// 关闭旧连接，然后连接当前设备的 WebSocket Bridge。
   /// 成功后订阅核心 ROS2 话题；4 秒内未成功则进入失败状态。
   Future<void> _connectActiveDevice() async {
+    if (AppConstants.layoutPreviewMode) {
+      _enableLayoutPreview();
+      if (mounted) setState(() {});
+      return;
+    }
     if (!activeDevice.isConfigured) {
       setState(() {
         bridgeState = BridgeState.disconnected;
@@ -903,6 +1217,7 @@ class _RoverHomePageState extends State<RoverHomePage>
   }
 
   Future<void> _loadMissionFiles() async {
+    if (AppConstants.layoutPreviewMode) return;
     if (bridgeState != BridgeState.connected || missionFilesLoading) return;
     setState(() => missionFilesLoading = true);
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
@@ -951,6 +1266,11 @@ class _RoverHomePageState extends State<RoverHomePage>
   }
 
   Future<void> _deleteMissionFile(String fileName) async {
+    if (AppConstants.layoutPreviewMode) {
+      if (mounted)
+        setState(() => _addLog('preview blocked drawing delete $fileName'));
+      return;
+    }
     const builtIn = {
       'test_pattern.json',
       'huanong_skeleton.json',
@@ -1037,6 +1357,11 @@ class _RoverHomePageState extends State<RoverHomePage>
 
   /// 主动断开 WebSocket，清理订阅并将界面设为离线。
   Future<void> _disconnectBridge() async {
+    if (AppConstants.layoutPreviewMode) {
+      if (mounted)
+        setState(() => _addLog('preview blocked disconnect request'));
+      return;
+    }
     _sendBridge(RosMessages.cmdVel(0, 0));
     _sendBridge(RosMessages.releaseControl());
     controlHeartbeat?.cancel();
@@ -1111,6 +1436,30 @@ class _RoverHomePageState extends State<RoverHomePage>
           emergencyReleaseInProgress = false;
           _showControlWarning(
             '解除急停失败：${envelope['message']?.toString() ?? '后端拒绝了请求'}',
+          );
+        }
+        return;
+      }
+      if (operation == 'service_response' || operation == 'mission_response') {
+        final service = envelope['service']?.toString() ?? '';
+        final message = envelope['message']?.toString().trim() ?? '';
+        if (envelope['ok'] == true) {
+          if (service.contains('printer')) {
+            _showControlNotice(message.isEmpty ? '喷码机指令已发送' : message);
+          }
+        } else {
+          final prefix = service.contains('printer') ? '喷码机操作失败：' : '';
+          _showControlWarning('$prefix${message.isEmpty ? '后端操作失败' : message}');
+        }
+        return;
+      }
+      if (operation == 'printer_spray_response') {
+        final message = envelope['message']?.toString().trim() ?? '';
+        if (envelope['ok'] == true) {
+          _showControlNotice(message.isEmpty ? '喷墨状态已更新' : message);
+        } else {
+          _showControlWarning(
+            '喷墨操作失败：${message.isEmpty ? '后端拒绝了请求' : message}',
           );
         }
         return;
@@ -1246,6 +1595,10 @@ class _RoverHomePageState extends State<RoverHomePage>
 
   /// 将线速度和角速度转成 `/cmd_vel` 指令。
   void _sendDriveCommand(double linear, double angular) {
+    if (AppConstants.layoutPreviewMode) {
+      setState(() => _addLog('preview blocked drive $linear $angular'));
+      return;
+    }
     if ((linear != 0 || angular != 0) && !controlGranted) {
       _showControlWarning('当前 App 尚未取得小车控制权');
       return;
@@ -1258,13 +1611,23 @@ class _RoverHomePageState extends State<RoverHomePage>
       _showControlWarning('CAN 接口或电机驱动尚未就绪');
       return;
     }
-    // This vehicle's installed drive orientation is reversed on both manual axes.
-    // Keep the UI and telemetry in operator-facing directions, and invert only
-    // the App's manual command at the ROS boundary.
-    _sendBridge(RosMessages.cmdVel(-linear, -angular));
+    // Keep the operator-facing signs all the way to ROS2:
+    // linear.x > 0 is forward and angular.z > 0 is left.
+    // The xline_cyg driver already uses this standard convention, so do not
+    // invert here. AI motion uses the same convention in the backend.
+    _sendBridge(RosMessages.cmdVel(linear, angular));
   }
 
   void _stopAgentMotion() {
+    if (AppConstants.layoutPreviewMode) {
+      setState(() {
+        agentMotionActive = false;
+        agentMotionRemainingMs = 0;
+        agentMotionNotifier.value = -1;
+        _addLog('preview blocked stop agent motion');
+      });
+      return;
+    }
     _sendBridge(RosMessages.stopAgentMotion());
     setState(() {
       agentMotionActive = false;
@@ -1290,12 +1653,38 @@ class _RoverHomePageState extends State<RoverHomePage>
 
   /// 调用喷码机指令，[action] 例如 `start_print` 或 `stop_print`。
   void _sendPrinterCommand(String printerName, String action) {
+    if (bridgeState != BridgeState.connected) {
+      _showControlWarning('小车未连接，无法发送喷码机指令');
+      return;
+    }
+    _showControlNotice(action == 'test_print' ? '正在发送喷码测试指令…' : '正在发送喷码机指令…');
     _sendBridge(RosMessages.printerCommand(action, printerName: printerName));
   }
 
+  void _showControlNotice(String message) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+    );
+  }
+
   void _setNamedPrinterActive(String printerName, bool active) {
-    if (printerName == 'center') setState(() => printerEnabled = active);
-    _sendBridge(RosMessages.printerActive(active, printerName: printerName));
+    if (printerName == 'center') {
+      setState(() {
+        printerEnabled = active;
+        final current = _asStringMap(printerStatus['printer_center']);
+        printerStatus = {
+          ...printerStatus,
+          'printer_center': {...current, 'spraying': active},
+        };
+      });
+    }
+    if (bridgeState != BridgeState.connected) {
+      _showControlWarning('小车未连接，无法切换喷墨');
+      return;
+    }
+    _sendBridge(RosMessages.printerSpray(active, printerName: printerName));
   }
 
   void _setNamedPrinterEnabled(String printerName, bool enabled) {
@@ -1316,6 +1705,13 @@ class _RoverHomePageState extends State<RoverHomePage>
   /// 启动或停止划线任务，并联动喷码机与底盘停车。
   /// 离线时会直接拦截，不会修改任务状态。
   void _controlMission(String action) {
+    if (AppConstants.layoutPreviewMode) {
+      setState(() => _addLog('preview blocked mission $action'));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('布局预览模式不会启动真实任务')));
+      return;
+    }
     if (bridgeState != BridgeState.connected) {
       setState(() {
         connectionMessage = '小车未连接，无法执行任务';
@@ -1404,9 +1800,20 @@ class _RoverHomePageState extends State<RoverHomePage>
   /// 只有 WebSocket 已连接时才真正发送，否则只记录拦截日志。
   void _sendBridge(Map<String, Object?> payload) {
     final text = jsonEncode({...payload, 'client_id': controlClientId});
+    if (AppConstants.layoutPreviewMode) {
+      setState(() => _addLog('preview blocked $text'));
+      return;
+    }
     if (bridgeState == BridgeState.connected && socket != null) {
       socket!.add(text);
-      setState(() => _addLog('send $text'));
+      // Joystick commands are sent at a high rate. Logging each one rebuilds
+      // the whole page and adds visible input latency; failures still arrive
+      // through the bridge response and are logged by the receiver.
+      final isDriveCommand =
+          payload['op'] == 'publish' && payload['topic'] == '/tablet_cmd_vel';
+      if (!isDriveCommand) {
+        setState(() => _addLog('send $text'));
+      }
     } else {
       setState(() => _addLog('blocked while offline $text'));
     }

@@ -147,6 +147,8 @@ class _RealtimeRobotView extends StatelessWidget {
     required this.poseTrace,
     required this.lineRunning,
     required this.onTap,
+    this.height,
+    this.showPoseOverlay = true,
   });
 
   final bool rosAvailable;
@@ -156,6 +158,8 @@ class _RealtimeRobotView extends StatelessWidget {
   final List<List<double>> poseTrace;
   final bool lineRunning;
   final VoidCallback onTap;
+  final double? height;
+  final bool showPoseOverlay;
 
   String _number(String key) {
     final value = pose[key];
@@ -173,7 +177,7 @@ class _RealtimeRobotView extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: SizedBox(
-            height: 220,
+            height: height ?? 220,
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -210,47 +214,48 @@ class _RealtimeRobotView extends StatelessWidget {
                       ),
                     ),
                   ),
-                Positioned(
-                  left: 10,
-                  right: 10,
-                  bottom: 10,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xf2ffffff),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xffdce3ea)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.my_location_rounded,
-                          size: 17,
-                          color: Color(0xff22c55e),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'X ${_number('x')}   Y ${_number('y')}   航向 ${_number('theta')}°',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
+                if (showPoseOverlay)
+                  Positioned(
+                    left: 10,
+                    right: 10,
+                    bottom: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xf2ffffff),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xffdce3ea)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.my_location_rounded,
+                            size: 17,
+                            color: Color(0xff22c55e),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'X ${_number('x')}   Y ${_number('y')}   航向 ${_number('theta')}°',
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
-                        ),
-                        const Icon(
-                          Icons.chevron_right_rounded,
-                          size: 20,
-                          color: Color(0xff94a3b8),
-                        ),
-                      ],
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            size: 20,
+                            color: Color(0xff94a3b8),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -315,40 +320,43 @@ class _DeviceTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
+      child: Material(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: device.connected
-              ? const Color(0xff22c55e)
-              : const Color(0xffdce3ea),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(
+            color: device.connected
+                ? const Color(0xff22c55e)
+                : const Color(0xffdce3ea),
+          ),
         ),
-      ),
-      child: ListTile(
-        leading: Icon(
-          Icons.precision_manufacturing_rounded,
-          color: device.connected
-              ? const Color(0xff22c55e)
-              : const Color(0xff60a5fa),
-        ),
-        title: Text(device.name),
-        subtitle: Text(
-          '${device.type} · ${device.bridgeUrl} · Domain ${device.domainId}',
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (device.connected)
-              const _StatusChip(text: '已连接', color: Color(0xff22c55e))
-            else
-              TextButton(onPressed: onConnect, child: const Text('连接')),
-            IconButton(
-              tooltip: '删除设备',
-              onPressed: onDelete,
-              color: const Color(0xffdc2626),
-              icon: const Icon(Icons.delete_outline_rounded),
-            ),
-          ],
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          leading: Icon(
+            Icons.precision_manufacturing_rounded,
+            color: device.connected
+                ? const Color(0xff22c55e)
+                : const Color(0xff60a5fa),
+          ),
+          title: Text(device.name),
+          subtitle: Text(
+            '${device.type} · ${device.bridgeUrl} · Domain ${device.domainId}',
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (device.connected)
+                const _StatusChip(text: '已连接', color: Color(0xff22c55e))
+              else
+                TextButton(onPressed: onConnect, child: const Text('连接')),
+              IconButton(
+                tooltip: '删除设备',
+                onPressed: onDelete,
+                color: const Color(0xffdc2626),
+                icon: const Icon(Icons.delete_outline_rounded),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -357,41 +365,50 @@ class _DeviceTile extends StatelessWidget {
 
 /// 主文件内使用的标准内容面板，统一标题、边框和内边距。
 class _Panel extends StatelessWidget {
-  const _Panel({required this.title, required this.child, this.trailing});
+  const _Panel({
+    required this.title,
+    required this.child,
+    this.trailing,
+    this.expandChild = false,
+  });
 
   final String title;
   final Widget child;
   final Widget? trailing;
+  final bool expandChild;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xffdce3ea)),
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: Color(0xffdce3ea)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-              ),
-              ?trailing,
-            ],
-          ),
-          const SizedBox(height: 12),
-          child,
-        ],
+                ?trailing,
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (expandChild) Expanded(child: child) else child,
+          ],
+        ),
       ),
     );
   }
@@ -420,12 +437,13 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xffdce3ea)),
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: Color(0xffdce3ea)),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
           InkWell(
@@ -610,9 +628,6 @@ class _Joystick extends StatefulWidget {
 }
 
 class _JoystickState extends State<_Joystick> {
-  static const double size = 190;
-  static const double knobSize = 72;
-  static const double travelRadius = 58;
   static const double deadZone = 0.10;
 
   Offset knobOffset = Offset.zero;
@@ -630,8 +645,9 @@ class _JoystickState extends State<_Joystick> {
     scrollHold = null;
   }
 
-  void _update(Offset localPosition) {
-    var offset = localPosition - const Offset(size / 2, size / 2);
+  void _update(Offset localPosition, double size) {
+    final travelRadius = size * 0.305;
+    var offset = localPosition - Offset(size / 2, size / 2);
     if (offset.distance > travelRadius) {
       offset = Offset.fromDirection(offset.direction, travelRadius);
     }
@@ -656,12 +672,12 @@ class _JoystickState extends State<_Joystick> {
     widget.onCommand(linear, angular);
   }
 
-  void _start(DragStartDetails details) {
+  void _start(DragStartDetails details, double size) {
     _holdPageScroll();
     commandTimer?.cancel();
-    _update(details.localPosition);
+    _update(details.localPosition, size);
     commandTimer = Timer.periodic(
-      const Duration(milliseconds: 50),
+      const Duration(milliseconds: 40),
       (_) => widget.onCommand(linear, angular),
     );
   }
@@ -690,138 +706,107 @@ class _JoystickState extends State<_Joystick> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Center(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onPanDown: (_) => _holdPageScroll(),
-            onPanStart: _start,
-            onPanUpdate: (details) => _update(details.localPosition),
-            onPanEnd: (_) => _stop(),
-            onPanCancel: _stop,
-            child: Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xfff8fafc),
-                border: Border.all(color: const Color(0xffcbd5e1), width: 2),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 2,
-                    height: 116,
-                    color: const Color(0xff1e3352),
-                  ),
-                  Container(
-                    width: 116,
-                    height: 2,
-                    color: const Color(0xff1e3352),
-                  ),
-                  Transform.translate(
-                    offset: knobOffset,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 70),
-                      width: knobSize,
-                      height: knobSize,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: const LinearGradient(
-                          colors: [Color(0xff2563eb), Color(0xff22c55e)],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xff2563eb,
-                            ).withValues(alpha: 0.35),
-                            blurRadius: 26,
-                          ),
-                        ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final boundedWidth = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : 320.0;
+        final boundedHeight = constraints.hasBoundedHeight
+            ? constraints.maxHeight
+            : 270.0;
+        final size = math
+            .min(boundedWidth, math.max(140, boundedHeight - 48))
+            .clamp(140.0, 300.0)
+            .toDouble();
+        final knobSize = size * 0.38;
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Center(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onPanDown: (_) => _holdPageScroll(),
+                  onPanStart: (details) => _start(details, size),
+                  onPanUpdate: (details) =>
+                      _update(details.localPosition, size),
+                  onPanEnd: (_) => _stop(),
+                  onPanCancel: _stop,
+                  child: Container(
+                    width: size,
+                    height: size,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xfff8fafc),
+                      border: Border.all(
+                        color: const Color(0xffcbd5e1),
+                        width: 2,
                       ),
-                      child: const Icon(Icons.open_with_rounded, size: 30),
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Container(
+                          width: 2,
+                          height: size * 0.61,
+                          color: const Color(0xff1e3352),
+                        ),
+                        Container(
+                          width: size * 0.61,
+                          height: 2,
+                          color: const Color(0xff1e3352),
+                        ),
+                        Transform.translate(
+                          offset: knobOffset,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 70),
+                            width: knobSize,
+                            height: knobSize,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                colors: [Color(0xff2563eb), Color(0xff22c55e)],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(
+                                    0xff2563eb,
+                                  ).withValues(alpha: 0.35),
+                                  blurRadius: 26,
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.open_with_rounded,
+                              size: 30,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
             ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Container(
-          constraints: const BoxConstraints(minWidth: 190),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: const Color(0xff0f172a),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xff22304a)),
-          ),
-          child: Text(
-            '线速度 ${linear.toStringAsFixed(2)} m/s   角速度 ${angular.toStringAsFixed(2)} rad/s',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0xff94a3b8), fontSize: 12),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// 带图标的通用指令按钮。
-class _DriveCommandButton extends StatefulWidget {
-  const _DriveCommandButton({
-    required this.label,
-    required this.icon,
-    required this.onStart,
-    required this.onStop,
-  });
-
-  final String label;
-  final IconData icon;
-  final VoidCallback onStart;
-  final VoidCallback onStop;
-
-  @override
-  State<_DriveCommandButton> createState() => _DriveCommandButtonState();
-}
-
-class _DriveCommandButtonState extends State<_DriveCommandButton> {
-  Timer? _repeatTimer;
-
-  void _start() {
-    _repeatTimer?.cancel();
-    widget.onStart();
-    _repeatTimer = Timer.periodic(
-      const Duration(milliseconds: 50),
-      (_) => widget.onStart(),
-    );
-  }
-
-  void _stop() {
-    _repeatTimer?.cancel();
-    _repeatTimer = null;
-    widget.onStop();
-  }
-
-  @override
-  void dispose() {
-    _repeatTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Listener(
-      onPointerDown: (_) => _start(),
-      onPointerUp: (_) => _stop(),
-      onPointerCancel: (_) => _stop(),
-      child: OutlinedButton.icon(
-        onPressed: () {},
-        icon: Icon(widget.icon),
-        label: Text(widget.label),
-      ),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xff0f172a),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xff22304a)),
+              ),
+              child: Text(
+                '线速度 ${linear.toStringAsFixed(2)} m/s   '
+                '角速度 ${angular.toStringAsFixed(2)} rad/s',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xff94a3b8), fontSize: 12),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -857,14 +842,17 @@ class _TaskTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(
-        done ? Icons.task_alt_rounded : Icons.pending_rounded,
-        color: done ? const Color(0xff22c55e) : const Color(0xfff59e0b),
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(
+          done ? Icons.task_alt_rounded : Icons.pending_rounded,
+          color: done ? const Color(0xff22c55e) : const Color(0xfff59e0b),
+        ),
+        title: Text(title),
+        subtitle: Text(subtitle),
       ),
-      title: Text(title),
-      subtitle: Text(subtitle),
     );
   }
 }
@@ -878,12 +866,15 @@ class _TopicRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.topic_rounded, color: Color(0xff60a5fa)),
-      title: Text(topic),
-      subtitle: Text(type),
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.topic_rounded, color: Color(0xff60a5fa)),
+        title: Text(topic),
+        subtitle: Text(type),
+      ),
     );
   }
 }

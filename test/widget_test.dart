@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xline_car_app/main.dart';
+import 'package:xline_car_app/constants/app_constants.dart';
 import 'package:xline_car_app/viewmodels/rover_device.dart';
 
 void main() {
@@ -32,8 +33,12 @@ void main() {
     expect(find.text('设置'), findsOneWidget);
     expect(find.byType(NavigationDestination), findsNWidgets(3));
     expect(find.byTooltip('智能助手'), findsOneWidget);
-    expect(find.byTooltip('紧急停车'), findsNothing);
-    expect(find.byTooltip('解除急停'), findsNothing);
+    if (AppConstants.layoutPreviewMode) {
+      expect(find.byTooltip('紧急停车'), findsOneWidget);
+    } else {
+      expect(find.byTooltip('紧急停车'), findsNothing);
+      expect(find.byTooltip('解除急停'), findsNothing);
+    }
     expect(find.text('助手'), findsNothing);
   });
 
@@ -61,18 +66,22 @@ void main() {
     expect(find.text('XLine Agent'), findsOneWidget);
   });
 
-  testWidgets('离线时不显示虚构的小车状态', (tester) async {
+  testWidgets('连接状态显示与构建模式一致', (tester) async {
     await tester.pumpWidget(const XLineCarApp());
 
-    expect(find.text('小车尚未连接'), findsOneWidget);
-    expect(find.text('82%'), findsNothing);
-    expect(find.text('0.34'), findsNothing);
+    if (AppConstants.layoutPreviewMode) {
+      expect(find.text('小车尚未连接'), findsNothing);
+      expect(find.text('已就绪'), findsOneWidget);
+    } else {
+      expect(find.text('小车尚未连接'), findsOneWidget);
+      expect(find.text('86%'), findsNothing);
+    }
   });
 
-  testWidgets('离线时仍可进入设备管理并返回', (tester) async {
+  testWidgets('可以进入设备管理并返回首页', (tester) async {
     await tester.pumpWidget(const XLineCarApp());
 
-    await tester.tap(find.text('设备管理'));
+    await tester.tap(find.text(AppConstants.layoutPreviewMode ? '设备' : '设备管理'));
     await tester.pumpAndSettle();
     expect(find.text('设备管理'), findsWidgets);
 

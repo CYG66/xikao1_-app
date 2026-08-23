@@ -5,13 +5,20 @@
 class AppConstants {
   const AppConstants._();
 
-  static const appTitle = 'XLine Rover';
+  static const appTitle = 'X-LINE2';
   static const roverTitle = 'XLine 划线小车';
   static const defaultPort = 8000;
   static const defaultDomainId = 0;
   static const defaultBridgeType = 'FastAPI Backend';
   static const maxLinearVelocity = 0.20;
   static const maxAngularVelocity = 0.40;
+
+  /// Temporary UI-only preview for Android layout work.
+  /// Use `--dart-define=XLINE_LAYOUT_PREVIEW=false` for a real vehicle build.
+  static const layoutPreviewMode = bool.fromEnvironment(
+    'XLINE_LAYOUT_PREVIEW',
+    defaultValue: true,
+  );
 
   /// WebSocket 连接成功后 App 会自动订阅的 ROS2 话题。
   static const coreTopics = [

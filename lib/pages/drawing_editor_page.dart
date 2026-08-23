@@ -1,6 +1,6 @@
 part of '../main.dart';
 
-enum _DrawingTool { pan, select, line, rectangle, circle, freehand }
+enum _DrawingTool { select, line, rectangle, circle, freehand }
 
 class _SketchPath {
   _SketchPath(this.points);
@@ -40,7 +40,6 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
   _DrawingTool tool = _DrawingTool.select;
   _SketchPath? draft;
   Offset dragStart = Offset.zero;
-  Offset lastWorld = Offset.zero;
   Offset cursorWorld = Offset.zero;
   Size canvasSize = Size.zero;
   int? selectedIndex;
@@ -51,6 +50,8 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
   String status = '单位：米 · 保存前请核对尺寸';
   bool transformingView = false;
   Matrix4 gestureBaseTransform = Matrix4.identity();
+  Offset gestureStartFocal = Offset.zero;
+  List<Offset>? selectionStartPoints;
   bool drawingSpeechStarting = false;
   bool drawingListening = false;
   String drawingSpeechPrefix = '';
@@ -145,14 +146,11 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
   void _gestureStart(ScaleStartDetails details) {
     transformingView = details.pointerCount > 1;
     gestureBaseTransform = viewController.value.clone();
+    gestureStartFocal = details.localFocalPoint;
     if (transformingView) {
       draft = null;
       selectionDragRecorded = false;
-      setState(() {});
-      return;
-    }
-    if (tool == _DrawingTool.pan) {
-      cursorWorld = _toWorld(details.localFocalPoint);
+      selectionStartPoints = null;
       setState(() {});
       return;
     }
@@ -171,14 +169,16 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
         draft = null;
         selectionDragRecorded = false;
         gestureBaseTransform = viewController.value.clone();
+        gestureStartFocal = details.localFocalPoint;
+        selectionStartPoints = null;
       }
       final focal = details.localFocalPoint;
-      final next = gestureBaseTransform.clone()
-        ..translate(details.focalPointDelta.dx, details.focalPointDelta.dy)
-        ..translate(focal.dx, focal.dy)
+      final next = Matrix4.identity()
+        ..translateByDouble(focal.dx, focal.dy, 0, 1)
         ..rotateZ(details.rotation)
-        ..scale(details.scale)
-        ..translate(-focal.dx, -focal.dy);
+        ..scaleByDouble(details.scale, details.scale, 1, 1)
+        ..translateByDouble(-gestureStartFocal.dx, -gestureStartFocal.dy, 0, 1)
+        ..multiply(gestureBaseTransform);
       viewController.value = next;
       setState(() {});
       return;
@@ -195,6 +195,7 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
     if (transformingView) {
       transformingView = false;
       draft = null;
+      selectionStartPoints = null;
       setState(() {});
       return;
     }
@@ -248,39 +249,48 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
   }
 
   void _start(DragStartDetails details) {
-    final world = _snap(_toWorld(details.localPosition));
-    cursorWorld = world;
-    dragStart = world;
-    lastWorld = world;
+    final rawWorld = _toWorld(details.localPosition);
+    cursorWorld = rawWorld;
     if (tool == _DrawingTool.select) {
-      selectedIndex = _nearestPath(world);
+      dragStart = rawWorld;
+      selectedIndex = _nearestPath(rawWorld);
+      selectionStartPoints = selectedIndex == null
+          ? null
+          : List<Offset>.from(paths[selectedIndex!].points);
       selectionDragRecorded = false;
       setState(() {});
       return;
     }
+    final world = _snap(rawWorld);
+    dragStart = world;
     draft = _SketchPath([world, world]);
     setState(() {});
   }
 
   void _update(DragUpdateDetails details) {
-    final world = _snap(_toWorld(details.localPosition));
-    cursorWorld = world;
+    final rawWorld = _toWorld(details.localPosition);
+    cursorWorld = rawWorld;
     if (tool == _DrawingTool.select && selectedIndex != null) {
       if (!selectionDragRecorded) {
         _recordChange();
         selectionDragRecorded = true;
       }
-      final delta = world - lastWorld;
+      var delta = rawWorld - dragStart;
+      if (snapEnabled) {
+        delta = Offset(
+          (delta.dx / snapStep).round() * snapStep,
+          (delta.dy / snapStep).round() * snapStep,
+        );
+      }
       final selected = paths[selectedIndex!];
-      selected.points = selected.points.map((point) => point + delta).toList();
-      lastWorld = world;
+      final original = selectionStartPoints ?? selected.points;
+      selected.points = original.map((point) => point + delta).toList();
       setState(() {});
       return;
     }
+    final world = _snap(rawWorld);
     if (draft == null) return;
     switch (tool) {
-      case _DrawingTool.pan:
-        break;
       case _DrawingTool.line:
         draft!.points = [dragStart, world];
       case _DrawingTool.rectangle:
@@ -329,15 +339,27 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
     }
     draft = null;
     selectionDragRecorded = false;
+    selectionStartPoints = null;
     setState(() {});
   }
 
   int? _nearestPath(Offset world) {
-    var bestDistance = 0.35;
+    final values = viewController.value.storage;
+    final viewScale = math.sqrt(values[0] * values[0] + values[1] * values[1]);
+    var bestDistance = (18 / (pixelsPerMeter * math.max(viewScale, 0.01)))
+        .clamp(0.08, 0.5)
+        .toDouble();
     int? best;
     for (var index = 0; index < paths.length; index++) {
-      for (final point in paths[index].points) {
-        final distance = (point - world).distance;
+      final points = paths[index].points;
+      for (var pointIndex = 0; pointIndex < points.length; pointIndex++) {
+        final distance = pointIndex == 0
+            ? (points.first - world).distance
+            : _distanceToSegment(
+                world,
+                points[pointIndex - 1],
+                points[pointIndex],
+              );
         if (distance < bestDistance) {
           bestDistance = distance;
           best = index;
@@ -345,6 +367,18 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
       }
     }
     return best;
+  }
+
+  double _distanceToSegment(Offset point, Offset start, Offset end) {
+    final segment = end - start;
+    final lengthSquared = segment.dx * segment.dx + segment.dy * segment.dy;
+    if (lengthSquared <= 0.0000001) return (point - start).distance;
+    final relative = point - start;
+    final factor =
+        ((relative.dx * segment.dx + relative.dy * segment.dy) / lengthSquared)
+            .clamp(0.0, 1.0)
+            .toDouble();
+    return (point - (start + segment * factor)).distance;
   }
 
   double? _number(TextEditingController controller) =>
@@ -1092,13 +1126,6 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
             ),
           ),
           _DrawingToolButton(
-            tool: _DrawingTool.pan,
-            selected: tool,
-            icon: Icons.pan_tool_alt_rounded,
-            label: '视图',
-            onTap: _setTool,
-          ),
-          _DrawingToolButton(
             tool: _DrawingTool.select,
             selected: tool,
             icon: Icons.near_me_rounded,
@@ -1190,7 +1217,7 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
                             ),
                             SizedBox(height: 3),
                             Text(
-                              '选择上方工具开始绘制',
+                              '选择工具后单指绘制，双指调整画布',
                               style: TextStyle(
                                 color: Color(0xff64748b),
                                 fontSize: 12,
@@ -1455,14 +1482,16 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
     selectedIndex = null;
   });
 
-  String get _toolHint => switch (tool) {
-    _DrawingTool.pan => '双指缩放或拖动画布；重置按钮回到原点',
-    _DrawingTool.select => '单指选取并拖动图形',
-    _DrawingTool.line => '按住拖动绘制直线',
-    _DrawingTool.rectangle => '从一个角拖动到对角绘制矩形',
-    _DrawingTool.circle => '从圆心向外拖动绘制圆形',
-    _DrawingTool.freehand => '按住拖动绘制连续路径',
-  };
+  String get _toolHint {
+    final singleFingerHint = switch (tool) {
+      _DrawingTool.select => '单指点按线条并拖动整个图形',
+      _DrawingTool.line => '单指拖动绘制直线',
+      _DrawingTool.rectangle => '单指从一个角拖动到对角绘制矩形',
+      _DrawingTool.circle => '单指从圆心向外拖动绘制圆形',
+      _DrawingTool.freehand => '单指拖动绘制连续路径',
+    };
+    return '双指平移、缩放和旋转画布 · $singleFingerHint';
+  }
 }
 
 class _CanvasViewButton extends StatelessWidget {

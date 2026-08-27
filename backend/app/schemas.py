@@ -24,7 +24,7 @@ class PrinterCommand(PhysicalCommand):
         default="beep",
         pattern="^(beep|start_print|stop_print|clean_nozzle|test_print|ink_level)$",
     )
-    printer_name: str = Field(default="center", pattern="^(left|center|right|all)$")
+    printer_name: str = Field(default="center", pattern="^center$")
     param: int = Field(default=0, ge=0, le=10000)
 
 
@@ -43,7 +43,7 @@ class EmergencyStopCommand(PhysicalCommand):
 
 
 class PrinterActiveCommand(PhysicalCommand):
-    printer_name: str = Field(default="center", pattern="^(left|center|right|all)$")
+    printer_name: str = Field(default="center", pattern="^center$")
     active: bool
 
 
@@ -61,6 +61,10 @@ class AgentChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     history: list[AgentMessage] = Field(default_factory=list, max_length=200)
     mode: Literal["base", "advanced", "chat", "work"] = "base"
+
+
+class DeviceDiagnosticRequest(BaseModel):
+    snapshot: dict[str, object] = Field(default_factory=dict)
 
 
 class AgentConfirmRequest(BaseModel):

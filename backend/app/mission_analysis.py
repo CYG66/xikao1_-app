@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import math
+
+from .config import MAX_TASK_LINEAR_VELOCITY
 from typing import Any
 
 
 SUPPORTED_TYPES = {"line", "polyline", "spline", "circle", "arc", "ellipse", "text"}
 MIN_SEGMENT_LENGTH_M = 0.0001
 SHORT_PRINTING_LENGTH_M = 0.0005
-EFFECTIVE_SPEED_MPS = 0.15
+EFFECTIVE_SPEED_MPS = MAX_TASK_LINEAR_VELOCITY
 
 
 def _number(value: Any) -> float | None:

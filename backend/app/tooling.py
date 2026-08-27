@@ -148,7 +148,7 @@ class DrawingFeasibilityArguments(ToolArguments):
 
 class PathLayeringArguments(ToolArguments):
     geometries: list[CadGeometry] = Field(min_length=1, max_length=200)
-    printer: Literal["left", "center", "right"] = "center"
+    printer: Literal["center"] = "center"
 
 
 class DriveArguments(ToolArguments):
@@ -175,7 +175,7 @@ class Ln150Arguments(ToolArguments):
 
 
 class PrinterArguments(ToolArguments):
-    printer_name: Literal["left", "center", "right", "all"] = "center"
+    printer_name: Literal["center"] = "center"
     action: Literal[
         "beep", "start_print", "stop_print", "clean_nozzle", "test_print", "ink_level"
     ]
@@ -185,7 +185,7 @@ class PrinterArguments(ToolArguments):
 class PrinterSprayArguments(ToolArguments):
     """持续手动喷墨开关，和一次性的喷码机指令分开。"""
 
-    printer_name: Literal["left", "center", "right"] = "center"
+    printer_name: Literal["center"] = "center"
     spraying: bool
 
 
@@ -309,7 +309,7 @@ TOOL_REGISTRY = {
         ),
         ToolSpec(
             "layer_drawing_paths",
-            "将 CAD 输入几何标记为喷墨层；小车转场路径仍由 xline_cyg 规划器生成。",
+            "将 CAD 输入几何标记为喷墨层；小车转场路径仍由 xline_ws3 规划器生成。",
             PathLayeringArguments,
             "read",
             False,
@@ -324,7 +324,7 @@ TOOL_REGISTRY = {
         ToolSpec("stop_robot", "立即发布零速度停车。", EmptyArguments, "safe_stop", False),
         ToolSpec(
             "create_drawing",
-            "根据用户要求生成 xline_cyg 支持的 CAD JSON 图纸。坐标和尺寸单位必须是毫米；只保存草稿，不启动小车。",
+            "根据用户要求生成 xline_ws3 支持的 CAD JSON 图纸。坐标和尺寸单位必须是毫米；只保存草稿，不启动小车。",
             CreateDrawingArguments,
             "configuration",
             True,
@@ -484,6 +484,11 @@ def authorize_emergency_stop(active: bool, client_id: str | None) -> GateDecisio
         return GateDecision(False, "当前没有 App 取得小车控制权，禁止解除急停")
     if client_id is not None and robot_state.control_owner != client_id:
         return GateDecision(False, "只有当前控制权持有者可以解除急停")
-    if not robot_state.control_ready:
-        return GateDecision(False, "底盘运行环境未就绪，急停保持锁定")
+    # Releasing the software stop is also the transition that starts the ws3
+    # runtime. Requiring control_ready here creates a deadlock: the drive nodes
+    # cannot become ready until that startup transition is allowed to run.
+    if not robot_state.ros_available:
+        return GateDecision(False, "ROS2 后端不可用，急停保持锁定")
+    if not robot_state.drive_device_connected:
+        return GateDecision(False, "CAN 接口未连接，急停保持锁定")
     return GateDecision(True)

@@ -3,11 +3,13 @@ part of '../main.dart';
 enum _DrawingTool { select, line, rectangle, circle, freehand }
 
 class _SketchPath {
-  _SketchPath(this.points);
+  _SketchPath(this.points, {this.groupId});
 
   List<Offset> points;
+  final int? groupId;
 
-  _SketchPath copy() => _SketchPath(List<Offset>.from(points));
+  _SketchPath copy() =>
+      _SketchPath(List<Offset>.from(points), groupId: groupId);
 }
 
 class _DrawingEditorPage extends StatefulWidget {
@@ -16,14 +18,12 @@ class _DrawingEditorPage extends StatefulWidget {
     required this.bridgeConnected,
     required this.previewMode,
     required this.localizationSource,
-    this.embedded = false,
   });
 
   final RoverDevice device;
   final bool bridgeConnected;
   final bool previewMode;
   final String localizationSource;
-  final bool embedded;
 
   @override
   State<_DrawingEditorPage> createState() => _DrawingEditorPageState();
@@ -43,6 +43,8 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
   Offset cursorWorld = Offset.zero;
   Size canvasSize = Size.zero;
   int? selectedIndex;
+  Map<int, List<Offset>>? selectionGroupStartPoints;
+  int _templateInsertCount = 0;
   bool busy = false;
   bool snapEnabled = true;
   double snapStep = 0.1;
@@ -151,6 +153,7 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
       draft = null;
       selectionDragRecorded = false;
       selectionStartPoints = null;
+      selectionGroupStartPoints = null;
       setState(() {});
       return;
     }
@@ -171,6 +174,7 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
         gestureBaseTransform = viewController.value.clone();
         gestureStartFocal = details.localFocalPoint;
         selectionStartPoints = null;
+        selectionGroupStartPoints = null;
       }
       final focal = details.localFocalPoint;
       final next = Matrix4.identity()
@@ -196,6 +200,7 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
       transformingView = false;
       draft = null;
       selectionStartPoints = null;
+      selectionGroupStartPoints = null;
       setState(() {});
       return;
     }
@@ -257,6 +262,16 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
       selectionStartPoints = selectedIndex == null
           ? null
           : List<Offset>.from(paths[selectedIndex!].points);
+      final groupId = selectedIndex == null
+          ? null
+          : paths[selectedIndex!].groupId;
+      selectionGroupStartPoints = groupId == null
+          ? null
+          : {
+              for (var index = 0; index < paths.length; index++)
+                if (paths[index].groupId == groupId)
+                  index: List<Offset>.from(paths[index].points),
+            };
       selectionDragRecorded = false;
       setState(() {});
       return;
@@ -282,9 +297,18 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
           (delta.dy / snapStep).round() * snapStep,
         );
       }
-      final selected = paths[selectedIndex!];
-      final original = selectionStartPoints ?? selected.points;
-      selected.points = original.map((point) => point + delta).toList();
+      final groupOriginal = selectionGroupStartPoints;
+      if (groupOriginal != null) {
+        for (final entry in groupOriginal.entries) {
+          paths[entry.key].points = entry.value
+              .map((point) => point + delta)
+              .toList();
+        }
+      } else {
+        final selected = paths[selectedIndex!];
+        final original = selectionStartPoints ?? selected.points;
+        selected.points = original.map((point) => point + delta).toList();
+      }
       setState(() {});
       return;
     }
@@ -340,6 +364,7 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
     draft = null;
     selectionDragRecorded = false;
     selectionStartPoints = null;
+    selectionGroupStartPoints = null;
     setState(() {});
   }
 
@@ -1035,17 +1060,23 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
   }
 
   void _applyTemplate(String template, String label) {
-    final generated = _templatePaths(template);
+    final groupId = _templateInsertCount++;
+    final offset = Offset((groupId % 4) * 1.2, -(groupId ~/ 4) * 1.2);
+    final generated = _templatePaths(template)
+        .map(
+          (path) => _SketchPath(
+            path.points.map((point) => point + offset).toList(),
+            groupId: groupId,
+          ),
+        )
+        .toList();
     if (generated.isEmpty) return;
     _recordChange();
     setState(() {
-      paths
-        ..clear()
-        ..addAll(generated);
-      selectedIndex = null;
+      paths.addAll(generated);
+      selectedIndex = paths.length - 1;
       tool = _DrawingTool.select;
-      status = '已载入$label，可继续选择、编辑或精确调整';
-      viewController.value = Matrix4.identity();
+      status = '已添加$label，可继续添加模板或拖动整体图形';
     });
   }
 
@@ -1463,17 +1494,6 @@ class _DrawingEditorPageState extends State<_DrawingEditorPage> {
         );
       },
     );
-    if (widget.embedded) {
-      return Material(
-        color: const Color(0xfff8fafc),
-        child: Column(
-          children: [
-            appBar,
-            Expanded(child: content),
-          ],
-        ),
-      );
-    }
     return Scaffold(appBar: appBar, body: content);
   }
 

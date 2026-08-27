@@ -2,13 +2,13 @@
 
 ## 1. 项目定位
 
-本项目是与运行 `xline_cyg` ROS2 工作空间的 XLine 划线小车配套使用的 Flutter App。
+本项目是与运行 `xline_ws3` ROS2 工作空间的 XLine 划线小车配套使用的 Flutter App。
 
 系统由三部分组成：
 
 - Flutter App：负责设备管理、实时状态、人工控制、地图、图纸、任务和 AI 助手界面。
 - FastAPI Agent Gateway：负责账号外的设备连接、状态聚合、AI 工具调用、安全门禁、任务管理和审计。
-- `xline_cyg` ROS2：负责车轮驱动、IMU、定位、路径规划、路径跟踪、速度仲裁和喷码机控制。
+- `xline_ws3` ROS2：负责车轮驱动、IMU、定位、路径规划、路径跟踪、速度仲裁和喷码机控制。
 
 App 不直接操作 CAN 电机，而是通过 FastAPI 后端发送 ROS2 指令。手动速度进入 `/tablet_cmd_vel`，再由 `cmd_vel_mux` 输出最终 `/cmd_vel`。
 
@@ -101,7 +101,7 @@ http://192.168.0.100:8000
 - 根据 `/localization/valid` 判断定位数据是否新鲜有效。
 - 地图显示相对位置、航向、规划路径和行驶轨迹。
 - 不显示 LN150 专用按钮。
-- 只有 ROS2 存在 `/localization/calibrate_pose` 服务时才允许重置相对原点；没有服务时显示禁用状态。
+- `odom_imu_localization` 在运行环境启动时把小车位置设为 `0,0`、车头设为 `0°`；规划读取当前 `/robot_pose`，不调用全站仪校准服务。
 
 ### 6.3 地图数据
 
@@ -272,17 +272,17 @@ http://192.168.0.100:8000
 
 ## 12. 后端运行与开机自启
 
-- 后端部署目录：`/home/qingz/xline_app_backend`。
-- ROS2 工作空间：`/home/qingz/xline_cyg`。
-- 后端实际加载：`/home/qingz/xline_cyg/install_app/setup.bash`，与当前 `xline-cyg-runtime.service` 使用的环境一致。
+- xline_ws3 版后端部署目录：`/home/qingz/xline_app_backend1`，不覆盖旧 xline_cyg 后端。
+- ROS2 工作空间：`/home/qingz/xline_ws3`。
+- 后端实际加载：`/home/qingz/xline_ws3/install/setup.bash`。
 - FastAPI 监听：`0.0.0.0:8000`。
-- systemd 服务：`xline-app-backend.service`。
+- systemd 服务：`xline-app-backend1.service`。当前仍使用 8000 端口，切换版本时不能与旧服务同时运行。
 - 后端服务支持开机自启。
-- `xline-cyg-runtime.service` 负责开机启动 ROS2 运行环境；`xline-app-backend.service` 依赖该服务并负责启动 FastAPI。
-- 后端不会修改 `xline_cyg/src` 源代码。
+- 后端解除软件急停时按定位模式启动所需的 `xline_ws3` 常驻 ROS2 节点；`xline-app-backend1.service` 不依赖旧的 `xline-cyg-runtime.service`。
+- 后端不会修改 `xline_ws3/src` 源代码。
 - `odom_imu_localization.py` 的部署产物会在启动时检查可执行权限。
 
-当前后端启动脚本、环境模板和默认配置已经统一使用 `install_app`。小车同时保留其他历史构建目录，但当前运行服务不使用它们。
+当前后端启动脚本、环境模板和默认配置已经统一使用 `xline_ws3/install`。全站仪模式显式打开 `system_test.launch.py` 的硬件开关；相对定位模式常驻启动底层、规划器和执行 Action 服务。
 
 ## 13. 当前模式
 
@@ -293,7 +293,7 @@ AI 助手和图纸编辑器的 AI 图纸描述输入框均支持高精度离线�
 - 面向简单运动控制，不创建项目或进阶规划任务；喷墨默认关闭。
 - AI 将用户的自然语言运动要求转换为运动 JSON。
 - 支持前进、后退、左转、右转、原地旋转、弧线和多段组合运动。
-- 用户确认后调用后端运动工具，再通过 `/tablet_cmd_vel` 交给 `xline_cyg`。
+- 用户确认后调用后端运动工具，再通过 `/tablet_cmd_vel` 交给 `xline_ws3`。
 - 支持连续提交多次运动，但上一条运动序列执行期间不会覆盖当前序列。
 - Agent 顶部提供独立的“喷墨”开关；用户手动打开后，可边遥控或执行基础运动演示边喷墨。
 - 用户明确说“打开喷墨/边走边喷/停止喷墨”时，AI 会生成 `printer_spray` 待确认操作；确认后才改变喷墨状态。
@@ -304,7 +304,7 @@ AI 助手和图纸编辑器的 AI 图纸描述输入框均支持高精度离线�
 
 - 面向设计到执行的完整流程。
 - 包含需求参数化、候选方案、图纸版本、可制造性检查、路径规划、用户确认、分段执行、异常恢复和验收报告。
-- 路径规划和路径跟踪交给 `xline_cyg`，后端不自行模拟精确路径。
+- 路径规划和路径跟踪交给 `xline_ws3`，后端不自行模拟精确路径。
 - 规划任务必须满足实际 ROS2 节点和定位条件，不能只根据数据库缓存状态放行。
 
 ## 14. 主要后端接口
@@ -339,18 +339,26 @@ AI 助手和图纸编辑器的 AI 图纸描述输入框均支持高精度离线�
 
 - 没有全站仪时使用相对定位，累计误差会随行驶距离增长。
 - 全站仪可以提高绝对定位精度，但不能自动解决路径质量或控制参数导致的摆头问题。
-- 障碍物检测能力取决于 `xline_cyg` 实际发布的数据和启用配置，App 不虚构传感器数据。
+- 障碍物检测能力取决于 `xline_ws3` 实际发布的数据和启用配置，App 不虚构传感器数据。
 - App 软件急停不能替代物理硬件急停。
 - 超长 AI 运动序列虽然不限制总时长和段数，但执行过程中必须保持 App 控制租约、后端连接和底盘状态正常。
 - 实车测试应先架空车轮并确保硬件急停可立即触达，再从低速度和短时间开始。
 - Flutter 测试、APK 构建和安装由项目使用者手动执行。
 - 当前实车状态曾验证为：ROS2、CAN、底盘控制和相对定位有效；喷码节点存在，但喷头未连接时 `printer_ready=false`。
 - `/imu` 使用 ROS2 sensor-data 的 `BEST_EFFORT` QoS，后端已匹配该 QoS，避免 IMU 数据因可靠性不兼容而丢失。
-- 当前后端复查已确认 `/tablet_cmd_vel`、`/cmd_vel`、`/task_cmd_vel`、`/odom`、`/robot_pose`、`/plan_path`、`/execute_plan`、暂停/恢复服务、喷码服务和 LN150 服务与 `xline_cyg` 源码接口一致。
-- `xline_cyg` 的部分规划配置仍可能引用历史 `/home/qingz/xline_ws3/...` 路径；后端保留兼容读取，直到小车 ROS2 代码统一修改路径。后端不会修改该 ROS2 工作区。
+- 当前后端复查已确认 `/tablet_cmd_vel`、`/cmd_vel`、`/task_cmd_vel`、`/odom`、`/robot_pose`、`/plan_path`、`/execute_plan`、暂停/恢复服务、喷码服务和 LN150 服务与 `xline_ws3` 源码接口一致。
+- 规划输入默认读取 `/home/qingz/xline_ws3/cad`，规划结果默认读取 `/home/qingz/xline_ws3/other/planned_results`。
+- 小车状态明确上报 `runtime_profile=xline_ws3`；最终轮驱边界为每轮 `500 RPM`，不设置固定底盘线/角速度裁剪。App 手动线速度默认 `0.10 m/s`、上限 `1.00 m/s`，角速度上限 `0.40 rad/s`；规划与执行任务采用 `0.10 m/s` 上限。
+- 喷码状态超过 5 秒未更新即视为未就绪；测试喷墨和基础模式持续喷墨必须在 `simulate` 后确认 `device_state=1` 且 `print_count` 增长，最多重试 3 次，失败会自动停止。
 ## 图纸编辑器坐标系
 
 - 坐标网格覆盖整个编辑器视口，并根据当前缩放、平移和旋转矩阵动态计算可见范围。
 - 缩小图纸、拖动画布或旋转视图时，坐标轴、刻度和网格会持续补齐，不受原有限画布边界限制。
 - 图纸路径、小车原点标记与无限网格使用同一坐标变换，保持显示对齐。
 - 编辑器顶部默认显示“双指平移、缩放和旋转画布”，并根据当前绘图工具补充单指操作提示。
+## 监控页面
+
+- 设备监控：底盘、喷码机、定位、轮速和电机状态卡片。
+- 链路监控：App/FastAPI、ROS2、CAN、底盘驱动和控制权限。
+- 能源监控：电量环形图、运行遥测；电压、电流、温度仅显示车端真实上报值。
+- 故障记录：展示当前异常，支持请求 AI 分析，并由用户确认是否保存记录。

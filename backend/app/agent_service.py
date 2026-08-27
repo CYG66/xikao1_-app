@@ -61,12 +61,13 @@ SYSTEM_PROMPT = """你是 XLine 划线机器人现场助手。请使用简洁中
 任务暂停、失败或定位丢失时，先解释当前状态，再提供重新规划、避免重复喷墨和再次确认的恢复路径，不得自动恢复运动。
 包含转向后前进等多个连续动作时，必须使用一次 drive_sequence 工具调用，禁止连续调用多个 drive_robot。
 但 drive_sequence 只是有限时速度演示，不能用于声称精确的正方形、矩形、闭合路线或按尺寸验收的路径。
-用户提出正方形、矩形、边长、闭合路线或要求角度/距离准确时，必须进入工作项目流程，生成图纸并交给 xline_cyg 路径规划器；
+用户提出正方形、矩形、边长、闭合路线或要求角度/距离准确时，必须进入工作项目流程，生成图纸并交给 xline_ws3 路径规划器；
 不得用固定时间直行和固定时间转向替代真实路径规划。Chat 模式的 movement_demo 仅用于低速短时演示，必须明确告知它不是精确定位运动。
+当基础模式请求直线、圆形、正方形或椭圆形等 trajectory_painter 已支持的标准图形时，优先进入 xline_ws3 图形任务链；仅当入口不可用或请求自定义折线时，才回退为 drive_sequence。
 停止机器人可以直接调用。路径建议必须给出尺寸、速度、风险和执行前检查项。
 设计前必须参数化需求；喷码机未由用户指定时，先使用 get_robot_status 返回的已连接且在线喷码机。只有没有可用喷码机或存在多个可选喷码机时才询问用户。缺少图形或尺寸时先询问。保存图纸前必须检查可制造性并标记喷墨层。
 用户提出新的设计目标时，应先创建创意项目；后续补充参数应更新同一项目，避免只保留在聊天文本中。
-转场路径只能由 xline_cyg 规划器生成。发生异常时先判断是否需要停车，禁止自动恢复运动。
+转场路径只能由 xline_ws3 规划器生成。发生异常时先判断是否需要停车，禁止自动恢复运动。
 """
 
 SAFE_TOOL_NAMES = {
@@ -124,6 +125,23 @@ PROVIDERS = {
     "minimax": ("MiniMax", "https://api.minimaxi.com/v1"),
 }
 
+PROVIDER_API_KEY_ENV = {
+    provider: f"{provider.upper()}_API_KEY" for provider in PROVIDERS
+}
+PROVIDER_MODEL_ENV = {
+    provider: f"{provider.upper()}_MODEL" for provider in PROVIDERS
+}
+DEFAULT_MODELS = {
+    "openai": "gpt-5-mini",
+    "anthropic": "claude-sonnet-4-20250514",
+    "gemini": "gemini-2.5-flash",
+    "deepseek": "deepseek-chat",
+    "qwen": "qwen-plus",
+    "kimi": "moonshot-v1-8k",
+    "glm": "glm-4-flash",
+    "minimax": "MiniMax-Text-01",
+}
+
 
 class RobotAgentService:
     @staticmethod
@@ -136,12 +154,15 @@ class RobotAgentService:
         self.mode = os.getenv("XLINE_AGENT_PROVIDER", "deepseek").strip()
         if self.mode not in {*PROVIDERS, "local"}:
             self.mode = "deepseek"
-        self.model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+        model_env = PROVIDER_MODEL_ENV.get(self.mode, "DEEPSEEK_MODEL")
+        self.model = os.getenv(model_env, DEFAULT_MODELS.get(self.mode, "deepseek-chat"))
         self.api_keys: dict[str, str] = {}
         self._deepseek_lock = threading.Lock()
         self._deepseek_connection: http.client.HTTPSConnection | None = None
-        if os.getenv("OPENAI_API_KEY"):
-            self.api_keys["openai"] = os.environ["OPENAI_API_KEY"]
+        for provider, env_name in PROVIDER_API_KEY_ENV.items():
+            value = os.getenv(env_name, "").strip()
+            if value:
+                self.api_keys[provider] = value
         self._load_config()
         self._restore_pending_actions()
 
@@ -294,7 +315,7 @@ class RobotAgentService:
             if item.get("content")
         ]
         conversation.append({"role": "user", "content": message})
-        instructions = self._system_context()
+        instructions = self._system_context(message)
         first = self._request(conversation, instructions)
         usage = self._usage(first)
         calls = [item for item in first.get("output", []) if item.get("type") == "function_call"]
@@ -449,7 +470,8 @@ class RobotAgentService:
         if mode == "base":
             return (
                 "【当前模式：基础】这是底盘运动控制模式。用户描述前进、后退、转弯、绕圈、"
-                "正方形、圆形、折线或任意运动图形时，必须生成合法运动 JSON，并调用 drive_robot 或 drive_sequence；"
+                "正方形、圆形、直线或椭圆形等标准图形优先调用 xline_ws3 的 trajectory_painter 图形任务链；"
+                "自定义折线或现成包不支持的图形才生成合法运动 JSON，并调用 drive_robot 或 drive_sequence；"
                 "任意图形都可以拆成多段 linear、angular、duration_seconds 运动步骤，不要求精确距离和角度。"
                 "先返回待确认的运动操作，用户确认后才执行。基础模式通常只处理底盘运动；"
                 "只有用户明确要求打开或关闭喷墨时，才允许使用 printer_spray，且必须再次确认。"
@@ -460,7 +482,7 @@ class RobotAgentService:
         return (
             "【当前模式：进阶】请主动引导用户依次完成需求参数化、候选方案、规划检查、确认和执行。"
             "正式任务必须使用有效定位、完整规划和用户确认。对于正方形、矩形、边长或闭合路线，"
-            "必须创建项目并调用 xline_cyg 路径规划，禁止用 drive_sequence 的时间估算冒充精确路径。\n"
+            "必须创建项目并调用 xline_ws3 路径规划，禁止用 drive_sequence 的时间估算冒充精确路径。\n"
             + message
         )
 
@@ -1165,7 +1187,7 @@ class RobotAgentService:
             creative_projects.select_variant(project["id"], variant["id"])
         return self._result(
             f"已本地识别“{label}”模板，创建项目“{project['name']}”和候选方案。"
-            "下一步将进入 xline_cyg 路径规划预览，不会直接启动小车。",
+            "下一步将进入 xline_ws3 路径规划预览，不会直接启动小车。",
             self._empty_usage(),
         )
 
@@ -1682,7 +1704,7 @@ class RobotAgentService:
             printer_name = str(args["printer_name"])
             spraying = bool(args["spraying"])
             if spraying:
-                if not ros_adapter.set_printer_active(printer_name, True):
+                if not ros_adapter.ensure_printer_active(printer_name, timeout=3.0):
                     return {"ok": False, "message": "喷码机激活服务不可用。"}
                 ok = ros_adapter.call_printer(
                     printer_name,
@@ -1699,10 +1721,9 @@ class RobotAgentService:
                     else "喷墨启动失败，请检查喷码机连接和墨路。",
                 }
             stop_ok = ros_adapter.call_printer(printer_name, "stop_print", 0)
-            active_ok = ros_adapter.set_printer_active(printer_name, False)
             return {
-                "ok": stop_ok and active_ok,
-                "message": "已停止喷墨。" if stop_ok and active_ok else "停止喷墨失败。",
+                "ok": stop_ok,
+                "message": "已停止喷墨。" if stop_ok else "停止喷墨失败。",
             }
         return {"ok": False, "message": "不支持的 Agent 操作。"}
 
@@ -1716,8 +1737,49 @@ class RobotAgentService:
         except json.JSONDecodeError:
             return {}
 
-    @staticmethod
-    def _system_context(message: str = "") -> str:
+    def _advanced_project_context(self) -> str:
+        """Return a small, deterministic workflow context for advanced mode."""
+        projects = creative_projects.list(limit=1)
+        if not projects:
+            return (
+                "当前进阶流程：需求采集。还没有项目；先理解用户目标，最多追问一个"
+                "最关键的缺失参数，不要检查急停或要求执行确认。"
+            )
+        project = projects[0]
+        status = str(project.get("status") or "draft")
+        missing = [str(item) for item in (project.get("missing_parameters") or [])]
+        variants = project.get("variants") or []
+        selected = project.get("selected_variant_id")
+        plan = project.get("plan") or {}
+        if status in {"draft", "clarifying"} or missing:
+            stage = "需求采集"
+            next_step = "只询问一个最关键的缺失参数，并说明用途"
+        elif status == "ready_for_design" or not variants:
+            stage = "候选方案"
+            next_step = "根据完整参数自动生成至少一个候选方案，并展示可修改项"
+        elif not selected or status == "designing":
+            stage = "方案选择或修改"
+            next_step = "请用户选择候选方案，或确认要修改的尺寸/形状"
+        elif not plan or status in {"ready_for_planning", "planning"}:
+            stage = "图纸检查与路径规划"
+            next_step = "检查图纸完整性后生成 xline_ws3 规划预览，不启动小车"
+        elif status == "planning_ready" or status == "pending_execution":
+            stage = "执行确认"
+            next_step = "展示规划摘要并等待用户明确确认；此时才检查急停、定位和设备"
+        elif status in {"executing", "paused"}:
+            stage = "任务执行"
+            next_step = "同步当前分段状态；异常时提供恢复选项，不重复执行已完成分段"
+        else:
+            stage = "验收与归档"
+            next_step = "对比规划轨迹与实测轨迹，生成验收报告并允许复盘"
+        return (
+            f"当前进阶项目：{project.get('name') or '未命名项目'}；项目状态：{status}；"
+            f"当前步骤：{stage}；下一步只能是：{next_step}。"
+            f"缺失参数：{', '.join(missing) if missing else '无'}；候选方案数：{len(variants)}。"
+            "不要跳过当前步骤，不要在设计阶段提示急停或要求用户确认执行。"
+        )
+
+    def _system_context(self, message: str = "") -> str:
         snapshot = robot_state.snapshot()
         text = message.lower()
         status_keys = {
@@ -1751,6 +1813,10 @@ class RobotAgentService:
             + "\n相关机器人状态：\n"
             + json.dumps(compact_status, ensure_ascii=False)
         )
+        if "进阶" in message or "工作" in message or any(
+            word in text for word in ("设计", "图纸", "候选方案", "规划")
+        ):
+            context += "\n进阶工作流状态：\n" + self._advanced_project_context()
         if any(word in text for word in ("图", "cad", "任务", "规划", "执行", "划线")):
             context += (
                 "\n当前可用图纸文件：\n"
@@ -1816,6 +1882,16 @@ class RobotAgentService:
         return labels.get(name, name)
 
     def _confirmation_text(self, name: str, arguments: dict[str, Any]) -> str:
+        if name in {"drive_robot", "drive_sequence", "execute_prepared_mission", "set_mission"}:
+            return (
+                f"我准备{self._action_label(name, arguments)}。这是实际运动操作，"
+                "请确认周围环境、定位状态和急停装置可用，然后在下方确认执行。"
+            )
+        if name == "printer_spray":
+            return (
+                f"我准备{self._action_label(name, arguments)}。"
+                "请确认喷头前方有安全测试材料，并在下方确认。"
+            )
         return f"我准备{self._action_label(name, arguments)}。请检查周围环境和急停装置，然后在下方确认。"
 
 

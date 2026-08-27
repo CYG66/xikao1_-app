@@ -5,13 +5,27 @@ class _SettingsPage extends StatelessWidget {
     required this.device,
     required this.localizationSource,
     required this.onAddDevice,
+    required this.onOpenDevices,
     required this.bridgeState,
+    required this.printerStatus,
+    required this.printerStatusData,
+    required this.onPrinterChanged,
+    required this.onPrinterEnabledChanged,
+    required this.onPrinterCommand,
+    required this.onPrinterRawCommand,
   });
 
   final RoverDevice device;
   final String localizationSource;
   final VoidCallback onAddDevice;
+  final VoidCallback onOpenDevices;
   final BridgeState bridgeState;
+  final String printerStatus;
+  final Map<String, dynamic> printerStatusData;
+  final void Function(String, bool) onPrinterChanged;
+  final void Function(String, bool) onPrinterEnabledChanged;
+  final void Function(String, String) onPrinterCommand;
+  final void Function(String, String) onPrinterRawCommand;
 
   @override
   Widget build(BuildContext context) {
@@ -22,9 +36,9 @@ class _SettingsPage extends StatelessWidget {
         _Panel(
           title: '连接配置',
           trailing: TextButton.icon(
-            onPressed: onAddDevice,
-            icon: const Icon(Icons.add_link_rounded),
-            label: const Text('添加设备'),
+            onPressed: onOpenDevices,
+            icon: const Icon(Icons.devices_rounded),
+            label: const Text('设备管理'),
           ),
           child: Column(
             children: [
@@ -33,6 +47,15 @@ class _SettingsPage extends StatelessWidget {
               _ConfigRow('Bridge', device.bridgeUrl),
               _ConfigRow('ROS Domain ID', '${device.domainId}'),
               _ConfigRow('连接状态', bridgeState.label),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: onAddDevice,
+                  icon: const Icon(Icons.add_link_rounded),
+                  label: const Text('添加设备'),
+                ),
+              ),
             ],
           ),
         ),

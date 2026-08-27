@@ -37,6 +37,7 @@ dependencies:
   path_provider: ^2.1.5
   record: ^7.1.1
   sherpa_onnx: ^1.13.6
+  file_picker: ^10.3.10
 
 dev_dependencies:
   flutter_test:

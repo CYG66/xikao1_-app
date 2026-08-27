@@ -9,7 +9,7 @@ from datetime import datetime
 from math import cos, pi, sin
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -45,6 +45,7 @@ from .schemas import (
     DrawingJsonImportRequest,
     DrawingSaveRequest,
     DrawingVersionRollbackRequest,
+    DeviceDiagnosticRequest,
     EmergencyStopCommand,
     Ln150Command,
     MissionCommand,
@@ -62,6 +63,12 @@ from .tooling import (
 from .task_store import agent_tasks
 from .mission_ledger import mission_ledger
 from .drawing_versions import drawing_versions
+from .cad_import import parse_dxf
+from .telemetry_contract import (
+    build_mission_contract,
+    build_printer_contract,
+    build_telemetry_contract,
+)
 
 app = FastAPI(title="XLine Rover Backend", version="0.1.0")
 
@@ -118,7 +125,22 @@ def status() -> dict[str, object]:
     snapshot = robot_state.snapshot()
     xline_database.record_telemetry(snapshot)
     xline_database.upsert_device_capabilities(snapshot, ros_adapter.interface_snapshot())
+    snapshot["telemetry"] = build_telemetry_contract(snapshot)
+    snapshot["printer_contract"] = build_printer_contract(snapshot)
+    snapshot["mission"] = build_mission_contract(snapshot)
     return snapshot
+
+
+@app.get("/api/telemetry")
+def telemetry_contract() -> dict[str, object]:
+    """Return the stable live telemetry contract used by the App monitor."""
+    snapshot = robot_state.snapshot()
+    return {
+        "ok": True,
+        "telemetry": build_telemetry_contract(snapshot),
+        "printer": build_printer_contract(snapshot),
+        "mission": build_mission_contract(snapshot),
+    }
 
 
 @app.get("/api/database/summary")
@@ -559,6 +581,34 @@ def import_drawing_json(command: DrawingJsonImportRequest) -> dict[str, object]:
     return {"ok": True, "file_name": file_name, "paths": len(paths), "version": version}
 
 
+@app.post("/api/drawings/import-cad")
+async def import_cad_drawing(file: UploadFile = File(...), unit: str = "mm") -> dict[str, object]:
+    """Import DXF into the canonical JSON drawing format; DWG requires conversion first."""
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix == ".dwg":
+        return {"ok": False, "message": "DWG 不能由后端直接解析，请先在 CAD 软件中另存为 DXF 后导入。"}
+    if suffix != ".dxf":
+        return {"ok": False, "message": "仅支持 DXF；DWG 请先转换为 DXF。"}
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".dxf", delete=False) as handle:
+        handle.write(await file.read())
+        source = Path(handle.name)
+    try:
+        payload, warnings = parse_dxf(source, unit)
+    except (ValueError, RuntimeError) as exc:
+        return {"ok": False, "message": str(exc)}
+    finally:
+        source.unlink(missing_ok=True)
+    directory = _cad_directory()
+    directory.mkdir(parents=True, exist_ok=True)
+    stem = re.sub(r"[^\w\-\u4e00-\u9fff]", "_", Path(file.filename or "drawing").stem).strip("_") or "cad_drawing"
+    version = drawing_versions.save(directory, f"{stem}.json", payload, "cad_import", "DXF 导入")
+    file_name = str(version["file_name"])
+    paths = preview_paths(payload)
+    robot_state.add_log(f"drawing DXF imported {file_name} ({len(paths)} paths)")
+    return {"ok": True, "file_name": file_name, "paths": len(paths), "warnings": warnings, "version": version}
+
+
 @app.post("/api/drawings/generate")
 def generate_drawing(command: DrawingGenerateRequest) -> dict[str, object]:
     prompt = command.prompt.lower().replace("×", "x").replace("米", "")
@@ -628,6 +678,27 @@ def agent_chat_stream(command: AgentChatRequest) -> StreamingResponse:
             yield json.dumps({"type": "result", **result}, ensure_ascii=False) + "\n"
 
     return StreamingResponse(events(), media_type="application/x-ndjson")
+
+
+@app.post("/api/monitor/diagnose")
+def monitor_diagnose(command: DeviceDiagnosticRequest) -> dict[str, object]:
+    """API-first diagnosis; local rules enrich only after API assessment."""
+    snapshot = json.dumps(command.snapshot, ensure_ascii=False, separators=(",", ":"))
+    api_result = robot_agent.chat(
+        "请先基于以下实时设备快照进行故障分析，判断是否存在异常，并指出最需要核验的字段。"
+        "这是诊断阶段，不要调用运动、喷墨或其他执行工具。快照：" + snapshot,
+        [], mode="advanced",
+    )
+    local_issue = (
+        not robot_state.online or not robot_state.ros_available
+        or not robot_state.control_ready or not robot_state.drive_device_connected
+        or not robot_state.motor_driver_ready or not robot_state.localization_valid
+    )
+    result: dict[str, object] = {"ok": True, "api_analysis": api_result, "diagnosis_source": "api"}
+    if local_issue:
+        result["local_diagnosis"] = robot_agent._local_diagnosis()
+        result["diagnosis_source"] = "api_confirmed_plus_local_rules"
+    return result
 
 
 @app.post("/api/agent/confirm")
@@ -1015,30 +1086,41 @@ def handle_rosbridge_payload(payload: dict[str, object]) -> dict[str, object]:
                     "spraying": False,
                     "message": "喷码机未连接",
                 }
-            active_ok = ros_adapter.set_printer_active(printer_name, True)
-            if not active_ok:
-                return {
-                    "op": "printer_spray_response",
-                    "ok": False,
-                    "spraying": False,
-                    "message": "喷码机激活服务不可用",
-                }
-            # xline_cyg's active flag only permits commands. Load a printable
+            if ros_adapter.node is not None:
+                ros_adapter.node.set_manual_spray_state(printer_name, "starting")
+            # xline_ws3's active flag only permits commands. Load a printable
             # message before triggering, otherwise the UI can appear active
             # while the print head has no content to emit.
             def start_manual_spray() -> None:
-                time.sleep(0.35)
-                ok = ros_adapter.call_printer(
-                    printer_name,
-                    "test_print",
-                    0,
-                    allow_activation_race=True,
-                    auto_stop_test_print=False,
-                    manual_spray=True,
-                )
-                if not ok:
+                try:
+                    if not ros_adapter.ensure_printer_active(printer_name, timeout=3.0):
+                        if ros_adapter.node is not None:
+                            ros_adapter.node.set_manual_spray_state(
+                                printer_name, "error", "喷码机激活超时"
+                            )
+                        robot_state.add_log(
+                            f"printer {printer_name} activation timed out"
+                        )
+                        return
+                    current = robot_state.printer_status.get(f"printer_{printer_name}")
+                    if (
+                        not isinstance(current, dict)
+                        or current.get("spray_state") != "starting"
+                    ):
+                        robot_state.add_log(
+                            f"printer {printer_name} manual spray start cancelled"
+                        )
+                        return
+                    if ros_adapter.node is None:
+                        raise RuntimeError("ROS2 喷码节点不可用")
+                    ros_adapter.node.start_manual_line_spray(printer_name)
+                except Exception as error:
+                    if ros_adapter.node is not None:
+                        ros_adapter.node.set_manual_spray_state(
+                            printer_name, "error", f"喷墨开启异常: {error}"
+                        )
                     robot_state.add_log(
-                        f"printer {printer_name} manual spray preparation failed"
+                        f"printer {printer_name} manual spray crashed: {error}"
                     )
 
             threading.Thread(target=start_manual_spray, daemon=True).start()
@@ -1046,16 +1128,25 @@ def handle_rosbridge_payload(payload: dict[str, object]) -> dict[str, object]:
                 "op": "printer_spray_response",
                 "ok": True,
                 "spraying": False,
-                "message": "正在加载喷墨内容，准备完成后可同时遥控小车",
+                "printer_name": printer_name,
+                "spray_state": "starting",
+                "message": "正在准备线条并确认真实喷墨，完成后可同时遥控小车",
             }
 
+        if ros_adapter.node is not None:
+            ros_adapter.node.set_manual_spray_state(printer_name, "stopping")
         stop_ok = ros_adapter.call_printer(printer_name, "stop_print", 0)
-        active_ok = ros_adapter.set_printer_active(printer_name, False)
+        if not stop_ok and ros_adapter.node is not None:
+            ros_adapter.node.set_manual_spray_state(
+                printer_name, "error", "停止喷墨请求失败"
+            )
         return {
             "op": "printer_spray_response",
-            "ok": stop_ok and active_ok,
+            "ok": stop_ok,
             "spraying": False,
-            "message": "喷墨已停止" if stop_ok and active_ok else "停止喷墨失败",
+            "printer_name": printer_name,
+            "spray_state": "stopping" if stop_ok else "error",
+            "message": "喷墨已停止" if stop_ok else "停止喷墨失败",
         }
 
     if op == "call_service" and service == "/printer/set_active":
@@ -1108,6 +1199,7 @@ def handle_rosbridge_payload(payload: dict[str, object]) -> dict[str, object]:
         args = payload.get("args")
         if isinstance(args, dict):
             printer_name = str(args.get("printer_name", "center"))
+            command = str(args.get("command", "")).strip()
             json_data = str(args.get("json_data", ""))
             if f"printer_{printer_name}" not in robot_state.printer_status:
                 return {"op": "service_response", "service": service, "ok": False, "message": "喷码机未配置"}
@@ -1119,10 +1211,19 @@ def handle_rosbridge_payload(payload: dict[str, object]) -> dict[str, object]:
                 json.loads(json_data)
             except json.JSONDecodeError:
                 return {"op": "service_response", "service": service, "ok": False, "message": "JSON 格式无效"}
+            if not re.fullmatch(r"0x[0-9A-Fa-f]{2}", command):
+                return {
+                    "op": "service_response",
+                    "service": service,
+                    "ok": False,
+                    "message": "command 必须是两位十六进制指令码，例如 0x34",
+                }
             if robot_state.bridge_mode == "virtual_ros2":
-                robot_state.add_log(f"virtual printer raw command {printer_name}")
+                robot_state.add_log(
+                    f"virtual printer raw command {printer_name} {command}"
+                )
                 return {"op": "service_response", "service": service, "ok": True}
-            ok = ros_adapter.send_printer_command(printer_name, json_data)
+            ok = ros_adapter.send_printer_command(printer_name, command, json_data)
             return {"op": "service_response", "service": service, "ok": ok}
 
     if op == "call_service" and service == "/ln_driver/command_srv":

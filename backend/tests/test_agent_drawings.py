@@ -189,7 +189,7 @@ class AgentDrawingTest(unittest.TestCase):
             result = robot_agent._execute_confirmed(action)
 
         self.assertTrue(result["ok"])
-        # xline_cyg follows the standard ROS2 convention: positive
+        # xline_ws3 follows the standard ROS2 convention: positive
         # linear.x is forward and positive angular.z is left.
         publish.assert_called_once_with(0.1, 0.2, 0.2)
 

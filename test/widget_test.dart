@@ -25,13 +25,14 @@ void main() {
     expect(restored.connected, isTrue);
   });
 
-  testWidgets('底部仅保留首页、任务和设置', (tester) async {
+  testWidgets('底部包含首页、任务、监控和设置', (tester) async {
     await tester.pumpWidget(const XLineCarApp());
 
     expect(find.text('首页'), findsOneWidget);
     expect(find.text('任务'), findsOneWidget);
+    expect(find.text('监控'), findsOneWidget);
     expect(find.text('设置'), findsOneWidget);
-    expect(find.byType(NavigationDestination), findsNWidgets(3));
+    expect(find.byType(NavigationDestination), findsNWidgets(4));
     expect(find.byTooltip('智能助手'), findsOneWidget);
     if (AppConstants.layoutPreviewMode) {
       expect(find.byTooltip('紧急停车'), findsOneWidget);
@@ -81,13 +82,15 @@ void main() {
   testWidgets('可以进入设备管理并返回首页', (tester) async {
     await tester.pumpWidget(const XLineCarApp());
 
-    await tester.tap(find.text(AppConstants.layoutPreviewMode ? '设备' : '设备管理'));
+    await tester.tap(find.text('设置'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('设备管理'));
     await tester.pumpAndSettle();
     expect(find.text('设备管理'), findsWidgets);
 
     await tester.tap(find.byTooltip('返回首页'));
     await tester.pumpAndSettle();
-    expect(find.text('快捷操作'), findsOneWidget);
+    expect(find.byKey(const ValueKey('dashboard')), findsOneWidget);
   });
 
   testWidgets('设置页只展示真实 ROS2 接口和当前 AI 模型', (tester) async {

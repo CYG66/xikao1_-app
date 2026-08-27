@@ -1,0 +1,19 @@
+[Unit]
+Description=XLine App FastAPI ROS2 Backend (xline_ws3)
+Wants=network-online.target xline-ws3-runtime.service
+After=network-online.target xline-ws3-runtime.service
+
+[Service]
+Type=simple
+User=qingz
+Group=qingz
+WorkingDirectory=/home/qingz/xline_app_backend1
+ExecStart=/home/qingz/xline_app_backend1/run_robot_backend.sh
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGINT
+TimeoutStopSec=15
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

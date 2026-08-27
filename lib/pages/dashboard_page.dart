@@ -97,53 +97,11 @@ class _DashboardPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shortcuts = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          '快捷操作',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: _HomeShortcut(
-                icon: Icons.map_rounded,
-                label: '地图',
-                onTap: onOpenMap,
-                enabled: localizationReady,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _HomeShortcut(
-                icon: Icons.gamepad_rounded,
-                label: '控制',
-                onTap: onOpenControl,
-                enabled: controlReady,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _HomeShortcut(
-                icon: Icons.devices_other_rounded,
-                label: '设备',
-                onTap: onOpenDevices,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-
     if (bridgeState != BridgeState.connected) {
       return ListView(
         key: const ValueKey('dashboard'),
         padding: const EdgeInsets.all(16),
         children: [
-          shortcuts,
-          const SizedBox(height: 12),
           _OfflinePanel(
             connecting: bridgeState == BridgeState.connecting,
             onConnect: onConnect,
@@ -153,13 +111,36 @@ class _DashboardPage extends StatelessWidget {
       );
     }
 
-    final metrics = _MetricStrip(
-      controlReady: controlReady,
-      linearVelocity: linearVelocity,
-      localizationAccuracyMm: localizationAccuracyMm,
-      localizationReady: localizationReady,
-      printerStatus: printerStatus,
+    final shortcuts = Row(
+      children: [
+        Expanded(
+          child: _HomeShortcut(
+            icon: Icons.map_rounded,
+            label: '地图',
+            onTap: onOpenMap,
+            enabled: localizationReady,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _HomeShortcut(
+            icon: Icons.gamepad_rounded,
+            label: '控制',
+            onTap: onOpenControl,
+            enabled: controlReady,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _HomeShortcut(
+            icon: Icons.devices_other_rounded,
+            label: '设备',
+            onTap: onOpenDevices,
+          ),
+        ),
+      ],
     );
+
     Widget map({double? height}) => _Panel(
       title: '实时地图',
       trailing: IconButton(
@@ -187,6 +168,7 @@ class _DashboardPage extends StatelessWidget {
       onPrinterRawCommand: onPrinterRawCommand,
     );
     final localization = _HomeLocalizationPanel(
+      controlReady: controlReady,
       localizationSource: localizationSource,
       localizationCalibration: localizationCalibration,
       localizationCalibrationAvailable: localizationCalibrationAvailable,
@@ -273,17 +255,15 @@ class _DashboardPage extends StatelessWidget {
         if (!wide) {
           return ListView(
             key: const ValueKey('dashboard'),
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             children: [
               shortcuts,
               const SizedBox(height: 12),
-              metrics,
-              const SizedBox(height: 12),
-              map(),
+              localization,
               const SizedBox(height: 12),
               printer,
               const SizedBox(height: 12),
-              localization,
+              map(),
               const SizedBox(height: 12),
               diagnostics,
             ],
@@ -294,18 +274,16 @@ class _DashboardPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              flex: 38,
+              flex: 36,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 24, 8, 24),
+                padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
                 child: Column(
                   children: [
                     shortcuts,
                     const SizedBox(height: 12),
-                    metrics,
+                    localization,
                     const SizedBox(height: 12),
                     printer,
-                    const SizedBox(height: 12),
-                    localization,
                     const SizedBox(height: 12),
                     diagnostics,
                   ],
@@ -316,10 +294,10 @@ class _DashboardPage extends StatelessWidget {
             Expanded(
               flex: 62,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 24, 24, 24),
+                padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
                 child: map(
                   height: constraints.hasBoundedHeight
-                      ? math.max(260, constraints.maxHeight - 48)
+                      ? math.max(260, constraints.maxHeight - 32)
                       : null,
                 ),
               ),
@@ -333,6 +311,7 @@ class _DashboardPage extends StatelessWidget {
 
 class _HomeLocalizationPanel extends StatelessWidget {
   const _HomeLocalizationPanel({
+    required this.controlReady,
     required this.localizationSource,
     required this.localizationCalibration,
     required this.localizationCalibrationAvailable,
@@ -341,6 +320,7 @@ class _HomeLocalizationPanel extends StatelessWidget {
     required this.onCalibrateLocalization,
   });
 
+  final bool controlReady;
   final String localizationSource;
   final String localizationCalibration;
   final bool localizationCalibrationAvailable;
@@ -358,6 +338,10 @@ class _HomeLocalizationPanel extends StatelessWidget {
           : relative
           ? '相对定位准备'
           : '定位准备',
+      trailing: _StatusChip(
+        text: controlReady ? '已就绪' : '未就绪',
+        color: controlReady ? const Color(0xff16a66a) : const Color(0xfff59e0b),
+      ),
       child: Wrap(
         spacing: 8,
         runSpacing: 8,

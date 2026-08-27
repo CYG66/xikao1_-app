@@ -140,22 +140,22 @@ class _ControlPage extends StatelessWidget {
                     ButtonSegment(value: 'fast', label: Text('快速')),
                   ],
                   selected: <String>{
-                    draftLinear <= 0.03
+                    draftLinear <= 0.05
                         ? 'slow'
-                        : draftLinear >= 0.16
+                        : draftLinear >= AppConstants.maxLinearVelocity
                         ? 'fast'
                         : 'standard',
                   },
                   onSelectionChanged: (selected) => setDialogState(() {
                     switch (selected.first) {
                       case 'slow':
-                        draftLinear = 0.03;
+                        draftLinear = 0.05;
                         draftAngular = 0.2;
                       case 'fast':
                         draftLinear = AppConstants.maxLinearVelocity;
                         draftAngular = AppConstants.maxAngularVelocity;
                       default:
-                        draftLinear = 0.08;
+                        draftLinear = AppConstants.defaultLinearVelocity;
                         draftAngular = 0.3;
                     }
                   }),
@@ -167,7 +167,7 @@ class _ControlPage extends StatelessWidget {
                   value: draftLinear,
                   min: 0.01,
                   max: AppConstants.maxLinearVelocity,
-                  divisions: 19,
+                  divisions: 99,
                   onChanged: (value) =>
                       setDialogState(() => draftLinear = value),
                 ),
@@ -188,7 +188,7 @@ class _ControlPage extends StatelessWidget {
           actions: [
             OutlinedButton.icon(
               onPressed: () => setDialogState(() {
-                draftLinear = 0.05;
+                draftLinear = AppConstants.defaultLinearVelocity;
                 draftAngular = 0.3;
               }),
               icon: const Icon(Icons.refresh_rounded),
@@ -269,6 +269,18 @@ class _PrinterSwitchRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final connected = status['connected'] == true;
     final spraying = connected && status['spraying'] == true;
+    final sprayState =
+        status['spray_state']?.toString() ?? (spraying ? 'spraying' : 'idle');
+    final busy = sprayState == 'starting' || sprayState == 'stopping';
+    final requestedValue = sprayState == 'starting' ? true : spraying;
+    final stateLabel = switch (sprayState) {
+      'starting' => '正在开启',
+      'stopping' => '正在关闭',
+      'spraying' => '喷墨中',
+      'triggered_unverified' => '已触发·待确认',
+      'error' => '操作失败',
+      _ => '喷墨',
+    };
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -288,10 +300,25 @@ class _PrinterSwitchRow extends StatelessWidget {
                 : const Color(0xff64748b),
           ),
           const SizedBox(width: 10),
-          const Text('喷墨', style: TextStyle(color: Color(0xff64748b))),
+          if (busy) ...[
+            const SizedBox(
+              width: 15,
+              height: 15,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            stateLabel,
+            style: TextStyle(
+              color: sprayState == 'error'
+                  ? const Color(0xffdc2626)
+                  : const Color(0xff64748b),
+            ),
+          ),
           Switch(
-            value: spraying,
-            onChanged: connected ? onActiveChanged : null,
+            value: requestedValue,
+            onChanged: connected && !busy ? onActiveChanged : null,
           ),
         ],
       ),
@@ -437,6 +464,9 @@ class _PrinterControlRow extends StatelessWidget {
     final connected = status['connected'] == true;
     final enabled = status['enabled'] == true;
     final autoConnect = status['auto_connect'] == true;
+    final inkValue = status['ink_level'] is num
+        ? (status['ink_level'] as num).toDouble().clamp(0.0, 100.0)
+        : null;
     return Column(
       children: [
         SwitchListTile(
@@ -455,6 +485,24 @@ class _PrinterControlRow extends StatelessWidget {
           title: const Text('自动连接'),
           subtitle: const Text('对应 printer/set_enabled'),
         ),
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                '剩余用量',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            Text(
+              inkValue == null ? '设备未提供' : '${inkValue.toStringAsFixed(0)}%',
+            ),
+          ],
+        ),
+        if (inkValue != null) ...[
+          const SizedBox(height: 6),
+          LinearProgressIndicator(value: inkValue / 100, minHeight: 7),
+        ],
+        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
@@ -490,7 +538,7 @@ class _PrinterControlRow extends StatelessWidget {
   }
 
   Future<void> _showRawCommandDialog(BuildContext context) async {
-    final controller = TextEditingController(text: '{\n  \"EU2L\": {}\n}');
+    final controller = TextEditingController(text: '{\n  "EU2L": {}\n}');
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(

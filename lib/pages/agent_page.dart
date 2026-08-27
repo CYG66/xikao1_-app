@@ -54,6 +54,25 @@ class _AgentPageState extends State<_AgentPage> {
 
   bool get _printerSpraying =>
       _printerConnected && _centerPrinter['spraying'] == true;
+
+  String get _printerSprayState =>
+      _centerPrinter['spray_state']?.toString() ??
+      (_printerSpraying ? 'spraying' : 'idle');
+
+  bool get _printerSprayBusy =>
+      _printerSprayState == 'starting' || _printerSprayState == 'stopping';
+
+  bool get _printerSprayRequested =>
+      _printerSprayState == 'starting' || _printerSpraying;
+
+  String get _printerSprayLabel => switch (_printerSprayState) {
+    'starting' => '正在开启',
+    'stopping' => '正在关闭',
+    'spraying' => '喷墨中',
+    'triggered_unverified' => '已触发·待确认',
+    'error' => '操作失败',
+    _ => '喷墨',
+  };
   final ScrollController _scrollController = ScrollController();
   final List<_AgentConversation> _conversations = [];
   List<_AgentChatItem> _messages = [_welcomeMessage];
@@ -788,7 +807,7 @@ class _AgentPageState extends State<_AgentPage> {
                 : ListView.separated(
                     shrinkWrap: true,
                     itemCount: versions.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final version = versions[index];
                       return Material(
@@ -1490,10 +1509,27 @@ class _AgentPageState extends State<_AgentPage> {
                         color: Color(0xff64748b),
                       ),
                       const SizedBox(width: 2),
-                      const Text('喷墨', style: TextStyle(fontSize: 12)),
+                      if (_printerSprayBusy) ...[
+                        const SizedBox(
+                          width: 13,
+                          height: 13,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      Text(
+                        _printerSprayLabel,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _printerSprayState == 'error'
+                              ? const Color(0xffdc2626)
+                              : const Color(0xff64748b),
+                        ),
+                      ),
                       Switch.adaptive(
-                        value: _printerSpraying,
-                        onChanged: _printerConnected && !_sending
+                        value: _printerSprayRequested,
+                        onChanged:
+                            _printerConnected && !_sending && !_printerSprayBusy
                             ? (value) =>
                                   widget.onPrinterSprayChanged('center', value)
                             : null,
@@ -2684,8 +2720,9 @@ String _friendlyAgentContent(String content) {
             (data['localization'] as Map)['valid'] == false) {
       inferredMissing.add('localization');
     }
-    if (capabilities['path_planning'] == false)
+    if (capabilities['path_planning'] == false) {
       inferredMissing.add('path_planning');
+    }
     final allMissing = {...missing, ...inferredMissing}.toList();
     final lines = <String>[];
 

@@ -78,7 +78,7 @@ class ToolingSafetyTest(unittest.TestCase):
     def test_motion_limits_are_rejected_before_execution(self) -> None:
         validated, _ = validate_tool_arguments(
             "drive_robot",
-            {"linear": 0.21, "angular": 0.0, "duration_seconds": 0.2},
+            {"linear": 1.01, "angular": 0.0, "duration_seconds": 0.2},
         )
         self.assertIsNone(validated)
 
@@ -212,13 +212,19 @@ class ToolingSafetyTest(unittest.TestCase):
             )
         self.assertFalse(decision.allowed)
 
-    def test_estop_release_requires_matching_owner_and_ready_runtime(self) -> None:
+    def test_estop_release_requires_matching_owner_ros_and_can(self) -> None:
         with (
             patch.object(robot_state, "control_owner", "owner"),
-            patch.object(robot_state, "control_ready", True),
+            patch.object(robot_state, "ros_available", True),
+            patch.object(robot_state, "drive_device_connected", True),
+            patch.object(robot_state, "control_ready", False),
         ):
             self.assertTrue(authorize_emergency_stop(False, "owner").allowed)
             self.assertFalse(authorize_emergency_stop(False, "other").allowed)
+            with patch.object(robot_state, "ros_available", False):
+                self.assertFalse(authorize_emergency_stop(False, "owner").allowed)
+            with patch.object(robot_state, "drive_device_connected", False):
+                self.assertFalse(authorize_emergency_stop(False, "owner").allowed)
         self.assertTrue(authorize_emergency_stop(True, None).allowed)
 
 

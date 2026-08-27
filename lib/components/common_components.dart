@@ -4,89 +4,6 @@ part of '../main.dart';
 // 可复用界面组件
 // -----------------------------------------------------------------------------
 
-/// 紧凑的当前设备摘要行。
-class _CompactDeviceRow extends StatelessWidget {
-  const _CompactDeviceRow({required this.device});
-
-  final RoverDevice device;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: const Color(0xff172033),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: const Icon(
-            Icons.precision_manufacturing_rounded,
-            color: Color(0xff60a5fa),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                device.name,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                device.bridgeUrl,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Color(0xff94a3b8), fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// 首页遥测指标条。所有值均来自后端状态，未上报时显示未知状态。
-class _DriveStatusPanel extends StatelessWidget {
-  const _DriveStatusPanel({
-    required this.transport,
-    required this.deviceConnected,
-    required this.motorDriverReady,
-    required this.controlReady,
-  });
-
-  final String transport;
-  final bool deviceConnected;
-  final bool motorDriverReady;
-  final bool controlReady;
-
-  @override
-  Widget build(BuildContext context) {
-    final ready = controlReady;
-    return _Panel(
-      title: '底盘驱动',
-      trailing: _StatusChip(
-        text: ready ? '可控制' : '未就绪',
-        color: ready ? const Color(0xff22c55e) : const Color(0xfff59e0b),
-      ),
-      child: Column(
-        children: [
-          _ConfigRow('通信方式', transport.toUpperCase()),
-          _ConfigRow('电机型号', 'M1505'),
-          _ConfigRow(
-            transport == 'socketcan' ? 'CAN 接口' : 'USB2CAN',
-            deviceConnected ? '已启用' : '未启用',
-          ),
-          _ConfigRow('电机节点', motorDriverReady ? '运行中' : '未运行'),
-        ],
-      ),
-    );
-  }
-}
-
 class _MetricStrip extends StatelessWidget {
   const _MetricStrip({
     required this.controlReady,
@@ -387,7 +304,7 @@ class _Panel extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(14, 13, 14, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -405,7 +322,7 @@ class _Panel extends StatelessWidget {
                 ?trailing,
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             if (expandChild) Expanded(child: child) else child,
           ],
         ),
@@ -584,33 +501,6 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-/// 任务流程中的单个步骤和完成状态。
-class _MissionStep extends StatelessWidget {
-  const _MissionStep({required this.title, required this.done});
-
-  final String title;
-  final bool done;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Icon(
-            done
-                ? Icons.check_circle_rounded
-                : Icons.radio_button_unchecked_rounded,
-            color: done ? const Color(0xff22c55e) : const Color(0xff64748b),
-          ),
-          const SizedBox(width: 10),
-          Expanded(child: Text(title)),
-        ],
-      ),
-    );
-  }
-}
-
 /// 方向控制区，将按钮点击映射为线速度和角速度。
 class _Joystick extends StatefulWidget {
   const _Joystick({
@@ -635,6 +525,7 @@ class _JoystickState extends State<_Joystick> {
   double angular = 0;
   Timer? commandTimer;
   ScrollHoldController? scrollHold;
+  int? activePointer;
 
   void _holdPageScroll() {
     scrollHold ??= Scrollable.maybeOf(context)?.position.hold(() {});
@@ -672,14 +563,27 @@ class _JoystickState extends State<_Joystick> {
     widget.onCommand(linear, angular);
   }
 
-  void _start(DragStartDetails details, double size) {
+  void _startPointer(PointerDownEvent event, double size) {
+    if (activePointer != null) return;
+    activePointer = event.pointer;
     _holdPageScroll();
     commandTimer?.cancel();
-    _update(details.localPosition, size);
+    _update(event.localPosition, size);
     commandTimer = Timer.periodic(
       const Duration(milliseconds: 40),
       (_) => widget.onCommand(linear, angular),
     );
+  }
+
+  void _movePointer(PointerMoveEvent event, double size) {
+    if (event.pointer != activePointer) return;
+    _update(event.localPosition, size);
+  }
+
+  void _finishPointer(PointerEvent event) {
+    if (event.pointer != activePointer) return;
+    activePointer = null;
+    _stop();
   }
 
   void _stop() {
@@ -724,14 +628,12 @@ class _JoystickState extends State<_Joystick> {
           children: [
             Expanded(
               child: Center(
-                child: GestureDetector(
+                child: Listener(
                   behavior: HitTestBehavior.opaque,
-                  onPanDown: (_) => _holdPageScroll(),
-                  onPanStart: (details) => _start(details, size),
-                  onPanUpdate: (details) =>
-                      _update(details.localPosition, size),
-                  onPanEnd: (_) => _stop(),
-                  onPanCancel: _stop,
+                  onPointerDown: (event) => _startPointer(event, size),
+                  onPointerMove: (event) => _movePointer(event, size),
+                  onPointerUp: _finishPointer,
+                  onPointerCancel: _finishPointer,
                   child: Container(
                     width: size,
                     height: size,
@@ -852,28 +754,6 @@ class _TaskTile extends StatelessWidget {
         ),
         title: Text(title),
         subtitle: Text(subtitle),
-      ),
-    );
-  }
-}
-
-/// ROS2 Topic 名称与消息类型说明行。
-class _TopicRow extends StatelessWidget {
-  const _TopicRow(this.topic, this.type);
-
-  final String topic;
-  final String type;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: ListTile(
-        dense: true,
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.topic_rounded, color: Color(0xff60a5fa)),
-        title: Text(topic),
-        subtitle: Text(type),
       ),
     );
   }

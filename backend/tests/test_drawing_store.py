@@ -31,14 +31,14 @@ class DrawingStoreTest(unittest.TestCase):
             self.assertEqual(len(store.list(first["drawing_id"])), 2)
             self.assertIsNone(store.restore(first["file_name"], root, "other-project"))
 
-    def test_velocity_schema_matches_xline_ws3_hard_limits(self) -> None:
+    def test_velocity_schema_matches_app_control_limits(self) -> None:
         command = VelocityCommand(
-            client_id="test-client", linear=0.20, angular=0.40
+            client_id="test-client", linear=1.0, angular=0.40
         )
-        self.assertEqual(command.linear, 0.20)
+        self.assertEqual(command.linear, 1.0)
         self.assertEqual(command.angular, 0.40)
         with self.assertRaises(ValidationError):
-            VelocityCommand(client_id="test-client", linear=0.21, angular=0.0)
+            VelocityCommand(client_id="test-client", linear=1.01, angular=0.0)
         with self.assertRaises(ValidationError):
             VelocityCommand(client_id="test-client", linear=0.0, angular=0.41)
 
@@ -58,9 +58,13 @@ class DrawingStoreTest(unittest.TestCase):
         self.assertTrue(snapshot["vehicle"]["localization"]["valid"])
         self.assertFalse(snapshot["vehicle"]["capabilities"]["path_execution"])
         limits = snapshot["vehicle"]["motion_limits"]
-        self.assertEqual(limits["max_linear_mps"], 0.20)
+        self.assertEqual(limits["max_linear_mps"], 1.0)
+        self.assertEqual(limits["default_linear_mps"], 0.1)
         self.assertEqual(limits["max_angular_rad_s"], 0.40)
-        self.assertEqual(limits["max_motor_rpm"], 30.0)
+        self.assertEqual(limits["max_motor_rpm"], 500.0)
+        self.assertEqual(limits["cmd_vel_timeout_sec"], 0.5)
+        self.assertEqual(limits["limit_source"], "app_control_policy")
+        self.assertFalse(limits["runtime_fixed_velocity_clamp"])
         self.assertEqual(limits["wheel_radius_m"], 0.09115)
         self.assertEqual(limits["wheel_base_m"], 0.255)
 

@@ -8,6 +8,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
 
 import 'constants/app_constants.dart';
 import 'models/vehicle_status.dart';
@@ -26,6 +27,7 @@ part 'pages/mission_page.dart';
 part 'pages/drawing_editor_page.dart';
 part 'pages/agent_page.dart';
 part 'pages/settings_page.dart';
+part 'pages/monitor_page.dart';
 part 'components/common_components.dart';
 part 'components/map_components.dart';
 part 'models/tab_item.dart';
@@ -131,7 +133,7 @@ class _RoverHomePageState extends State<RoverHomePage>
   int selectedDeviceIndex = 0;
   bool lineRunning = false;
   bool printerEnabled = true;
-  double linearSpeed = 0.05;
+  double linearSpeed = AppConstants.defaultLinearVelocity;
   double angularSpeed = 0.40;
   bool rosAvailable = false;
   bool backendOnline = false;
@@ -169,10 +171,13 @@ class _RoverHomePageState extends State<RoverHomePage>
   String? missionPreviewFile;
   List<List<double>> poseTrace = const [];
   Map<String, dynamic> printerStatus = const {};
+  final Map<String, bool> printerSprayPending = {};
+  final Map<String, Timer> printerSprayTimeouts = {};
   Map<String, dynamic> obstacleDistances = const {};
   int? obstacleAgeMs;
   Map<String, dynamic> wheelSpeeds = const {};
   Map<String, dynamic> motorStatus = const {};
+  Map<String, dynamic> telemetryContract = const {};
   int? battery;
   String localizationCalibration = 'idle';
   bool localizationCalibrationAvailable = false;
@@ -194,6 +199,7 @@ class _RoverHomePageState extends State<RoverHomePage>
   WebSocket? socket;
   StreamSubscription? socketSub;
   Timer? statusWatchdog;
+  Timer? telemetryPoll;
   Timer? controlHeartbeat;
   DateTime? lastControlWarningAt;
   final String controlClientId =
@@ -447,7 +453,11 @@ class _RoverHomePageState extends State<RoverHomePage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     statusWatchdog?.cancel();
+    telemetryPoll?.cancel();
     controlHeartbeat?.cancel();
+    for (final timer in printerSprayTimeouts.values) {
+      timer.cancel();
+    }
     if (socket != null) socket!.add(jsonEncode(RosMessages.cmdVel(0, 0)));
     socketSub?.cancel();
     socket?.close();
@@ -460,6 +470,7 @@ class _RoverHomePageState extends State<RoverHomePage>
     final tabs = const [
       _TabItem('首页', Icons.home_rounded),
       _TabItem('任务', Icons.route_rounded),
+      _TabItem('监控', Icons.monitor_heart_rounded),
       _TabItem('设置', Icons.tune_rounded),
     ];
 
@@ -562,6 +573,7 @@ class _RoverHomePageState extends State<RoverHomePage>
           onFileChanged: _selectMissionFile,
           onCreateDrawing: _openDrawingEditor,
           onImportJson: _openJsonImporter,
+          onImportCad: _importCadDrawing,
           onRefreshFiles: _loadMissionFiles,
           onDeleteFile: _deleteMissionFile,
           onStart: () => _controlMission('start'),
@@ -570,14 +582,42 @@ class _RoverHomePageState extends State<RoverHomePage>
           onCancel: _confirmCancelMission,
           localizationSource: localizationSource,
           localizationValid: localizationValid,
-          localizationCalibrationAvailable: localizationCalibrationAvailable,
         );
       case 2:
+        return _MonitorPage(
+          backendOnline: backendOnline,
+          rosAvailable: rosAvailable,
+          controlReady: controlReady,
+          controlGranted: controlGranted,
+          driveDeviceConnected: driveDeviceConnected,
+          motorDriverReady: motorDriverReady,
+          driveTransport: driveTransport,
+          driveDevicePath: driveDevicePath,
+          telemetryAgeMs: telemetryAgeMs,
+          wheelSpeeds: wheelSpeeds,
+          motorStatus: motorStatus,
+          telemetryContract: telemetryContract,
+          battery: battery,
+          printerReady: printerReady,
+          localizationValid: localizationValid,
+          onAskAi: _openAgentSheet,
+        );
+      case 3:
         return _SettingsPage(
           device: activeDevice,
           localizationSource: localizationSource,
           onAddDevice: _openAddDeviceSheet,
+          onOpenDevices: () => setState(() {
+            tabIndex = 0;
+            homeModule = 3;
+          }),
           bridgeState: bridgeState,
+          printerStatus: centerPrinterLabel,
+          printerStatusData: printerStatus,
+          onPrinterChanged: _setNamedPrinterActive,
+          onPrinterEnabledChanged: _setNamedPrinterEnabled,
+          onPrinterCommand: _sendPrinterCommand,
+          onPrinterRawCommand: _sendPrinterRawCommand,
         );
       default:
         return _buildHomePage();
@@ -618,6 +658,93 @@ class _RoverHomePageState extends State<RoverHomePage>
       if (!missionFiles.contains(fileName)) missionFiles.add(fileName);
     });
     await _selectMissionFile(fileName);
+  }
+
+  Future<void> _importCadDrawing() async {
+    if (AppConstants.layoutPreviewMode) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('布局预览模式不会写入小车图纸')));
+      return;
+    }
+    if (bridgeState != BridgeState.connected) return;
+    final unit = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('选择 CAD 图纸单位'),
+        children: [
+          for (final item in const {
+            'mm': '毫米（推荐）',
+            'cm': '厘米',
+            'm': '米',
+          }.entries)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, item.key),
+              child: Text(item.value),
+            ),
+        ],
+      ),
+    );
+    if (unit == null || !mounted) return;
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['dxf', 'dwg'],
+      withData: true,
+    );
+    if (picked == null || picked.files.single.bytes == null) return;
+    final selected = picked.files.single;
+    final boundary = '----XLine${DateTime.now().microsecondsSinceEpoch}';
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+    try {
+      final request = await client.postUrl(
+        Uri.parse(
+          'http://${activeDevice.ip}:${activeDevice.port}/api/drawings/import-cad?unit=$unit',
+        ),
+      );
+      request.headers.contentType = ContentType(
+        'multipart',
+        'form-data',
+        parameters: {'boundary': boundary},
+      );
+      final name = selected.name.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '_');
+      request.write(
+        '--$boundary\r\nContent-Disposition: form-data; name="file"; filename="$name"\r\nContent-Type: application/octet-stream\r\n\r\n',
+      );
+      request.add(selected.bytes!);
+      request.write('\r\n--$boundary--\r\n');
+      final response = await request.close().timeout(
+        const Duration(seconds: 30),
+      );
+      final decoded = jsonDecode(await utf8.decoder.bind(response).join());
+      if (!mounted) return;
+      if (decoded is Map && decoded['ok'] == true) {
+        final fileName = decoded['file_name'].toString();
+        setState(() {
+          if (!missionFiles.contains(fileName)) missionFiles.add(fileName);
+        });
+        await _selectMissionFile(fileName);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('CAD 已转换并导入：$fileName')));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              decoded is Map
+                  ? decoded['message']?.toString() ?? 'CAD 导入失败'
+                  : 'CAD 导入失败',
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('CAD 导入失败，请检查后端连接')));
+    } finally {
+      client.close(force: true);
+    }
   }
 
   List<Map<String, dynamic>> get _displayedPlannedPaths =>
@@ -1173,6 +1300,7 @@ class _RoverHomePageState extends State<RoverHomePage>
             controlReady = false;
             controlGranted = false;
             lineRunning = false;
+            telemetryContract = const {};
             connectionMessage = 'Bridge 已断开';
             _addLog('bridge closed');
           });
@@ -1188,6 +1316,7 @@ class _RoverHomePageState extends State<RoverHomePage>
             controlReady = false;
             controlGranted = false;
             lineRunning = false;
+            telemetryContract = const {};
             connectionMessage = 'Bridge 错误：$error';
             _addLog('error $error');
           });
@@ -1205,6 +1334,11 @@ class _RoverHomePageState extends State<RoverHomePage>
       controlHeartbeat = Timer.periodic(const Duration(seconds: 1), (_) {
         _sendBridge(RosMessages.controlHeartbeat());
       });
+      telemetryPoll?.cancel();
+      telemetryPoll = Timer.periodic(const Duration(seconds: 2), (_) {
+        unawaited(_pollTelemetryContract());
+      });
+      unawaited(_pollTelemetryContract());
       unawaited(_loadMissionFiles());
     } catch (error) {
       setState(() {
@@ -1213,6 +1347,31 @@ class _RoverHomePageState extends State<RoverHomePage>
         connectionMessage = '连接失败：请确认小车端 Bridge 已启动';
         _addLog('connect failed $error');
       });
+    }
+  }
+
+  Future<void> _pollTelemetryContract() async {
+    if (!mounted || bridgeState != BridgeState.connected) return;
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 2);
+    try {
+      final request = await client.getUrl(
+        Uri.parse(
+          'http://${activeDevice.ip}:${activeDevice.port}/api/telemetry',
+        ),
+      );
+      final response = await request.close().timeout(
+        const Duration(seconds: 3),
+      );
+      if (response.statusCode != 200) return;
+      final payload = jsonDecode(await response.transform(utf8.decoder).join());
+      if (!mounted || payload is! Map) return;
+      final telemetry = _asStringMap(payload['telemetry']);
+      if (telemetry.isEmpty) return;
+      setState(() => telemetryContract = telemetry);
+    } catch (_) {
+      // WebSocket status remains the compatibility source when REST polling fails.
+    } finally {
+      client.close(force: true);
     }
   }
 
@@ -1267,8 +1426,9 @@ class _RoverHomePageState extends State<RoverHomePage>
 
   Future<void> _deleteMissionFile(String fileName) async {
     if (AppConstants.layoutPreviewMode) {
-      if (mounted)
+      if (mounted) {
         setState(() => _addLog('preview blocked drawing delete $fileName'));
+      }
       return;
     }
     const builtIn = {
@@ -1358,8 +1518,9 @@ class _RoverHomePageState extends State<RoverHomePage>
   /// 主动断开 WebSocket，清理订阅并将界面设为离线。
   Future<void> _disconnectBridge() async {
     if (AppConstants.layoutPreviewMode) {
-      if (mounted)
+      if (mounted) {
         setState(() => _addLog('preview blocked disconnect request'));
+      }
       return;
     }
     _sendBridge(RosMessages.cmdVel(0, 0));
@@ -1455,9 +1616,24 @@ class _RoverHomePageState extends State<RoverHomePage>
       }
       if (operation == 'printer_spray_response') {
         final message = envelope['message']?.toString().trim() ?? '';
+        final printerName = envelope['printer_name']?.toString() ?? 'center';
         if (envelope['ok'] == true) {
           _showControlNotice(message.isEmpty ? '喷墨状态已更新' : message);
         } else {
+          setState(() {
+            printerSprayPending.remove(printerName);
+            printerSprayTimeouts.remove(printerName)?.cancel();
+            final key = 'printer_$printerName';
+            final current = _asStringMap(printerStatus[key]);
+            printerStatus = {
+              ...printerStatus,
+              key: {
+                ...current,
+                'spray_state': 'error',
+                'spray_error': message.isEmpty ? '后端拒绝了请求' : message,
+              },
+            };
+          });
           _showControlWarning(
             '喷墨操作失败：${message.isEmpty ? '后端拒绝了请求' : message}',
           );
@@ -1531,7 +1707,27 @@ class _RoverHomePageState extends State<RoverHomePage>
         mapAgeMs = (status['map_age_ms'] as num?)?.toInt();
         pathsAgeMs = (status['paths_age_ms'] as num?)?.toInt();
         poseTrace = _asPointList(status['pose_trace']);
-        printerStatus = _asStringMap(status['printer_status']);
+        final incomingPrinterStatus = _asStringMap(status['printer_status']);
+        final completedPrinterRequests = <String>[];
+        for (final entry in printerSprayPending.entries) {
+          final key = 'printer_${entry.key}';
+          final current = _asStringMap(incomingPrinterStatus[key]);
+          final state = current['spray_state']?.toString() ?? '';
+          final reachedTarget = current['spraying'] == entry.value;
+          if (reachedTarget || state == 'error' || state == 'disconnected') {
+            completedPrinterRequests.add(entry.key);
+          } else {
+            incomingPrinterStatus[key] = {
+              ...current,
+              'spray_state': entry.value ? 'starting' : 'stopping',
+            };
+          }
+        }
+        for (final name in completedPrinterRequests) {
+          printerSprayPending.remove(name);
+          printerSprayTimeouts.remove(name)?.cancel();
+        }
+        printerStatus = incomingPrinterStatus;
         obstacleDistances = _asStringMap(status['obstacle_distances']);
         obstacleAgeMs = (status['obstacle_age_ms'] as num?)?.toInt();
         wheelSpeeds = _asStringMap(status['wheel_speeds']);
@@ -1613,7 +1809,7 @@ class _RoverHomePageState extends State<RoverHomePage>
     }
     // Keep the operator-facing signs all the way to ROS2:
     // linear.x > 0 is forward and angular.z > 0 is left.
-    // The xline_cyg driver already uses this standard convention, so do not
+    // The xline_ws3 driver already uses this standard convention, so do not
     // invert here. AI motion uses the same convention in the backend.
     _sendBridge(RosMessages.cmdVel(linear, angular));
   }
@@ -1670,20 +1866,49 @@ class _RoverHomePageState extends State<RoverHomePage>
   }
 
   void _setNamedPrinterActive(String printerName, bool active) {
-    if (printerName == 'center') {
-      setState(() {
-        printerEnabled = active;
-        final current = _asStringMap(printerStatus['printer_center']);
-        printerStatus = {
-          ...printerStatus,
-          'printer_center': {...current, 'spraying': active},
-        };
-      });
-    }
     if (bridgeState != BridgeState.connected) {
       _showControlWarning('小车未连接，无法切换喷墨');
       return;
     }
+    setState(() {
+      printerSprayPending[printerName] = active;
+      if (printerName == 'center') {
+        printerEnabled = active;
+      }
+      final key = 'printer_$printerName';
+      final current = _asStringMap(printerStatus[key]);
+      printerStatus = {
+        ...printerStatus,
+        key: {
+          ...current,
+          'spray_state': active ? 'starting' : 'stopping',
+          'spray_error': '',
+        },
+      };
+    });
+    printerSprayTimeouts.remove(printerName)?.cancel();
+    printerSprayTimeouts[printerName] = Timer(const Duration(seconds: 30), () {
+      if (!mounted || printerSprayPending[printerName] != active) return;
+      setState(() {
+        printerSprayPending.remove(printerName);
+        printerSprayTimeouts.remove(printerName);
+        final key = 'printer_$printerName';
+        final current = _asStringMap(printerStatus[key]);
+        printerStatus = {
+          ...printerStatus,
+          key: {
+            ...current,
+            'spraying': false,
+            'spray_state': 'error',
+            'spray_error': active ? '喷墨开启超时，请重试' : '喷墨停止超时，请重试',
+          },
+        };
+      });
+      if (active && bridgeState == BridgeState.connected) {
+        _sendBridge(RosMessages.printerSpray(false, printerName: printerName));
+      }
+      _showControlWarning(active ? '喷墨开启超时，已发送停止保护' : '喷墨停止超时');
+    });
     _sendBridge(RosMessages.printerSpray(active, printerName: printerName));
   }
 

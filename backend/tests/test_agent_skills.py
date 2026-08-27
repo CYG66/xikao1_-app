@@ -78,12 +78,25 @@ class AgentSkillsTest(unittest.TestCase):
                 "start": {"x": 0, "y": 0, "z": 0},
                 "end": {"x": 1000, "y": 0, "z": 0},
             }
-        ], "right")
+        ], "center")
 
         self.assertEqual(result["layers"][0]["route_type"], "printing")
-        self.assertEqual(result["layers"][0]["printer"], "right")
-        self.assertEqual(result["travel_policy"], "generated_by_xline_cyg_planner")
+        self.assertEqual(result["layers"][0]["printer"], "center")
+        self.assertEqual(result["travel_policy"], "generated_by_xline_ws3_planner")
         self.assertNotIn("travel_paths", result)
+
+    def test_parameterization_rejects_nonexistent_side_printer(self) -> None:
+        status = {
+            "printer_center": {"connected": True, "enabled": True},
+        }
+        with patch.object(robot_state, "printer_status", status):
+            result = parameterize_design("用左喷头画一个 5x3 米矩形")
+
+        self.assertFalse(result["ok"])
+        self.assertIn(
+            "unsupported_printer:xline_ws3_only_has_center",
+            result["missing"],
+        )
 
     def test_design_score_is_not_reported_as_ros_planning_score(self) -> None:
         result = score_design_variant([{

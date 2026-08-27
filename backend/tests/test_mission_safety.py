@@ -151,6 +151,9 @@ class PrinterTestPrintLifecycleTest(unittest.TestCase):
 
         def call_async(self, request):
             self.requests.append(request)
+            if request.action == "simulate":
+                status = robot_state.printer_status["printer_center"]
+                status["print_count"] = int(status.get("print_count", 0)) + 1
             future = PrinterTestPrintLifecycleTest.FakeFuture(self.response)
             self.futures.append(future)
             return future
@@ -162,20 +165,64 @@ class PrinterTestPrintLifecycleTest(unittest.TestCase):
                 self.action = ""
                 self.param = 0
 
+    class FakePrinterCommand:
+        class Request:
+            def __init__(self):
+                self.printer_name = ""
+                self.command = ""
+                self.json_data = ""
+
+    class ImmediateFuture(FakeFuture):
+        def add_done_callback(self, callback):
+            callback(self)
+            return self
+
+    class ImmediateClient:
+        def __init__(self, response, *, count_simulate=False):
+            self.response = response
+            self.count_simulate = count_simulate
+            self.requests = []
+
+        def wait_for_service(self, timeout_sec=0.0):
+            return True
+
+        def call_async(self, request):
+            self.requests.append(request)
+            if self.count_simulate and getattr(request, "action", "") == "simulate":
+                status = robot_state.printer_status["printer_center"]
+                status["print_count"] = int(status["print_count"]) + 1
+                status["device_state"] = 1
+            return PrinterTestPrintLifecycleTest.ImmediateFuture(self.response)
+
     def setUp(self):
         robot_state.printer_status = {
             "printer_center": {
                 "connected": True,
                 "is_online": True,
                 "enabled": True,
+                "device_state": 1,
+                "print_count": 10,
             }
         }
         self.node = object.__new__(RobotBackendNode)
         self.node._printer_test_stop_timers = {}
         self.node._printer_test_stop_generations = {}
         self.node._manual_spraying = set()
+        self.node._manual_spray_states = {}
+        self.node._manual_spray_errors = {}
+        self.node._manual_spray_prepared = set()
         import threading
         self.node._printer_test_stop_lock = threading.Lock()
+
+    def wait_for(self, predicate, timeout=1.0):
+        import time
+
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if predicate():
+                return True
+            time.sleep(0.01)
+        return predicate()
 
     def test_successful_test_print_schedules_stop(self):
         client = self.FakeClient(type("Response", (), {"success": True, "message": "ok"})())
@@ -183,6 +230,9 @@ class PrinterTestPrintLifecycleTest(unittest.TestCase):
         with patch.object(ros_adapter_module, "QuickCommand", self.FakeQuickCommand):
             self.assertTrue(self.node.call_printer("center", "test_print", 0))
             client.futures[0].complete()
+            self.assertTrue(
+                self.wait_for(lambda: "center" in self.node._printer_test_stop_timers)
+            )
             timer = self.node._printer_test_stop_timers["center"]
             timer.cancel()
             self.node._auto_stop_test_print("center", 1)
@@ -204,7 +254,9 @@ class PrinterTestPrintLifecycleTest(unittest.TestCase):
         with patch.object(ros_adapter_module, "QuickCommand", self.FakeQuickCommand):
             self.node.call_printer("center", "test_print", 0)
             client.futures[0].complete()
-        self.assertIn("center", self.node._printer_test_stop_timers)
+        self.assertTrue(
+            self.wait_for(lambda: "center" in self.node._printer_test_stop_timers)
+        )
         with patch.object(ros_adapter_module, "QuickCommand", self.FakeQuickCommand):
             self.assertTrue(self.node.call_printer("center", "stop_print", 0))
         self.assertNotIn("center", self.node._printer_test_stop_timers)
@@ -236,6 +288,10 @@ class PrinterTestPrintLifecycleTest(unittest.TestCase):
             )
             client.futures[0].complete()
 
+        self.assertTrue(
+            self.wait_for(lambda: "center" in self.node._manual_spraying)
+        )
+
         self.assertEqual(
             [request.action for request in client.requests],
             ["test_print", "simulate"],
@@ -243,6 +299,161 @@ class PrinterTestPrintLifecycleTest(unittest.TestCase):
         self.assertNotIn("center", self.node._printer_test_stop_timers)
         self.assertIn("center", self.node._manual_spraying)
         self.assertTrue(robot_state.printer_status["printer_center"]["spraying"])
+
+    def test_manual_spray_accepts_trigger_when_ws3_counters_are_unavailable(self):
+        status = robot_state.printer_status["printer_center"]
+        status.pop("print_count", None)
+        status.pop("device_state", None)
+        client = self.FakeClient(type("Response", (), {"success": True, "message": "ok"})())
+        self.node.printer_client = client
+
+        with patch.object(ros_adapter_module, "QuickCommand", self.FakeQuickCommand):
+            self.assertTrue(
+                self.node.call_printer(
+                    "center",
+                    "test_print",
+                    0,
+                    auto_stop_test_print=False,
+                    manual_spray=True,
+                )
+            )
+            client.futures[0].complete()
+            self.assertTrue(
+                self.wait_for(lambda: "center" in self.node._manual_spraying)
+            )
+        self.assertEqual(
+            [request.action for request in client.requests],
+            ["test_print", "simulate", "simulate"],
+        )
+        self.assertEqual(status["spray_state"], "triggered_unverified")
+        self.assertEqual(status["spray_error"], "")
+
+    def test_stop_cancels_second_unverified_trigger(self):
+        status = robot_state.printer_status["printer_center"]
+        status.pop("print_count", None)
+        status.pop("device_state", None)
+        client = self.FakeClient(type("Response", (), {"success": True, "message": "ok"})())
+        self.node.printer_client = client
+
+        with patch.object(ros_adapter_module, "QuickCommand", self.FakeQuickCommand):
+            self.assertTrue(
+                self.node.call_printer(
+                    "center",
+                    "test_print",
+                    0,
+                    auto_stop_test_print=False,
+                    manual_spray=True,
+                )
+            )
+            client.futures[0].complete()
+            self.assertTrue(self.wait_for(lambda: len(client.requests) >= 2))
+            self.node._cancel_test_print_auto_stop("center")
+
+        import time
+
+        time.sleep(0.4)
+        self.assertEqual(
+            [request.action for request in client.requests],
+            ["test_print", "simulate"],
+        )
+        self.assertNotIn("center", self.node._manual_spraying)
+
+    def test_failed_spray_state_survives_stop_cleanup(self):
+        self.node.set_manual_spray_state("center", "error", "喷墨确认失败")
+        self.node.set_manual_spraying("center", False, preserve_state=True)
+
+        status = robot_state.printer_status["printer_center"]
+        self.assertFalse(status["spraying"])
+        self.assertEqual(status["spray_state"], "error")
+        self.assertEqual(status["spray_error"], "喷墨确认失败")
+
+    def test_manual_line_spray_uses_ws3_payload_and_confirms_counter(self):
+        response = type("Response", (), {"success": True, "message": "ok"})()
+        quick_client = self.ImmediateClient(response, count_simulate=True)
+        command_client = self.ImmediateClient(response)
+        self.node.printer_client = quick_client
+        self.node.printer_command_client = command_client
+
+        with (
+            patch.object(ros_adapter_module, "QuickCommand", self.FakeQuickCommand),
+            patch.object(ros_adapter_module, "PrinterCommand", self.FakePrinterCommand),
+            patch.object(ros_adapter_module.time, "sleep", return_value=None),
+        ):
+            self.assertTrue(self.node.start_manual_line_spray("center"))
+
+        self.assertEqual(
+            [request.action for request in quick_client.requests],
+            ["stop_print", "start_print", "simulate"],
+        )
+        self.assertEqual(
+            [request.command for request in command_client.requests],
+            ["0x34", "0x54", "0x34"],
+        )
+        self.assertIn("center", self.node._manual_spray_prepared)
+        self.assertIn("center", self.node._manual_spraying)
+        self.assertEqual(
+            robot_state.printer_status["printer_center"]["spray_state"], "spraying"
+        )
+
+    def test_service_wait_times_out_instead_of_hanging(self):
+        future = self.FakeFuture(
+            type("Response", (), {"success": True, "message": "late"})()
+        )
+        ok, message = self.node._wait_service_response(future, 0.01)
+        self.assertFalse(ok)
+        self.assertIn("超时", message)
+
+
+class AgentMotionPrinterLifecycleTest(unittest.TestCase):
+    class FakeNode:
+        def __init__(self) -> None:
+            self.velocities = []
+            self.printer_actions = []
+
+        def publish_velocity(self, linear, angular) -> None:
+            self.velocities.append((linear, angular))
+
+        def call_printer(self, printer_name, action, param) -> None:
+            self.printer_actions.append((printer_name, action, param))
+
+        def set_manual_spraying(self, printer_name, spraying) -> None:
+            pass
+
+    def setUp(self) -> None:
+        self.adapter = object.__new__(ros_adapter_module.RobotRosAdapter)
+        self.adapter.stop_timer = None
+        self.adapter.command_watchdog = None
+        self.adapter.motion_sequence = [{"linear": 0.1, "angular": 0.0}]
+        self.adapter.motion_sequence_index = 1
+        self.adapter.motion_step_deadline = time.time()
+        self.adapter.node = self.FakeNode()
+        robot_state.agent_motion_active = True
+        robot_state.agent_motion_deadline = time.time()
+        robot_state.agent_motion_command = {"linear": 0.1}
+        robot_state.printer_status = {
+            "printer_center": {
+                "connected": True,
+                "enabled": True,
+                "spraying": True,
+                "spray_state": "triggered_unverified",
+            }
+        }
+
+    def test_normal_motion_completion_preserves_manual_spray(self) -> None:
+        self.adapter._complete_agent_motion("test completed")
+
+        self.assertFalse(robot_state.agent_motion_active)
+        self.assertEqual(self.adapter.node.velocities, [(0.0, 0.0)])
+        self.assertEqual(self.adapter.node.printer_actions, [])
+        self.assertTrue(robot_state.printer_status["printer_center"]["spraying"])
+
+    def test_fail_safe_still_stops_manual_spray(self) -> None:
+        self.adapter.fail_safe_stop("test safety loss")
+
+        self.assertEqual(
+            self.adapter.node.printer_actions,
+            [("center", "stop_print", 0)],
+        )
 
 
 if __name__ == "__main__":

@@ -39,41 +39,59 @@ class Services:
 
 EXECUTE_PLAN_ACTION = "/execute_plan"
 PLANNED_RESULTS_DIR = os.getenv(
-    "XLINE_PLANNED_RESULTS_DIR", "/home/qingz/xline_cyg/other/planned_results"
+    "XLINE_PLANNED_RESULTS_DIR", "/home/qingz/xline_ws3/other/planned_results"
 ).strip()
-MAX_LINEAR_VELOCITY = 0.20
+MAX_LINEAR_VELOCITY = 1.00
+DEFAULT_LINEAR_VELOCITY = 0.10
+# xline_ws3 path-following configurations cap work/curve motion at 0.10 m/s.
+# Keep this separate from the 1.00 m/s App manual-control ceiling.
+MAX_TASK_LINEAR_VELOCITY = 0.10
 MAX_ANGULAR_VELOCITY = 0.40
-MAX_MOTOR_RPM = 30.0
-CMD_VEL_TIMEOUT_SEC = 0.30
+# The final wheel driver no longer applies fixed chassis linear/angular clamps.
+# The App keeps the limit above as its configurable control ceiling. It is
+# below the rated-speed conversion in the xline_ws3 documentation, but it
+# remains an App control limit rather than a validated operating speed.
+MAX_MOTOR_RPM = 500.0
+CMD_VEL_TIMEOUT_SEC = 0.50
 CONTROL_FREQUENCY_HZ = 50.0
 WHEEL_RADIUS_M = 0.09115
 WHEEL_BASE_M = 0.255
 
+# The current xline_ws3 printer node creates only printer_center. Keep this
+# explicit so API and Agent layers never advertise non-existent side heads.
+SUPPORTED_PRINTERS = ("center",)
+
 # Hardware runtime used when the App releases the software emergency stop.
-# xline_cyg is the current robot workspace; keep both values configurable for
-# older deployments without changing the ROS2 workspace.
-XLINE_WS_DIR = os.getenv("XLINE_WS_DIR", "/home/qingz/xline_cyg").strip()
+# Keep paths configurable, but default to the current xline_ws3 deployment.
+XLINE_WS_DIR = os.getenv("XLINE_WS_DIR", "/home/qingz/xline_ws3").strip()
 XLINE_SETUP_FILE = os.getenv(
-    "XLINE_SETUP_FILE", "/home/qingz/xline_cyg/install_app/setup.bash"
+    "XLINE_SETUP_FILE", "/home/qingz/xline_ws3/install/setup.bash"
 ).strip()
 USE_TOTAL_STATION = os.getenv("XLINE_USE_TOTAL_STATION", "false").strip().lower() in {
     "1", "true", "yes", "on",
 }
 HARDWARE_LAUNCH_LOG = os.getenv(
     "XLINE_HARDWARE_LAUNCH_LOG",
-    "/home/qingz/xline_cyg_hardware_runtime.log",
+    "/home/qingz/xline_ws3_hardware_runtime.log",
 ).strip()
 HARDWARE_LAUNCH_PID = os.getenv(
     "XLINE_HARDWARE_LAUNCH_PID",
-    "/home/qingz/xline_cyg_hardware_runtime.pid",
+    "/home/qingz/xline_ws3_hardware_runtime.pid",
 ).strip()
+ENABLE_PRINTER = os.getenv("XLINE_ENABLE_PRINTER", "true").strip().lower() in {
+    "1", "true", "yes", "on",
+}
+BACKEND_NODE_NAME = os.getenv(
+    "XLINE_BACKEND_NODE_NAME", "xline_app_backend1"
+).strip() or "xline_app_backend1"
+RUNTIME_PROFILE = os.getenv("XLINE_RUNTIME_PROFILE", "xline_ws3").strip() or "xline_ws3"
 
 
 topics = Topics()
 services = Services()
 
 
-# xline_cyg uses the Orange Pi SocketCAN interface by default.
+# xline_ws3 uses the Orange Pi SocketCAN interface by default.
 # Serial USB2CAN remains available as a legacy transport selected by env.
 CAN_TRANSPORT = os.getenv("XLINE_CAN_TRANSPORT", "socketcan").strip().lower()
 CAN_INTERFACE = os.getenv("XLINE_CAN_INTERFACE", "can0").strip()

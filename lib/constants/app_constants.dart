@@ -10,7 +10,8 @@ class AppConstants {
   static const defaultPort = 8000;
   static const defaultDomainId = 0;
   static const defaultBridgeType = 'FastAPI Backend';
-  static const maxLinearVelocity = 0.20;
+  static const defaultLinearVelocity = 0.10;
+  static const maxLinearVelocity = 1.00;
   static const maxAngularVelocity = 0.40;
 
   /// Temporary UI-only preview for Android layout work.

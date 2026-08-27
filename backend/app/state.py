@@ -9,9 +9,12 @@ from typing import Any
 from .config import (
     CMD_VEL_TIMEOUT_SEC,
     CONTROL_FREQUENCY_HZ,
+    DEFAULT_LINEAR_VELOCITY,
     MAX_ANGULAR_VELOCITY,
     MAX_LINEAR_VELOCITY,
+    MAX_TASK_LINEAR_VELOCITY,
     MAX_MOTOR_RPM,
+    RUNTIME_PROFILE,
     WHEEL_BASE_M,
     WHEEL_RADIUS_M,
 )
@@ -71,9 +74,14 @@ class RobotState:
     mission_report: dict[str, Any] = field(default_factory=dict)
     oscillation_detected: bool = False
     printer_status: dict[str, Any] = field(default_factory=dict)
+    printer_status_updated_at: float = 0.0
     ln150_status: str = ""
     # Telemetry remains unknown until a real ROS2 source reports it.
     battery: int | None = None
+    battery_voltage: float | None = None
+    battery_current: float | None = None
+    battery_temperature: float | None = None
+    energy_source: str = "unavailable"
     linear_velocity: float | None = None
     localization_accuracy_mm: float | None = None
     imu: dict[str, Any] = field(default_factory=dict)
@@ -125,15 +133,20 @@ class RobotState:
             "software_version": self.software_version,
             "capabilities": capabilities,
             "motion_limits": {
+                "limit_source": "app_control_policy",
                 "max_linear_mps": MAX_LINEAR_VELOCITY,
+                "default_linear_mps": DEFAULT_LINEAR_VELOCITY,
+                "max_task_linear_mps": MAX_TASK_LINEAR_VELOCITY,
                 "max_angular_rad_s": MAX_ANGULAR_VELOCITY,
                 "max_motor_rpm": MAX_MOTOR_RPM,
                 "cmd_vel_timeout_sec": CMD_VEL_TIMEOUT_SEC,
                 "control_frequency_hz": CONTROL_FREQUENCY_HZ,
                 "wheel_radius_m": WHEEL_RADIUS_M,
                 "wheel_base_m": WHEEL_BASE_M,
+                "runtime_fixed_velocity_clamp": False,
             },
             "runtime": {
+                "profile": RUNTIME_PROFILE,
                 "online": self.online,
                 "ros_available": self.ros_available,
                 "control_ready": self.control_ready,
@@ -153,6 +166,7 @@ class RobotState:
         }
         return {
             "schema_version": "1.0",
+            "runtime_profile": RUNTIME_PROFILE,
             "vehicle": vehicle,
             "ros_available": self.ros_available,
             "bridge_mode": self.bridge_mode,
@@ -196,8 +210,16 @@ class RobotState:
             "mission_report": self.mission_report,
             "oscillation_detected": self.oscillation_detected,
             "printer_status": self.printer_status,
+            "printer_status_age_ms": (
+                max(0, int((time.time() - self.printer_status_updated_at) * 1000))
+                if self.printer_status_updated_at > 0 else None
+            ),
             "ln150_status": self.ln150_status,
             "battery": self.battery,
+            "battery_voltage": self.battery_voltage,
+            "battery_current": self.battery_current,
+            "battery_temperature": self.battery_temperature,
+            "energy_source": self.energy_source,
             "linear_velocity": self.linear_velocity,
             "localization_accuracy_mm": self.localization_accuracy_mm,
             "imu": self.imu,
@@ -289,10 +311,15 @@ def enable_demo_state() -> None:
         },
     ]
     robot_state.printer_status = {
-        "printer_left": {"connected": True, "enabled": False, "status": "standby"},
-        "printer_center": {"connected": True, "enabled": True, "status": "ready"},
-        "printer_right": {"connected": True, "enabled": False, "status": "standby"},
+        "printer_center": {
+            "connected": True,
+            "auto_connect": True,
+            "enabled": True,
+            "spraying": False,
+            "status": "ready",
+        },
     }
+    robot_state.printer_status_updated_at = time.time()
     robot_state.obstacle_distances = {"front": 1.25, "back": 2.4, "left": 0.82, "right": 1.65}
     robot_state.wheel_speeds = {"left_mps": 0.0, "right_mps": 0.0, "source": "virtual_encoder"}
     robot_state.motor_status = {"connected": True, "ready": True, "error": "", "cmd_vel_timeout": False}

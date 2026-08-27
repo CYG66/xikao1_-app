@@ -188,6 +188,7 @@ class _MissionPage extends StatelessWidget {
     required this.onFileChanged,
     required this.onCreateDrawing,
     required this.onImportJson,
+    required this.onImportCad,
     required this.onRefreshFiles,
     required this.onDeleteFile,
     required this.onStart,
@@ -196,7 +197,6 @@ class _MissionPage extends StatelessWidget {
     required this.onCancel,
     required this.localizationSource,
     required this.localizationValid,
-    required this.localizationCalibrationAvailable,
   });
 
   final bool lineRunning;
@@ -219,6 +219,7 @@ class _MissionPage extends StatelessWidget {
   final ValueChanged<String> onFileChanged;
   final VoidCallback onCreateDrawing;
   final VoidCallback onImportJson;
+  final VoidCallback onImportCad;
   final VoidCallback onRefreshFiles;
   final ValueChanged<String> onDeleteFile;
   final VoidCallback onStart;
@@ -227,7 +228,6 @@ class _MissionPage extends StatelessWidget {
   final VoidCallback onCancel;
   final String localizationSource;
   final bool localizationValid;
-  final bool localizationCalibrationAvailable;
 
   @override
   Widget build(BuildContext context) {
@@ -259,6 +259,11 @@ class _MissionPage extends StatelessWidget {
             icon: const Icon(Icons.draw_rounded),
           ),
           IconButton(
+            tooltip: '导入 CAD/DXF',
+            onPressed: lineRunning ? null : onImportCad,
+            icon: const Icon(Icons.upload_file_rounded),
+          ),
+          IconButton(
             tooltip: 'Import JSON drawing',
             onPressed: lineRunning ? null : onImportJson,
             icon: const Icon(Icons.data_object_rounded),
@@ -269,6 +274,7 @@ class _MissionPage extends StatelessWidget {
           ? _MissionDrawingEmptyState(
               onCreateDrawing: onCreateDrawing,
               onRefresh: onRefreshFiles,
+              onImportCad: onImportCad,
             )
           : Column(
               children: [
@@ -377,16 +383,14 @@ class _MissionPage extends StatelessWidget {
             totalStationMode: localizationSource == 'ln150_imu',
             relativeMode: localizationSource == 'odom_imu_relative',
             localizationValid: localizationValid,
-            calibrationAvailable: localizationCalibrationAvailable,
           ),
           const SizedBox(height: 12),
-          _TaskTile(
-            '路径规划',
-            '/plan_path',
-            missionStage != 'idle' && missionStage != 'failed',
+          _MissionExecutionTimeline(
+            stage: missionStage,
+            completed: completed,
+            total: total,
+            localizationValid: localizationValid,
           ),
-          _TaskTile('定位闭环', '/robot_pose', lineRunning || completed > 0),
-          _TaskTile('路径执行', '/execute_plan', lineRunning || completed > 0),
           _TaskTile(
             '执行进度',
             total == 0
@@ -407,19 +411,17 @@ class _MissionPage extends StatelessWidget {
                     emergencyStopped ||
                         !hasDrawing ||
                         localizationSource == 'unavailable' ||
-                        (localizationSource == 'odom_imu_relative' &&
-                            !localizationCalibrationAvailable)
+                        !localizationValid
                     ? null
                     : onStart,
                 icon: const Icon(Icons.play_arrow_rounded),
                 label: Text(
                   emergencyStopped
                       ? '急停锁定中'
-                      : localizationSource == 'odom_imu_relative' &&
-                            !localizationCalibrationAvailable
-                      ? '相对原点服务不可用'
                       : localizationSource == 'unavailable'
                       ? '等待定位模式'
+                      : !localizationValid
+                      ? '等待有效定位'
                       : '规划并执行',
                 ),
               ),
@@ -507,18 +509,149 @@ class _MissionPage extends StatelessWidget {
   }
 }
 
+class _MissionExecutionTimeline extends StatelessWidget {
+  const _MissionExecutionTimeline({
+    required this.stage,
+    required this.completed,
+    required this.total,
+    required this.localizationValid,
+  });
+
+  final String stage;
+  final int completed;
+  final int total;
+  final bool localizationValid;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = switch (stage) {
+      'planning' || 'planning_preview' => 1,
+      'ready' || 'pending_execution' => 2,
+      'executing' || 'paused' || 'completed' || 'cancelled' => 3,
+      'failed' => -1,
+      _ => 0,
+    };
+    const labels = ['准备', '路径规划', '执行确认', '分段执行', '验收'];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xfff8fafc),
+        border: Border.all(color: const Color(0xffdbe4ec)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('任务执行阶段', style: TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < labels.length; i++) ...[
+                Expanded(
+                  child: _StageDot(
+                    label: labels[i],
+                    state: active < 0
+                        ? 'error'
+                        : i < active
+                        ? 'done'
+                        : i == active
+                        ? 'active'
+                        : 'pending',
+                  ),
+                ),
+                if (i != labels.length - 1)
+                  Expanded(
+                    child: Container(
+                      height: 2,
+                      margin: const EdgeInsets.only(top: 10),
+                      color: i < active
+                          ? const Color(0xff16a66a)
+                          : const Color(0xffdbe4ec),
+                    ),
+                  ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (stage == 'completed')
+            const Text(
+              '任务已完成，已进入验收阶段',
+              style: TextStyle(color: Color(0xff15803d), fontSize: 12),
+            ),
+          if (stage == 'failed')
+            const Text(
+              '任务失败，请检查原因后重新规划或恢复',
+              style: TextStyle(color: Color(0xffdc2626), fontSize: 12),
+            ),
+          if (stage == 'completed' || stage == 'failed')
+            const SizedBox(height: 4),
+          Text(
+            total > 0 ? '已完成 $completed / $total 个分段' : '等待路径分段结果',
+            style: const TextStyle(color: Color(0xff64748b), fontSize: 12),
+          ),
+          if (!localizationValid)
+            const Padding(
+              padding: EdgeInsets.only(top: 5),
+              child: Text(
+                '定位未有效，执行阶段将保持锁定',
+                style: TextStyle(color: Color(0xffb45309), fontSize: 12),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StageDot extends StatelessWidget {
+  const _StageDot({required this.label, required this.state});
+  final String label;
+  final String state;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (state) {
+      'done' => const Color(0xff16a66a),
+      'active' => const Color(0xff2563eb),
+      'error' => const Color(0xffdc2626),
+      _ => const Color(0xff94a3b8),
+    };
+    return Column(
+      children: [
+        Icon(
+          state == 'done'
+              ? Icons.check_circle_rounded
+              : state == 'error'
+              ? Icons.error_rounded
+              : state == 'active'
+              ? Icons.radio_button_checked_rounded
+              : Icons.radio_button_unchecked_rounded,
+          color: color,
+          size: 22,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700),
+        ),
+      ],
+    );
+  }
+}
+
 class _MissionLocalizationModeCard extends StatelessWidget {
   const _MissionLocalizationModeCard({
     required this.totalStationMode,
     required this.relativeMode,
     required this.localizationValid,
-    required this.calibrationAvailable,
   });
 
   final bool totalStationMode;
   final bool relativeMode;
   final bool localizationValid;
-  final bool calibrationAvailable;
 
   @override
   Widget build(BuildContext context) {
@@ -537,10 +670,8 @@ class _MissionLocalizationModeCard extends StatelessWidget {
       color = const Color(0xffb45309);
       icon = Icons.trip_origin_rounded;
       title = '相对定位任务执行';
-      detail = calibrationAvailable
-          ? '规划前将当前车体位置设为相对原点 0,0，当前车头方向设为 0°；路径仅在本次相对坐标系内执行'
-          : '无法执行：xline_cyg 未提供相对原点重置服务';
-      state = calibrationAvailable ? '相对原点服务可用' : '相对原点服务不可用';
+      detail = '小车运行环境启动时的位置为原点 0,0、车头为 0°；规划读取当前相对位姿，适合短距离任务';
+      state = localizationValid ? '相对定位有效' : '等待相对定位';
     } else {
       color = const Color(0xff64748b);
       icon = Icons.location_disabled_rounded;
@@ -606,10 +737,12 @@ class _MissionDrawingEmptyState extends StatelessWidget {
   const _MissionDrawingEmptyState({
     required this.onCreateDrawing,
     required this.onRefresh,
+    required this.onImportCad,
   });
 
   final VoidCallback onCreateDrawing;
   final VoidCallback onRefresh;
+  final VoidCallback onImportCad;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -641,6 +774,11 @@ class _MissionDrawingEmptyState extends StatelessWidget {
                 onPressed: onRefresh,
                 icon: const Icon(Icons.sync_rounded),
                 label: const Text('同步图纸'),
+              ),
+              OutlinedButton.icon(
+                onPressed: onImportCad,
+                icon: const Icon(Icons.upload_file_rounded),
+                label: const Text('导入 CAD'),
               ),
               FilledButton.icon(
                 onPressed: onCreateDrawing,

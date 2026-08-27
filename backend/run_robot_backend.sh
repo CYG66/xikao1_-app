@@ -2,21 +2,16 @@
 set -eo pipefail
 
 source /opt/ros/humble/setup.bash
-source /home/qingz/xline_cyg/install_app/setup.bash
+source /home/qingz/xline_ws3/install/setup.bash
 
-# Keep the generated localization executable runnable without changing src.
-localization_src=/home/qingz/xline_cyg/src/xline_bringup/scripts/odom_imu_localization.py
-localization_exec=/home/qingz/xline_cyg/install_app/xline_bringup/lib/xline_bringup/odom_imu_localization.py
-if [[ -f "$localization_src" && ! -x "$localization_exec" ]]; then
-  rm -f "$localization_exec"
-  install -m 0755 "$localization_src" "$localization_exec"
-fi
-
-if [[ -f /home/qingz/.config/xline-agent.env ]]; then
+if [[ -f /home/qingz/.config/xline-agent-ws3.env ]]; then
   set -a
-  source /home/qingz/.config/xline-agent.env
+  source /home/qingz/.config/xline-agent-ws3.env
   set +a
 fi
 
-cd /home/qingz/xline_app_backend
+# xline_ws3 resolves CAD, visualization and planned-result paths from this root.
+export XLINE_WS_ROOT="${XLINE_WS_ROOT:-/home/qingz/xline_ws3}"
+
+cd /home/qingz/xline_app_backend1
 exec python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000

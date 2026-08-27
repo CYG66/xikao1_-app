@@ -224,7 +224,7 @@ def prepare_project_recovery(project_id: str) -> dict[str, Any]:
         "recovery_of_mission_id": mission_id,
         "completed_printing_segment_ids": completed_printing_ids,
         "lines": remaining,
-        "travel_policy": "regenerated_by_xline_cyg_planner",
+        "travel_policy": "regenerated_by_xline_ws3_planner",
     }
     version = drawing_versions.save(
         cad_directory(), f"{project_name or 'creative_project'}_recovery.json",
@@ -336,7 +336,8 @@ def _project_printer(project: dict[str, Any]) -> str:
     printer = requirements.get("printer")
     if printer is None and isinstance(requirements.get("requirements"), dict):
         printer = requirements["requirements"].get("printer")
-    return str(printer) if printer in {"left", "center", "right"} else "center"
+    # xline_ws3 currently creates only printer_center.
+    return "center"
 
 
 class CreativeProjectSynchronizer:

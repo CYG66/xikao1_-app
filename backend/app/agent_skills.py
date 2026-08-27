@@ -242,17 +242,14 @@ def drawing_template_motion_steps(match: dict[str, Any]) -> list[dict[str, float
 
 
 def _default_printer() -> str | None:
-    """Select a real printer reported by the ROS2 printer status topic."""
-    available: list[str] = []
-    for key, value in robot_state.printer_status.items():
-        if not key.startswith("printer_") or not isinstance(value, dict):
-            continue
-        if value.get("connected") is True and value.get("enabled") is True:
-            name = key.removeprefix("printer_")
-            if name in {"left", "center", "right"}:
-                available.append(name)
-    if len(available) == 1:
-        return available[0]
+    """Return the only physical printer exposed by xline_ws3 when usable."""
+    status = robot_state.printer_status.get("printer_center")
+    if (
+        isinstance(status, dict)
+        and status.get("connected") is True
+        and status.get("enabled") is True
+    ):
+        return "center"
     return None
 
 
@@ -276,10 +273,12 @@ def parameterize_design(prompt: str) -> dict[str, Any]:
     size_match = re.search(r"(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)", normalized)
     diameter_match = re.search(r"直径\s*(\d+(?:\.\d+)?)", normalized)
     radius_match = re.search(r"半径\s*(\d+(?:\.\d+)?)", normalized)
-    requested_printer = next(
-        (value for keyword, value in (("左", "left"), ("中", "center"), ("右", "right")) if f"{keyword}喷" in normalized),
-        None,
+    unsupported_printer = any(
+        marker in normalized for marker in ("左喷", "右喷", "left printer", "right printer")
     )
+    requested_printer = "center" if any(
+        marker in normalized for marker in ("中喷", "中心喷", "center printer")
+    ) else None
     printer = requested_printer or _default_printer()
     dimensions: dict[str, float] = {}
     if size_match:
@@ -298,6 +297,8 @@ def parameterize_design(prompt: str) -> dict[str, Any]:
         missing.append("dimensions")
     if printer is None:
         missing.append("printer")
+    if unsupported_printer:
+        missing.append("unsupported_printer:xline_ws3_only_has_center")
     return {
         "ok": not missing,
         "shape": shape,
@@ -394,7 +395,7 @@ def layer_drawing_paths(
             }
         ],
         "lines": layered,
-        "travel_policy": "generated_by_xline_cyg_planner",
+        "travel_policy": "generated_by_xline_ws3_planner",
     }
 
 

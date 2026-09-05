@@ -6,7 +6,7 @@ void main() {
     await tester.pumpWidget(const XLineCarApp());
 
     expect(find.text('XLine 划线小车'), findsOneWidget);
-    expect(find.text('状态概览'), findsOneWidget);
-    expect(find.text('添加设备'), findsOneWidget);
+    expect(find.text('等待连接'), findsOneWidget);
+    expect(find.text('设备管理'), findsOneWidget);
   });
 }

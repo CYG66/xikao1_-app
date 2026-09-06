@@ -1,0 +1,2450 @@
+from __future__ import annotations
+
+import json
+import math
+import os
+import re
+import shlex
+import subprocess
+import threading
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from .config import (
+    BACKEND_NODE_NAME,
+    CAN_INTERFACE,
+    CAN_TRANSPORT,
+    ENABLE_PRINTER,
+    EXECUTE_PLAN_ACTION,
+    HARDWARE_LAUNCH_LOG,
+    HARDWARE_LAUNCH_PID,
+    MAX_ANGULAR_VELOCITY,
+    MAX_LINEAR_VELOCITY,
+    PLANNED_RESULTS_DIR,
+    USE_TOTAL_STATION,
+    USB2CAN_DEVICE,
+    XLINE_WS_DIR,
+    XLINE_SETUP_FILE,
+    services,
+    topics,
+)
+from .state import robot_state
+from .mission_analysis import analyze_mission, segment_endpoint_m
+from .mission_ledger import mission_ledger
+from .mission_quality import score_planned_mission
+from .mission_reports import build_acceptance_report
+from .drawing_versions import drawing_versions
+from .drawing_store import preview_paths
+from .oscillation import HeadingOscillationDetector
+
+
+def planner_cad_path(file_name: str) -> str:
+    """Return the safe CAD identifier expected by the ws3 planner service.
+
+    The planner owns the CAD root and intentionally rejects absolute paths.
+    Keep the App/backend contract to a JSON file name only.
+    """
+    requested = Path(file_name)
+    if requested.name != file_name or requested.suffix.lower() != ".json":
+        raise ValueError("任务文件必须是 cad 目录中的 JSON 文件名")
+    return file_name
+
+
+def hardware_runtime_command() -> str:
+    """Build the persistent xline_ws3 runtime command for the selected localization."""
+    setup = shlex.quote(XLINE_SETUP_FILE)
+    workspace = shlex.quote(XLINE_WS_DIR)
+    prefix = (
+        f"export XLINE_WS_ROOT={workspace} && "
+        f"source /opt/ros/humble/setup.bash && source {setup} && "
+    )
+    if USE_TOTAL_STATION:
+        return prefix + (
+            "exec ros2 launch xline_bringup system_test.launch.py "
+            "enable_hardware:=true enable_foxglove:=false"
+        )
+
+    enable_printer = "true" if ENABLE_PRINTER else "false"
+    # xline_ws3 currently has no single relative-localization launch that also
+    # starts the CAD planner and ExecutePlan server. Keep those persistent
+    # software nodes in the same supervised process group; task submission
+    # itself still uses ROS services/actions and never shells out per task.
+    return prefix + (
+        "trap 'kill -TERM $(jobs -pr) 2>/dev/null || true; wait' EXIT INT TERM; "
+        "ros2 launch trajectory_painter shape_painting_system.launch.py "
+        f"enable_printer:={enable_printer} & "
+        "ros2 run xline_path_planner planner_node & "
+        "ros2 run xline_base_controller base_controller_node & "
+        "wait -n"
+    )
+
+
+def classify_planned_segment(segment: dict[str, Any]) -> str:
+    """Classify an xline_ws3 planned segment without changing its schema."""
+    ink = segment.get("ink")
+    ink_enabled = isinstance(ink, dict) and ink.get("enabled") is True
+    layer_id = segment.get("layer_id")
+    transition = (
+        segment.get("work") is False
+        or (isinstance(layer_id, int) and layer_id >= 1_000_000)
+        or not ink_enabled
+    )
+    return "travel" if transition else "printing"
+
+
+def planned_ink_fingerprint(segment: dict[str, Any]) -> str | None:
+    """Return a direction-independent key for duplicate printing segments."""
+    if classify_planned_segment(segment) != "printing":
+        return None
+
+    def point(value: Any) -> tuple[float, float, float] | None:
+        if not isinstance(value, dict):
+            return None
+        try:
+            return tuple(round(float(value.get(axis, 0.0)), 3) for axis in ("x", "y", "z"))
+        except (TypeError, ValueError):
+            return None
+
+    geometry_type = str(segment.get("type", "")).lower()
+    geometry: Any
+    if geometry_type == "line":
+        ends = [point(segment.get("start")), point(segment.get("end"))]
+        geometry = sorted(item for item in ends if item is not None)
+    elif geometry_type in {"polyline", "spline"}:
+        raw_points = segment.get("vertices", segment.get("control_points", []))
+        points = [item for item in (point(raw) for raw in raw_points) if item is not None]
+        reverse = list(reversed(points))
+        geometry = min(points, reverse) if points else []
+    else:
+        geometry = {
+            key: segment.get(key)
+            for key in (
+                "center", "radius", "major_axis", "ratio", "start_angle",
+                "end_angle", "rotation", "position", "content",
+            )
+            if key in segment
+        }
+    # Mixed-version planner output may explicitly use null for ink on travel
+    # segments. Keep this parser defensive even when the segment classifier
+    # normally filters those segments out first.
+    ink = segment.get("ink")
+    if not isinstance(ink, dict):
+        ink = {}
+    identity = {
+        "type": geometry_type,
+        "geometry": geometry,
+        "printer": ink.get("printer", "center"),
+        "mode": ink.get("mode", "solid"),
+        "content": ink.get("content", segment.get("content", "")),
+    }
+    return json.dumps(identity, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+try:
+    import rclpy
+    from geometry_msgs.msg import PointStamped, PoseStamped, Twist
+    from nav_msgs.msg import OccupancyGrid, Odometry
+    from rclpy.action import ActionClient
+    from rclpy.node import Node
+    from sensor_msgs.msg import BatteryState, Imu, JointState
+    from std_msgs.msg import Bool, Float32MultiArray, Int32, String
+    from std_srvs.srv import Trigger
+    from visualization_msgs.msg import MarkerArray
+
+    try:
+        from xline_msgs import action as xline_actions
+        from xline_msgs import srv as xline_services
+    except Exception:  # pragma: no cover - depends on the robot workspace.
+        xline_actions = None
+        xline_services = None
+    ExecutePlan = getattr(xline_actions, "ExecutePlan", None)
+    LnCommand = getattr(xline_services, "LnCommand", None)
+    PrinterCommand = getattr(xline_services, "PrinterCommand", None)
+    QuickCommand = getattr(xline_services, "QuickCommand", None)
+    SetPrinterActive = getattr(xline_services, "SetPrinterActive", None)
+    SetPrinterEnabled = getattr(xline_services, "SetPrinterEnabled", None)
+    try:
+        from xline_path_planner.srv import PlanPath
+    except Exception:  # pragma: no cover - depends on the robot workspace.
+        PlanPath = None
+except Exception:  # pragma: no cover - Windows/dev mode normally lands here.
+    rclpy = None
+    Node = object
+    Twist = None
+    PointStamped = None
+    PoseStamped = None
+    OccupancyGrid = None
+    MarkerArray = None
+    Odometry = None
+    String = None
+    Bool = None
+    Float32MultiArray = None
+    Int32 = None
+    JointState = None
+    BatteryState = None
+    Trigger = None
+    LnCommand = None
+    QuickCommand = None
+    SetPrinterActive = None
+    SetPrinterEnabled = None
+    PrinterCommand = None
+    ExecutePlan = None
+    PlanPath = None
+
+
+class RobotRosAdapter:
+    def __init__(self) -> None:
+        self.node: RobotBackendNode | None = None
+        self.thread: threading.Thread | None = None
+        self.stop_timer: threading.Timer | None = None
+        self.motion_sequence: list[dict[str, float]] = []
+        self.motion_sequence_index = 0
+        self.motion_step_deadline = 0.0
+        self.command_watchdog: threading.Timer | None = None
+        self.control_lease_timer: threading.Timer | None = None
+        self.hardware_start_lock = threading.Lock()
+        self._interface_cache: dict[str, Any] | None = None
+        self._interface_cache_at = 0.0
+        self._interface_cache_lock = threading.Lock()
+
+    def start(self) -> None:
+        if rclpy is None:
+            robot_state.ros_available = False
+            robot_state.bridge_mode = "simulated"
+            robot_state.online = True
+            robot_state.add_log("ROS2 not found, backend started in simulated mode")
+            return
+
+        rclpy.init(args=None)
+        self.node = RobotBackendNode()
+        self.thread = threading.Thread(target=self._spin_ros, daemon=True)
+        self.thread.start()
+        robot_state.ros_available = True
+        robot_state.bridge_mode = "rclpy"
+        robot_state.online = True
+        robot_state.add_log("ROS2 backend node started")
+        self.node.publish_velocity(0.0, 0.0)
+        self.node.publish_emergency_stop(True)
+        robot_state.emergency_stopped = True
+        robot_state.add_log("startup safety stop published")
+
+    def _spin_ros(self) -> None:
+        """Treat ROS shutdown during service restart as a normal exit."""
+        try:
+            rclpy.spin(self.node)
+        except Exception as error:
+            if rclpy is not None and rclpy.ok():
+                robot_state.add_log(f"ROS2 spin stopped unexpectedly: {error}")
+
+    def stop(self) -> None:
+        self.fail_safe_stop("backend shutdown")
+        if self.node is not None:
+            self.node.cancel_test_print_auto_stops()
+            self.node.destroy_node()
+        if rclpy is not None and rclpy.ok():
+            rclpy.shutdown()
+        robot_state.online = False
+        robot_state.add_log("backend stopped")
+
+    def interface_snapshot(self) -> dict[str, Any]:
+        """Return the ROS2 interfaces visible to this backend node.
+
+        The configured names are included even when a service is temporarily
+        unavailable; the discovered names show what is actually present in
+        the current ROS graph. This method is informational only.
+        """
+        with self._interface_cache_lock:
+            if self._interface_cache is not None and time.monotonic() - self._interface_cache_at < 2.0:
+                return json.loads(json.dumps(self._interface_cache))
+
+        configured_topics = {
+            name: getattr(topics, name) for name in topics.__dataclass_fields__
+        }
+        configured_services = {
+            name: getattr(services, name) for name in services.__dataclass_fields__
+        }
+        configured_actions = {"execute_plan": EXECUTE_PLAN_ACTION}
+        discovered_topics: dict[str, list[str]] = {}
+        discovered_services: dict[str, list[str]] = {}
+        if self.node is not None:
+            try:
+                discovered_topics = {
+                    name: sorted(types)
+                    for name, types in self.node.get_topic_names_and_types()
+                }
+            except Exception as exc:
+                robot_state.add_log(f"ROS2 topic discovery unavailable: {exc}")
+            try:
+                discovered_services = {
+                    name: sorted(types)
+                    for name, types in self.node.get_service_names_and_types()
+                }
+            except Exception as exc:
+                robot_state.add_log(f"ROS2 service discovery unavailable: {exc}")
+        snapshot = {
+            "configured_topics": configured_topics,
+            "configured_services": configured_services,
+            "configured_actions": configured_actions,
+            "discovered_topics": discovered_topics,
+            "discovered_services": discovered_services,
+        }
+        with self._interface_cache_lock:
+            self._interface_cache = snapshot
+            self._interface_cache_at = time.monotonic()
+        return json.loads(json.dumps(snapshot))
+
+    def publish_velocity(self, linear: float, angular: float) -> bool:
+        # Match the xline_ws3 wheel-driver limits.
+        linear = max(-MAX_LINEAR_VELOCITY, min(MAX_LINEAR_VELOCITY, linear))
+        angular = max(-MAX_ANGULAR_VELOCITY, min(MAX_ANGULAR_VELOCITY, angular))
+        if robot_state.emergency_stopped and (linear != 0.0 or angular != 0.0):
+            robot_state.add_log("cmd_vel blocked: emergency stop is active")
+            return False
+        robot_state.last_command = {"type": "cmd_vel", "linear": linear, "angular": angular}
+        robot_state.last_velocity_command_at = datetime.now(timezone.utc).isoformat()
+        if (linear != 0.0 or angular != 0.0) and not robot_state.control_ready:
+            robot_state.add_log("cmd_vel blocked: CAN interface or motor driver is not ready")
+            return False
+        robot_state.add_log(f"cmd_vel linear={linear:.2f} angular={angular:.2f}")
+        if self.node is not None:
+            self.node.publish_velocity(linear, angular)
+        else:
+            robot_state.robot_pose["x"] = round(robot_state.robot_pose.get("x", 0) + linear * 0.1, 3)
+            robot_state.robot_pose["theta"] = round(robot_state.robot_pose.get("theta", 0) + angular * 0.1, 3)
+        if self.command_watchdog is not None:
+            self.command_watchdog.cancel()
+        if linear != 0.0 or angular != 0.0:
+            self.command_watchdog = threading.Timer(0.35, self.fail_safe_stop, args=("velocity command timeout",))
+            self.command_watchdog.daemon = True
+            self.command_watchdog.start()
+        return True
+
+    def claim_control(self, client_id: str) -> bool:
+        now = time.time()
+        owner = robot_state.control_owner
+        if owner and owner != client_id and robot_state.control_lease_expires_at > now:
+            return False
+        if owner and owner != client_id:
+            self.fail_safe_stop("expired control replaced")
+        robot_state.control_owner = client_id
+        robot_state.control_lease_expires_at = now + 3.0
+        self._schedule_control_lease_watchdog(client_id)
+        return True
+
+    def touch_control(self, client_id: str) -> bool:
+        if robot_state.control_owner != client_id:
+            return False
+        robot_state.control_lease_expires_at = time.time() + 3.0
+        self._schedule_control_lease_watchdog(client_id)
+        return True
+
+    def _schedule_control_lease_watchdog(self, client_id: str) -> None:
+        if self.control_lease_timer is not None:
+            self.control_lease_timer.cancel()
+        self.control_lease_timer = threading.Timer(
+            3.1, self._expire_control_lease, args=(client_id,)
+        )
+        self.control_lease_timer.daemon = True
+        self.control_lease_timer.start()
+
+    def _expire_control_lease(self, client_id: str) -> None:
+        if (
+            robot_state.control_owner == client_id
+            and robot_state.control_lease_expires_at <= time.time()
+        ):
+            self.release_control(client_id, "control heartbeat timeout")
+
+    def owns_control(self, client_id: str) -> bool:
+        return (
+            bool(client_id)
+            and robot_state.control_owner == client_id
+            and robot_state.control_lease_expires_at > time.time()
+        )
+
+    def release_control(self, client_id: str, reason: str = "control released") -> None:
+        if robot_state.control_owner == client_id:
+            if self.control_lease_timer is not None:
+                self.control_lease_timer.cancel()
+                self.control_lease_timer = None
+            robot_state.control_owner = None
+            robot_state.control_lease_expires_at = 0.0
+            self.fail_safe_stop(reason)
+
+    def fail_safe_stop(self, reason: str) -> None:
+        if self.stop_timer is not None:
+            self.stop_timer.cancel()
+            self.stop_timer = None
+        if self.command_watchdog is not None:
+            self.command_watchdog.cancel()
+            self.command_watchdog = None
+        robot_state.last_command = {"type": "cmd_vel", "linear": 0.0, "angular": 0.0, "reason": reason}
+        robot_state.linear_velocity = 0.0
+        robot_state.agent_motion_active = False
+        robot_state.agent_motion_deadline = 0.0
+        robot_state.agent_motion_command = {}
+        self.motion_sequence = []
+        self.motion_sequence_index = 0
+        self.motion_step_deadline = 0.0
+        if self.node is not None:
+            try:
+                self.node.publish_velocity(0.0, 0.0)
+            except Exception as exc:
+                # The ROS context may already be shutting down while a
+                # WebSocket disconnect handler is issuing the fail-safe stop.
+                # Never let that secondary error terminate FastAPI.
+                robot_state.add_log(f"fail-safe ROS publish skipped: {exc}")
+            for key, status in list(robot_state.printer_status.items()):
+                if not key.startswith("printer_") or not isinstance(status, dict):
+                    continue
+                if status.get("enabled") is True or status.get("spraying") is True:
+                    printer_name = key.removeprefix("printer_")
+                    try:
+                        self.node.call_printer(printer_name, "stop_print", 0)
+                        self.node.set_manual_spraying(printer_name, False)
+                        robot_state.add_log(
+                            f"fail-safe printer stop: {printer_name} ({reason})"
+                        )
+                    except Exception as exc:
+                        robot_state.add_log(
+                            f"fail-safe printer stop skipped: {printer_name}: {exc}"
+                        )
+        robot_state.add_log(f"fail-safe stop: {reason}")
+
+    def _complete_agent_motion(self, reason: str) -> None:
+        """Stop a normally completed AI move without changing user printer intent."""
+        if self.stop_timer is not None:
+            self.stop_timer.cancel()
+            self.stop_timer = None
+        if self.command_watchdog is not None:
+            self.command_watchdog.cancel()
+            self.command_watchdog = None
+        robot_state.last_command = {
+            "type": "cmd_vel",
+            "linear": 0.0,
+            "angular": 0.0,
+            "reason": reason,
+        }
+        robot_state.linear_velocity = 0.0
+        robot_state.agent_motion_active = False
+        robot_state.agent_motion_deadline = 0.0
+        robot_state.agent_motion_command = {}
+        self.motion_sequence = []
+        self.motion_sequence_index = 0
+        self.motion_step_deadline = 0.0
+        if self.node is not None:
+            try:
+                self.node.publish_velocity(0.0, 0.0)
+            except Exception as exc:
+                robot_state.add_log(f"AI motion completion publish skipped: {exc}")
+        robot_state.add_log(f"AI motion completed: {reason}; printer state preserved")
+
+    def set_emergency_stop(self, active: bool) -> bool:
+        if not active:
+            # Never release the stop into an absent or half-started drive stack.
+            self.fail_safe_stop("prepare emergency stop release")
+            if not self.ensure_hardware_runtime():
+                robot_state.emergency_stopped = True
+                if self.node is not None:
+                    self.node.publish_emergency_stop(True)
+                self.fail_safe_stop("hardware runtime is not ready")
+                return False
+            if (
+                self.node is not None
+                and self.node.emergency_stop_reset_available()
+                and not self.node.reset_emergency_stop()
+            ):
+                robot_state.emergency_stopped = True
+                if self.node is not None:
+                    self.node.publish_emergency_stop(True)
+                self.fail_safe_stop("ROS emergency stop reset failed")
+                return False
+            if self.node is not None and not self.node.emergency_stop_reset_available():
+                robot_state.add_log(
+                    "xline_ws3 emergency reset service unavailable; releasing backend software stop"
+                )
+
+        robot_state.emergency_stopped = active
+        if self.node is not None:
+            self.node.publish_emergency_stop(active)
+        self.fail_safe_stop("emergency stop" if active else "emergency stop released")
+        if active and robot_state.mission_running:
+            if self.node is not None and not self.node.pause_mission():
+                # Safety takes precedence if the ROS pause service is unavailable.
+                self.node.cancel_mission()
+            elif self.node is None:
+                robot_state.mission_paused = True
+                robot_state.mission_stage = "paused"
+        return True
+
+    def ensure_hardware_runtime(self, timeout: float = 15.0) -> bool:
+        """Start the configured xline_ws3 runtime once and wait for readiness."""
+        with self.hardware_start_lock:
+            if self._hardware_runtime_ready():
+                robot_state.add_log("hardware runtime already ready")
+                return True
+
+            managed_runtime = self._systemd_ws3_runtime_active()
+            if managed_runtime:
+                robot_state.add_log("waiting for systemd-managed xline_ws3 runtime")
+            elif not self._hardware_launch_running():
+                robot_state.add_log(
+                    "starting xline_ws3 runtime: localization="
+                    + ("total_station" if USE_TOTAL_STATION else "odom_imu_relative")
+                )
+                try:
+                    log_path = Path(HARDWARE_LAUNCH_LOG)
+                    log_path.parent.mkdir(parents=True, exist_ok=True)
+                    log_file = log_path.open("ab", buffering=0)
+                    command = hardware_runtime_command()
+                    process = subprocess.Popen(
+                        ["/bin/bash", "-lc", command],
+                        stdin=subprocess.DEVNULL,
+                        stdout=log_file,
+                        stderr=subprocess.STDOUT,
+                        start_new_session=True,
+                    )
+                    Path(HARDWARE_LAUNCH_PID).write_text(str(process.pid), encoding="ascii")
+                    log_file.close()
+                except Exception as exc:
+                    robot_state.add_log(f"hardware runtime start failed: {exc}")
+                    return False
+
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                if self._hardware_runtime_ready():
+                    robot_state.add_log("hardware runtime ready")
+                    return True
+                if managed_runtime:
+                    if not self._systemd_ws3_runtime_active():
+                        robot_state.add_log("systemd-managed hardware runtime stopped")
+                        return False
+                elif not self._hardware_launch_running():
+                    robot_state.add_log("hardware runtime exited before becoming ready")
+                    return False
+                time.sleep(0.25)
+
+            robot_state.add_log("hardware runtime readiness timeout")
+            return False
+
+    @staticmethod
+    def _systemd_ws3_runtime_active() -> bool:
+        try:
+            result = subprocess.run(
+                ["systemctl", "is-active", "--quiet", "xline-ws3-runtime.service"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=2.0,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False
+        return result.returncode == 0
+
+    def _hardware_launch_running(self) -> bool:
+        pid_path = Path(HARDWARE_LAUNCH_PID)
+        try:
+            pid = int(pid_path.read_text(encoding="ascii").strip())
+            os.kill(pid, 0)
+            cmdline = Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ")
+            is_expected_runtime = (
+                b"xline_ws3" in cmdline
+                and (
+                    b"shape_painting_system.launch.py" in cmdline
+                    or b"system_test.launch.py" in cmdline
+                )
+            )
+            if is_expected_runtime:
+                return True
+        except (FileNotFoundError, ValueError, ProcessLookupError, PermissionError):
+            pass
+        except OSError:
+            pass
+        try:
+            pid_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return False
+
+    def _hardware_runtime_ready(self) -> bool:
+        if CAN_TRANSPORT == "socketcan" and not self._can_interface_up():
+            return False
+        if self.node is None:
+            return False
+        node_names = {name.lstrip("/") for name in self.node.get_node_names()}
+        required = {"differential_wheels_driver", "cmd_vel_mux"}
+        return required.issubset(node_names)
+
+    @staticmethod
+    def _can_interface_up() -> bool:
+        try:
+            flags = int(Path(f"/sys/class/net/{CAN_INTERFACE}/flags").read_text().strip(), 16)
+            return bool(flags & 0x1)
+        except (FileNotFoundError, OSError, ValueError):
+            return False
+
+    def publish_timed_velocity(self, linear: float, angular: float, duration: float) -> bool:
+        if self.stop_timer is not None:
+            self.stop_timer.cancel()
+            self.stop_timer = None
+        if not self.publish_velocity(linear, angular):
+            return False
+        robot_state.agent_motion_active = True
+        robot_state.agent_motion_deadline = time.time() + duration
+        robot_state.agent_motion_command = {
+            "linear": linear,
+            "angular": angular,
+            "duration_seconds": duration,
+        }
+        self.stop_timer = threading.Timer(0.05, self._continue_timed_velocity)
+        self.stop_timer.daemon = True
+        self.stop_timer.start()
+        return True
+
+    def publish_velocity_sequence(self, steps: list[dict[str, float]]) -> bool:
+        if not steps:
+            return False
+        if robot_state.agent_motion_active:
+            robot_state.add_log("AI motion sequence rejected: another sequence is active")
+            return False
+        if self.stop_timer is not None:
+            self.stop_timer.cancel()
+            self.stop_timer = None
+        self.motion_sequence = [dict(step) for step in steps]
+        self.motion_sequence_index = 0
+        total_duration = sum(float(step["duration_seconds"]) for step in steps)
+        robot_state.agent_motion_active = True
+        robot_state.agent_motion_deadline = time.time() + total_duration
+        robot_state.agent_motion_command = {"steps": self.motion_sequence}
+        return self._start_velocity_sequence_step()
+
+    def _start_velocity_sequence_step(self) -> bool:
+        if self.motion_sequence_index >= len(self.motion_sequence):
+            self._complete_agent_motion("AI motion sequence completed")
+            return True
+        step = self.motion_sequence[self.motion_sequence_index]
+        if not self.publish_velocity(
+            float(step["linear"]), float(step["angular"])
+        ):
+            self.fail_safe_stop("AI motion sequence command rejected")
+            return False
+        self.motion_step_deadline = time.time() + float(step["duration_seconds"])
+        self.stop_timer = threading.Timer(0.05, self._continue_velocity_sequence)
+        self.stop_timer.daemon = True
+        self.stop_timer.start()
+        return True
+
+    def _continue_velocity_sequence(self) -> None:
+        self.stop_timer = None
+        if not robot_state.agent_motion_active:
+            return
+        if (
+            not robot_state.control_owner
+            or robot_state.control_lease_expires_at <= time.time()
+            or robot_state.emergency_stopped
+            or not robot_state.control_ready
+            or robot_state.mission_running
+        ):
+            self.fail_safe_stop("AI motion sequence safety condition lost")
+            return
+        if time.time() >= self.motion_step_deadline:
+            self.motion_sequence_index += 1
+            self._start_velocity_sequence_step()
+            return
+        step = self.motion_sequence[self.motion_sequence_index]
+        if not self.publish_velocity(
+            float(step["linear"]), float(step["angular"])
+        ):
+            self.fail_safe_stop("AI motion sequence command rejected")
+            return
+        self.stop_timer = threading.Timer(0.05, self._continue_velocity_sequence)
+        self.stop_timer.daemon = True
+        self.stop_timer.start()
+
+    def _continue_timed_velocity(self) -> None:
+        self.stop_timer = None
+        if not robot_state.agent_motion_active:
+            return
+        if time.time() >= robot_state.agent_motion_deadline:
+            self._complete_agent_motion("AI motion completed")
+            return
+        if (
+            not robot_state.control_owner
+            or robot_state.control_lease_expires_at <= time.time()
+            or robot_state.emergency_stopped
+            or not robot_state.control_ready
+            or robot_state.mission_running
+        ):
+            self.fail_safe_stop("AI motion safety condition lost")
+            return
+        command = robot_state.agent_motion_command
+        if not self.publish_velocity(
+            float(command.get("linear", 0.0)),
+            float(command.get("angular", 0.0)),
+        ):
+            self.fail_safe_stop("AI motion command rejected")
+            return
+        self.stop_timer = threading.Timer(0.05, self._continue_timed_velocity)
+        self.stop_timer.daemon = True
+        self.stop_timer.start()
+
+    def stop_agent_motion(self, reason: str = "AI motion stopped by operator") -> bool:
+        self.fail_safe_stop(reason)
+        return True
+
+    def control_mission(self, running: bool, file_name: str = "test_pattern.json") -> bool:
+        return self.control_mission_action("start" if running else "cancel", file_name)
+
+    def prepare_mission(self, file_name: str) -> bool:
+        if robot_state.bridge_mode == "virtual_ros2":
+            robot_state.mission_file = file_name
+            robot_state.mission_stage = "ready"
+            robot_state.mission_running = False
+            robot_state.mission_total = len(robot_state.planned_paths)
+            robot_state.mission_error = ""
+            return True
+        if self.node is None:
+            robot_state.mission_error = "ROS2 unavailable"
+            return False
+        return self.node.prepare_mission(file_name)
+
+    def execute_prepared_mission(self, file_name: str) -> bool:
+        if robot_state.bridge_mode == "virtual_ros2":
+            return self.control_mission_action("start", file_name)
+        if self.node is None:
+            robot_state.mission_error = "ROS2 unavailable"
+            return False
+        return self.node.execute_prepared_mission(file_name)
+
+    def prepared_mission_validation_errors(self) -> list[str]:
+        if robot_state.bridge_mode == "virtual_ros2":
+            return []
+        if self.node is None:
+            return ["ROS2 后端不可用"]
+        return self.node._runtime_validation_errors()
+
+    def control_mission_action(self, action: str, file_name: str = "test_pattern.json") -> bool:
+        if action in {"start", "resume"} and robot_state.emergency_stopped:
+            robot_state.mission_error = "Emergency stop is active"
+            return False
+        if robot_state.bridge_mode == "virtual_ros2":
+            if action == "start":
+                robot_state.mission_running = True
+                robot_state.mission_paused = False
+                robot_state.mission_completed = 0
+                robot_state.mission_total = 8
+                robot_state.pose_trace = [[
+                    float(robot_state.robot_pose.get("x", 0)),
+                    float(robot_state.robot_pose.get("y", 0)),
+                ]]
+            elif action == "pause":
+                robot_state.mission_paused = True
+            elif action == "resume":
+                robot_state.mission_paused = False
+                robot_state.mission_running = True
+            else:
+                robot_state.mission_running = False
+                robot_state.mission_paused = False
+            robot_state.mission_file = file_name
+            robot_state.mission_stage = {
+                "start": "executing", "pause": "paused",
+                "resume": "executing", "cancel": "cancelled",
+            }.get(action, "cancelled")
+            if action in {"pause", "cancel"}:
+                self.publish_velocity(0.0, 0.0)
+            return True
+        if self.node is None:
+            robot_state.add_log("mission blocked: ROS2 unavailable")
+            return False
+        if action == "start":
+            return self.node.start_mission(file_name)
+        if action == "pause":
+            return self.node.pause_mission()
+        if action == "resume":
+            return self.node.resume_mission()
+        return self.node.cancel_mission()
+
+    def call_printer(
+        self,
+        printer_name: str,
+        action: str,
+        param: int,
+        *,
+        allow_activation_race: bool = False,
+        auto_stop_test_print: bool = True,
+        manual_spray: bool = False,
+    ) -> bool:
+        robot_state.last_command = {
+            "type": "printer",
+            "printer_name": printer_name,
+            "action": action,
+            "param": param,
+        }
+        robot_state.add_log(f"printer {printer_name} {action}")
+        if self.node is not None:
+            return self.node.call_printer(
+                printer_name,
+                action,
+                param,
+                allow_activation_race=allow_activation_race,
+                auto_stop_test_print=auto_stop_test_print,
+                manual_spray=manual_spray,
+            )
+        return False
+
+    def set_printer_active(self, printer_name: str, active: bool) -> bool:
+        if self.node is None:
+            return False
+        return self.node.set_printer_active(printer_name, active)
+
+    def wait_for_printer_active(
+        self, printer_name: str, active: bool, timeout: float = 3.0
+    ) -> bool:
+        deadline = time.monotonic() + max(0.0, timeout)
+        while True:
+            status = robot_state.printer_status.get(f"printer_{printer_name}")
+            if isinstance(status, dict) and status.get("enabled") is active:
+                return True
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.05)
+
+    def ensure_printer_active(self, printer_name: str, timeout: float = 3.0) -> bool:
+        status = robot_state.printer_status.get(f"printer_{printer_name}")
+        if isinstance(status, dict) and status.get("enabled") is True:
+            return True
+        if not self.set_printer_active(printer_name, True):
+            return False
+        return self.wait_for_printer_active(printer_name, True, timeout=timeout)
+
+    def set_printer_enabled(self, printer_name: str, enabled: bool) -> bool:
+        if self.node is None:
+            return False
+        return self.node.set_printer_enabled(printer_name, enabled)
+
+    def send_printer_command(
+        self, printer_name: str, command: str, json_data: str
+    ) -> bool:
+        if self.node is None:
+            return False
+        return self.node.send_printer_command(printer_name, command, json_data)
+
+    def call_ln150(self, command_type: int) -> bool:
+        robot_state.last_command = {"type": "ln150", "command_type": command_type}
+        robot_state.add_log(f"ln150 command_type={command_type}")
+        if self.node is not None:
+            return self.node.call_ln150(command_type)
+        return False
+
+    def calibrate_localization(self) -> bool:
+        if self.node is None:
+            return False
+        return self.node.calibrate_localization()
+
+
+class RobotBackendNode(Node):
+    # The executable is base_controller_node, while its ROS node name is
+    # motion_control_center. Keep base_controller as an installed-version alias.
+    motor_node_aliases = {"differential_wheels_driver"}
+    control_nodes = {"cmd_vel_mux"}
+    mission_nodes = control_nodes
+    planner_node_aliases = {"drawing_planner_node", "path_planner"}
+    mission_controller_aliases = ("motion_control_center", "base_controller")
+    localization_nodes = {"localization", "odom_imu_localization"}
+
+    def __init__(self) -> None:
+        super().__init__(BACKEND_NODE_NAME)
+        self._printer_test_stop_timers: dict[str, threading.Timer] = {}
+        self._printer_test_stop_generations: dict[str, int] = {}
+        self._printer_test_stop_lock = threading.Lock()
+        self._manual_spray_states: dict[str, str] = {}
+        self._manual_spray_errors: dict[str, str] = {}
+        self._manual_spray_prepared: set[str] = set()
+        self.cmd_vel_pub = self.create_publisher(Twist, topics.tablet_cmd_vel, 10)
+        self.emergency_stop_pub = self.create_publisher(Bool, topics.emergency_stop, 10)
+        self.emergency_stop_reset_client = (
+            self.create_client(Trigger, services.emergency_stop_reset)
+            if Trigger is not None
+            else None
+        )
+        self.printer_client = (
+            self.create_client(QuickCommand, services.printer_quick_command)
+            if QuickCommand is not None
+            else None
+        )
+        self.ln150_client = (
+            self.create_client(LnCommand, services.ln150_command) if LnCommand is not None else None
+        )
+        self.printer_active_client = (
+            self.create_client(SetPrinterActive, services.printer_set_active)
+            if SetPrinterActive is not None else None
+        )
+        self.printer_enabled_client = (
+            self.create_client(SetPrinterEnabled, services.printer_set_enabled)
+            if SetPrinterEnabled is not None else None
+        )
+        self.printer_command_client = (
+            self.create_client(PrinterCommand, services.printer_send_command)
+            if PrinterCommand is not None else None
+        )
+        self.plan_client = (
+            self.create_client(PlanPath, services.plan_path) if PlanPath is not None else None
+        )
+        self.execute_client = (
+            ActionClient(self, ExecutePlan, EXECUTE_PLAN_ACTION) if ExecutePlan is not None else None
+        )
+        self.pause_client = (
+            self.create_client(Trigger, services.execution_pause) if Trigger is not None else None
+        )
+        self.resume_client = (
+            self.create_client(Trigger, services.execution_resume) if Trigger is not None else None
+        )
+        self.calibration_client = (
+            self.create_client(Trigger, services.localization_calibrate) if Trigger is not None else None
+        )
+        self._mission_segments: list[dict[str, Any]] = []
+        self._mission_index = 0
+        self._goal_handle: Any = None
+        self._mission_feedback_id: int | None = None
+        self._manual_spraying: set[str] = set()
+        self._oscillation_detector = HeadingOscillationDetector()
+        self.create_subscription(
+            Imu, topics.imu, self._handle_imu, rclpy.qos.qos_profile_sensor_data
+        )
+        self.create_subscription(PoseStamped, topics.robot_pose, self._handle_robot_pose, 10)
+        self.create_subscription(
+            Bool, topics.localization_valid, self._handle_localization_valid, 10
+        )
+        self.create_subscription(
+            PointStamped, topics.reflector_position, self._handle_reflector_position, 10
+        )
+        self._subscribe_json(topics.printer_status, "printer_status")
+        self._subscribe_json(topics.ln150_status, "ln150_status")
+        # /ln_driver/battery belongs to the LN150 total station, so it must
+        # never be shown as the vehicle's main battery. Vehicle energy is
+        # accepted only from the standard ROS2 BatteryState contract.
+        self.create_subscription(
+            BatteryState, topics.vehicle_battery_state, self._handle_vehicle_battery, 10
+        )
+        self.create_subscription(Odometry, topics.odom, self._handle_odometry, 10)
+        self.create_subscription(JointState, topics.joint_states, self._handle_joint_states, 10)
+        self.create_subscription(
+            Float32MultiArray, topics.obstacle_detected, self._handle_obstacles, 10
+        )
+        self.create_subscription(Bool, topics.emergency_stop_status, self._handle_emergency_status, 10)
+        self._subscribe_json(topics.motor_status, "motor_status")
+        map_qos = rclpy.qos.QoSProfile(
+            depth=1,
+            durability=rclpy.qos.DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=rclpy.qos.ReliabilityPolicy.RELIABLE,
+        )
+        self.create_subscription(OccupancyGrid, topics.grid_map, self._handle_grid_map, map_qos)
+        self.create_subscription(MarkerArray, topics.planned_paths, self._handle_paths, map_qos)
+        robot_state.drive_transport = CAN_TRANSPORT
+        robot_state.drive_device_path = (
+            CAN_INTERFACE if CAN_TRANSPORT == "socketcan" else USB2CAN_DEVICE
+        )
+        self.create_timer(1.0, self._update_graph_readiness)
+
+    @staticmethod
+    def _socketcan_ready(interface: str) -> bool:
+        """Return true only when the configured Linux CAN network link is UP."""
+        flags_path = Path("/sys/class/net") / interface / "flags"
+        try:
+            flags = int(flags_path.read_text(encoding="ascii").strip(), 16)
+        except (OSError, ValueError):
+            return False
+        return bool(flags & 0x1)  # Linux IFF_UP
+
+    def _update_graph_readiness(self) -> None:
+        """Reflect ROS graph availability without inventing hardware telemetry."""
+        available = set(self.get_node_names())
+        if CAN_TRANSPORT == "socketcan":
+            robot_state.drive_device_connected = self._socketcan_ready(CAN_INTERFACE)
+        else:
+            robot_state.drive_device_connected = os.path.exists(USB2CAN_DEVICE)
+        motor_node_ready = bool(self.motor_node_aliases & available)
+        robot_state.motor_driver_ready = motor_node_ready and robot_state.drive_device_connected
+        robot_state.control_ready = (
+            self.control_nodes.issubset(available)
+            and robot_state.motor_driver_ready
+        )
+        localization_ready = bool(self.localization_nodes & available)
+        planner_ready = bool(self.planner_node_aliases & available)
+        mission_controller_ready = any(
+            name in available for name in self.mission_controller_aliases
+        )
+        robot_state.mission_nodes_ready = (
+            self.mission_nodes.issubset(available)
+            and planner_ready
+            and mission_controller_ready
+            and localization_ready
+            and robot_state.control_ready
+        )
+        missing = set(self.mission_nodes - available)
+        if not planner_ready:
+            missing.add("drawing_planner_node|path_planner")
+        if not motor_node_ready:
+            missing.add("differential_wheels_driver")
+        if not mission_controller_ready:
+            missing.add("motion_control_center|base_controller")
+        if not localization_ready:
+            missing.add("localization|odom_imu_localization")
+        robot_state.missing_required_nodes = sorted(missing)
+        robot_state.ln150_ready = "ln150_driver" in available
+        if "localization" in available and robot_state.ln150_ready:
+            robot_state.localization_source = "ln150_imu"
+        elif "odom_imu_localization" in available:
+            robot_state.localization_source = "odom_imu_relative"
+        else:
+            robot_state.localization_source = "unavailable"
+        printer_node_ready = "inkjet_printer_node" in available
+        printer_status_fresh = (
+            robot_state.printer_status_updated_at > 0
+            and time.time() - robot_state.printer_status_updated_at <= 5.0
+        )
+        printer_connected = printer_status_fresh and any(
+            isinstance(status, dict)
+            and status.get("connected") is True
+            and status.get("enabled") is True
+            for status in robot_state.printer_status.values()
+        )
+        robot_state.printer_ready = printer_node_ready and printer_connected
+
+        # service_is_ready() can lag during graph discovery. The configured
+        # service name and type are authoritative for UI availability; the
+        # actual call still goes through the ROS2 client and its result.
+        calibration_available = False
+        if self.calibration_client is not None:
+            try:
+                calibration_available = self.calibration_client.service_is_ready()
+                if not calibration_available:
+                    discovered = dict(self.get_service_names_and_types())
+                    calibration_available = any(
+                        service_name == services.localization_calibrate
+                        and "std_srvs/srv/Trigger" in service_types
+                        for service_name, service_types in discovered.items()
+                    )
+            except Exception:
+                calibration_available = False
+        robot_state.localization_calibration_available = calibration_available
+
+    def _handle_odometry(self, message: Any) -> None:
+        orientation = message.pose.pose.orientation
+        theta = math.atan2(
+            2.0 * (orientation.w * orientation.z + orientation.x * orientation.y),
+            1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z),
+        )
+        robot_state.linear_velocity = float(message.twist.twist.linear.x)
+        robot_state.odometry = {
+            "x": float(message.pose.pose.position.x),
+            "y": float(message.pose.pose.position.y),
+            "theta": theta,
+            "frame_id": message.header.frame_id,
+        }
+
+    def _handle_joint_states(self, message: Any) -> None:
+        velocities = dict(zip(message.name, message.velocity))
+        robot_state.wheel_speeds = {
+            "joints_rad_s": {name: float(value) for name, value in velocities.items()},
+            "source": "joint_states",
+        }
+
+    def _handle_obstacles(self, message: Any) -> None:
+        values = list(message.data)
+        if len(values) >= 4:
+            robot_state.obstacle_distances = dict(zip(
+                ("front", "back", "left", "right"),
+                (float(value) if float(value) > 0 else None for value in values[:4]),
+            ))
+            robot_state.obstacle_updated_at = time.time()
+
+    def _handle_vehicle_battery(self, message: Any) -> None:
+        def finite(value: Any) -> float | None:
+            try:
+                parsed = float(value)
+            except (TypeError, ValueError):
+                return None
+            return parsed if math.isfinite(parsed) else None
+
+        percentage = finite(message.percentage)
+        if percentage is not None:
+            percentage = percentage * 100.0 if 0.0 <= percentage <= 1.0 else percentage
+            robot_state.battery = max(0, min(100, round(percentage)))
+
+        voltage = finite(message.voltage)
+        current = finite(message.current)
+        temperature = finite(message.temperature)
+        robot_state.battery_voltage = voltage if voltage and voltage > 0 else None
+        robot_state.battery_current = current
+        robot_state.battery_temperature = temperature
+        robot_state.energy_source = "ros_battery_state"
+        robot_state.energy_updated_at = time.time()
+
+    def _handle_emergency_status(self, message: Any) -> None:
+        robot_state.emergency_stopped = bool(message.data)
+
+    def _handle_localization_valid(self, message: Any) -> None:
+        robot_state.localization_valid = bool(message.data)
+
+    def _handle_imu(self, message: Any) -> None:
+        robot_state.imu = {
+            "frame_id": message.header.frame_id,
+            "orientation": {
+                "x": float(message.orientation.x), "y": float(message.orientation.y),
+                "z": float(message.orientation.z), "w": float(message.orientation.w),
+            },
+            "angular_velocity": {
+                "x": float(message.angular_velocity.x), "y": float(message.angular_velocity.y),
+                "z": float(message.angular_velocity.z),
+            },
+            "linear_acceleration": {
+                "x": float(message.linear_acceleration.x),
+                "y": float(message.linear_acceleration.y),
+                "z": float(message.linear_acceleration.z),
+            },
+        }
+        if robot_state.mission_running and not robot_state.mission_paused:
+            pose = robot_state.robot_pose
+            try:
+                event = self._oscillation_detector.add(
+                    time.time(), float(message.angular_velocity.z),
+                    float(pose.get("x")), float(pose.get("y")),
+                )
+            except (TypeError, ValueError):
+                event = None
+            if event is not None:
+                event.update({"segment_index": self._mission_index,
+                              "detected_at": datetime.now(timezone.utc).isoformat()})
+                robot_state.oscillation_detected = True
+                if robot_state.mission_ledger_id:
+                    mission_ledger.append_oscillation(robot_state.mission_ledger_id, event)
+                self._fail_mission("检测到航向左右摆动，任务已停车，禁止自动恢复")
+
+    @staticmethod
+    def _yaw(orientation: Any) -> float:
+        return math.atan2(
+            2.0 * (orientation.w * orientation.z + orientation.x * orientation.y),
+            1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z),
+        )
+
+    def _handle_robot_pose(self, message: Any) -> None:
+        robot_state.robot_pose = {
+            "x": float(message.pose.position.x),
+            "y": float(message.pose.position.y),
+            "theta": self._yaw(message.pose.orientation),
+            "frame_id": message.header.frame_id,
+        }
+        robot_state.last_pose_update_at = time.time()
+        point = [robot_state.robot_pose["x"], robot_state.robot_pose["y"]]
+        if not robot_state.pose_trace or math.dist(robot_state.pose_trace[-1], point) >= 0.02:
+            robot_state.pose_trace.append(point)
+            del robot_state.pose_trace[:-2000]
+
+    def _handle_reflector_position(self, message: Any) -> None:
+        robot_state.reflector_position = {
+            "x": float(message.point.x),
+            "y": float(message.point.y),
+            "z": float(message.point.z),
+            "frame_id": message.header.frame_id,
+        }
+
+    def _handle_grid_map(self, message: Any) -> None:
+        # Run-length encoding keeps the 5 mm planner grid small enough for the 1 Hz WebSocket.
+        runs: list[list[int]] = []
+        values = list(message.data)
+        if values:
+            start = 0
+            current = int(values[0])
+            for index, raw in enumerate(values[1:], 1):
+                value = int(raw)
+                if value != current:
+                    runs.append([start, index - start, current])
+                    start, current = index, value
+            runs.append([start, len(values) - start, current])
+        robot_state.grid_map = {
+            "frame_id": message.header.frame_id,
+            "resolution": float(message.info.resolution),
+            "width": int(message.info.width),
+            "height": int(message.info.height),
+            "origin_x": float(message.info.origin.position.x),
+            "origin_y": float(message.info.origin.position.y),
+            "runs": runs,
+        }
+        robot_state.last_map_update_at = time.time()
+
+    def _handle_paths(self, message: Any) -> None:
+        paths: list[dict[str, Any]] = []
+        annotations: list[dict[str, Any]] = []
+        for marker in message.markers:
+            if marker.action == 3:  # visualization_msgs/Marker.DELETEALL
+                paths.clear()
+                annotations.clear()
+                continue
+            if marker.type == 9 and marker.ns == "path_texts":  # TEXT_VIEW_FACING
+                annotations.append({
+                    "id": int(marker.id),
+                    "text": str(marker.text),
+                    "frame_id": marker.header.frame_id,
+                    "x": float(marker.pose.position.x),
+                    "y": float(marker.pose.position.y),
+                    "height": float(marker.scale.z),
+                })
+                continue
+            if marker.type != 4 or len(marker.points) < 2:  # LINE_STRIP
+                continue
+            route_type = "drawing" if float(marker.color.b) > 0.8 else "transition"
+            paths.append({
+                "id": int(marker.id),
+                "namespace": marker.ns,
+                "frame_id": marker.header.frame_id,
+                "color": {
+                    "r": float(marker.color.r), "g": float(marker.color.g),
+                    "b": float(marker.color.b), "a": float(marker.color.a),
+                },
+                "width": float(marker.scale.x),
+                "route_type": route_type,
+                "points": [[float(point.x), float(point.y)] for point in marker.points],
+            })
+        robot_state.planned_paths = paths
+        robot_state.path_annotations = annotations
+        robot_state.last_paths_update_at = time.time()
+
+    def _subscribe_json(self, topic: str, key: str) -> None:
+        def handle(message: Any) -> None:
+            value = getattr(message, "data", message)
+            if isinstance(value, str):
+                try:
+                    value = json.loads(value)
+                except json.JSONDecodeError:
+                    pass
+            setattr(robot_state, key, value)
+            if key == "printer_status" and isinstance(value, dict):
+                robot_state.printer_status_updated_at = time.time()
+                for printer_key, status in value.items():
+                    if isinstance(status, dict):
+                        printer_name = str(printer_key).removeprefix("printer_")
+                        if status.get("connected") is not True:
+                            self._manual_spraying.discard(printer_name)
+                            self._manual_spray_prepared.discard(printer_name)
+                            self.set_manual_spray_state(
+                                printer_name, "disconnected", "喷码机连接已断开"
+                            )
+                        status["spraying"] = (
+                            status.get("connected") is True
+                            and printer_name in self._manual_spraying
+                        )
+                        states = getattr(self, "_manual_spray_states", {})
+                        errors = getattr(self, "_manual_spray_errors", {})
+                        status["spray_state"] = states.get(
+                            printer_name,
+                            "spraying" if status["spraying"] else "idle",
+                        )
+                        status["spray_error"] = errors.get(printer_name, "")
+                robot_state.printer_ready = any(
+                    isinstance(status, dict)
+                    and status.get("connected") is True
+                    for status in value.values()
+                )
+            if key == "motor_status" and isinstance(value, dict):
+                robot_state.motor_driver_ready = value.get("ready") is True
+                robot_state.drive_device_connected = value.get("connected") is True
+                robot_state.wheel_speeds = {
+                    "left_mps": value.get("left_wheel_mps"),
+                    "right_mps": value.get("right_wheel_mps"),
+                    "source": value.get("velocity_source", "unknown"),
+                }
+        try:
+            self.create_subscription(String, topic, handle, 10)
+        except Exception:
+            robot_state.add_log(f"skip subscription {topic}")
+
+    def publish_velocity(self, linear: float, angular: float) -> bool:
+        message = Twist()
+        message.linear.x = linear
+        message.angular.z = angular
+        try:
+            self.cmd_vel_pub.publish(message)
+            return True
+        except Exception as exc:
+            robot_state.add_log(f"ROS cmd_vel publish failed: {exc}")
+            return False
+
+    def publish_emergency_stop(self, active: bool) -> bool:
+        message = Bool()
+        message.data = active
+        try:
+            self.emergency_stop_pub.publish(message)
+            return True
+        except Exception as exc:
+            robot_state.add_log(f"ROS emergency stop publish failed: {exc}")
+            return False
+
+    def reset_emergency_stop(self, timeout: float = 3.0) -> bool:
+        client = self.emergency_stop_reset_client
+        if client is None or not client.wait_for_service(timeout_sec=timeout):
+            robot_state.add_log("emergency stop reset service unavailable")
+            return False
+
+        completed = threading.Event()
+        outcome = {"success": False}
+
+        def handle_response(future: Any) -> None:
+            try:
+                response = future.result()
+                outcome["success"] = bool(response and response.success)
+                if response is not None and response.message:
+                    robot_state.add_log(f"emergency reset: {response.message}")
+            except Exception as exc:
+                robot_state.add_log(f"emergency reset failed: {exc}")
+            finally:
+                completed.set()
+
+        client.call_async(Trigger.Request()).add_done_callback(handle_response)
+        if not completed.wait(timeout):
+            robot_state.add_log("emergency stop reset response timeout")
+            return False
+        return outcome["success"]
+
+    def emergency_stop_reset_available(self) -> bool:
+        client = self.emergency_stop_reset_client
+        return client is not None and client.service_is_ready()
+
+    def calibrate_localization(self) -> bool:
+        if self.calibration_client is None or not self.calibration_client.service_is_ready():
+            robot_state.localization_calibration = "unavailable"
+            robot_state.add_log("localization calibration service unavailable")
+            return False
+        robot_state.localization_calibration = "calibrating"
+        self.calibration_client.call_async(Trigger.Request()).add_done_callback(
+            self._on_calibration_response
+        )
+        return True
+
+    def _on_calibration_response(self, future: Any) -> None:
+        try:
+            response = future.result()
+            robot_state.localization_calibration = "accepted" if response.success else "failed"
+            robot_state.add_log(f"localization calibration: {response.message}")
+        except Exception as error:
+            robot_state.localization_calibration = "failed"
+            robot_state.add_log(f"localization calibration failed: {error}")
+
+    def _reset_relative_origin_for_planning(self, timeout: float = 3.0) -> bool:
+        """Validate the coordinate frame used by the current xline_ws3 runtime.
+
+        The latest odom_imu_localization node has no reset service: it defines
+        (0, 0, 0) from the rover pose and heading captured when the persistent
+        runtime starts. Planning uses the live /robot_pose as robot_start and
+        must not call the unrelated full-station calibration endpoint.
+        """
+        if robot_state.localization_source == "ln150_imu":
+            return True
+        if robot_state.localization_source != "odom_imu_relative":
+            robot_state.localization_calibration = "unavailable"
+            robot_state.add_log(
+                "relative planning blocked: no total-station or relative localization"
+            )
+            return False
+        if not robot_state.localization_valid or not robot_state.robot_pose:
+            robot_state.localization_calibration = "unavailable"
+            robot_state.add_log("relative planning blocked: startup-relative pose is not valid")
+            return False
+        robot_state.localization_calibration = "startup_origin"
+        robot_state.add_log(
+            "relative plan uses xline_ws3 runtime startup pose and heading as coordinate origin"
+        )
+        return True
+
+    def call_printer(
+        self,
+        printer_name: str,
+        action: str,
+        param: int,
+        *,
+        allow_activation_race: bool = False,
+        auto_stop_test_print: bool = True,
+        manual_spray: bool = False,
+    ) -> bool:
+        if self.printer_client is None:
+            robot_state.add_log("QuickCommand service type not available")
+            return False
+        wait_for_service = getattr(self.printer_client, "wait_for_service", None)
+        if callable(wait_for_service):
+            try:
+                if not wait_for_service(timeout_sec=1.5):
+                    robot_state.add_log(
+                        f"printer {printer_name} {action} blocked: /printer/quick_command unavailable"
+                    )
+                    return False
+            except Exception as error:
+                robot_state.add_log(
+                    f"printer {printer_name} {action} service check failed: {error}"
+                )
+                return False
+
+        printer = robot_state.printer_status.get(f"printer_{printer_name}")
+        if action != "stop_print":
+            if not isinstance(printer, dict) or printer.get("connected") is not True:
+                robot_state.add_log(
+                    f"printer {printer_name} {action} blocked: printer is not ready"
+                )
+                return False
+            if not allow_activation_race and printer.get("enabled") is not True:
+                robot_state.add_log(
+                    f"printer {printer_name} {action} blocked: printer is not active"
+                )
+                return False
+
+        # A manual stop or a new explicit printer action invalidates any
+        # delayed cleanup left by a previous test_print request.
+        if action not in {"test_print", "simulate"}:
+            self._cancel_test_print_auto_stop(printer_name)
+
+        request = QuickCommand.Request()
+        request.printer_name = printer_name
+        request.action = action
+        request.param = param
+        try:
+            future = self.printer_client.call_async(request)
+        except Exception as error:
+            robot_state.add_log(f"printer {printer_name} {action} failed to send: {error}")
+            return False
+
+        if action == "test_print":
+            generation = self._next_test_print_generation(printer_name)
+
+            def handle_test_print_response(done: Any) -> None:
+                try:
+                    response = done.result()
+                    success = bool(getattr(response, "success", False))
+                    message = str(getattr(response, "message", ""))
+                except Exception as error:
+                    robot_state.add_log(
+                        f"printer {printer_name} test_print response failed: {error}"
+                    )
+                    if manual_spray:
+                        self.set_manual_spray_state(
+                            printer_name, "error", "喷墨准备响应异常"
+                        )
+                    return
+                if not success:
+                    robot_state.add_log(
+                        f"printer {printer_name} test_print failed"
+                        + (f": {message}" if message else "")
+                    )
+                    if manual_spray:
+                        self.set_manual_spray_state(
+                            printer_name, "error", message or "喷墨内容加载失败"
+                        )
+                    return
+                # xline_ws3's test_print loads the message and enters print
+                # mode, but its own implementation does not issue the
+                # software trigger. Without simulate, a stationary test
+                # produces no ink even though QuickCommand reports success.
+                baseline = self._printer_print_count(printer_name)
+                threading.Thread(
+                    target=self._trigger_and_confirm_print,
+                    args=(
+                        printer_name,
+                        baseline,
+                        generation,
+                        manual_spray,
+                        auto_stop_test_print,
+                    ),
+                    daemon=True,
+                ).start()
+
+            future.add_done_callback(handle_test_print_response)
+        elif action == "stop_print":
+            def handle_stop_print_response(done: Any) -> None:
+                try:
+                    response = done.result()
+                    success = bool(getattr(response, "success", False))
+                    message = str(getattr(response, "message", ""))
+                except Exception as error:
+                    robot_state.add_log(
+                        f"printer {printer_name} stop_print response failed: {error}"
+                    )
+                    self.set_manual_spray_state(
+                        printer_name, "error", "停止喷墨响应异常"
+                    )
+                    return
+                if success:
+                    states = getattr(self, "_manual_spray_states", {})
+                    self.set_manual_spraying(
+                        printer_name,
+                        False,
+                        preserve_state=states.get(printer_name) == "error",
+                    )
+                    robot_state.add_log(f"printer {printer_name} spraying stopped")
+                else:
+                    robot_state.add_log(
+                        f"printer {printer_name} stop_print failed"
+                        + (f": {message}" if message else "")
+                    )
+                    self.set_manual_spray_state(
+                        printer_name, "error", message or "停止喷墨失败"
+                    )
+
+            future.add_done_callback(handle_stop_print_response)
+        return True
+
+    @staticmethod
+    def _coerce_counter(value: Any) -> int | None:
+        if isinstance(value, bool):
+            return None
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            return None
+        return number if number >= 0 else None
+
+    def _printer_print_count(self, printer_name: str) -> int | None:
+        status = robot_state.printer_status.get(f"printer_{printer_name}")
+        if not isinstance(status, dict):
+            return None
+        return self._coerce_counter(status.get("print_count"))
+
+    def _printer_trigger_confirmed(
+        self, printer_name: str, baseline: int | None
+    ) -> bool:
+        status = robot_state.printer_status.get(f"printer_{printer_name}")
+        if not isinstance(status, dict) or status.get("connected") is not True:
+            return False
+        current = self._coerce_counter(status.get("print_count"))
+        device_state = self._coerce_counter(status.get("device_state"))
+        return (
+            baseline is not None
+            and current is not None
+            and current > baseline
+            and device_state == 1
+        )
+
+    def _printer_trigger_telemetry_available(
+        self, printer_name: str, baseline: int | None
+    ) -> bool:
+        status = robot_state.printer_status.get(f"printer_{printer_name}")
+        if not isinstance(status, dict):
+            return False
+        return (
+            baseline is not None
+            and self._coerce_counter(status.get("print_count")) is not None
+            and self._coerce_counter(status.get("device_state")) is not None
+        )
+
+    @staticmethod
+    def _wait_service_response(future: Any, timeout: float) -> tuple[bool, str]:
+        """Wait for the final ROS service response without spinning this node twice."""
+        completed = threading.Event()
+
+        def mark_complete(_done: Any) -> None:
+            completed.set()
+
+        future.add_done_callback(mark_complete)
+        if not completed.wait(timeout=max(0.1, timeout)):
+            return False, "服务响应超时"
+        try:
+            response = future.result()
+            success = bool(getattr(response, "success", False))
+            message = str(getattr(response, "message", ""))
+        except Exception as error:
+            return False, f"服务响应异常: {error}"
+        return success, message
+
+    def _call_printer_confirmed(
+        self,
+        printer_name: str,
+        action: str,
+        *,
+        timeout: float = 5.0,
+    ) -> tuple[bool, str]:
+        if self.printer_client is None:
+            return False, "/printer/quick_command 不可用"
+        wait_for_service = getattr(self.printer_client, "wait_for_service", None)
+        if callable(wait_for_service):
+            try:
+                if not wait_for_service(timeout_sec=1.5):
+                    return False, "/printer/quick_command 未就绪"
+            except Exception as error:
+                return False, f"喷码服务检查失败: {error}"
+        request = QuickCommand.Request()
+        request.printer_name = printer_name
+        request.action = action
+        request.param = 0
+        try:
+            future = self.printer_client.call_async(request)
+        except Exception as error:
+            return False, f"{action} 发送失败: {error}"
+        return self._wait_service_response(future, timeout)
+
+    def _send_printer_command_confirmed(
+        self,
+        printer_name: str,
+        command: str,
+        data: dict[str, Any],
+        *,
+        timeout: float = 5.0,
+    ) -> tuple[bool, str]:
+        if self.printer_command_client is None:
+            return False, "/printer/send_command 不可用"
+        wait_for_service = getattr(self.printer_command_client, "wait_for_service", None)
+        if callable(wait_for_service):
+            try:
+                if not wait_for_service(timeout_sec=1.5):
+                    return False, "/printer/send_command 未就绪"
+            except Exception as error:
+                return False, f"喷码配置服务检查失败: {error}"
+        request = PrinterCommand.Request()
+        request.printer_name = printer_name
+        request.command = command
+        request.json_data = json.dumps(data, separators=(",", ":"), ensure_ascii=True)
+        try:
+            future = self.printer_command_client.call_async(request)
+        except Exception as error:
+            return False, f"{command} 发送失败: {error}"
+        return self._wait_service_response(future, timeout)
+
+    def start_manual_line_spray(self, printer_name: str) -> bool:
+        """Prepare ws3's documented line payload, trigger it, and confirm real output."""
+        generation = self._next_test_print_generation(printer_name)
+        self.set_manual_spray_state(printer_name, "starting")
+        prepared = getattr(self, "_manual_spray_prepared", None)
+        if prepared is None:
+            prepared = self._manual_spray_prepared = set()
+
+        def fail(message: str) -> bool:
+            if not self._test_print_generation_current(printer_name, generation):
+                robot_state.add_log(
+                    f"printer {printer_name} ignored stale spray failure: {message}"
+                )
+                return False
+            self._call_printer_confirmed(printer_name, "stop_print", timeout=3.0)
+            self.set_manual_spraying(printer_name, False, preserve_state=True)
+            self.set_manual_spray_state(printer_name, "error", message)
+            robot_state.add_log(f"printer {printer_name} manual spray failed: {message}")
+            return False
+
+        if printer_name not in prepared:
+            ok, message = self._call_printer_confirmed(
+                printer_name, "stop_print", timeout=4.0
+            )
+            if not ok:
+                return fail(message or "喷码机停止旧任务失败")
+            configs = (
+                (
+                    "0x34",
+                    {
+                        "PrintMode": {
+                            "interval": 3200,
+                            "isFullEnd": 1,
+                            "mode": 1,
+                            "updateInRP": 0,
+                        }
+                    },
+                ),
+                (
+                    "0x54",
+                    {
+                        "Mesg": {
+                            "fileName": "content.msg",
+                            "modules": [
+                                {
+                                    "direc": 0,
+                                    "fileName": "line_300x6.png",
+                                    "height": 6,
+                                    "img": "Zlib64:AAAA5nicY9RhYPs/3AEDAAIk4FM=",
+                                    "inverse": False,
+                                    "mtype": 3,
+                                    "sHeight": 6,
+                                    "sWidth": 300,
+                                    "scale": 1,
+                                    "width": 300,
+                                    "x": 0,
+                                    "y": 147,
+                                }
+                            ],
+                        }
+                    },
+                ),
+                (
+                    "0x34",
+                    {
+                        "PrintMode": {
+                            "interval": 2.0,
+                            "isFullEnd": 1,
+                            "mode": 1,
+                            "updateInRP": 0,
+                        }
+                    },
+                ),
+            )
+            for command, data in configs:
+                if not self._test_print_generation_current(printer_name, generation):
+                    return False
+                time.sleep(0.3)
+                ok, message = self._send_printer_command_confirmed(
+                    printer_name, command, data
+                )
+                if not ok:
+                    return fail(message or f"喷墨内容加载失败 ({command})")
+            prepared.add(printer_name)
+            robot_state.add_log(f"printer {printer_name} ws3 line content prepared")
+
+        if not self._test_print_generation_current(printer_name, generation):
+            return False
+        baseline = self._printer_print_count(printer_name)
+        ok, message = self._call_printer_confirmed(
+            printer_name, "start_print", timeout=5.0
+        )
+        if not ok:
+            return fail(message or "喷墨启动失败")
+
+        telemetry_available = self._printer_trigger_telemetry_available(
+            printer_name, baseline
+        )
+        for attempt in range(1, 4):
+            if not self._test_print_generation_current(printer_name, generation):
+                return False
+            time.sleep(0.3)
+            ok, message = self._call_printer_confirmed(
+                printer_name, "simulate", timeout=4.0
+            )
+            if not ok:
+                robot_state.add_log(
+                    f"printer {printer_name} simulate attempt {attempt} failed: {message}"
+                )
+                continue
+            if not self._test_print_generation_current(printer_name, generation):
+                return False
+            if not telemetry_available:
+                if attempt >= 2:
+                    self.set_manual_spraying(printer_name, True)
+                    self.set_manual_spray_state(printer_name, "triggered_unverified")
+                    robot_state.add_log(
+                        f"printer {printer_name} spray trigger accepted without counters"
+                    )
+                    return True
+                continue
+            deadline = time.monotonic() + 2.0
+            while time.monotonic() < deadline:
+                if not self._test_print_generation_current(printer_name, generation):
+                    return False
+                if self._printer_trigger_confirmed(printer_name, baseline):
+                    self.set_manual_spraying(printer_name, True)
+                    robot_state.add_log(
+                        f"printer {printer_name} real spray confirmed after attempt {attempt}"
+                    )
+                    return True
+                time.sleep(0.05)
+        return fail("未检测到真实喷墨，请检查喷头、墨路和打印内容")
+
+    def _trigger_and_confirm_print(
+        self,
+        printer_name: str,
+        baseline: int | None,
+        generation: int,
+        manual_spray: bool,
+        auto_stop_test_print: bool,
+    ) -> None:
+        """Trigger printing and use device counters when the driver exposes them."""
+        if not self._printer_trigger_telemetry_available(printer_name, baseline):
+            # The released ws3 driver reports connection/enabled state but some
+            # firmware variants do not populate device_state or print_count.
+            # In that case the QuickCommand service response is the strongest
+            # acknowledgement available; do not repeatedly trigger and then
+            # stop an otherwise valid spray session for missing telemetry.
+            # The final ws3 field notes confirm that this printer sometimes
+            # starts continuous output only after the second software trigger.
+            # Keep both submissions spaced like shape_painter, and abort the
+            # second one when a stop/cancel invalidates this generation.
+            submitted = True
+            for attempt in range(1, 3):
+                if not self._test_print_generation_current(printer_name, generation):
+                    robot_state.add_log(
+                        f"printer {printer_name} spray trigger cancelled"
+                    )
+                    return
+                submitted = self.call_printer(
+                    printer_name, "simulate", 0, allow_activation_race=True
+                )
+                if not submitted:
+                    break
+                if attempt == 1:
+                    time.sleep(0.3)
+            if submitted:
+                if manual_spray:
+                    self.set_manual_spraying(printer_name, True)
+                    self.set_manual_spray_state(printer_name, "triggered_unverified")
+                elif auto_stop_test_print:
+                    self._schedule_test_print_auto_stop(printer_name, generation)
+                robot_state.add_log(
+                    f"printer {printer_name} sent 2 spray triggers; "
+                    "device print counters unavailable"
+                )
+                return
+            self.set_manual_spraying(printer_name, False, preserve_state=True)
+            self.set_manual_spray_state(
+                printer_name, "error", "喷墨触发服务不可用"
+            )
+            return
+
+        for attempt in range(1, 4):
+            if not self._test_print_generation_current(printer_name, generation):
+                robot_state.add_log(f"printer {printer_name} spray trigger cancelled")
+                return
+            if not self.call_printer(
+                printer_name, "simulate", 0, allow_activation_race=True
+            ):
+                continue
+            deadline = time.monotonic() + 1.5
+            while time.monotonic() < deadline:
+                if self._printer_trigger_confirmed(printer_name, baseline):
+                    if manual_spray:
+                        self.set_manual_spraying(printer_name, True)
+                    elif auto_stop_test_print:
+                        self._schedule_test_print_auto_stop(printer_name, generation)
+                    robot_state.add_log(
+                        f"printer {printer_name} spray confirmed by PrintCount "
+                        f"after attempt {attempt}"
+                    )
+                    return
+                time.sleep(0.05)
+
+        self.call_printer(printer_name, "stop_print", 0)
+        self.set_manual_spraying(printer_name, False, preserve_state=True)
+        self.set_manual_spray_state(
+            printer_name, "error", "未检测到真实喷墨，请检查喷头和打印内容"
+        )
+        robot_state.add_log(
+            f"printer {printer_name} did not confirm ink output after 3 triggers; "
+            "printing stopped"
+        )
+
+    def set_manual_spraying(
+        self, printer_name: str, spraying: bool, *, preserve_state: bool = False
+    ) -> None:
+        if spraying:
+            self._manual_spraying.add(printer_name)
+        else:
+            self._manual_spraying.discard(printer_name)
+        status = robot_state.printer_status.get(f"printer_{printer_name}")
+        if isinstance(status, dict):
+            status["spraying"] = spraying
+        if not preserve_state:
+            self.set_manual_spray_state(
+                printer_name, "spraying" if spraying else "idle"
+            )
+
+    def set_manual_spray_state(
+        self, printer_name: str, state: str, error: str = ""
+    ) -> None:
+        states = getattr(self, "_manual_spray_states", None)
+        if states is None:
+            states = self._manual_spray_states = {}
+        errors = getattr(self, "_manual_spray_errors", None)
+        if errors is None:
+            errors = self._manual_spray_errors = {}
+        states[printer_name] = state
+        if error:
+            errors[printer_name] = error
+        else:
+            errors.pop(printer_name, None)
+        status = robot_state.printer_status.get(f"printer_{printer_name}")
+        if isinstance(status, dict):
+            status["spray_state"] = state
+            status["spray_error"] = error
+
+    def _next_test_print_generation(self, printer_name: str) -> int:
+        with self._printer_test_stop_lock:
+            generation = self._printer_test_stop_generations.get(printer_name, 0) + 1
+            self._printer_test_stop_generations[printer_name] = generation
+            return generation
+
+    def _test_print_generation_current(
+        self, printer_name: str, generation: int
+    ) -> bool:
+        with self._printer_test_stop_lock:
+            return self._printer_test_stop_generations.get(printer_name) == generation
+
+    def _cancel_test_print_auto_stop(self, printer_name: str) -> None:
+        with self._printer_test_stop_lock:
+            timer = self._printer_test_stop_timers.pop(printer_name, None)
+            self._printer_test_stop_generations[printer_name] = (
+                self._printer_test_stop_generations.get(printer_name, 0) + 1
+            )
+        if timer is not None:
+            timer.cancel()
+
+    def _schedule_test_print_auto_stop(self, printer_name: str, generation: int) -> None:
+        # Keep the delay short enough for a test command, while allowing the
+        # printer node to finish its response and release its command lock.
+        delay = 1.0
+        with self._printer_test_stop_lock:
+            previous = self._printer_test_stop_timers.pop(printer_name, None)
+            if previous is not None:
+                previous.cancel()
+            timer = threading.Timer(
+                delay,
+                self._auto_stop_test_print,
+                args=(printer_name, generation),
+            )
+            timer.daemon = True
+            self._printer_test_stop_timers[printer_name] = timer
+            timer.start()
+
+    def _auto_stop_test_print(self, printer_name: str, generation: int) -> None:
+        with self._printer_test_stop_lock:
+            current = self._printer_test_stop_generations.get(printer_name, 0)
+            timer = self._printer_test_stop_timers.get(printer_name)
+            if current != generation or timer is None:
+                return
+            self._printer_test_stop_timers.pop(printer_name, None)
+        self.call_printer(printer_name, "stop_print", 0)
+        robot_state.add_log(f"printer {printer_name} test_print auto-stopped")
+
+    def cancel_test_print_auto_stops(self) -> None:
+        with self._printer_test_stop_lock:
+            timers = list(self._printer_test_stop_timers.values())
+            self._printer_test_stop_timers.clear()
+            for printer_name in self._printer_test_stop_generations:
+                self._printer_test_stop_generations[printer_name] += 1
+        for timer in timers:
+            timer.cancel()
+
+    def call_ln150(self, command_type: int) -> bool:
+        if self.ln150_client is None:
+            robot_state.add_log("LnCommand service type not available")
+            return False
+        request = LnCommand.Request()
+        request.command_type = command_type
+        self.ln150_client.call_async(request)
+        return True
+
+    def set_printer_active(self, printer_name: str, active: bool) -> bool:
+        if self.printer_active_client is None or not self.printer_active_client.service_is_ready():
+            robot_state.add_log("printer/set_active service unavailable")
+            return False
+        request = SetPrinterActive.Request()
+        request.printer_name = printer_name
+        request.active = active
+        self.printer_active_client.call_async(request)
+        return True
+
+    def set_printer_enabled(self, printer_name: str, enabled: bool) -> bool:
+        if self.printer_enabled_client is None or not self.printer_enabled_client.service_is_ready():
+            robot_state.add_log("printer/set_enabled service unavailable")
+            return False
+        request = SetPrinterEnabled.Request()
+        request.printer_name = printer_name
+        request.enabled = enabled
+        self.printer_enabled_client.call_async(request)
+        return True
+
+    def send_printer_command(
+        self, printer_name: str, command: str, json_data: str
+    ) -> bool:
+        if self.printer_command_client is None or not self.printer_command_client.service_is_ready():
+            robot_state.add_log("printer/send_command service unavailable")
+            return False
+        try:
+            json.loads(json_data)
+        except json.JSONDecodeError:
+            robot_state.add_log("printer command rejected: invalid JSON")
+            return False
+        request = PrinterCommand.Request()
+        request.printer_name = printer_name
+        request.command = command
+        request.json_data = json_data
+        self.printer_command_client.call_async(request)
+        return True
+
+    def start_mission(self, file_name: str) -> bool:
+        if robot_state.mission_running:
+            return False
+        if self.plan_client is None or not self.plan_client.service_is_ready():
+            robot_state.mission_error = "路径规划服务 /plan_path 不可用"
+            return False
+        if Path(file_name).name != file_name or Path(file_name).suffix.lower() != ".json":
+            robot_state.mission_error = "任务文件必须是 cad 目录中的 JSON 文件名"
+            return False
+        if not self._reset_relative_origin_for_planning():
+            robot_state.mission_error = (
+                "无全站仪时无法规划：xline_ws3 启动相对坐标系尚未产生有效位姿"
+            )
+            return False
+        robot_state.mission_running = True
+        robot_state.mission_paused = False
+        robot_state.mission_stage = "planning"
+        robot_state.mission_file = file_name
+        robot_state.mission_error = ""
+        robot_state.mission_completed = 0
+        robot_state.pose_trace = []
+        robot_state.mission_total = 0
+        robot_state.mission_required_printers = []
+        request = PlanPath.Request()
+        request.file_name = planner_cad_path(file_name)
+        self.plan_client.call_async(request).add_done_callback(self._on_plan_complete)
+        return True
+
+    def prepare_mission(self, file_name: str) -> bool:
+        """Plan and publish a preview without sending any ExecutePlan goal."""
+        if robot_state.mission_running:
+            robot_state.mission_error = "任务正在执行，不能重新规划"
+            return False
+        if self.plan_client is None or not self.plan_client.service_is_ready():
+            robot_state.mission_error = "路径规划服务 /plan_path 不可用"
+            return False
+        if Path(file_name).name != file_name or Path(file_name).suffix.lower() != ".json":
+            robot_state.mission_error = "任务文件必须是 cad 目录中的 JSON 文件名"
+            return False
+        if not self._reset_relative_origin_for_planning():
+            robot_state.mission_error = (
+                "无全站仪时无法规划：xline_ws3 启动相对坐标系尚未产生有效位姿"
+            )
+            return False
+        self._mission_segments.clear()
+        robot_state.mission_running = False
+        robot_state.mission_paused = False
+        robot_state.mission_stage = "planning_preview"
+        robot_state.mission_file = file_name
+        robot_state.mission_error = ""
+        robot_state.mission_completed = 0
+        robot_state.mission_total = 0
+        robot_state.mission_summary = {}
+        robot_state.mission_validation = {"ok": False, "errors": [], "warnings": []}
+        robot_state.mission_ledger_id = None
+        robot_state.mission_segment_verification = {}
+        robot_state.mission_last_verified_id = None
+        request = PlanPath.Request()
+        request.file_name = planner_cad_path(file_name)
+        self.plan_client.call_async(request).add_done_callback(self._on_preview_plan_complete)
+        return True
+
+    def execute_prepared_mission(self, file_name: str) -> bool:
+        if robot_state.mission_running:
+            robot_state.mission_error = "任务已经在执行"
+            return False
+        if robot_state.mission_stage != "ready" or robot_state.mission_file != file_name:
+            robot_state.mission_error = "该图纸尚未完成规划预览"
+            return False
+        if not self._mission_segments:
+            robot_state.mission_error = "没有已准备的可执行路径"
+            return False
+        runtime_errors = self._runtime_validation_errors()
+        if runtime_errors:
+            robot_state.mission_validation = {
+                **robot_state.mission_validation,
+                "ok": False,
+                "errors": list(dict.fromkeys(
+                    list(robot_state.mission_validation.get("errors", [])) + runtime_errors
+                )),
+            }
+            robot_state.mission_error = "；".join(runtime_errors)
+            return False
+        unavailable = self._unavailable_required_printers()
+        if unavailable:
+            robot_state.mission_error = "Required printers unavailable: " + ", ".join(unavailable)
+            return False
+        robot_state.mission_running = True
+        robot_state.mission_paused = False
+        robot_state.mission_stage = "executing"
+        robot_state.mission_error = ""
+        robot_state.mission_completed = 0
+        robot_state.pose_trace = []
+        self._mission_index = 0
+        if robot_state.mission_ledger_id:
+            mission_ledger.set_mission_state(robot_state.mission_ledger_id, "executing")
+        self._send_next_segment()
+        return True
+
+    def cancel_mission(self) -> bool:
+        self._mission_segments.clear()
+        if self._goal_handle is not None:
+            self._goal_handle.cancel_goal_async()
+        self.publish_velocity(0.0, 0.0)
+        robot_state.mission_running = False
+        robot_state.mission_paused = False
+        robot_state.mission_stage = "cancelled"
+        if robot_state.mission_ledger_id:
+            mission_ledger.set_mission_state(robot_state.mission_ledger_id, "cancelled")
+            self._finalize_report("cancelled")
+        return True
+
+    def pause_mission(self) -> bool:
+        if not robot_state.mission_running or robot_state.mission_paused:
+            return False
+        if self.pause_client is None or not self.pause_client.service_is_ready():
+            robot_state.mission_error = "暂停服务 /execution/pause 不可用"
+            return False
+        robot_state.mission_paused = True
+        robot_state.mission_stage = "paused"
+        robot_state.mission_error = ""
+        self.publish_velocity(0.0, 0.0)
+        self.pause_client.call_async(Trigger.Request()).add_done_callback(
+            self._on_pause_response
+        )
+        return True
+
+    def resume_mission(self) -> bool:
+        if not robot_state.mission_running or not robot_state.mission_paused:
+            return False
+        if self.resume_client is None or not self.resume_client.service_is_ready():
+            robot_state.mission_error = "恢复服务 /execution/resume 不可用"
+            return False
+        robot_state.mission_paused = False
+        robot_state.mission_stage = "executing"
+        robot_state.mission_error = ""
+        self.resume_client.call_async(Trigger.Request()).add_done_callback(
+            self._on_resume_response
+        )
+        return True
+
+    def _on_pause_response(self, future: Any) -> None:
+        try:
+            response = future.result()
+            if response is None or not response.success:
+                robot_state.mission_paused = False
+                robot_state.mission_stage = "executing"
+                robot_state.mission_error = (
+                    response.message if response is not None else "暂停服务无响应"
+                )
+                robot_state.add_log(f"mission pause failed: {robot_state.mission_error}")
+                return
+            robot_state.add_log(f"mission paused: {response.message}")
+        except Exception as error:
+            robot_state.mission_paused = False
+            robot_state.mission_stage = "executing"
+            robot_state.mission_error = f"暂停服务调用异常: {error}"
+
+    def _on_resume_response(self, future: Any) -> None:
+        try:
+            response = future.result()
+            if response is None or not response.success:
+                robot_state.mission_paused = True
+                robot_state.mission_stage = "paused"
+                robot_state.mission_error = (
+                    response.message if response is not None else "恢复服务无响应"
+                )
+                robot_state.add_log(f"mission resume failed: {robot_state.mission_error}")
+                return
+            robot_state.add_log(f"mission resumed: {response.message}")
+        except Exception as error:
+            robot_state.mission_paused = True
+            robot_state.mission_stage = "paused"
+            robot_state.mission_error = f"恢复服务调用异常: {error}"
+
+    def _fail_mission(self, message: str) -> None:
+        robot_state.mission_running = False
+        robot_state.mission_stage = "failed"
+        robot_state.mission_error = message
+        self.publish_velocity(0.0, 0.0)
+        if robot_state.mission_ledger_id:
+            mission_ledger.set_mission_state(robot_state.mission_ledger_id, "failed")
+            self._finalize_report("failed")
+
+    def _finalize_report(self, final_state: str) -> None:
+        mission_id = robot_state.mission_ledger_id
+        if mission_id:
+            mission_ledger.set_actual_trace(str(mission_id), list(robot_state.pose_trace))
+        mission = mission_ledger.get(mission_id) if mission_id else None
+        if mission is None:
+            return
+        report = build_acceptance_report(
+            mission, final_state, robot_state.localization_source,
+            list(mission.get("oscillation_events", [])),
+        )
+        mission_ledger.set_report(str(mission_id), report)
+        robot_state.mission_report = report
+
+    def _on_plan_complete(self, future: Any) -> None:
+        try:
+            response = future.result()
+            if not response.success:
+                self._fail_mission(response.error or "路径规划失败")
+                return
+            if not self._load_planned_segments():
+                self._fail_mission(robot_state.mission_error)
+                return
+            unavailable = self._unavailable_required_printers()
+            if unavailable:
+                self._fail_mission(
+                    "Required printers unavailable: " + ", ".join(unavailable)
+                )
+                return
+            self._mission_index = 0
+            robot_state.mission_total = len(self._mission_segments)
+            robot_state.mission_stage = "executing"
+            self._send_next_segment()
+        except Exception as error:
+            self._fail_mission(f"读取规划结果失败: {error}")
+
+    def _on_preview_plan_complete(self, future: Any) -> None:
+        try:
+            response = future.result()
+            if not response.success:
+                robot_state.mission_stage = "failed"
+                robot_state.mission_error = response.error or "路径规划失败"
+                return
+            if not self._load_planned_segments():
+                robot_state.mission_stage = "failed"
+                return
+            robot_state.mission_stage = "ready"
+            robot_state.mission_running = False
+            robot_state.add_log(f"mission preview ready {robot_state.mission_file}")
+        except Exception as error:
+            robot_state.mission_stage = "failed"
+            robot_state.mission_error = f"读取规划结果失败: {error}"
+
+    def _load_planned_segments(self) -> bool:
+        stem = Path(robot_state.mission_file).stem
+        file_name = f"planned_{stem}.json"
+        configured_dir = os.getenv("XLINE_PLANNED_RESULTS_DIR", "").strip()
+        candidate_dirs = [
+            Path(configured_dir) if configured_dir else Path(PLANNED_RESULTS_DIR),
+            Path(PLANNED_RESULTS_DIR),
+            Path(XLINE_WS_DIR) / "other" / "planned_results",
+            Path("/home/qingz/xline_ws3/other/planned_results"),
+        ]
+        plan_path = next(
+            (directory / file_name for directory in candidate_dirs
+             if (directory / file_name).is_file()),
+            None,
+        )
+        if plan_path is None:
+            searched = ", ".join(str(directory / file_name) for directory in candidate_dirs)
+            robot_state.mission_error = f"规划服务已返回成功，但找不到规划结果文件；已检查：{searched}"
+            return False
+        try:
+            payload = json.loads(plan_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            robot_state.mission_error = f"规划结果文件无法读取：{plan_path}（{error}）"
+            return False
+        segments = payload.get("lines", []) if isinstance(payload, dict) else payload
+        if not isinstance(segments, list) or not segments:
+            robot_state.mission_error = "规划结果中没有可执行路径"
+            return False
+        filtered: list[dict[str, Any]] = []
+        seen_ink_paths: set[str] = set()
+        duplicate_count = 0
+        for item in segments:
+            if not isinstance(item, dict):
+                continue
+            fingerprint = planned_ink_fingerprint(item)
+            if fingerprint is not None and fingerprint in seen_ink_paths:
+                duplicate_count += 1
+                continue
+            if fingerprint is not None:
+                seen_ink_paths.add(fingerprint)
+            filtered.append(item)
+        self._mission_segments = filtered
+        robot_state.mission_duplicate_ink_paths = duplicate_count
+        if duplicate_count:
+            robot_state.add_log(f"filtered {duplicate_count} duplicate ink paths")
+        robot_state.mission_required_printers = sorted({
+            str(ink.get("printer", "center")).lower()
+            for item in self._mission_segments
+            for ink in [item.get("ink")]
+            if isinstance(ink, dict) and ink.get("enabled") is True
+        })
+        summary, validation = analyze_mission(
+            self._mission_segments,
+            classify_planned_segment,
+            duplicate_count,
+            robot_state.localization_source,
+        )
+        robot_state.mission_summary = summary
+        robot_state.mission_validation = validation
+        quality = score_planned_mission(self._mission_segments, summary, validation)
+        robot_state.mission_quality = quality
+        robot_state.mission_total = len(self._mission_segments)
+        if not validation["ok"]:
+            robot_state.mission_error = "；".join(validation["errors"])
+            return False
+        ledger = mission_ledger.create(
+            robot_state.mission_file,
+            summary,
+            self._mission_segments,
+            classify_planned_segment,
+            quality,
+            drawing_versions.find_by_file(robot_state.mission_file),
+            [
+                {
+                    "namespace": "planned_mission",
+                    "route_type": "planned",
+                    "points": points,
+                }
+                for points in preview_paths({"lines": self._mission_segments})
+                if len(points) >= 2
+            ],
+            project_id=(drawing_versions.find_by_file(robot_state.mission_file) or {}).get("project_id"),
+        )
+        robot_state.mission_ledger_id = str(ledger["id"])
+        robot_state.mission_error = ""
+        return True
+
+    def _runtime_validation_errors(self) -> list[str]:
+        errors: list[str] = []
+        if robot_state.emergency_stopped:
+            errors.append("急停仍处于激活状态")
+        if not robot_state.mission_nodes_ready:
+            errors.append("路径规划或执行节点未就绪")
+        if not robot_state.localization_valid:
+            errors.append("定位无效，禁止执行规划路径")
+        pose_age = time.time() - robot_state.last_pose_update_at if robot_state.last_pose_update_at else math.inf
+        if pose_age > 2.0:
+            errors.append("位姿遥测已超过 2 秒未更新")
+        unavailable = self._unavailable_required_printers()
+        if unavailable:
+            errors.append("喷头未连接或未启用: " + ", ".join(unavailable))
+        return errors
+
+    def _unavailable_required_printers(self) -> list[str]:
+        unavailable: list[str] = []
+        for printer in robot_state.mission_required_printers:
+            status = robot_state.printer_status.get(f"printer_{printer}", {})
+            if not isinstance(status, dict) or status.get("connected") is not True or status.get("enabled") is not True:
+                unavailable.append(printer)
+        return unavailable
+
+    def _send_next_segment(self) -> None:
+        if not robot_state.mission_running or robot_state.mission_paused:
+            return
+        if self._mission_index >= len(self._mission_segments):
+            robot_state.mission_running = False
+            robot_state.mission_stage = "completed"
+            if robot_state.mission_ledger_id:
+                mission_ledger.set_mission_state(robot_state.mission_ledger_id, "completed")
+                self._finalize_report("completed")
+            self.publish_velocity(0.0, 0.0)
+            return
+        if self.execute_client is None or not self.execute_client.server_is_ready():
+            self._fail_mission("动作服务 /execute_plan 不可用")
+            return
+        segment = self._mission_segments[self._mission_index]
+        precheck = self._precheck_segment(segment)
+        robot_state.mission_checkpoint = precheck
+        if robot_state.mission_ledger_id:
+            mission_ledger.record_precheck(robot_state.mission_ledger_id, self._mission_index, precheck)
+        if not precheck["ok"]:
+            self._fail_mission("分段执行前检查失败: " + "；".join(precheck["errors"]))
+            return
+        self._mission_feedback_id = None
+        if robot_state.mission_ledger_id:
+            mission_ledger.start_segment(robot_state.mission_ledger_id, self._mission_index)
+        goal = ExecutePlan.Goal()
+        goal.plan_json = json.dumps(segment, ensure_ascii=False)
+        goal.plan_uid = f"app_{robot_state.mission_file}_{segment.get('id', self._mission_index)}"
+        self.execute_client.send_goal_async(
+            goal, feedback_callback=self._on_mission_feedback
+        ).add_done_callback(self._on_goal_response)
+
+    def _precheck_segment(self, segment: dict[str, Any]) -> dict[str, Any]:
+        errors = self._runtime_validation_errors()
+        if classify_planned_segment(segment) == "printing":
+            ink = segment.get("ink", {})
+            printer = str(ink.get("printer", "center")).lower()
+            status = robot_state.printer_status.get(f"printer_{printer}", {})
+            if not isinstance(status, dict) or status.get("connected") is not True or status.get("enabled") is not True:
+                errors.append(f"当前分段喷头 {printer} 未连接或未启用")
+        return {"ok": not errors, "segment_id": segment.get("id"), "errors": errors,
+                "checked_at": datetime.now(timezone.utc).isoformat()}
+
+    def _on_goal_response(self, future: Any) -> None:
+        try:
+            self._goal_handle = future.result()
+            if not self._goal_handle.accepted:
+                self._fail_mission("底盘拒绝执行路径")
+                return
+            self._goal_handle.get_result_async().add_done_callback(self._on_goal_result)
+        except Exception as error:
+            self._fail_mission(f"发送路径失败: {error}")
+
+    def _on_mission_feedback(self, feedback: Any) -> None:
+        self._mission_feedback_id = int(feedback.feedback.current_id)
+        robot_state.mission_current_id = self._mission_feedback_id
+
+    def _verify_completed_segment(self, segment: dict[str, Any]) -> dict[str, Any]:
+        errors: list[str] = []
+        warnings: list[str] = []
+        expected_id = segment.get("id")
+        if self._mission_feedback_id is not None and str(self._mission_feedback_id) != str(expected_id):
+            errors.append(
+                f"执行反馈段 id {self._mission_feedback_id} 与预期 {expected_id} 不一致"
+            )
+        if robot_state.emergency_stopped:
+            errors.append("分段完成时急停已激活")
+        if not robot_state.localization_valid:
+            errors.append("分段完成后定位无效")
+        pose_age = time.time() - robot_state.last_pose_update_at if robot_state.last_pose_update_at else math.inf
+        if pose_age > 2.0:
+            errors.append("分段完成后位姿遥测过期")
+
+        kind = classify_planned_segment(segment)
+        if kind == "printing":
+            ink = segment.get("ink", {})
+            printer = str(ink.get("printer", "center")).lower()
+            status = robot_state.printer_status.get(f"printer_{printer}", {})
+            if not isinstance(status, dict) or status.get("connected") is not True:
+                errors.append(f"喷头 {printer} 已断开")
+            elif status.get("enabled") is not True:
+                errors.append(f"喷头 {printer} 已停用")
+
+        endpoint = segment_endpoint_m(segment)
+        pose_x = robot_state.robot_pose.get("x")
+        pose_y = robot_state.robot_pose.get("y")
+        distance = None
+        try:
+            if endpoint is not None:
+                distance = math.dist((float(pose_x), float(pose_y)), endpoint)
+        except (TypeError, ValueError):
+            distance = None
+        if distance is None:
+            if kind == "printing":
+                errors.append("无法验证喷墨段终点位姿")
+            else:
+                warnings.append("无法验证转场段终点位姿")
+        elif distance > 0.35:
+            errors.append(f"分段终点偏差 {distance:.3f} m，超过 0.350 m")
+
+        return {
+            "ok": not errors,
+            "segment_id": expected_id,
+            "kind": kind,
+            "feedback_id": self._mission_feedback_id,
+            "endpoint_error_m": round(distance, 4) if distance is not None else None,
+            "pose_age_ms": int(pose_age * 1000) if math.isfinite(pose_age) else None,
+            "errors": errors,
+            "warnings": warnings,
+            "verified_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def _on_goal_result(self, future: Any) -> None:
+        if robot_state.mission_paused or not robot_state.mission_running:
+            return
+        try:
+            result = future.result().result
+            if not result.success:
+                self._fail_mission(result.error_message or "路径执行失败")
+                return
+            segment = self._mission_segments[self._mission_index]
+            verification = self._verify_completed_segment(segment)
+            robot_state.mission_segment_verification = verification
+            robot_state.mission_checkpoint = verification
+            if robot_state.mission_ledger_id:
+                mission_ledger.verify_segment(
+                    robot_state.mission_ledger_id, self._mission_index, verification
+                )
+            if not verification["ok"]:
+                self._fail_mission("分段验证失败: " + "；".join(verification["errors"]))
+                return
+            robot_state.mission_last_verified_id = segment.get("id")
+            self._mission_index += 1
+            robot_state.mission_completed = self._mission_index
+            self._send_next_segment()
+        except Exception as error:
+            self._fail_mission(f"路径执行异常: {error}")
+
+
+ros_adapter = RobotRosAdapter()

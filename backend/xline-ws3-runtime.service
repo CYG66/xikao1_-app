@@ -1,0 +1,20 @@
+[Unit]
+Description=XLine ws3 ROS2 Hardware Runtime
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=qingz
+Group=qingz
+WorkingDirectory=/home/qingz/xline_ws3
+ExecStart=/home/qingz/xline_app_backend1/run_ws3_runtime.sh
+Restart=always
+RestartSec=3
+KillMode=control-group
+KillSignal=SIGINT
+TimeoutStopSec=20
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

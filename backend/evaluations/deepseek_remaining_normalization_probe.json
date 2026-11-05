@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0",
+  "version": "2026-10-19.normalization-probe.1",
+  "description": "验证混合单位阵列和 U 形开放拓扑的确定性需求规范化。",
+  "cases": [
+    {
+      "id": "mixed_units_loading_bays",
+      "category": "mixed_units",
+      "command": "创建3个相连的装卸位，每个宽2500毫米、深5米，相邻装卸位之间不留缝；再在它们后方50厘米处画一条贯穿全部装卸位的直线。每个装卸位和后方直线分别命名。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 20,
+        "minimum_logical_objects": 4,
+        "required_types": ["polyline", "line"],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "u_shaped_workshop_columns",
+      "category": "freeform_and_repetition",
+      "command": "画一个开口朝上的U形厂房边界，左下角(-10,-6)，右下角(10,-6)，两侧墙顶端分别为(-10,8)和(10,8)；再在厂房内部沿左右两侧各布置3根半径0.3米的圆柱，左右对称且上下等距。边界和每根柱分别命名。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 7,
+        "maximum_entities": 20,
+        "minimum_logical_objects": 7,
+        "required_types": ["polyline", "circle"],
+        "require_feasible": true
+      }
+    }
+  ]
+}

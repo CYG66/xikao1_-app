@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "version": "2026-10-18.1",
+  "description": "通用二维 CAD 构造规则解析的中文回归集；只包含参数明确、可确定执行的原语，以及必须澄清的缺参反例。",
+  "cases": [
+    {
+      "id": "rectangle_meters",
+      "command": "画一个宽5米高3米的矩形，左下角在(0,0)",
+      "expected_status": "ready",
+      "expected_types": ["polyline"]
+    },
+    {
+      "id": "rectangle_millimeters",
+      "command": "创建一个矩形，宽5000毫米，高3000毫米，原点(1,2)",
+      "expected_status": "ready",
+      "expected_types": ["polyline"]
+    },
+    {
+      "id": "line_coordinates",
+      "command": "画一条线段从(-1,0)到(5.5,3)",
+      "expected_status": "ready",
+      "expected_types": ["line"]
+    },
+    {
+      "id": "circle_centimeters",
+      "command": "画一个圆，圆心(2,3)，半径150厘米",
+      "expected_status": "ready",
+      "expected_types": ["circle"]
+    },
+    {
+      "id": "arc_degrees",
+      "command": "绘制圆弧，圆心(0,0)，半径2米，起始角30度，终止角150度",
+      "expected_status": "ready",
+      "expected_types": ["arc"]
+    },
+    {
+      "id": "rotated_ellipse",
+      "command": "创建椭圆，中心(4,5)，长半轴3米，短半轴1米，旋转45度",
+      "expected_status": "ready",
+      "expected_types": ["ellipse"]
+    },
+    {
+      "id": "closed_polyline",
+      "command": "画一条闭合多段线，经过(0,0)、(4,0)、(4,3)、(0,3)",
+      "expected_status": "ready",
+      "expected_types": ["polyline"]
+    },
+    {
+      "id": "multi_primitive",
+      "command": "画一条直线从(0,0)到(2,0)；画一个圆，圆心(3,0)，半径1米",
+      "expected_status": "ready",
+      "expected_types": ["line", "circle"]
+    },
+    {
+      "id": "missing_rectangle_size",
+      "command": "画一个合适大小的矩形",
+      "expected_status": "clarification_required",
+      "expected_types": []
+    },
+    {
+      "id": "unsupported_freeform_factory",
+      "command": "生成一个好看的复杂厂房总图",
+      "expected_status": "clarification_required",
+      "expected_types": []
+    }
+  ]
+}

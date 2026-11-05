@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "version": "2026-10-18.1",
+  "description": "通用自然语言二维 CAD 生成模型隔离评测集。每条要求都应转换为可试执行的具名构造计划。",
+  "cases": [
+    {
+      "id": "l_shaped_workshop",
+      "category": "freeform_outline",
+      "command": "创建一个L形厂房轮廓，外接尺寸30米乘20米，右上角缺口宽10米、深8米，左下角作为坐标原点，轮廓必须闭合。",
+      "expected": {"status": "ready", "minimum_entities": 1, "maximum_entities": 20, "minimum_logical_objects": 1, "required_types": ["polyline"], "require_feasible": true}
+    },
+    {
+      "id": "warehouse_with_aisles",
+      "category": "composite_layout",
+      "command": "绘制一个40米乘24米的仓库外框，在内部沿长边方向布置3条贯通通道，每条通道宽2米，通道之间等距，并把外框和每条通道分别命名。",
+      "expected": {"status": "ready", "minimum_entities": 4, "maximum_entities": 30, "minimum_logical_objects": 4, "require_feasible": true}
+    },
+    {
+      "id": "parking_rows_and_driveway",
+      "category": "repeated_layout",
+      "command": "生成两排相对的停车位，每排6个，每个车位宽2.5米、深5米，中间保留6米车道；以左下角为(0,0)，每个车位必须是独立逻辑对象。",
+      "expected": {"status": "ready", "minimum_entities": 12, "maximum_entities": 40, "minimum_logical_objects": 12, "require_feasible": true}
+    },
+    {
+      "id": "circular_plaza_radial_paths",
+      "category": "radial_geometry",
+      "command": "创建半径12米的圆形广场，圆心在(0,0)，再从圆心向0度、90度、180度和270度方向各画一条到圆周的直线路径，圆和四条路径分别命名。",
+      "expected": {"status": "ready", "minimum_entities": 5, "maximum_entities": 10, "minimum_logical_objects": 5, "required_types": ["circle", "line"], "require_feasible": true}
+    },
+    {
+      "id": "stepped_foundation",
+      "category": "nested_geometry",
+      "command": "绘制三级矩形台阶基础，最外层12米乘8米，中间层10米乘6米，内层6米乘3米，三个矩形中心都在(0,0)，分别命名为外层、中层和内层。",
+      "expected": {"status": "ready", "minimum_entities": 3, "maximum_entities": 10, "minimum_logical_objects": 3, "required_types": ["polyline"], "require_feasible": true}
+    },
+    {
+      "id": "irregular_closed_boundary",
+      "category": "coordinate_geometry",
+      "command": "按顺序连接(0,0)、(12,0)、(15,6)、(9,11)、(2,9)、(-2,4)形成闭合施工边界，并在边界内部以(6,5)为圆心画一个半径1.5米的圆。",
+      "expected": {"status": "ready", "minimum_entities": 2, "maximum_entities": 10, "minimum_logical_objects": 2, "required_types": ["polyline", "circle"], "require_feasible": true}
+    }
+  ]
+}

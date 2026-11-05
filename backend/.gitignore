@@ -1,0 +1,29 @@
+# Local credentials and runtime state
+.local-ai-test/
+.env
+.env.*
+!.env.example
+*.clixml
+*.pem
+*.key
+*.pfx
+*.p12
+# Generated caches, data and dependencies
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.backup*/
+.test-task-store*.json
+*.log
+*.sqlite*
+*.db
+*.zip
+wheelhouse/
+tools/
+evaluations/reports/
+tests/manual/
+_tmp*.py
+_parse_test.py
+cad-evaluation-report.json
+review_all_steps.py
+verify_followup.py

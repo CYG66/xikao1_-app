@@ -1,0 +1,5 @@
+# Optional native 2D constraint backends. Keep separate from the rover's core
+# requirements so unsupported architectures can continue using the builtin
+# deterministic backend.
+planegcs==0.9.6
+slvs==3.2

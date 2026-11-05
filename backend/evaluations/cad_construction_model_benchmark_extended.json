@@ -1,0 +1,827 @@
+{
+  "schema_version": "1.0",
+  "version": "2026-10-19.1",
+  "description": "扩充版通用二维 CAD 构造评测语料：在原 6 条基础上新增 49 条，覆盖自由轮廓/组合布局/重复布局/径向几何/嵌套几何/坐标几何/运动场地/设施布局八类场景；命令句式分为两类——贴合确定性规则解析器的规则友好句式，与贴近真实口语的自然语言句式（后者需结构化模型解释，用于度量模型依赖度）。（v2026-10-19.2 修正口径：引擎将矩形原语渲染为闭合多段线几何，required_types 中 rectangle 统一记为 polyline，语义等价）",
+  "cases": [
+    {
+      "id": "l_shaped_workshop",
+      "category": "freeform_outline",
+      "command": "创建一个L形厂房轮廓，外接尺寸30米乘20米，右上角缺口宽10米、深8米，左下角作为坐标原点，轮廓必须闭合。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 20,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "warehouse_with_aisles",
+      "category": "composite_layout",
+      "command": "绘制一个40米乘24米的仓库外框，在内部沿长边方向布置3条贯通通道，每条通道宽2米，通道之间等距，并把外框和每条通道分别命名。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 30,
+        "minimum_logical_objects": 4,
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "parking_rows_and_driveway",
+      "category": "repeated_layout",
+      "command": "生成两排相对的停车位，每排6个，每个车位宽2.5米、深5米，中间保留6米车道；以左下角为(0,0)，每个车位必须是独立逻辑对象。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 12,
+        "maximum_entities": 40,
+        "minimum_logical_objects": 12,
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "circular_plaza_radial_paths",
+      "category": "radial_geometry",
+      "command": "创建半径12米的圆形广场，圆心在(0,0)，再从圆心向0度、90度、180度和270度方向各画一条到圆周的直线路径，圆和四条路径分别命名。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 5,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 5,
+        "required_types": [
+          "circle",
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "stepped_foundation",
+      "category": "nested_geometry",
+      "command": "绘制三级矩形台阶基础，最外层12米乘8米，中间层10米乘6米，内层6米乘3米，三个矩形中心都在(0,0)，分别命名为外层、中层和内层。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "irregular_closed_boundary",
+      "category": "coordinate_geometry",
+      "command": "按顺序连接(0,0)、(12,0)、(15,6)、(9,11)、(2,9)、(-2,4)形成闭合施工边界，并在边界内部以(6,5)为圆心画一个半径1.5米的圆。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "u_shaped_open_yard",
+      "category": "freeform_outline",
+      "command": "绘制一条多段线，顶点(0,6)、(0,0)、(10,0)、(10,6)，作为U形开放场地轮廓，不闭合。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "pentagon_plot",
+      "category": "freeform_outline",
+      "command": "绘制一个五边形场地，绘制一条多段线，顶点(0,0)、(6,0)、(8,3)、(4,6)、(0,4)，闭合。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "right_triangle_boundary",
+      "category": "freeform_outline",
+      "command": "绘制直角三角形边界，绘制一条多段线，顶点(0,0)、(8,0)、(0,6)，闭合。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "irregular_plot_with_entrance",
+      "category": "freeform_outline",
+      "command": "绘制不规则地块轮廓，绘制一条多段线，顶点(0,0)、(10,0)、(12,4)、(8,9)、(3,7)、(0,3)，闭合，并在下边界留一个宽2米的入口缺口。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "hexagon_pad",
+      "category": "freeform_outline",
+      "command": "绘制正六边形垫层，绘制一条多段线，顶点(3,0)、(6,1.5)、(6,4.5)、(3,6)、(0,4.5)、(0,1.5)，闭合。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "free_polygon_outline",
+      "category": "freeform_outline",
+      "command": "绘制一个自由多边形外框，绘制一条多段线，依次连接(0,0)、(5,0)、(7,2)、(5,4)、(1,4)、(-1,2)，闭合。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "workshop_with_machine_pads",
+      "category": "composite_layout",
+      "command": "绘制一个20米乘12米的车间外框，内部布置3个矩形设备基础，每个宽3米、高2米，并排排列，左下角分别位于(1,1)、(8,1)、(15,1)。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 20,
+        "minimum_logical_objects": 4,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "factory_hall_two_aisles",
+      "category": "composite_layout",
+      "command": "绘制一个宽30米、高18米的矩形厂房；绘制一条从(2,5)到(28,5)的直线通道；绘制一条从(2,13)到(28,13)的直线通道。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "office_floor_rooms",
+      "category": "composite_layout",
+      "command": "绘制一个宽24米、高16米的矩形办公楼外框；绘制一条从(12,0)到(12,16)的直线隔墙。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "campus_lawn_with_path",
+      "category": "composite_layout",
+      "command": "绘制一个宽50米、高30米的矩形草坪；在草坪中间绘制一条从(0,15)到(50,15)的直线步道。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "factory_zone_grid",
+      "category": "composite_layout",
+      "command": "绘制一个宽40米、高20米的矩形厂区；绘制一条从(0,10)到(40,10)的直线分割线；绘制一条从(20,0)到(20,20)的直线分割线。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "parking_lot_single_row",
+      "category": "repeated_layout",
+      "command": "生成一排6个停车位，每个车位宽2.5米、深5米，从(0,0)开始依次排列，每个车位独立命名。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 6,
+        "maximum_entities": 20,
+        "minimum_logical_objects": 6,
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "bus_stop_shelter",
+      "category": "composite_layout",
+      "command": "绘制一个宽6米、高3米的矩形候车亭；绘制一个圆心(3,1.5)、半径0.8米的圆作为立柱投影。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "loading_dock",
+      "category": "composite_layout",
+      "command": "绘制一个宽12米、高4米的矩形卸货平台；绘制一条从(0,2)到(12,2)的直线作为装卸线。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "tennis_court_marking",
+      "category": "composite_layout",
+      "command": "绘制一个宽23.77米、高10.97米的矩形网球场；绘制一条从(0,5.485)到(23.77,5.485)的直线作为中线。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "stadium_bleacher_rows",
+      "category": "repeated_layout",
+      "command": "生成3排看台座位区，每排20个座位，每个座位宽0.5米、深0.4米，排间距1米。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 60,
+        "maximum_entities": 100,
+        "minimum_logical_objects": 60,
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "pipe_rack_rows_rules",
+      "category": "repeated_layout",
+      "command": "绘制一条从(0,2)到(20,2)的直线管道支架；绘制一条从(0,6)到(20,6)的直线管道支架；绘制一条从(0,10)到(20,10)的直线管道支架；绘制一条从(0,14)到(20,14)的直线管道支架。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 4,
+        "required_types": [
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "fence_posts_line",
+      "category": "repeated_layout",
+      "command": "绘制一排5个圆形柱基础，圆心分别在(1,1)、(3,1)、(5,1)、(7,1)、(9,1)，半径均为0.3米。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 5,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 5,
+        "required_types": [
+          "circle"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "solar_panel_rows",
+      "category": "repeated_layout",
+      "command": "生成两排太阳能板阵列，每排4块，每块宽2米、高1米，前后排间距3米。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 8,
+        "maximum_entities": 20,
+        "minimum_logical_objects": 8,
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "cable_trench_segments",
+      "category": "repeated_layout",
+      "command": "绘制三条电缆沟，每条宽1米、深0.6米，位置分别在(0,0)、(0,3)、(0,6)。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "roundabout_with_arms",
+      "category": "radial_geometry",
+      "command": "绘制一个圆心(0,0)、半径6米的圆；绘制一条从(0,0)到(6,0)的直线。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "circle",
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "radar_site_rings",
+      "category": "radial_geometry",
+      "command": "绘制两个同心圆，绘制一个圆心(0,0)、半径10米的圆；绘制一个圆心(0,0)、半径4米的圆。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "circle"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "fountain_circle_paths",
+      "category": "radial_geometry",
+      "command": "绘制一个圆心(2,3)、半径2.5米的圆形喷泉池；绘制一条从(2,3)到(5,3)的直线；绘制一条从(2,3)到(2,6)的直线。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "circle",
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "water_tower_footprint",
+      "category": "radial_geometry",
+      "command": "绘制一个圆心(8,8)、半径3米的圆形水塔基础；绘制一条从(8,8)到(8,11)的直线作为检修通道。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "circle",
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "helipad_circle",
+      "category": "radial_geometry",
+      "command": "画一个直径20米的圆形停机坪，圆心在场地中央(10,10)，再画一个半径1米的圆标注中心点。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "circle"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "cul_de_sac",
+      "category": "radial_geometry",
+      "command": "绘制一个圆心(5,5)、半径9米的圆形回车场；绘制一条从(0,5)到(5,5)的直线作为入口道路。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "circle",
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "concentric_square_rings_rules",
+      "category": "nested_geometry",
+      "command": "绘制一个宽12米、高12米的矩形，中心在(0,0)；绘制一个宽8米、高8米的矩形，中心在(0,0)；绘制一个宽4米、高4米的矩形，中心在(0,0)。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "foundation_pit_layers",
+      "category": "nested_geometry",
+      "command": "绘制三级基坑，外坑宽15米、深8米，中坑宽11米、深5米，内坑宽6米、深2米，中心重合。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "podium_stages",
+      "category": "nested_geometry",
+      "command": "绘制一个宽20米、高10米的矩形舞台；在舞台中心绘制一个宽10米、高5米的矩形内台。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "temple_base_tiers",
+      "category": "nested_geometry",
+      "command": "绘制三层台基，最底层宽18米、高12米，第二层宽14米、高9米，顶层宽9米、高5米，逐层居中。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "l_shape_beam_path",
+      "category": "coordinate_geometry",
+      "command": "绘制一条多段线，顶点(0,0)、(8,0)、(8,2)、(2,2)、(2,6)、(0,6)，闭合。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "z_axis_route",
+      "category": "coordinate_geometry",
+      "command": "绘制一条多段线，顶点(0,0)、(4,2)、(4,6)、(8,4)，不闭合。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "offset_rectangle_pair",
+      "category": "coordinate_geometry",
+      "command": "绘制一个宽10米、高6米的矩形，左下角在(0,0)；绘制一个宽10米、高6米的矩形，左下角在(12,0)。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "diagonal_cross_lines",
+      "category": "coordinate_geometry",
+      "command": "绘制一条从(0,0)到(10,10)的直线；绘制一条从(0,10)到(10,0)的直线。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "arc_segment_road",
+      "category": "coordinate_geometry",
+      "command": "绘制一条圆弧，圆心(0,0)、半径8米、起始角0度、终止角90度；绘制一条从(0,0)到(8,0)的直线。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "arc",
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "basketball_court",
+      "category": "sports_field",
+      "command": "绘制一个标准篮球场，长28米、宽15米，中圈圆心在(14,7.5)、半径1.8米，两个罚球圈圆心分别在(5.8,7.5)和(22.2,7.5)、半径1.8米。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 15,
+        "minimum_logical_objects": 4,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "basketball_court_rules",
+      "category": "sports_field",
+      "command": "绘制一个宽28米、高15米的矩形篮球场；绘制一个圆心(14,7.5)、半径1.8米的圆；绘制一个圆心(5.8,7.5)、半径1.8米的圆；绘制一个圆心(22.2,7.5)、半径1.8米的圆。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 4,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "badminton_court",
+      "category": "sports_field",
+      "command": "绘制一个羽毛球场地，长13.4米、宽6.1米，中间画一条中线。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "running_track_oval",
+      "category": "sports_field",
+      "command": "绘制一条400米跑道，由两个半径36.5米的半圆和两条直道组成，直道长84.39米。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 15,
+        "minimum_logical_objects": 2,
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "football_field",
+      "category": "sports_field",
+      "command": "绘制一个宽105米、高68米的矩形足球场；绘制一条从(0,34)到(105,34)的直线作为中线；绘制一个圆心(52.5,34)、半径9.15米的圆作为中圈。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline",
+          "line",
+          "circle"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "volleyball_court",
+      "category": "sports_field",
+      "command": "绘制一个宽18米、高9米的矩形排球场；绘制一条从(0,4.5)到(18,4.5)的直线作为中线。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "basketball_three_point",
+      "category": "sports_field",
+      "command": "绘制一条圆弧，圆心(7.5,0)、半径6.75米、起始角0度、终止角180度，作为三分线；绘制一条从(4.2,0)到(10.8,0)的直线作为罚球线。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "arc",
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "parking_lot_rules",
+      "category": "utility_layout",
+      "command": "绘制一个宽2.5米、高5米的矩形车位，左下角在(0,0)；绘制一个宽2.5米、高5米的矩形车位，左下角在(2.5,0)；绘制一个宽2.5米、高5米的矩形车位，左下角在(5,0)。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "driveway_line",
+      "category": "utility_layout",
+      "command": "绘制一个宽6米、高12米的矩形车道；绘制一条从(3,0)到(3,12)的直线作为中心线。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "manhole_covers",
+      "category": "utility_layout",
+      "command": "绘制一个圆心(1,1)、半径0.5米的圆；绘制一个圆心(4,1)、半径0.5米的圆；绘制一个圆心(7,1)、半径0.5米的圆。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "circle"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "transformer_pad",
+      "category": "utility_layout",
+      "command": "绘制一个宽3米、高2米的矩形变压器基础；绘制一个圆心(1.5,1)、半径0.4米的圆作为接地柱。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "road_intersection",
+      "category": "utility_layout",
+      "command": "绘制一个宽20米、高10米的矩形十字路口主体；绘制一条从(10,0)到(10,10)的直线；绘制一条从(0,5)到(20,5)的直线。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "equipment_zone",
+      "category": "utility_layout",
+      "command": "在车间内划分设备区，左侧放一台宽2米、深1.5米的机床，右侧放一台宽3米、深2米的加工中心，两设备间距2米。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "require_feasible": true
+      }
+    },
+    {
+      "id": "greenbelt_strip",
+      "category": "utility_layout",
+      "command": "绘制一个宽4米、高30米的矩形绿化带；绘制一个圆心(2,5)、半径1米的圆作为树池；绘制一个圆心(2,15)、半径1米的圆；绘制一个圆心(2,25)、半径1米的圆。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 4,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      }
+    }
+  ]
+}

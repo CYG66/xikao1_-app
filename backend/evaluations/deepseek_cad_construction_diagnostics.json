@@ -1,0 +1,79 @@
+{
+  "schema_version": "1.0",
+  "version": "2026-10-18.deepseek-diagnostics.1",
+  "description": "DeepSeek 通用二维 CAD 构造诊断集，覆盖单位、旋转、阵列、对称、曲线、负坐标、复杂边界及澄清行为。",
+  "cases": [
+    {
+      "id": "rotated_equipment_foundation",
+      "category": "rotation_and_composition",
+      "command": "绘制一个中心在(0,0)、长12米、宽8米并逆时针旋转30度的矩形设备基础，在它的四个角内侧各布置一个半径0.25米的地脚螺栓孔。基础和四个孔分别命名。",
+      "expected": {"status": "ready", "minimum_entities": 5, "maximum_entities": 20, "minimum_logical_objects": 5, "required_types": ["polyline", "circle"], "require_feasible": true}
+    },
+    {
+      "id": "mixed_units_loading_bays",
+      "category": "mixed_units",
+      "command": "创建3个相连的装卸位，每个宽2500毫米、深5米，相邻装卸位之间不留缝；再在它们后方50厘米处画一条贯穿全部装卸位的直线。每个装卸位和后方直线分别命名。",
+      "expected": {"status": "ready", "minimum_entities": 4, "maximum_entities": 20, "minimum_logical_objects": 4, "required_types": ["polyline", "line"], "require_feasible": true}
+    },
+    {
+      "id": "u_shaped_workshop_columns",
+      "category": "freeform_and_repetition",
+      "command": "画一个开口朝上的U形厂房边界，左下角(-10,-6)，右下角(10,-6)，两侧墙顶端分别为(-10,8)和(10,8)；再在厂房内部沿左右两侧各布置3根半径0.3米的圆柱，左右对称且上下等距。边界和每根柱分别命名。",
+      "expected": {"status": "ready", "minimum_entities": 7, "maximum_entities": 20, "minimum_logical_objects": 7, "required_types": ["polyline", "circle"], "require_feasible": true}
+    },
+    {
+      "id": "t_junction_centerlines",
+      "category": "connected_lines",
+      "command": "以(0,0)为交点画一个T形道路中心线：主路从(-15,0)到(15,0)，支路从(0,0)到(0,12)，再从支路终点向右画到(8,12)。三段中心线分别命名。",
+      "expected": {"status": "ready", "minimum_entities": 3, "maximum_entities": 8, "minimum_logical_objects": 3, "required_types": ["line"], "require_feasible": true}
+    },
+    {
+      "id": "oval_track_with_axes",
+      "category": "ellipse_geometry",
+      "command": "绘制一个中心在(0,0)、长轴总长30米、短轴总长18米的完整椭圆跑道中心线，并画出水平长轴和竖直短轴，两条轴线都必须从椭圆边界的一端连接到另一端。三个对象分别命名。",
+      "expected": {"status": "ready", "minimum_entities": 3, "maximum_entities": 8, "minimum_logical_objects": 3, "required_types": ["ellipse", "line"], "require_feasible": true}
+    },
+    {
+      "id": "mirrored_machine_pads",
+      "category": "symmetry",
+      "command": "在y轴左右两侧对称绘制两个4米乘3米的矩形设备垫，两个垫的内侧边距离y轴各2米；再沿y轴从y=-5米到y=5米画一条中心线。两个垫和中心线分别命名。",
+      "expected": {"status": "ready", "minimum_entities": 3, "maximum_entities": 10, "minimum_logical_objects": 3, "required_types": ["polyline", "line"], "require_feasible": true}
+    },
+    {
+      "id": "negative_coordinate_site",
+      "category": "negative_coordinates",
+      "command": "按顺序连接(-18,-12)、(-4,-12)、(-2,-5)、(-8,1)、(-18,-3)并闭合成场地边界；在(-10,-6)处画一个半径1.2米的圆形检查井。边界和检查井分别命名。",
+      "expected": {"status": "ready", "minimum_entities": 2, "maximum_entities": 8, "minimum_logical_objects": 2, "required_types": ["polyline", "circle"], "require_feasible": true}
+    },
+    {
+      "id": "radial_tank_layout",
+      "category": "polar_array",
+      "command": "在(0,0)画一个半径2米的中心储罐，再以中心储罐为圆心、10米为布置半径，等角度环形布置6个半径1米的小储罐。7个储罐必须都是独立且有名称的对象。",
+      "expected": {"status": "ready", "minimum_entities": 7, "maximum_entities": 12, "minimum_logical_objects": 7, "required_types": ["circle"], "require_feasible": true}
+    },
+    {
+      "id": "rooms_with_door_arcs",
+      "category": "arcs_and_nested_layout",
+      "command": "画两个相邻房间，每个房间宽6米、深4米，共用中间墙；每个房间下边各留一个宽1米的门洞，并用四分之一圆弧表示向房间内部开启的门扇。房间轮廓和两个门弧分别命名。",
+      "expected": {"status": "ready", "minimum_entities": 4, "maximum_entities": 20, "minimum_logical_objects": 4, "required_types": ["polyline", "arc"], "require_feasible": true}
+    },
+    {
+      "id": "storage_rack_grid",
+      "category": "large_rectangular_array",
+      "command": "生成4行5列共20个货架，每个货架宽1.2米、深0.6米，列净间距0.8米、行净间距1.4米，从左下角(0,0)开始向右和向上排列。每个货架都是独立逻辑对象。",
+      "expected": {"status": "ready", "minimum_entities": 20, "maximum_entities": 30, "minimum_logical_objects": 20, "required_types": ["polyline"], "require_feasible": true}
+    },
+    {
+      "id": "missing_tank_radius",
+      "category": "missing_required_parameter",
+      "command": "在(0,0)创建一个圆形蓄水池，半径稍后再定，现在先生成图纸。",
+      "expected": {"status": "clarification_required", "minimum_entities": 0, "maximum_entities": 0, "minimum_logical_objects": 0, "require_feasible": false}
+    },
+    {
+      "id": "contradictory_rectangle_width",
+      "category": "contradictory_requirement",
+      "command": "创建一个矩形作业区，高5米，宽必须是10米，同时宽必须是12米，左下角为(0,0)。",
+      "expected": {"status": "clarification_required", "minimum_entities": 0, "maximum_entities": 0, "minimum_logical_objects": 0, "require_feasible": false}
+    }
+  ]
+}

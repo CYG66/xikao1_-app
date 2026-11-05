@@ -1,0 +1,18 @@
+[Unit]
+Description=Dashes Rover UDP and mDNS Discovery
+Wants=network-online.target
+After=network-online.target
+Before=xline-app-backend1.service
+
+[Service]
+Type=simple
+User=qingz
+Group=qingz
+WorkingDirectory=/home/qingz/xline_app_backend1
+ExecStart=/home/qingz/xline_app_backend1/run_discovery_service.sh
+Restart=always
+RestartSec=2
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

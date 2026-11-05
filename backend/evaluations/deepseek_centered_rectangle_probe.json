@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "version": "2026-10-19.centered-rectangle.1",
+  "description": "验证 DeepSeek 是否使用中心矩形原语表达旋转设备基础。",
+  "cases": [
+    {
+      "id": "rotated_equipment_foundation",
+      "category": "rotation_and_composition",
+      "command": "绘制一个中心在(0,0)、长12米、宽8米并逆时针旋转30度的矩形设备基础，在它的四个角内侧各布置一个半径0.25米的地脚螺栓孔。基础和四个孔分别命名。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 5,
+        "maximum_entities": 20,
+        "minimum_logical_objects": 5,
+        "required_types": ["polyline", "circle"],
+        "require_feasible": true
+      }
+    }
+  ]
+}

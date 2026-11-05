@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "version": "2026-10-19.rooms.1",
+  "description": "验证房间与门弧分组数量断言的确定性绑定。",
+  "cases": [
+    {
+      "id": "rooms_with_door_arcs",
+      "category": "arcs_and_nested_layout",
+      "command": "画两个相邻房间，每个房间宽6米、深4米，共用中间墙；每个房间下边各留一个宽1米的门洞，并用四分之一圆弧表示向房间内部开启的门扇。房间轮廓和两个门弧分别命名。",
+      "expected": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 20,
+        "minimum_logical_objects": 4,
+        "required_types": ["polyline", "arc"],
+        "require_feasible": true
+      }
+    }
+  ]
+}

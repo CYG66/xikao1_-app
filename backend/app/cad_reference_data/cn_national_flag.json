@@ -1,0 +1,18 @@
+{
+  "id": "cn.flag.construction.2020",
+  "title": "国旗制法说明（国旗法附件，2020年修正文本）",
+  "source_url": "https://www.samr.gov.cn/zw/zfxxgk/fdzdgknr/bgt/art/2023/art_5e1206b52a484dfdba6ea8b76d75a7f0.html",
+  "verified_on": "2026-10-23",
+  "aliases": ["五星红旗", "中国国旗", "中国红旗"],
+  "scope": "旗杆在左一面的二维轮廓；不验证颜色、材质和制造工艺",
+  "coordinate_convention": "旗面左下角为相对原点，x向右、y向上；中心以旗面宽高归一化，半径按旗高归一化",
+  "aspect_ratio": 1.5,
+  "components": [
+    {"id": "field", "kind": "rectangle", "frame": true},
+    {"id": "main", "kind": "radial_polygon", "center": [0.16666666666666666, 0.75], "radius_h": 0.15, "tips": 5, "inner_ratio": 0.3819660112501051, "tip_angle_deg": 90},
+    {"id": "satellite.1", "kind": "radial_polygon", "center": [0.3333333333333333, 0.9], "radius_h": 0.05, "tips": 5, "inner_ratio": 0.3819660112501051, "tip_toward": "main"},
+    {"id": "satellite.2", "kind": "radial_polygon", "center": [0.4, 0.8], "radius_h": 0.05, "tips": 5, "inner_ratio": 0.3819660112501051, "tip_toward": "main"},
+    {"id": "satellite.3", "kind": "radial_polygon", "center": [0.4, 0.65], "radius_h": 0.05, "tips": 5, "inner_ratio": 0.3819660112501051, "tip_toward": "main"},
+    {"id": "satellite.4", "kind": "radial_polygon", "center": [0.3333333333333333, 0.55], "radius_h": 0.05, "tips": 5, "inner_ratio": 0.3819660112501051, "tip_toward": "main"}
+  ]
+}

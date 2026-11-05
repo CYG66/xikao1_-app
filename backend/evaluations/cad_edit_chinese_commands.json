@@ -1,0 +1,1202 @@
+{
+  "schema_version": "1.0",
+  "version": "2026-10-03.1",
+  "description": "Dashes 自然语言 CAD 修改真实中文指令回归集",
+  "fixtures": {
+    "three_instances": [
+      {
+        "id": 1,
+        "type": "line",
+        "layer_id": 1,
+        "template_instance": 1,
+        "start": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "end": {
+          "x": 1000,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "id": 2,
+        "type": "line",
+        "layer_id": 1,
+        "template_instance": 2,
+        "start": {
+          "x": 2000,
+          "y": 0,
+          "z": 0
+        },
+        "end": {
+          "x": 3000,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "id": 3,
+        "type": "line",
+        "layer_id": 1,
+        "template_instance": 3,
+        "start": {
+          "x": 4000,
+          "y": 0,
+          "z": 0
+        },
+        "end": {
+          "x": 5000,
+          "y": 0,
+          "z": 0
+        }
+      }
+    ],
+    "two_vertical_basketball_courts": [
+      {
+        "id": 1,
+        "type": "polyline",
+        "layer_id": 1,
+        "template_instance": 1,
+        "template_type": "basketball",
+        "vertices": [
+          {
+            "x": -14000,
+            "y": -16500,
+            "z": 0
+          },
+          {
+            "x": 14000,
+            "y": -16500,
+            "z": 0
+          },
+          {
+            "x": 14000,
+            "y": -1500,
+            "z": 0
+          },
+          {
+            "x": -14000,
+            "y": -1500,
+            "z": 0
+          },
+          {
+            "x": -14000,
+            "y": -16500,
+            "z": 0
+          }
+        ],
+        "closed": true
+      },
+      {
+        "id": 2,
+        "type": "line",
+        "layer_id": 1,
+        "template_instance": 1,
+        "template_type": "basketball",
+        "start": {
+          "x": 0,
+          "y": -16500,
+          "z": 0
+        },
+        "end": {
+          "x": 0,
+          "y": -1500,
+          "z": 0
+        }
+      },
+      {
+        "id": 3,
+        "type": "circle",
+        "layer_id": 1,
+        "template_instance": 1,
+        "template_type": "basketball",
+        "center": {
+          "x": 0,
+          "y": -9000,
+          "z": 0
+        },
+        "radius": 1800
+      },
+      {
+        "id": 4,
+        "type": "polyline",
+        "layer_id": 1,
+        "template_instance": 2,
+        "template_type": "basketball",
+        "vertices": [
+          {
+            "x": -14000,
+            "y": 1500,
+            "z": 0
+          },
+          {
+            "x": 14000,
+            "y": 1500,
+            "z": 0
+          },
+          {
+            "x": 14000,
+            "y": 16500,
+            "z": 0
+          },
+          {
+            "x": -14000,
+            "y": 16500,
+            "z": 0
+          },
+          {
+            "x": -14000,
+            "y": 1500,
+            "z": 0
+          }
+        ],
+        "closed": true
+      },
+      {
+        "id": 5,
+        "type": "line",
+        "layer_id": 1,
+        "template_instance": 2,
+        "template_type": "basketball",
+        "start": {
+          "x": 0,
+          "y": 1500,
+          "z": 0
+        },
+        "end": {
+          "x": 0,
+          "y": 16500,
+          "z": 0
+        }
+      },
+      {
+        "id": 6,
+        "type": "circle",
+        "layer_id": 1,
+        "template_instance": 2,
+        "template_type": "basketball",
+        "center": {
+          "x": 0,
+          "y": 9000,
+          "z": 0
+        },
+        "radius": 1800
+      }
+    ],
+    "four_instances": [
+      {
+        "id": 1,
+        "type": "line",
+        "layer_id": 1,
+        "template_instance": 1,
+        "start": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "end": {
+          "x": 1000,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "id": 2,
+        "type": "line",
+        "layer_id": 1,
+        "template_instance": 2,
+        "start": {
+          "x": 2000,
+          "y": 0,
+          "z": 0
+        },
+        "end": {
+          "x": 3000,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "id": 3,
+        "type": "line",
+        "layer_id": 1,
+        "template_instance": 3,
+        "start": {
+          "x": 4000,
+          "y": 0,
+          "z": 0
+        },
+        "end": {
+          "x": 5000,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "id": 4,
+        "type": "line",
+        "layer_id": 1,
+        "template_instance": 4,
+        "start": {
+          "x": 6000,
+          "y": 0,
+          "z": 0
+        },
+        "end": {
+          "x": 7000,
+          "y": 0,
+          "z": 0
+        }
+      }
+    ]
+  },
+  "cases": [
+    {
+      "id": "cad_zh_translate_centimeters",
+      "kind": "cad_edit",
+      "category": "common_commands",
+      "message": "把第三个车位向右移动20厘米",
+      "mode": "advanced",
+      "source_fixture": "three_instances",
+      "expected": {
+        "operation": "translate",
+        "coordinate_frame": "drawing",
+        "instance_ids": [
+          3
+        ],
+        "dx_mm": 200.0,
+        "dy_mm": 0.0,
+        "end_geometry_id": 3,
+        "expected_end": {
+          "x": 5200.0,
+          "y": 0.0,
+          "z": 0
+        },
+        "non_target_ids": [
+          1,
+          2
+        ],
+        "result_entity_count": 3,
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_ui_context_lower_court_move",
+      "kind": "cad_edit",
+      "category": "ui_context_targeting",
+      "message": "基于‘标准候选方案 · 第 2 个图形平移’继续优化。修改目标：下方的篮球场向下移动3m",
+      "mode": "advanced",
+      "source_fixture": "two_vertical_basketball_courts",
+      "expected": {
+        "operation": "translate",
+        "coordinate_frame": "drawing",
+        "instance_ids": [
+          1
+        ],
+        "dx_mm": 0.0,
+        "dy_mm": -3000.0,
+        "non_target_ids": [
+          4,
+          5,
+          6
+        ],
+        "result_entity_count": 6,
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_ui_context_lower_court_center_circle",
+      "kind": "cad_edit",
+      "category": "nested_geometry_targeting",
+      "message": "基于‘标准候选方案 · 第 2 个图形平移 · 第 2 个图形平移’继续优化。修改目标：下方的篮球场中心的圆半径扩大一倍",
+      "mode": "advanced",
+      "source_fixture": "two_vertical_basketball_courts",
+      "expected": {
+        "operation": "scale",
+        "geometry_ids": [
+          3
+        ],
+        "factor": 2.0,
+        "non_target_ids": [
+          1,
+          2,
+          4,
+          5,
+          6
+        ],
+        "result_entity_count": 6,
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_semantic_upper_court_outer_frame",
+      "kind": "cad_edit",
+      "category": "nested_geometry_targeting",
+      "message": "把上方篮球场的外框向右移动1米",
+      "mode": "advanced",
+      "source_fixture": "two_vertical_basketball_courts",
+      "expected": {
+        "operation": "translate",
+        "geometry_ids": [
+          4
+        ],
+        "dx_mm": 1000.0,
+        "dy_mm": 0.0,
+        "non_target_ids": [
+          1,
+          2,
+          3,
+          5,
+          6
+        ],
+        "result_entity_count": 6,
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_semantic_lower_court_center_line",
+      "kind": "cad_edit",
+      "category": "nested_geometry_targeting",
+      "message": "把下方篮球场的中线向左移动50厘米",
+      "mode": "advanced",
+      "source_fixture": "two_vertical_basketball_courts",
+      "expected": {
+        "operation": "translate",
+        "geometry_ids": [
+          2
+        ],
+        "dx_mm": -500.0,
+        "dy_mm": 0.0,
+        "non_target_ids": [
+          1,
+          3,
+          4,
+          5,
+          6
+        ],
+        "result_entity_count": 6,
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_batch_scale_each_center",
+      "kind": "cad_edit",
+      "category": "multiple_instances",
+      "message": "把第一个和第二个图形分别放大1.5倍",
+      "mode": "advanced",
+      "source_fixture": "three_instances",
+      "expected": {
+        "operation": "scale",
+        "instance_ids": [
+          1,
+          2
+        ],
+        "factor": 1.5,
+        "pivot": "each_instance_center",
+        "non_target_ids": [
+          3
+        ],
+        "result_entity_count": 3,
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_batch_scale_group_center",
+      "kind": "cad_edit",
+      "category": "multiple_instances",
+      "message": "把第一个和第二个图形作为整体放大到2倍",
+      "mode": "advanced",
+      "source_fixture": "three_instances",
+      "expected": {
+        "operation": "scale",
+        "instance_ids": [
+          1,
+          2
+        ],
+        "factor": 2.0,
+        "pivot": "group_center",
+        "non_target_ids": [
+          3
+        ],
+        "result_entity_count": 3,
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_vehicle_coordinate",
+      "kind": "cad_edit",
+      "category": "coordinate_frame",
+      "message": "把第一个图形向前移动1米",
+      "mode": "advanced",
+      "source_fixture": "three_instances",
+      "expected": {
+        "operation": "translate",
+        "coordinate_frame": "vehicle",
+        "instance_ids": [
+          1
+        ],
+        "dx_mm": 1000.0,
+        "dy_mm": 0.0,
+        "non_target_ids": [
+          2,
+          3
+        ],
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_rotate_degrees",
+      "kind": "cad_edit",
+      "category": "common_commands",
+      "message": "把第一个图形逆时针旋转90度",
+      "mode": "advanced",
+      "source_fixture": "three_instances",
+      "expected": {
+        "operation": "rotate",
+        "instance_ids": [
+          1
+        ],
+        "angle_degrees": 90.0,
+        "pivot": "instance_center",
+        "non_target_ids": [
+          2,
+          3
+        ],
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_resize_meters",
+      "kind": "cad_edit",
+      "category": "unit_conversion",
+      "message": "把第一个图形宽度改为3米",
+      "mode": "advanced",
+      "source_fixture": "three_instances",
+      "expected": {
+        "operation": "resize",
+        "instance_ids": [
+          1
+        ],
+        "value_mm": 3000.0,
+        "non_target_ids": [
+          2,
+          3
+        ],
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_delete_majority_requires_confirmation",
+      "kind": "cad_edit",
+      "category": "dangerous_operation",
+      "message": "删除第一个和第二个图形",
+      "mode": "advanced",
+      "source_fixture": "three_instances",
+      "expected": {
+        "operation": "delete",
+        "instance_ids": [
+          1,
+          2
+        ],
+        "result_entity_count": 1,
+        "non_target_ids": [
+          3
+        ],
+        "requires_confirmation": true,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_zero_change_rejected",
+      "kind": "cad_edit",
+      "category": "no_change_operation",
+      "message": "把第一个图形向右移动0毫米",
+      "mode": "advanced",
+      "expected": {
+        "operation": "translate",
+        "contract_valid": false,
+        "parse_only": true
+      }
+    },
+    {
+      "id": "cad_zh_non_cad_motion_rejected",
+      "kind": "cad_edit",
+      "category": "intent_boundary",
+      "message": "让小车向前移动1米",
+      "mode": "advanced",
+      "expected": {
+        "must_parse": false,
+        "parse_only": true
+      }
+    },
+    {
+      "id": "cad_zh_semantic_selector_parse",
+      "kind": "cad_edit",
+      "category": "layer_semantics",
+      "message": "把所有喷墨线向左移动10厘米",
+      "mode": "advanced",
+      "expected": {
+        "operation": "translate",
+        "coordinate_frame": "drawing",
+        "dx_mm": -100.0,
+        "dy_mm": 0.0,
+        "selector": {
+          "kind": "attribute",
+          "attribute": "semantic",
+          "value": "printing"
+        },
+        "contract_valid": false,
+        "parse_only": true
+      }
+    },
+    {
+      "id": "cad_zh_followup_pronoun",
+      "kind": "cad_followup",
+      "category": "multi_turn_context",
+      "message": "把它向左移动1米",
+      "mode": "advanced",
+      "available_instance_ids": [
+        1,
+        2,
+        3
+      ],
+      "previous_contract": {
+        "operation": "translate",
+        "target_instance_id": 2,
+        "parameters": {
+          "dx_mm": 2000,
+          "dy_mm": 0
+        }
+      },
+      "expected": {
+        "must_resolve": true,
+        "operation": "translate",
+        "resolved_text": "第2个图形向左移动1米"
+      }
+    },
+    {
+      "id": "cad_zh_followup_repeat",
+      "kind": "cad_followup",
+      "category": "multi_turn_context",
+      "message": "再来一次",
+      "mode": "advanced",
+      "available_instance_ids": [
+        1,
+        2,
+        3
+      ],
+      "previous_contract": {
+        "operation": "translate",
+        "target_instance_id": 3,
+        "parameters": {
+          "dx_mm": -500,
+          "dy_mm": 0
+        }
+      },
+      "expected": {
+        "must_resolve": true,
+        "operation": "translate",
+        "resolved_text": "第3个图形向左移动500毫米"
+      }
+    },
+    {
+      "id": "cad_zh_followup_ambiguous_other",
+      "kind": "cad_followup",
+      "category": "fuzzy_reference",
+      "message": "把另一个图形向左移动1米",
+      "mode": "advanced",
+      "available_instance_ids": [
+        1,
+        2,
+        3
+      ],
+      "previous_contract": {
+        "operation": "translate",
+        "target_instance_id": 2,
+        "parameters": {
+          "dx_mm": 2000,
+          "dy_mm": 0
+        }
+      },
+      "expected": {
+        "must_resolve": false,
+        "resolved_text": null
+      }
+    },
+    {
+      "id": "cad_zh_correction_distance",
+      "kind": "cad_followup",
+      "category": "multi_turn_context",
+      "followup_type": "correction",
+      "message": "不是向右2米，是向左1米",
+      "mode": "advanced",
+      "available_instance_ids": [
+        1,
+        2
+      ],
+      "previous_contract": {
+        "operation": "translate",
+        "target_instance_id": 2,
+        "parameters": {
+          "dx_mm": 2000,
+          "dy_mm": 0
+        }
+      },
+      "expected": {
+        "must_resolve": true,
+        "operation": "translate",
+        "resolved_text": "第2个图形向左移动1000毫米"
+      }
+    },
+    {
+      "id": "cad_zh_coordinate_conflict_screen",
+      "kind": "cad_edit",
+      "category": "coordinate_conflict",
+      "message": "把第一个图形按屏幕方向向右移动1米",
+      "mode": "advanced",
+      "expected": {
+        "operation": "translate",
+        "coordinate_frame": "screen",
+        "contract_valid": false,
+        "parse_only": true
+      }
+    },
+    {
+      "id": "cad_zh_retain_overwrite_requires_confirmation",
+      "kind": "cad_edit",
+      "category": "dangerous_operation",
+      "message": "只保留第一个图形",
+      "mode": "advanced",
+      "source_fixture": "three_instances",
+      "expected": {
+        "operation": "retain",
+        "instance_ids": [
+          1
+        ],
+        "result_entity_count": 1,
+        "non_target_ids": [
+          1
+        ],
+        "requires_confirmation": true,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_colloquial_bottom_move",
+      "kind": "cad_edit",
+      "category": "colloquial_expression",
+      "message": "把最下面的图形向左移动0.5米",
+      "mode": "advanced",
+      "source_fixture": "two_vertical_basketball_courts",
+      "expected": {
+        "operation": "translate",
+        "coordinate_frame": "drawing",
+        "instance_ids": [
+          1
+        ],
+        "dx_mm": -500.0,
+        "dy_mm": 0.0,
+        "non_target_ids": [
+          4,
+          5,
+          6
+        ],
+        "result_entity_count": 6,
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_colloquial_ordinal_move",
+      "kind": "cad_edit",
+      "category": "colloquial_expression",
+      "message": "第2个图形向上移动20厘米",
+      "mode": "advanced",
+      "source_fixture": "three_instances",
+      "expected": {
+        "operation": "translate",
+        "coordinate_frame": "drawing",
+        "instance_ids": [
+          2
+        ],
+        "dx_mm": 0.0,
+        "dy_mm": 200.0,
+        "non_target_ids": [
+          1,
+          3
+        ],
+        "result_entity_count": 3,
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_batch_shrink_each_center",
+      "kind": "cad_edit",
+      "category": "colloquial_expression",
+      "message": "把第一个和第三个图形分别缩小到0.5倍",
+      "mode": "advanced",
+      "source_fixture": "three_instances",
+      "expected": {
+        "operation": "scale",
+        "instance_ids": [
+          1,
+          3
+        ],
+        "factor": 0.5,
+        "pivot": "each_instance_center",
+        "non_target_ids": [
+          2
+        ],
+        "result_entity_count": 3,
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_colloquial_rotation",
+      "kind": "cad_edit",
+      "category": "colloquial_expression",
+      "message": "把第一个图形顺时针旋转45度",
+      "mode": "advanced",
+      "source_fixture": "three_instances",
+      "expected": {
+        "operation": "rotate",
+        "instance_ids": [
+          1
+        ],
+        "angle_degrees": -45.0,
+        "pivot": "instance_center",
+        "non_target_ids": [
+          2,
+          3
+        ],
+        "result_entity_count": 3,
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_missing_target_fails_closed",
+      "kind": "cad_edit",
+      "category": "omitted_parameter",
+      "message": "把中心圆放大",
+      "mode": "advanced",
+      "expected": {
+        "must_parse": false,
+        "parse_only": true
+      }
+    },
+    {
+      "id": "cad_zh_followup_correction_reversal",
+      "kind": "cad_followup",
+      "category": "user_correction",
+      "followup_type": "correction",
+      "message": "不是向右2米，是向左500毫米",
+      "mode": "advanced",
+      "available_instance_ids": [
+        1,
+        2,
+        3
+      ],
+      "previous_contract": {
+        "operation": "translate",
+        "target_instance_id": 2,
+        "parameters": {
+          "dx_mm": 2000,
+          "dy_mm": 0
+        }
+      },
+      "expected": {
+        "must_resolve": true,
+        "operation": "translate",
+        "resolved_text": "第2个图形向左移动500毫米"
+      }
+    },
+    {
+      "id": "cad_cf_target_first_vs_second",
+      "kind": "cad_counterfactual",
+      "category": "counterfactual_protection",
+      "base_message": "把第一个图形向右移动1米",
+      "variant_message": "把第二个图形向右移动1米",
+      "source_fixture": "three_instances",
+      "expected": {
+        "changed_paths": [
+          "target.instance_ids"
+        ],
+        "unchanged_paths": [
+          "operation",
+          "coordinate_frame",
+          "parameters.dx_mm",
+          "parameters.dy_mm"
+        ],
+        "base_values": {
+          "target.instance_ids": [
+            1
+          ]
+        },
+        "variant_values": {
+          "target.instance_ids": [
+            2
+          ]
+        }
+      }
+    },
+    {
+      "id": "cad_cf_direction_right_vs_left",
+      "kind": "cad_counterfactual",
+      "category": "counterfactual_protection",
+      "base_message": "把第一个图形向右移动1米",
+      "variant_message": "把第一个图形向左移动1米",
+      "source_fixture": "three_instances",
+      "expected": {
+        "changed_paths": [
+          "parameters.dx_mm"
+        ],
+        "unchanged_paths": [
+          "operation",
+          "target.instance_ids",
+          "parameters.dy_mm"
+        ],
+        "base_values": {
+          "parameters.dx_mm": 1000.0
+        },
+        "variant_values": {
+          "parameters.dx_mm": -1000.0
+        }
+      }
+    },
+    {
+      "id": "cad_cf_distance_one_vs_two_meters",
+      "kind": "cad_counterfactual",
+      "category": "counterfactual_protection",
+      "base_message": "把第一个图形向右移动1米",
+      "variant_message": "把第一个图形向右移动2米",
+      "source_fixture": "three_instances",
+      "expected": {
+        "changed_paths": [
+          "parameters.dx_mm"
+        ],
+        "unchanged_paths": [
+          "operation",
+          "target.instance_ids",
+          "parameters.dy_mm"
+        ],
+        "base_values": {
+          "parameters.dx_mm": 1000.0
+        },
+        "variant_values": {
+          "parameters.dx_mm": 2000.0
+        }
+      }
+    },
+    {
+      "id": "cad_cf_semantic_center_circle_vs_outer_frame",
+      "kind": "cad_counterfactual",
+      "category": "counterfactual_protection",
+      "base_message": "把上方篮球场的中心圆向右移动1米",
+      "variant_message": "把上方篮球场的外框向右移动1米",
+      "source_fixture": "two_vertical_basketball_courts",
+      "expected": {
+        "changed_paths": [
+          "target.geometry_ids"
+        ],
+        "unchanged_paths": [
+          "operation",
+          "parameters.dx_mm",
+          "parameters.dy_mm"
+        ],
+        "base_values": {
+          "target.geometry_ids": [
+            6
+          ]
+        },
+        "variant_values": {
+          "target.geometry_ids": [
+            4
+          ]
+        }
+      }
+    },
+    {
+      "id": "cad_cf_operation_translate_vs_rotate",
+      "kind": "cad_counterfactual",
+      "category": "counterfactual_protection",
+      "base_message": "把第一个图形向右移动1米",
+      "variant_message": "把第一个图形逆时针旋转90度",
+      "source_fixture": "three_instances",
+      "expected": {
+        "changed_paths": [
+          "operation"
+        ],
+        "unchanged_paths": [
+          "target.instance_ids"
+        ],
+        "base_values": {
+          "operation": "translate"
+        },
+        "variant_values": {
+          "operation": "rotate"
+        }
+      }
+    },
+    {
+      "id": "cad_cf_missing_target_fails_closed",
+      "kind": "cad_counterfactual",
+      "category": "counterfactual_protection",
+      "base_message": "把第二个图形向右移动1米",
+      "variant_message": "把图形向右移动1米",
+      "source_fixture": "three_instances",
+      "expected": {
+        "base_valid": true,
+        "variant_valid": false,
+        "base_values": {
+          "target.instance_ids": [
+            2
+          ]
+        }
+      }
+    },
+    {
+      "id": "cad_real_test_pattern_dxf",
+      "kind": "cad_dxf",
+      "category": "complex_dxf",
+      "file": "fixtures/test_pattern.dxf",
+      "unit": "mm",
+      "expected": {
+        "entity_count": 2,
+        "entity_types": [
+          "polyline",
+          "line"
+        ],
+        "layer_roles_confirmed": false,
+        "printing_geometry_count": 0
+      }
+    },
+    {
+      "id": "cad_real_huanong_skeleton_dxf",
+      "kind": "cad_dxf",
+      "category": "complex_dxf",
+      "file": "fixtures/huanong_skeleton.dxf",
+      "unit": "mm",
+      "expected": {
+        "entity_count": 16,
+        "entity_types": [
+          "line"
+        ],
+        "layer_roles_confirmed": false,
+        "printing_geometry_count": 0
+      }
+    },
+    {
+      "id": "cad_zh_middle_two",
+      "kind": "cad_edit",
+      "category": "colloquial_expression",
+      "message": "把中间两个图形向右移动20厘米",
+      "mode": "advanced",
+      "source_fixture": "four_instances",
+      "expected": {
+        "operation": "translate",
+        "coordinate_frame": "drawing",
+        "instance_ids": [
+          2,
+          3
+        ],
+        "dx_mm": 200.0,
+        "dy_mm": 0.0,
+        "non_target_ids": [
+          1,
+          4
+        ],
+        "result_entity_count": 4,
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_right_second",
+      "kind": "cad_edit",
+      "category": "colloquial_expression",
+      "message": "把右边第二个图形向右移动20厘米",
+      "mode": "advanced",
+      "source_fixture": "four_instances",
+      "expected": {
+        "operation": "translate",
+        "coordinate_frame": "drawing",
+        "instance_ids": [
+          3
+        ],
+        "dx_mm": 200.0,
+        "dy_mm": 0.0,
+        "non_target_ids": [
+          1,
+          2,
+          4
+        ],
+        "result_entity_count": 4,
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_whole_group_move",
+      "kind": "cad_edit",
+      "category": "colloquial_expression",
+      "message": "把整个图形一起向右移动1米",
+      "mode": "advanced",
+      "source_fixture": "three_instances",
+      "expected": {
+        "operation": "translate",
+        "coordinate_frame": "drawing",
+        "instance_ids": [
+          1,
+          2,
+          3
+        ],
+        "dx_mm": 1000.0,
+        "dy_mm": 0.0,
+        "result_entity_count": 3,
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_only_this_line",
+      "kind": "cad_edit",
+      "category": "nested_geometry_targeting",
+      "message": "只把下方篮球场的中线向左移动50厘米",
+      "mode": "advanced",
+      "source_fixture": "two_vertical_basketball_courts",
+      "expected": {
+        "operation": "translate",
+        "coordinate_frame": "drawing",
+        "geometry_ids": [
+          2
+        ],
+        "dx_mm": -500.0,
+        "dy_mm": 0.0,
+        "non_target_ids": [
+          1,
+          3,
+          4,
+          5,
+          6
+        ],
+        "result_entity_count": 6,
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_keep_others_unchanged",
+      "kind": "cad_edit",
+      "category": "colloquial_expression",
+      "message": "把上方篮球场向右移动1米，保持其他部分不变",
+      "mode": "advanced",
+      "source_fixture": "two_vertical_basketball_courts",
+      "expected": {
+        "operation": "translate",
+        "coordinate_frame": "drawing",
+        "instance_ids": [
+          2
+        ],
+        "dx_mm": 1000.0,
+        "dy_mm": 0.0,
+        "non_target_ids": [
+          1,
+          2,
+          3
+        ],
+        "result_entity_count": 6,
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    },
+    {
+      "id": "cad_zh_just_selected_followup",
+      "kind": "cad_followup",
+      "category": "multi_turn_context",
+      "message": "把刚才选中的图形向左移动1米",
+      "mode": "advanced",
+      "available_instance_ids": [
+        1,
+        2,
+        3
+      ],
+      "previous_contract": {
+        "operation": "translate",
+        "target_instance_id": 2,
+        "parameters": {
+          "dx_mm": 2000,
+          "dy_mm": 0
+        }
+      },
+      "expected": {
+        "must_resolve": true,
+        "operation": "translate",
+        "resolved_text": "第2个图形向左移动1米"
+      }
+    },
+    {
+      "id": "cad_zh_second_edit_after_first",
+      "kind": "cad_followup",
+      "category": "multi_turn_context",
+      "message": "再把它向上移动50厘米",
+      "mode": "advanced",
+      "available_instance_ids": [
+        1,
+        2,
+        3
+      ],
+      "previous_contract": {
+        "operation": "translate",
+        "target_instance_id": 3,
+        "parameters": {
+          "dx_mm": 1000,
+          "dy_mm": 0
+        }
+      },
+      "expected": {
+        "must_resolve": true,
+        "operation": "translate",
+        "resolved_text": "第3个图形向上移动50厘米"
+      }
+    },
+    {
+      "id": "cad_zh_reissue_after_cancel",
+      "kind": "cad_edit",
+      "category": "reissue_after_cancel",
+      "message": "把第二个图形向右移动1米",
+      "mode": "advanced",
+      "source_fixture": "three_instances",
+      "expected": {
+        "operation": "translate",
+        "coordinate_frame": "drawing",
+        "instance_ids": [
+          2
+        ],
+        "dx_mm": 1000.0,
+        "dy_mm": 0.0,
+        "non_target_ids": [
+          1,
+          3
+        ],
+        "result_entity_count": 3,
+        "requires_confirmation": false,
+        "requires_replan": true
+      }
+    }
+  ]
+}

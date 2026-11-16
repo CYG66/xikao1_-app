@@ -915,7 +915,7 @@ class ConversationMemoryStoreTest(unittest.TestCase):
     def test_summary_redacts_secrets(self) -> None:
         self.store.observe(
             "conversation-1",
-            "设计篮球场，api_key=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "设计篮球场，api_key=sk-abcdefghijklmnop1234",
         )
         summary = self.store.context("conversation-1")["summary"]
         self.assertNotIn("sk-", str(summary))

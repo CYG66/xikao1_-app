@@ -218,6 +218,7 @@ class AgentRunStore:
         *,
         project_id: str | None = None,
         source_variant_id: str | None = None,
+        execution_context: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         with self._lock:
             run = self._runs.get(run_id)
@@ -227,6 +228,8 @@ class AgentRunStore:
                 run["project_id"] = project_id
             if source_variant_id:
                 run["source_variant_id"] = source_variant_id
+            if isinstance(execution_context, dict):
+                run["execution_context"] = deepcopy(execution_context)
             run["updated_at"] = utc_now()
             self._save()
             return deepcopy(run)

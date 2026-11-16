@@ -22,6 +22,67 @@ def source_texts(text):
     return [first,source.split(followup,1)[1]] if followup in source else [first]
 
 
+def verify_final_source_contract(text,geometries,logical_objects=None):
+    """Read-only final measurement of unambiguously scoped user facts."""
+    from .cad_requirement_contract import requirement_contract
+    from .cad_construction import construction_geometry_bounds
+    sources=source_texts(text)
+    contract=requirement_contract([{'source_id':f'user:{i}','text':s} for i,s in enumerate(sources)])
+    gs=[g for g in geometries if g.get('selected') is not False and g.get('role') not in {'annotation','reference','ignored'}]
+    checks=[];unknown=[];failures=[]
+    if not gs:return {'status':'not_checked','coverage':'partial','checks':[]}
+    bounds=construction_geometry_bounds(gs)
+    def measure(field,actual,expected,operator,source_id,evidence,ids=None):
+        delta=max(abs(a-b) for a,b in zip(actual,expected)) if isinstance(actual,list) else actual-expected
+        passed=(abs(delta)<=.5 if operator=='eq' else delta<=.5 if operator=='lte' else delta>=-.5)
+        check={'field':field,'actual_mm':actual,'expected_mm':expected,'operator':operator,
+               'tolerance_mm':.5,'source_requirement_id':source_id,'source_evidence':evidence,
+               'status':'passed' if passed else 'failed','geometry_ids':ids if ids is not None else [g['id'] for g in gs]}
+        checks.append(check)
+        if not passed:failures.append(check)
+    for fact in contract['facts']:
+        if fact['status']!='effective':continue
+        selected=gs
+        if len(contract['subjects'])!=1 or fact['binding']!='single_subject':
+            matches=[obj for obj in logical_objects or [] if obj.get('label')==fact['subject']]
+            if len(matches)!=1 or not matches[0].get('geometry_ids'):
+                unknown.append({'source_requirement_id':fact['fact_id'],'reason':'对象范围尚未唯一绑定'});continue
+            selected=[g for g in gs if g['id'] in matches[0]['geometry_ids']]
+            if len(selected)!=len(set(matches[0]['geometry_ids'])):
+                unknown.append({'source_requirement_id':fact['fact_id'],'reason':'逻辑对象引用不完整'});continue
+        local_bounds=construction_geometry_bounds(selected)
+        field=fact['field'];actual=None
+        if field in {'width','height'}:
+            axis='x' if field=='width' else 'y'
+            actual=local_bounds['max_'+axis]-local_bounds['min_'+axis]
+        elif len(selected)==1 and selected[0].get('type')=='circle' and field in {'radius','diameter'}:
+            actual=selected[0]['radius']*(2 if field=='diameter' else 1)
+        if actual is not None:measure(field,actual,fact['value_mm'],fact['operator'],fact['fact_id'],fact['evidence'],[g['id'] for g in selected])
+        else:unknown.append({'source_requirement_id':fact['fact_id'],'reason':'当前测量器不支持此要求'})
+    # Coordinates are not inferred from assumptions, control points or a
+    # multi-object layout. Later explicit source centers supersede earlier ones.
+    if len(contract['subjects'])==1:
+        center=None
+        for i,source in enumerate(sources):
+            if re.search('控制点|顶点|端点',source):continue
+            matches=list(re.finditer(r'(?:几何中心|中心点|中心)(?:位于|在|为|是)?\s*'+P,source))
+            units=re.findall(r'坐标单位(?:为|是)?\s*(毫米|厘米|米|mm|cm|m)',source,re.I)
+            if not units:units=re.findall(N+r'\s*(毫米|厘米|米|mm|cm|m)(?![a-zA-Z])',source,re.I)
+            if matches and len(set(u.lower() for u in units))==1:
+                match=matches[-1];factor={'米':1000,'m':1000,'厘米':10,'cm':10,'毫米':1,'mm':1}[units[-1].lower()]
+                center=([float(match[1])*factor,float(match[2])*factor],f'user:{i}:center',match[0])
+        if center:
+            actual=[(bounds['min_x']+bounds['max_x'])/2,(bounds['min_y']+bounds['max_y'])/2]
+            measure('center',actual,center[0],'eq',center[1],center[2])
+    if failures:
+        raise StructureContractError('最终几何不符合明确的源需求',{
+            'authority':'backend_measured_geometry','geometry_ids':sorted({i for f in failures for i in f['geometry_ids']}),
+            'failures':failures,'local_repair_possible':True,
+            'repair_instruction':'只修正失败源需求绑定的对象和参数；不得删除源要求或改变未受影响对象。'})
+    return {'status':'partial' if checks else 'not_checked','coverage':'partial','checks':checks,
+            'unknown_requirements':unknown,'review_required':bool(unknown)}
+
+
 def extract_scoped_primitives(text):
     specs={}
     for source in source_texts(text):

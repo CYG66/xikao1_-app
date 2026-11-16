@@ -198,6 +198,22 @@ def test_standard_template_and_free_geometry_share_constructor() -> None:
     ) is True
 
 
+def test_construction_commit_persists_execution_context_metadata() -> None:
+    from app.cad_construction_commit import commit_construction_interpretation
+    from app.creative_projects import CreativeProjectStore
+    import tempfile
+    from pathlib import Path
+    with tempfile.TemporaryDirectory() as directory:
+        store = CreativeProjectStore(Path(directory) / "projects.json")
+        context = {"request_id": "r1", "contract_version": "c1", "sha256": "h1"}
+        interpretation = interpret_construction_request("画一个矩形，宽2米高1米，坐标单位米")
+        result = commit_construction_interpretation(
+            "创建矩形", interpretation, store=store,
+            candidate_metadata={"execution_context": context},
+        )
+        variant = result["recommended_variant"]
+        assert variant["execution_context"] == context
+        assert variant["execution_context_hash"] == "h1"
 def test_formal_constructor_returns_guided_question_for_incomplete_curve_request() -> None:
     service = object.__new__(RobotAgentService)
     service.mode = "local"

@@ -29,6 +29,8 @@ class ConstraintSolveError(ValueError):
         self.code = code
         self.message = message
         self.constraint_id = constraint_id
+        self.category = ('solver_failed' if code.startswith('constraint_backend_')
+                         else 'constraint_unsatisfied' if code == 'constraint_residual_exceeded' else code)
 
 
 class _StrictModel(BaseModel):
@@ -171,7 +173,6 @@ def solve_geometric_constraints(
         reference = _single_geometry(
             solved, symbol_table, constraint.reference_ref, constraint.constraint_id,
         )
-        _apply_constraint(target, reference, constraint, unit_scale)
         residual, metric = _constraint_residual(target, reference, constraint, unit_scale)
         tolerance = (
             constraint.angle_tolerance_deg
@@ -189,12 +190,18 @@ def solve_geometric_constraints(
             "tolerance": round(tolerance, 9),
             "metric": metric,
         })
-        if not verified:
-            raise ConstraintSolveError(
-                "constraint_residual_exceeded",
-                f"约束 {constraint.constraint_id} 求解后残差仍超限",
-                constraint_id=constraint.constraint_id,
-            )
+    failures = [item for item in reports if not item['verified']]
+    if failures:
+        error = ConstraintSolveError(
+            'constraint_residual_exceeded',
+            '最终几何未同时满足约束：' + ', '.join(item['constraint_id'] for item in failures),
+            constraint_id=failures[0]['constraint_id'],
+        )
+        # Sequential failure is not proof of mathematical infeasibility.
+        error.category = 'constraint_unsatisfied'
+        error.reports = deepcopy(reports)
+        error.failed_constraints = deepcopy(failures)
+        raise error
     return solved, {
         "schema": "cad.constraint-solve.v1",
         "requested_backend": requested,

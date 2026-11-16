@@ -162,6 +162,7 @@ class CadEditCommand(BaseModel):
     chain_steps: list[dict[str, Any]] = Field(default_factory=list, max_length=8)
     project_id: str | None = Field(default=None, min_length=1, max_length=64)
     parent_variant_id: str | None = Field(default=None, min_length=1, max_length=64)
+    execution_identity: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_operation_parameters(self) -> "CadEditCommand":
@@ -399,6 +400,7 @@ def build_cad_edit_contract(
         auto_decisions=list(edit.get("auto_decisions") or []),
         project_id=edit.get("project_id"),
         parent_variant_id=edit.get("parent_variant_id"),
+        execution_identity=dict(edit.get('execution_identity') or {}),
     )
     payload = command.model_dump(mode="json", by_alias=True, exclude_none=True)
     target_payload = payload.get("target")
@@ -517,7 +519,7 @@ def cad_edit_contract_to_edit(contract: dict[str, Any]) -> dict[str, Any]:
     for key in (
         "assumptions", "constraints", "missing_parameters", "auto_decisions",
         "intent_schema", "intent_parser", "intent_evidence_text",
-        "intent_confidence", "intent_grounding",
+        "intent_confidence", "intent_grounding", "execution_identity",
     ):
         if payload.get(key) is not None:
             edit[key] = payload[key]

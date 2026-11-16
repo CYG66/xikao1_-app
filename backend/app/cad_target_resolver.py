@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from typing import Any
 
 
@@ -10,6 +11,29 @@ _EPSILON = 1e-6
 _MIN_TARGET_SCORE = 0.70
 _MIN_TARGET_MARGIN = 0.15
 _TARGET_SCORE_SCHEMA = "cad.target-score.v1"
+
+
+def recent_creation_selector(message):
+    match=re.search(r'(?:刚才|上一步)复制(?:出来)?的(?:圆形|圆)',message)
+    return {'text':match[0],'operation':'duplicate','type':'circle'} if match else None
+
+
+def resolve_created_target(variant,project_id,selector):
+    from .cad_candidate_state import geometry_evidence_hash
+    mapping=variant.get('reference_mapping') or {}
+    expected={'project_id':project_id,'variant_id':variant['id'],
+              'parent_variant_id':variant.get('parent_variant_id'),
+              'geometry_hash':geometry_evidence_hash(variant.get('geometries') or [])}
+    if mapping.get('creation_binding')!=expected:
+        return {'status':'needs_clarification','reason':'creation_binding_missing_or_stale'}
+    events=[e for e in mapping.get('creation_events',[]) if e['operation']=='duplicate']
+    if not events:return {'status':'needs_clarification','reason':'copy_event_missing'}
+    byid={g['id']:g for g in variant.get('geometries',[])}
+    members=[m for m in events[-1]['members'] if m['geometry_id'] in byid and byid[m['geometry_id']].get('type')=='circle']
+    if len(members)!=1:
+        return {'status':'needs_clarification','reason':'copied_circle_ambiguous_or_deleted','candidate_count':len(members)}
+    return {'status':'resolved','geometry_ids':[members[0]['geometry_id']],
+            'operation_id':events[-1]['operation_id']}
 
 
 def _authoritative_scoring(

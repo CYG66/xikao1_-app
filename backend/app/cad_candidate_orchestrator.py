@@ -50,11 +50,11 @@ def persist_candidate_variant(
         )
         if isinstance(record_summary, dict):
             metadata["acceptance_summary"] = deepcopy(record_summary)
-    from .cad_candidate_state import candidate_is_accepted
+    from .cad_candidate_state import candidate_is_accepted, candidate_is_reviewable_draft
     if not candidate_is_accepted({
         "acceptance_summary": metadata.get("acceptance_summary"),
         "construction_record": metadata.get("construction_record"),
-    }):
+    }) and not candidate_is_reviewable_draft({**metadata,'geometries':geometries}):
         return {"ok": False, "message": "候选缺少独立几何验收通过证据，不能保存为可用候选。"}
     preview = stored_preview or preview_paths({"lines": geometries})
     store=getattr(add_variant,'__self__',None)

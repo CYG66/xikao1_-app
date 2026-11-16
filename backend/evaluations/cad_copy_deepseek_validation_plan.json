@@ -1,0 +1,25 @@
+{
+  "schema": "cad.copy-live-validation-plan.v1",
+  "status": "awaiting_explicit_api_approval",
+  "provider_calls_executed": 0,
+  "production_changes_allowed": false,
+  "configured_model_default": "deepseek-chat",
+  "actual_remote_model_version": "not_verified",
+  "initial_fixture_T1_T5": {"circle_count": 1, "center_mm": [0, 0], "radius_mm": 1000, "independent_acceptance_required": true},
+  "isolation": "one project and conversation per case; T6 starts with no geometry",
+  "planned_limits": {"provider_requests": 32, "aggregate_input_tokens": 500000, "aggregate_output_tokens": 128000, "total_user_turns": 17, "automatic_repeat_runs": 0},
+  "limits_implementation": "must be added to isolated test transport before approved execution; not currently enforced by existing worker",
+  "cases": [
+    {"id":"T1","messages":["把这个圆复制到右侧3米处。","把刚才复制的圆半径改为0.5米。"],"oracle":["two distinct stable geometry IDs","copy center is [3000,0] mm","copy radius is 500 mm","source geometry unchanged","correct parent and new variant IDs"]},
+    {"id":"T2","messages":["把这个圆复制到右侧3米处。","把刚才新增的那个圆半径改为0.5米。"],"oracle":["resolve copy by provenance, never inject target ID","copy radius is 500 mm","source unchanged"],"known_boundary":"This wording is not proven by the narrow deterministic copy-circle selector; report clarification/failure honestly."},
+    {"id":"T3","messages":["把这个圆复制到右侧3米处。","把原来的圆半径改为0.8米，副本保持不变。"],"oracle":["original stable ID has radius 800 mm","copy geometry unchanged"],"known_boundary":"Original-object reference is not yet independently proven by the new copy-circle selector."},
+    {"id":"T4","messages":["把这个圆复制到右侧3米处。","把刚才复制的圆半径改为0.5米。","把刚才复制的圆半径改为0.5米。"],"oracle":["second resize returns no_change","no extra persisted variant","all geometry identical before and after repeated resize"]},
+    {"id":"T5","messages":["把这个圆复制到右侧3米处。","删除刚才复制的圆。","把刚才复制的圆半径改为0.5米。"],"oracle":["copy deleted","last request fails or clarifies without fallback to original","original unchanged","no new variant on invalid reference"]},
+    {"id":"T6","messages":["新建二维CAD图纸，只画一个圆，圆心(0,0)，半径1米，坐标单位米。","把这个圆复制到右侧3米处。","把刚才复制的圆半径改为0.5米。"],"oracle":["circle must originate from actual model-mediated production creation","no predefined geometry injection","copy and absolute-radius results as T1","review-required creation must not become an accepted edit baseline"],"maximum_extra_clarification_turns":2,"known_boundary":"If creation remains review-required, record the P0 edit-baseline block; never manually promote it for this test."}
+  ],
+  "logging_required": ["original request and conversation history","sanitized full provider request","raw provider response including returned model, finish_reason and usage","executed plan or edit contract","resolved target IDs","execution source mapping","project, parent and result variant IDs","before and after geometry","automatic acceptance","per-call token and price accounting"],
+  "model_exposure_rule": "If deterministic routing consumes no model responses, record zero model calls and classify as deterministic production verification, not a DeepSeek understanding success.",
+  "no_target_injection_rule": "Project/session/version context may follow actual responses; the next-turn target geometry ID must not be set by the test harness.",
+  "confirmation_rule": "Use existing CAD confirmation endpoints only; no robot calls, no artificial acceptance evidence for T6.",
+  "preconditions_remaining": ["explicit user approval","confirm requested model alias and actual account pricing without silently migrating models","add bounded transport logging and counters in isolated test tooling"]
+}

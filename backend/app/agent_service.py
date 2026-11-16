@@ -13,6 +13,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -286,6 +287,7 @@ class PendingAction:
     expires_at: datetime
     mode: str = "base"
     owner_id: str = "local-default"
+    execution_context: dict[str, Any] | None = None
 
 
 class RobotAgentService:
@@ -350,7 +352,7 @@ class RobotAgentService:
     def cad_planning_model(self) -> str:
         profile = self._active_user_profile
         value = str((profile or {}).get("cad_planning_model") or getattr(self, "_cad_planning_model", "deepseek-chat"))
-        return value if value in {"deepseek-chat", "deepseek-reasoner"} else "deepseek-chat"
+        return value if value in {"deepseek-chat", "deepseek-reasoner", "deepseek-flash"} else "deepseek-chat"
 
     @property
     def api_keys(self) -> dict[str, str]:
@@ -444,6 +446,7 @@ class RobotAgentService:
                     expires_at=expires_at,
                     mode=mode,
                     owner_id=str(task.get("owner_id") or "local-default"),
+                    execution_context=deepcopy(task.get("execution_context")) if isinstance(task.get("execution_context"), dict) else None,
                 )
             except (KeyError, TypeError, ValueError) as error:
                 task_id = str(task.get("id") or "")
@@ -2076,6 +2079,8 @@ class RobotAgentService:
             ),
         }
         selected_tools = DEEPSEEK_TOOLS if tools is None else tools
+        if payload['model']=='deepseek-flash':
+            payload['thinking']={'type':'disabled'}
         if json_output:
             payload["response_format"] = {"type": "json_object"}
         if stream_structured:
@@ -2972,6 +2977,7 @@ class RobotAgentService:
         if not policy["allowed"]:
             raise PermissionError(policy["reason"])
         arguments = dict(arguments)
+        frozen_context = _REQUEST_EXECUTION_CONTEXT.get()
         prepared_modification = None
         if name == "modify_drawing":
             normalized = self._normalize_legacy_modify_arguments(arguments)
@@ -3015,11 +3021,13 @@ class RobotAgentService:
                     expires_at=now + timedelta(minutes=2),
                     mode=mode,
                     owner_id=owner_id,
+                    execution_context=deepcopy(frozen_context) if isinstance(frozen_context, dict) else None,
                 )
                 self.pending[action_id] = action
                 agent_tasks.create_pending(
                     action_id, name, arguments, action.expires_at,
                     agent_mode=mode, owner_id=owner_id,
+                    execution_context=deepcopy(frozen_context) if isinstance(frozen_context, dict) else None,
                 )
         result = {
             "id": action_id,
@@ -3029,6 +3037,8 @@ class RobotAgentService:
             "expires_in_seconds": 120,
             "agent_policy": policy,
         }
+        if isinstance(frozen_context, dict):
+            result['execution_context'] = deepcopy(frozen_context)
         result["preflight"] = build_action_preflight(name, arguments)
         spec = TOOL_REGISTRY.get(name)
         if spec is not None:
@@ -4925,6 +4935,27 @@ class RobotAgentService:
             pending_lock = self._pending_lock = threading.RLock()
         with pending_lock:
             action = self.pending.pop(action_id, None)
+            persisted = agent_tasks.get(action_id)
+            if isinstance(persisted, dict) and persisted.get("state") == "pending_confirmation":
+                # The persisted server snapshot is authoritative across process
+                # boundaries; never trust the in-memory copy over it.
+                if not isinstance(persisted.get("execution_context"), dict):
+                    return {"ok": False, "message": "待确认任务缺少原始请求上下文，已拒绝恢复，请重新发起请求。", "task_id": action_id}
+                if action is not None:
+                    action.execution_context = deepcopy(persisted["execution_context"])
+                    action.arguments = dict(persisted.get("arguments") or action.arguments)
+                    action.name = str(persisted.get("tool") or action.name)
+            if action is None and isinstance(persisted, dict) and persisted.get("state") == "pending_confirmation":
+                if not isinstance(persisted.get("execution_context"), dict):
+                    return {"ok": False, "message": "待确认任务缺少原始请求上下文，已拒绝恢复，请重新发起请求。", "task_id": action_id}
+                action = PendingAction(
+                    name=str(persisted.get("tool") or ""),
+                    arguments=dict(persisted.get("arguments") or {}),
+                    expires_at=datetime.fromisoformat(str(persisted["expires_at"])).replace(tzinfo=None),
+                    mode=normalize_policy_mode(str(persisted.get("agent_mode") or "base")),
+                    owner_id=str(persisted.get("owner_id") or "local-default"),
+                    execution_context=deepcopy(persisted["execution_context"]),
+                )
             if (
                 action is not None
                 and action.owner_id != "local-default"
@@ -4971,6 +5002,18 @@ class RobotAgentService:
                 }
             agent_tasks.transition(action_id, "expired", "确认已过期")
             return {"ok": False, "message": "操作已失效，请重新向助手发出指令。"}
+        # Legacy in-memory adapters may not have a persisted task at all; keep
+        # their existing confirmation behavior. Once a task is persisted,
+        # however, a missing snapshot is never recoverable.
+        if not isinstance(action.execution_context, dict) and isinstance(persisted, dict):
+            agent_tasks.transition(action_id, "failed", "缺少原始请求上下文")
+            return {"ok": False, "message": "待确认任务缺少原始请求上下文，已拒绝执行，请重新发起请求。", "task_id": action_id}
+        expected_hash = action.execution_context.get("sha256") if isinstance(action.execution_context, dict) else None
+        unsigned = {k: v for k, v in action.execution_context.items() if k != "sha256"} if isinstance(action.execution_context, dict) else {}
+        actual_hash = hashlib.sha256(json.dumps(unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest() if isinstance(action.execution_context, dict) else None
+        if isinstance(action.execution_context, dict) and (not isinstance(expected_hash, str) or expected_hash != actual_hash):
+            agent_tasks.transition(action_id, "failed", "请求上下文完整性校验失败")
+            return {"ok": False, "message": "待确认请求上下文已损坏或被篡改，已拒绝执行。", "task_id": action_id}
         if not approved:
             agent_tasks.transition(action_id, "cancelled", "用户取消操作")
             return {"ok": True, "message": "已取消操作。"}
@@ -6725,6 +6768,10 @@ class RobotAgentService:
                     or route.get("decision_source") == "design_confirmation_followup"
                     else None
                 ),
+                candidate_metadata=(
+                    {"execution_context": deepcopy(route.get("execution_context"))}
+                    if isinstance(route.get("execution_context"), dict) else None
+                ),
             )
         except ConstructionCommitError as exc:
             result = self._result(
@@ -7496,6 +7543,7 @@ class RobotAgentService:
                                 edit_preview=resolved_preview,
                                 machine_assertions=machine_assertions,
                                 acceptance_summary=edit_acceptance,
+                                execution_context=deepcopy(_REQUEST_EXECUTION_CONTEXT.get()) if isinstance(_REQUEST_EXECUTION_CONTEXT.get(), dict) else None,
                             )
                             output = {
                                 **persisted,
@@ -7517,10 +7565,13 @@ class RobotAgentService:
                             expected_quantity=expected_quantity,
                             logical_objects=logical_objects,
                             topology=topology,
+                            execution_context=deepcopy(_REQUEST_EXECUTION_CONTEXT.get()) if isinstance(_REQUEST_EXECUTION_CONTEXT.get(), dict) else None,
                         )
         if output.get("ok") is not True:
             result = self._result(str(output.get("message") or "图纸修改失败。"), self._empty_usage())
             result["ok"] = False
+            result['cad_edit_result']={'status':'no_change' if not any(int(counts.get(k) or 0) for k in ('added','removed','modified')) else 'execution_failed',
+                'project_id':project['id'],'source_variant_id':parent['id'],'persisted':False}
             return result
         updated = output["project"]
         return {
@@ -7538,6 +7589,10 @@ class RobotAgentService:
                 "topology": dict(output["variant"].get("topology") or {}),
             }),
             "cad_revision": output["variant"].get("revision_contract"),
+            'cad_edit_result':{'status':'changed','project_id':project['id'],
+                'source_variant_id':parent['id'],'variant_id':output['variant']['id'],
+                'automatic_acceptance':(output['variant'].get('acceptance_summary') or {}).get('status','unknown'),
+                'persisted':True},
             **({"edit_preview": output["variant"].get("edit_preview")}
                if isinstance(output["variant"].get("edit_preview"), dict) else {}),
             **({"machine_assertions": output["variant"].get("machine_assertions")}
@@ -7797,6 +7852,24 @@ class RobotAgentService:
             result = self._result(activation_error, self._empty_usage())
             result["ok"] = False
             return result
+        if edit.get('recent_creation') and isinstance(parent,dict):
+            from .cad_target_resolver import resolve_created_target
+            if isinstance(selection,dict) and (
+                selection.get('project_id') not in (None,'',project['id']) or
+                selection.get('variant_id') not in (None,'',parent['id'])):
+                return {**self._result('选区属于旧项目或版本，请重新选择。',self._empty_usage()),
+                        'ok':False,'edit_outcome':'target_resolution_failed'}
+            recent_target=resolve_created_target(parent,project['id'],edit['recent_creation'])
+            if recent_target['status']!='resolved':
+                return {**self._result('无法唯一定位刚才创建的对象，请在画布点选目标。',self._empty_usage()),
+                        'ok':False,'edit_outcome':'target_resolution_failed','target_resolution':recent_target}
+            explicit_ids=edit.get('geometry_ids') or ((selection or {}).get('geometry_ids') if isinstance(selection,dict) else None)
+            if explicit_ids and set(explicit_ids)!=set(recent_target['geometry_ids']):
+                return {**self._result('当前明确选区与刚才复制的圆不一致，请确认目标。',self._empty_usage()),
+                        'ok':False,'edit_outcome':'target_resolution_failed'}
+            edit['geometry_ids']=recent_target['geometry_ids']
+            edit.pop('instance',None);edit.pop('instances',None)
+            selection=None
         if isinstance(selection, dict) and isinstance(parent, dict):
             selection_project_id = str(selection.get("project_id") or "")
             selection_variant_id = str(selection.get("variant_id") or "")
@@ -8154,6 +8227,11 @@ class RobotAgentService:
                 result["clarification_required"] = True
                 result["clarification_question"] = str(error)
             return result
+        if edit.get('recent_creation') and geometries==parent.get('geometries'):
+            return {**self._result('目标圆已满足本次修改要求，没有几何变化，未创建新版本。',self._empty_usage()),
+                'ok':True,'source_variant_id':parent['id'],'variant_saved':False,
+                'cad_edit_result':{'status':'no_change','project_id':project['id'],
+                    'source_variant_id':parent['id'],'persisted':False}}
         geometry_ids = edit.get("geometry_ids")
         instances = edit.get("instances")
         resulting_instance_ids = {
@@ -11368,3 +11446,10 @@ class RobotAgentService:
 
 
 robot_agent = RobotAgentService()
+_REQUEST_EXECUTION_CONTEXT = ContextVar('request_execution_context', default=None)
+
+def set_request_execution_context(value):
+    return _REQUEST_EXECUTION_CONTEXT.set(value)
+
+def reset_request_execution_context(token):
+    _REQUEST_EXECUTION_CONTEXT.reset(token)

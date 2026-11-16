@@ -66,6 +66,7 @@ class AgentTaskStore:
         expires_at: datetime,
         agent_mode: str = "base",
         owner_id: str | None = None,
+        execution_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         now = utc_now()
         task = {
@@ -74,6 +75,7 @@ class AgentTaskStore:
             "arguments": deepcopy(arguments),
             "agent_mode": agent_mode,
             "owner_id": owner_id,
+            "execution_context": deepcopy(execution_context) if isinstance(execution_context, dict) else None,
             "state": "pending_confirmation",
             "created_at": now,
             "updated_at": now,

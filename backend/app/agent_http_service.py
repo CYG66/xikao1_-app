@@ -3,10 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import uuid
 from copy import deepcopy
 from .agent_response_builder import normalize_acceptance_response
 from fastapi.responses import StreamingResponse
-from .agent_service import robot_agent
+from .agent_service import robot_agent, set_request_execution_context, reset_request_execution_context
 from .agent_attachments import agent_attachments
 from .conversation_memory import conversation_memory
 from .cad_revision import verify_cad_revision_state
@@ -226,6 +227,28 @@ def _bind_and_filter_candidate_visibility(
     accepted = (candidate_is_accepted(variant)
                 and isinstance(summary, dict) and summary.get("status") == "passed"
                 and summary.get("review_required") is not True)
+    from .cad_candidate_state import candidate_is_reviewable_draft, geometry_evidence_hash
+    if binding_ok and candidate_is_reviewable_draft(variant):
+        from copy import deepcopy
+        from .drawing_store import geometry_preview_paths
+        result['draft_preview']={
+            'status':'review_required','project_id':project_id,'run_id':run_id,
+            'variant_id':variant_id,'geometry_hash':geometry_evidence_hash(variant['geometries']),
+            'preview_paths':geometry_preview_paths({'lines':variant['geometries']}),
+            'acceptance_summary':deepcopy(variant['acceptance_summary']),
+            'selectable':False,'construction_authorized':False}
+        result['variant']=None
+        result['variants']=[]
+        result['preview_paths']=[]
+        result['drawing_json']=None
+        result['project']={**project,'variants':[]}
+        result['candidate_visibility']={'status':'draft_review','run_id':run_id}
+        result['next_action']='review_cad_draft'
+        result['acceptance_summary']=deepcopy(variant['acceptance_summary'])
+        result.pop('candidate_binding',None)
+        result['ok']=True
+        result['message']='CAD草稿待复核：未通过需求自动验收，不可选择为正式候选或用于施工。'
+        return result
     if accepted and binding_ok:
         result["candidate_binding"] = {
             "run_id": run_id,
@@ -591,6 +614,7 @@ def _prepare_run_step(
         "drawing_selection": command.drawing_selection.model_dump() if command.drawing_selection else None,
         "pending_command": deepcopy(pending_command) if isinstance(pending_command, dict) else None,
         "prepared_context": prepared,
+        "execution_context": deepcopy(route.get("execution_context")) if isinstance(route, dict) and isinstance(route.get("execution_context"), dict) else None,
     })
     return prepared
 
@@ -619,6 +643,7 @@ def _generate_run_result(
             if isinstance(result, dict) else None
         ),
         "result": result,
+        "execution_context": deepcopy(result.get("execution_context")) if isinstance(result.get("execution_context"), dict) else None,
     })
     return result
 
@@ -653,6 +678,7 @@ def _finalize_run_result(
         "drawing_selection": command.drawing_selection.model_dump() if command.drawing_selection else None,
         "pending_command": result.get("cad_edit_contract") or result.get("cad_edit_command"),
         "result": result,
+        "execution_context": deepcopy(result.get("execution_context")) if isinstance(result.get("execution_context"), dict) else None,
     })
     return result
 
@@ -677,6 +703,9 @@ def agent_chat(command: AgentChatRequest) -> dict[str, object]:
         agent_runs.transition(run["id"], "understanding", "开始理解用户请求")
         pending_command = pending_snapshot.get('command') if isinstance(pending_snapshot, dict) else None
         prepared = _prepare_run_step(run["id"], command, pending_command)
+        prepared_route = prepared.get("route") if isinstance(prepared, dict) else None
+        if isinstance(prepared_route, dict) and isinstance(prepared_route.get("execution_context"), dict):
+            agent_runs.bind_context(run["id"], execution_context=deepcopy(prepared_route["execution_context"]))
         result = _generate_run_result(run["id"], command, prepared)
         return _finalize_run_result(run["id"], command, result)
 
@@ -724,6 +753,19 @@ def resume_agent_run(run_id: str, client_id: str | None = None) -> dict[str, obj
         return {"ok": False, "message": "当前运行不处于可恢复状态", "run": run}
     stored_selection = run.get("drawing_selection")
     checkpoint = run.get("checkpoint") if isinstance(run.get("checkpoint"), dict) else {}
+    execution_context = checkpoint.get("execution_context")
+    if not isinstance(execution_context, dict):
+        prepared_snapshot = checkpoint.get("prepared_context")
+        if isinstance(prepared_snapshot, dict):
+            prepared_route = prepared_snapshot.get("route")
+            execution_context = prepared_route.get("execution_context") if isinstance(prepared_route, dict) else None
+    if not isinstance(execution_context, dict):
+        return {"ok": False, "message": "检查点缺少原始请求上下文，拒绝恢复，请重新发起请求。", "run": run}
+    expected_context_hash = execution_context.get("sha256")
+    unsigned_context = {k: v for k, v in execution_context.items() if k != "sha256"}
+    actual_context_hash = hashlib.sha256(json.dumps(unsigned_context, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    if not isinstance(expected_context_hash, str) or expected_context_hash != actual_context_hash:
+        return {"ok": False, "message": "检查点请求上下文完整性校验失败，拒绝恢复。", "run": run}
     if stored_selection is None and isinstance(checkpoint.get("drawing_selection"), dict):
         stored_selection = checkpoint.get("drawing_selection")
     try:
@@ -819,6 +861,9 @@ def resume_agent_run(run_id: str, client_id: str | None = None) -> dict[str, obj
                 prepared_context = checkpoint.get("prepared_context")
                 if checkpoint.get("step_id") == "context_prepared" and isinstance(prepared_context, dict):
                     prepared = dict(prepared_context)
+                    prepared_route = prepared.get("route")
+                    if isinstance(prepared_route, dict):
+                        prepared_route["execution_context"] = deepcopy(execution_context)
                     resumed_step = "execute"
                 else:
                     prepared = _prepare_run_step(
@@ -1333,6 +1378,8 @@ def _prepare_agent_chat_context(command: AgentChatRequest) -> dict[str, object]:
     execution_project = project_store.get(execution_project_id) if execution_project_id else None
     execution_selection = deepcopy(route.get('drawing_selection'))
     execution_snapshot = {
+        'request_id': str(uuid.uuid4()),
+        'conversation_id': command.conversation_id,
         'schema': 'cad.execution-context.v1',
         'project_id': execution_project_id,
         'source_variant_id': (
@@ -1346,6 +1393,14 @@ def _prepare_agent_chat_context(command: AgentChatRequest) -> dict[str, object]:
         'requirements': deepcopy((execution_project or {}).get('requirements') or {}),
         'constraints': deepcopy((execution_project or {}).get('constraints') or {}),
     }
+    from .cad_requirement_contract import requirement_contract, build_requirement_source_index
+    source_contract = requirement_contract([{'source_id':f'user:{i}','text':s}
+        for i,s in enumerate((execution_project or {}).get('requirements',{}).get('source_texts') or [command.message])])
+    execution_snapshot['contract_version'] = hashlib.sha256(json.dumps(
+        source_contract, ensure_ascii=False, sort_keys=True, default=str).encode()).hexdigest()
+    execution_snapshot['source_index'] = build_requirement_source_index(
+        source_contract, request_id=execution_snapshot['request_id'],
+        project_id=execution_snapshot.get('project_id'), contract_version=execution_snapshot['contract_version'])
     execution_snapshot['sha256'] = hashlib.sha256(json.dumps(
         execution_snapshot, ensure_ascii=False, sort_keys=True,
         separators=(',', ':'), default=str,
@@ -1465,12 +1520,16 @@ def _agent_chat(
                 command.conversation_id, command.message, enriched, route=route
             )
             return enriched
-        result = robot_agent.chat(
-            model_message,
-            history,
-            mode=command.mode,
-            route=route,
-        )
+        context_token = set_request_execution_context(route.get('execution_context'))
+        try:
+            result = robot_agent.chat(model_message, history, mode=command.mode, route=route)
+        finally:
+            reset_request_execution_context(context_token)
+        # Carry the immutable request snapshot through confirmation/recovery;
+        # downstream code may persist it alongside pending arguments.
+        result['execution_context'] = deepcopy(route.get('execution_context'))
+        if isinstance(result.get('pending_action'), dict):
+            result['pending_action']['execution_context'] = deepcopy(route.get('execution_context'))
         usage = result.get("usage") if isinstance(result.get("usage"), dict) else {}
         api_attempted = int(usage.get("total_tokens", 0) or 0) > 0 or (
             robot_agent.configured and (

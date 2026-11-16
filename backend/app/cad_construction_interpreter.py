@@ -163,6 +163,18 @@ def clarify_construction_request(source_text: str) -> dict[str, Any]:
     ))
     from .cad_repetition_acceptance import tooth_boundary_requirements
     has_curve_rule = has_curve_rule or tooth_boundary_requirements(text) is not None
+    # An explicitly constrained free curve can be planned without an
+    # additional bounding-box size.  Endpoints/anchors, segment count and
+    # continuity provide the geometric scope; do not reuse primitive-shape
+    # width/height requirements for Bezier/spline paths.
+    explicit_free_curve_scope = bool(
+        curved_shape
+        and len(re.findall(_POINT, text)) >= 2
+        and any(token in lowered for token in ("贝塞尔", "bezier", "控制点", "连接点", "c1", "g1"))
+        and bool(re.search(r"(?:开放式|开口|不闭合|段|连续|自交)", lowered))
+    )
+    if explicit_free_curve_scope:
+        has_size = True
 
     if shape is None:
         key = "shape"
@@ -568,6 +580,12 @@ def interpret_construction_request(
             model_text += "\n根据最新确认宽高将归一化关系转换为构造计划。基准框可平移，坐标y向上。每个组成是独立闭合路径。已有来源已明确星位、星径和朝向，不得再次索要这些信息，不得用仅外框代替完整对象。"
         if composition_contract:
             model_text += "\n[原文明确组成契约，不得省略或替换组成]\n"+json.dumps(composition_contract,ensure_ascii=False)
+        from .cad_requirement_contract import build_requirement_source_index, requirement_contract
+        from .cad_source_acceptance import source_texts
+        planning_sources = build_requirement_source_index(
+            requirement_contract([{'source_id':f'user:{i}','text':s} for i,s in enumerate(source_texts(original_requirement))])
+        )
+        model_text += "\n[后端只读需求来源索引；source_requirement_refs只能引用这些条目，模型不得创建或修改来源]\n" + json.dumps(planning_sources, ensure_ascii=False)
         try:
             payload = model_callback(
                 model_text, _request_construction_schema(text),
@@ -720,6 +738,22 @@ def interpret_construction_request(
         evidence = list(interpreted.evidence_text)
         confidence = float(interpreted.confidence)
         assumptions = list(interpreted.assumptions)
+        # H3.4: model output may only reference the backend-owned, current
+        # requirement source index. It cannot create or upgrade source refs.
+        from .cad_requirement_contract import build_requirement_source_index, validate_junction_source_refs, requirement_contract
+        from .cad_source_acceptance import source_texts
+        source_index = build_requirement_source_index(
+            requirement_contract([{'source_id':f'user:{i}','text':s} for i,s in enumerate(source_texts(original_requirement))]),
+        )
+        local_constraints=[]
+        for step in plan.steps:
+            local_constraints.extend([item.model_dump(mode='python') for item in getattr(step,'junction_constraints',[])])
+        if local_constraints:
+            source_validation=validate_junction_source_refs(local_constraints, source_index)
+            if not source_validation['valid']:
+                raise ConstructionPlanError('invalid_junction_source_refs',
+                    '局部连接约束引用了无效或语义不匹配的需求来源。',
+                    details={'source_validation':source_validation})
 
     try:
         # Reject missing/duplicated components before any coordinate execution.
@@ -733,6 +767,15 @@ def interpret_construction_request(
         if repetition_preflight:
             preflight_structure = repetition_preflight
         result = execute_construction_plan(plan)
+        if re.search(r'平滑|光滑|smooth|切向连续|C1', original_requirement, re.I):
+            for quality in result.get('curve_quality', []):
+                if quality.get('kind') == 'composite' and quality.get('c1') is not True:
+                    raise ConstructionPlanError('smoothness_requirement_failed',
+                        '用户要求平滑闭合曲线，但复合路径连接未达到切向连续。',
+                        step_id=quality.get('step_id'), details={
+                            'affected_output_refs':[quality.get('output_ref')],
+                            'measured_continuity':quality.get('continuity'),
+                            'repair_instruction':'仅修复该复合路径的连接控制点，使相邻段达到C1切向连续；保留中心、尺寸和闭合性。'})
         if len(scalar_contract['subjects']) == 1:
             overall = construction_geometry_bounds(result['geometries'])
             for fact in scalar_contract['facts']:
@@ -755,6 +798,28 @@ def interpret_construction_request(
             structure_validation = validate_structure(structure_contract, result["geometries"], width_m, height_m)
             composition_validation = validate_explicit_composition(composition_contract, result["geometries"])
             source_acceptance = verify_scoped_primitives(original_requirement, result["geometries"],result["logical_objects"])
+            from .cad_source_acceptance import verify_final_source_contract
+            source_acceptance['final_source_acceptance']=verify_final_source_contract(original_requirement,result['geometries'],result['logical_objects'])
+            # Generic explicit Bezier-chain requirements are verified from the
+            # measured curve-quality record, rather than left as unknown just
+            # because source_acceptance only handles primitive dimensions.
+            bezier_match = re.search(r'(\d+)\s*段.*?三次\s*Bezier', original_requirement, re.I)
+            qualities = result.get('curve_quality') or []
+            if bezier_match and len(qualities) == 1:
+                quality = qualities[0]
+                required = int(bezier_match.group(1))
+                actual_segments = len(plan.steps[0].segments) if plan.steps and hasattr(plan.steps[0], 'segments') else None
+                checks = source_acceptance.setdefault('checks', [])
+                checks.append({'field':'bezier_segment_count','expected':required,'actual':actual_segments,
+                               'status':'passed' if actual_segments == required else 'failed',
+                               'authority':'backend_measured_plan_and_geometry'})
+                checks.append({'field':'bezier_continuity','expected':'C1','actual':quality.get('continuity_required'),
+                               'status':'passed' if quality.get('c1') is True else 'failed',
+                               'authority':'backend_measured_curve_quality'})
+                if actual_segments == required and quality.get('c1') is True and not quality.get('self_intersection_count'):
+                    source_acceptance['coverage']='complete'
+                    source_acceptance['unknown_requirements'] = [u for u in source_acceptance.get('unknown_requirements', [])
+                                                                 if u.get('reason') != '需求清单或完整覆盖证据缺失']
             from .cad_path_relation_acceptance import verify_path_relations
             path_acceptance=verify_path_relations(original_requirement,result['geometries'])
             if path_acceptance['status']!='not_checked':
@@ -1053,7 +1118,9 @@ def construction_acceptance_summary(
         or report.get("status") in {"failed", "unverified", "review_required"}
         for report in reports
     )
-    review_required = preflight_review_required or report_requires_review
+    review_required = (preflight_review_required or report_requires_review
+        or any((report or {}).get('review_required') is True for report in
+               (preflight_structure,structure_validation,composition_validation)))
     verified_checks = sum(
         1 for report in reports for check in report.get("checks", [])
         if isinstance(check, dict) and check.get("status") == "passed"
@@ -1068,24 +1135,24 @@ def construction_acceptance_summary(
         bool(structure_contract)
         and (structure_validation or {}).get("status") == "passed"
     )
-    # Primitive/template plans may have no named structure contract or source
-    # acceptance report.  Their executed trial is still authoritative when
-    # both backend assertion and feasibility checks passed.
-    if (
-        verified_checks == 0
-        and isinstance(trial_result, dict)
-        and isinstance(trial_result.get("assertions"), dict)
-        and trial_result["assertions"].get("ok") is True
-        and isinstance(trial_result.get("feasibility"), dict)
-        and trial_result["feasibility"].get("ok") is True
-    ):
-        verified_checks = 2
-        review_required = False
+    # Executability never establishes source requirement coverage. Partial or
+    # missing coverage remains reviewable even when every known check passes.
+    coverage_complete = source_acceptance.get('coverage') in {'complete', 'full'}
+    unknown_requirements = source_acceptance.get('unknown_requirements', [])
+    coverage_complete = coverage_complete and not unknown_requirements
+    review_required = review_required or not coverage_complete
     return {
         "status": "review_required" if review_required else "passed",
         "review_required": review_required,
         "authority": "backend_measured_geometry",
         "verified_checks": verified_checks,
+        "requirement_coverage": "complete" if coverage_complete else "unknown",
+        "unknown_requirements": deepcopy(unknown_requirements) or ([] if coverage_complete else [
+            {'source':'source_acceptance','reason':'需求清单或完整覆盖证据缺失'}]),
+        "geometry_validity": 'passed' if (trial_result or {}).get('feasibility',{}).get('ok') is True else 'not_checked',
+        "constraint_satisfaction": (trial_result or {}).get('constraint_solve',{}).get('status','not_checked'),
+        "assertion_status": ('passed' if (trial_result or {}).get('assertions',{}).get('ok') is True
+                             and (trial_result or {}).get('assertions',{}).get('count',0)>0 else 'not_checked'),
         "unverified_geometry_ids": source_acceptance.get("unverified_geometry_ids", []),
     }
 
@@ -1141,8 +1208,16 @@ def bind_component_layout(payload, contract, text):
                 # independent structure acceptance report a radius mismatch.
                 # A bad fixed component must not cancel deterministic sizing
                 # of every other, already-correct component.
-                item={'target_ref':ref,'width':local.get('width_m',(b['max_x']-b['min_x'])/1000)*1000/unit,
-                      'height':local.get('height_m',(b['max_y']-b['min_y'])/1000)*1000/unit}
+                item={'target_ref':ref}
+                # A fixed radius/circumradius is a geometric identity. Do not
+                # convert it into a width/height fit, which can nonuniformly
+                # scale a polygon and invalidate its radius after placement.
+                if not any(local.get(key) is not None for key in ('radius_m','circumradius_m','diameter_m')):
+                    item.update(width=local.get('width_m',(b['max_x']-b['min_x'])/1000)*1000/unit,
+                               height=local.get('height_m',(b['max_y']-b['min_y'])/1000)*1000/unit)
+                else:
+                    item.update(width=(b['max_x']-b['min_x'])/unit,
+                               height=(b['max_y']-b['min_y'])/unit)
                 if layouts and contract.get('left_to_right') and contract.get('gap_m') is not None:
                     item.update(right_of_ref=layouts[-1]['target_ref'],gap=contract['gap_m']*1000/unit,gap_reference=contract['gap_reference'])
                 layouts.append(item)
@@ -1248,6 +1323,7 @@ def compile_composition_plan(payload, contract, source_text):
                 "duplicated_components": [name for name, refs in component_outputs.items() if len(refs) > 1],
                 "observed_outputs": [{"output_ref": step.output_ref, "label": step.semantic.label}
                                      for step in steps],
+                "relation_checklist": _composition_relation_checklist(contract, steps, payload["plan"]),
                 "repair_instruction": "保留每个独立部件的一份完整构造；位置关系写入布局，不要为移动同一部件再次创建重复轮廓。保留原始需求、补参及正确部件。",
             })
         labels = [str(step.semantic.label) for step in steps]
@@ -1257,7 +1333,13 @@ def compile_composition_plan(payload, contract, source_text):
                 "phase": "composition_compile",
                 "missing_components": missing,
                 "observed_labels": labels,
+                "relation_checklist": _composition_relation_checklist(contract, steps, payload["plan"]),
             })
+        checklist = _composition_relation_checklist(contract, steps, payload["plan"])
+        if checklist['missing_relations']:
+            raise StructureContractError('组合计划缺少需求关系绑定', {
+                'phase':'composition_compile','relation_checklist':checklist,
+                'repair_instruction':'先补齐关系清单中的布局、尺寸和中心关系，再执行几何；不要用模型假设替代用户关系。'})
     elif kind == "component_count":
         expected = sum(int(value) for value in (contract.get("counts") or {}).values())
         expanded = any(getattr(step, "op", None) == "rectangular_array" for step in steps)
@@ -1273,6 +1355,26 @@ def compile_composition_plan(payload, contract, source_text):
     payload["plan"] = CadConstructionPlan.model_validate(payload["plan"]).model_dump(mode="json")
     repairs.append({"kind": "compile_composition_plan", "component_contract": deepcopy(contract)})
     return payload, repairs
+
+
+def _composition_relation_checklist(contract, steps, plan):
+    refs={str(s.semantic.label):s.output_ref for s in steps}
+    missing=[]
+    if contract.get('left_to_right') and contract.get('gap_m') is not None:
+        layouts=[]
+        for s in steps:
+            layouts.append(s.output_ref)
+        # compile_composition_plan has already bound this relation into layout;
+        # report it as missing only when the plan omitted the binding.
+        layouts=plan.get('free_outline_layout') or []
+        if not any(v.get('right_of_ref') and v.get('gap') is not None for v in layouts): missing.append('left_to_right_gap')
+    if contract.get('center_distance_m') is not None and len(steps)<2:
+        missing.append('center_distance')
+    return {'components':list(refs.values()),'required':{
+        'dimensions':bool(contract.get('dimensions') or contract.get('component_dimensions')),
+        'layout':bool(contract.get('left_to_right') and contract.get('gap_m') is not None),
+        'center_distance':contract.get('center_distance_m') is not None},
+        'missing_relations':missing}
 
 
 def bind_named_radial_requirements(payload, contract, source_text):

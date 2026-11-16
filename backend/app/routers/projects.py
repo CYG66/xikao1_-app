@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Body
 
 from ..agent_service import robot_agent
 from ..agent_skills import check_drawing_feasibility, layer_drawing_paths
@@ -40,6 +40,21 @@ from ..schemas import (
 
 
 router = APIRouter()
+
+
+@router.post('/api/agent/projects/{project_id}/variants/{variant_id}/manual-review')
+def manual_cad_review(project_id: str, variant_id: str, payload: dict = Body(...)):
+    store=get_creative_project_store()
+    project=store.get(project_id)
+    owner=str((project or {}).get('owner_conversation_id') or '')
+    if not project or not owner or payload.get('conversation_id')!=owner:
+        return {'ok':False,'message':'项目所属会话不匹配'}
+    try:
+        entry=store.record_manual_cad_confirmation(project_id,variant_id,
+            payload.get('geometry_hash'),payload.get('event_id'))
+    except ValueError as exc:
+        return {'ok':False,'message':str(exc)}
+    return {'ok':True,'manual_confirmation':entry,'construction_authorized':False}
 
 
 def _guard_project_endpoint_binding(

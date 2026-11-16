@@ -255,6 +255,23 @@ CompositePathSegment = Annotated[
     Field(discriminator="kind"),
 ]
 
+class JunctionConstraint(_StrictModel):
+    junction_index: int = Field(ge=0)
+    left_segment_index: int = Field(ge=0)
+    right_segment_index: int = Field(ge=0)
+    intent: Literal['smooth','intentional_cusp','intentional_corner','unknown']
+    required_continuity: Literal['C0','G1','C1']
+    tangent_tolerance_deg: float | None = Field(default=None, gt=0.0, le=45.0)
+    source_requirement_refs: list[str] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode='after')
+    def validate_intent_continuity(self):
+        if self.intent == 'smooth' and self.required_continuity == 'C0':
+            raise ValueError('smooth requires G1 or C1')
+        if self.intent in {'intentional_cusp','intentional_corner'} and self.required_continuity != 'C0':
+            raise ValueError(f'{self.intent} requires C0 in H2')
+        return self
+
 
 class AddCompositePathStep(ConstructionStepBase):
     op: Literal["add_composite_path"]
@@ -268,6 +285,34 @@ class AddCompositePathStep(ConstructionStepBase):
     allow_duplicate_segments: bool = False
     max_curvature: float | None = Field(default=None, gt=0.0, le=1000000.0)
     max_sampling_error: float | None = Field(default=None, gt=0.0, le=100000.0)
+    junction_constraints: list[JunctionConstraint] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode='after')
+    def validate_junction_constraints(self):
+        n=len(self.segments); seen=set()
+        for item in self.junction_constraints:
+            if item.left_segment_index >= n or item.right_segment_index >= n:
+                raise ValueError('junction segment index out of range')
+            expected=(item.left_segment_index+1)%n
+            if item.right_segment_index != expected or (expected==0 and not self.closed):
+                raise ValueError('junction segments are not adjacent for curve closure')
+            key=(item.left_segment_index,item.right_segment_index)
+            if key in seen: raise ValueError('duplicate junction constraint')
+            seen.add(key)
+        return self
+
+    def effective_junction_constraints(self):
+        local={(x.left_segment_index,x.right_segment_index):x for x in self.junction_constraints}
+        n=len(self.segments); out=[]
+        for i in range(n-1+(1 if self.closed else 0)):
+            key=(i,(i+1)%n); item=local.get(key)
+            out.append({'junction_index':i,'left_segment_index':i,'right_segment_index':(i+1)%n,
+                        'required_continuity':item.required_continuity if item else self.continuity,
+                        'intent':item.intent if item else 'unknown',
+                        'source_requirement_refs':list(item.source_requirement_refs) if item else [],
+                        'overridden':item is not None,
+                        'tangent_tolerance_deg':(item.tangent_tolerance_deg or self.tangent_tolerance_deg) if item else self.tangent_tolerance_deg})
+        return out
 
 
 class AddRotationalPathStep(AddCompositePathStep):
@@ -611,8 +656,15 @@ def execute_construction_plan(
                     if min(width,height)>1e-12:
                         amplification=max(layout.width/width,layout.height/height)
                         if error*amplification>step.max_sampling_error:
-                            sampling_tolerance=step.max_sampling_error/amplification*.95
-                            points,error=sample_curve(step.x_expression,step.y_expression,start,end,sampling_tolerance)
+                            # Re-sample the source curve at a tighter
+                            # tolerance until the final layout scale is
+                            # covered; never accept a scaled error bound.
+                            sampling_tolerance=step.max_sampling_error/amplification*.8
+                            for _ in range(4):
+                                points,error=sample_curve(step.x_expression,step.y_expression,start,end,sampling_tolerance)
+                                if error*amplification <= step.max_sampling_error:
+                                    break
+                                sampling_tolerance*=.5
                 if step.closed:
                     if math.dist(points[0], points[-1]) > step.max_sampling_error:
                         raise ParametricError("闭合曲线的公式端点不重合")
@@ -1107,6 +1159,11 @@ def _validate_composite_path_quality(
         edges, closed=step.closed, tolerance=step.connection_tolerance,details=intersection_pairs,
     )
     continuity = _composite_continuity(step)
+    effective = step.effective_junction_constraints()
+    required_by_joint = {item['junction_index']: item['required_continuity'] for item in effective}
+    failed_required = [j for j in continuity['joint_diagnostics']
+                       if required_by_joint.get(j['junction_index'], step.continuity) in {'G1','C1'}
+                       and not j['continuity_passed']]
     maximum_curvature = _maximum_polyline_curvature(sampled, closed=step.closed)
     maximum_sampling_error = _maximum_composite_sampling_error(step)
     owners=[]
@@ -1132,13 +1189,15 @@ def _validate_composite_path_quality(
             "self_intersecting_composite_path",
             f"复合路径包含 {self_intersection_count} 处自相交",
             step_id=step.step_id,
-            details=conflict_details(intersection_pairs),
+            details={**conflict_details(intersection_pairs),
+                'affected_segment_indices': sorted({i for pair in intersection_pairs for i in pair}),
+                'failure_scope': 'intersecting_segments_only'},
         )
-    if step.continuity == "C1" and not continuity["c1"]:
+    if failed_required:
         raise ConstructionPlanError(
             "c1_continuity_failed",
             (
-                f"复合路径有 {continuity['failed_joint_count']} 个连接点"
+                f"复合路径有 {len(failed_required)} 个连接点"
                 f"不满足 C1 切向连续"
             ),
             step_id=step.step_id,
@@ -1342,10 +1401,14 @@ def _composite_continuity(step: AddCompositePathStep) -> dict[str, Any]:
     deltas: list[float] = []
     failed = 0
     failed_joints = []
+    joint_diagnostics = []
     for index, (previous, current) in enumerate(joints):
         incoming = _segment_tangent(previous, at_end=True)
         outgoing = _segment_tangent(current, at_end=False)
         delta = _vector_angle_degrees(incoming, outgoing)
+        junction = _segment_endpoint(previous, at_end=True)
+        left_derivative = _segment_derivative(previous, at_end=True)
+        right_derivative = _segment_derivative(current, at_end=False)
         deltas.append(delta)
         if not math.isfinite(delta) or delta > step.tangent_tolerance_deg:
             failed += 1
@@ -1354,14 +1417,65 @@ def _composite_continuity(step: AddCompositePathStep) -> dict[str, Any]:
                 "next_segment": (index + 1) % len(step.segments) + 1,
                 "incoming_tangent": list(incoming), "outgoing_tangent": list(outgoing),
                 "angle_degrees": delta if math.isfinite(delta) else None,
+                "junction_index": index,
+                "left_segment_index": index,
+                "right_segment_index": (index + 1) % len(step.segments),
+                "junction_coordinate": ([junction.x, junction.y] if junction is not None else None),
+                "left_tangent": list(incoming), "right_tangent": list(outgoing),
+                "tangent_angle_diff_deg": delta if math.isfinite(delta) else None,
+                "left_derivative": list(left_derivative) if left_derivative is not None else None,
+                "right_derivative": list(right_derivative) if right_derivative is not None else None,
+                "continuity_required": step.continuity,
+                "continuity_measured": "C0" if math.isfinite(delta) and delta > step.tangent_tolerance_deg else "G1",
+                "continuity_passed": False,
+                "tolerance_deg": step.tangent_tolerance_deg,
+                "coordinate_unit": "plan.units",
+                "coordinate_frame": "construction_plan",
             })
+        joint_diagnostics.append({'junction_index':index,'left_segment_index':index,
+            'right_segment_index':(index+1)%len(step.segments),
+            'junction_coordinate':([junction.x,junction.y] if junction is not None else None),
+            'left_tangent':list(incoming),'right_tangent':list(outgoing),
+            'tangent_angle_diff_deg':delta if math.isfinite(delta) else None,
+            'left_derivative':list(left_derivative) if left_derivative is not None else None,
+            'right_derivative':list(right_derivative) if right_derivative is not None else None,
+            'continuity_required':step.continuity,
+            'continuity_measured':'G1' if math.isfinite(delta) and delta<=step.tangent_tolerance_deg else 'C0',
+            'continuity_passed':math.isfinite(delta) and delta<=step.tangent_tolerance_deg,
+            'tolerance_deg':step.tangent_tolerance_deg,'coordinate_unit':'plan.units','coordinate_frame':'construction_plan'})
     return {
         "c1": failed == 0,
         "joint_count": len(joints),
         "failed_joint_count": failed,
         "failed_joints": failed_joints,
         "maximum_tangent_delta_deg": max(deltas, default=0.0),
+        "joint_diagnostics": joint_diagnostics,
     }
+
+
+def _segment_endpoint(segment: CompositePathSegment, *, at_end: bool) -> ConstructionPoint | None:
+    if isinstance(segment, CompositeLineSegment):
+        return segment.end if at_end else segment.start
+    if isinstance(segment, CompositeBezierSegment):
+        return segment.control_points[-1] if at_end else segment.control_points[0]
+    if isinstance(segment, CompositeSplineSegment):
+        return segment.control_points[-1] if at_end else segment.control_points[0]
+    if isinstance(segment, CompositeArcSegment):
+        angle = segment.end_angle if at_end else segment.start_angle
+        direction = -1.0 if segment.clockwise else 1.0
+        return ConstructionPoint(x=segment.center.x + segment.radius * math.cos(math.radians(angle)),
+                                 y=segment.center.y + segment.radius * math.sin(math.radians(angle)))
+    return None
+
+
+def _segment_derivative(segment: CompositePathSegment, *, at_end: bool) -> tuple[float, float] | None:
+    if isinstance(segment, CompositeBezierSegment):
+        points = segment.control_points
+        if at_end:
+            return (3*(points[-1].x-points[-2].x), 3*(points[-1].y-points[-2].y))
+        return (3*(points[1].x-points[0].x), 3*(points[1].y-points[0].y))
+    tangent = _segment_tangent(segment, at_end=at_end)
+    return tangent if all(math.isfinite(value) for value in tangent) else None
 
 
 def _segment_tangent(
@@ -1646,6 +1760,29 @@ def _safe_object_id(value: str) -> str:
 
 
 def _run_assertions(
+    assertions, geometries, refs, scale,
+) -> None:
+    failures=[];first=None
+    for assertion in assertions:
+        try:_run_single_assertion([assertion],geometries,refs,scale)
+        except ConstructionPlanError as exc:
+            if first is None:first=exc
+            ids=refs.get(assertion.target_ref,[]) if assertion.target_ref else [g['id'] for g in geometries]
+            selected=[g for g in geometries if g['id'] in ids]
+            failures.append({'code':exc.code,'assertion_id':assertion.assertion_id,
+                'output_ref':assertion.target_ref,'geometry_ids':ids,
+                'expected_assertion':assertion.model_dump(mode='json'),
+                'measured_bounds_mm':_bounds(selected) if selected else None,
+                'message':exc.message,'local_repair_possible':bool(assertion.target_ref)})
+    if first is not None:
+        first.details={**(first.details or {}),'failures':failures,
+            'affected_output_refs':sorted({f['output_ref'] for f in failures if f['output_ref']}),
+            'source_requirement_id':None,
+            'evidence_origin':'model_plan_assertions_not_user_requirements'}
+        raise first
+
+
+def _run_single_assertion(
     assertions: list[ConstructionAssertion], geometries: list[dict[str, Any]],
     refs: dict[str, list[int]], scale: float,
 ) -> None:

@@ -99,7 +99,7 @@ def test_circle_radius_before_center_is_parseable_without_model_guessing():
     )
     assert result["status"] == "ready"
     assert result["plan"]["steps"][0]["op"] == "add_circle"
-    assert result["acceptance_summary"]["status"] == "passed"
+    assert result["acceptance_summary"]["status"] == "review_required"
 
 
 def test_explicit_control_points_only_need_coordinate_units_before_model():
@@ -359,8 +359,8 @@ def test_post_execution_composition_acceptance_resolves_parametric_preflight_rev
         source_acceptance={"status": "not_checked", "checks": [], "coverage": "partial"},
     )
 
-    assert result["status"] == "passed"
-    assert result["review_required"] is False
+    assert result["status"] == "review_required"
+    assert result["review_required"] is True
     assert result["verified_checks"] == 1
 
 

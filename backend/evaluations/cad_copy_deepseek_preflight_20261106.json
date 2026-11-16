@@ -1,0 +1,40 @@
+{
+  "schema": "cad.copy-live-preflight.v1",
+  "date": "2026-11-06",
+  "status": "stopped_before_generation",
+  "user_approved_limits": {"model_requests": 32, "input_tokens": 500000, "output_tokens": 128000, "cost_usd": 2},
+  "requested_model": "deepseek-chat",
+  "model_changed": false,
+  "official_preflight": {
+    "legacy_name_discontinuation_date": "2026-07-24",
+    "supported_model_and_price_for_requested_name_confirmed": false,
+    "official_sources": [
+      "https://api-docs.deepseek.com/zh-cn/news/news260424/",
+      "https://api-docs.deepseek.com/api/list-models/",
+      "https://api-docs.deepseek.com/quick_start/pricing/"
+    ],
+    "account_authenticated_models_endpoint_called": false,
+    "reason": "Official discontinuation notice and current supported-model/pricing documents do not establish an available version and rate for deepseek-chat. No paid probe or fallback model was attempted."
+  },
+  "local_code_checks": [
+    {"file":"app/agent_service_config.py","finding":"DEFAULT_MODELS deepseek entry remains deepseek-chat"},
+    {"file":"app/agent_service.py","function":"cad_planning_model","finding":"Allows only deepseek-chat/deepseek-reasoner; other values fall back to deepseek-chat"}
+  ],
+  "log_and_budget_guard": {
+    "existing_worker_is_sufficient": false,
+    "replacement_transport_implemented": false,
+    "hard_limits_enforcement_validated": false,
+    "reason": "Stopped on failed model precondition. Existing plan limits are not an implemented or tested guard."
+  },
+  "actual_usage": {"model_requests":0,"input_tokens":0,"output_tokens":0,"test_cost_usd":0},
+  "cases": [
+    {"id":"T1","status":"not_run","reason":"model_preflight_failed"},
+    {"id":"T2","status":"not_run","reason":"model_preflight_failed"},
+    {"id":"T3","status":"not_run","reason":"model_preflight_failed"},
+    {"id":"T4","status":"not_run","reason":"model_preflight_failed"},
+    {"id":"T5","status":"not_run","reason":"model_preflight_failed"},
+    {"id":"T6","status":"not_run","reason":"model_preflight_failed"}
+  ],
+  "unchanged": ["T1-T6 original inputs","production model configuration","P0 acceptance and authorization","robot execution","historical test data"],
+  "next_required_decision": "Explicit authorization of a supported model and its verified price is required before any model migration; then implement and test isolated logging and fail-closed budget enforcement before live validation."
+}

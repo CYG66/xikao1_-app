@@ -8,10 +8,12 @@ from collections.abc import Callable
 
 from .agent_skills import score_design_variant
 from .cad_candidate_orchestrator import persist_candidate_variant
+from .cad_candidate_state import geometry_evidence_hash
 from .cad_project_candidates import normalize_model_geometry_units
 from .creative_projects import CreativeProjectStore
 from .drawing_store import preview_paths
 from .cad_requirement_ledger import project_requirement_ledger, candidate_requirement_snapshot
+from .cad_construction import execute_construction_plan
 
 
 class ConstructionCommitError(ValueError):
@@ -88,6 +90,10 @@ def commit_construction_interpretation(
     try:
         for index, candidate in enumerate(candidates, start=1):
             trial = candidate["trial_result"]
+            committed_plan = trial.get("_construction_plan") if isinstance(trial, dict) else None
+            if isinstance(committed_plan, dict):
+                refreshed = execute_construction_plan(committed_plan)
+                trial = {**trial, **refreshed}
             geometries = list(trial.get("geometries") or [])
             if not geometries:
                 raise ConstructionCommitError("构造候选没有可保存的图元。")
@@ -123,6 +129,8 @@ def commit_construction_interpretation(
                 construction_record=_construction_record(
                     interpretation, candidate, trial
                 ),
+                **({"execution_context": deepcopy(metadata["execution_context"])}
+                   if isinstance(metadata.get("execution_context"), dict) else {}),
             )
             if persisted_variant.get("ok") is not True:
                 raise ConstructionCommitError(
@@ -164,6 +172,7 @@ def _verified_candidates(
         trial = interpretation.get("trial_result")
         if not isinstance(trial, dict):
             return [], None
+        trial = {**trial, "_construction_plan": deepcopy(interpretation.get("plan") or {})}
         return [{
             "candidate_id": "candidate-1",
             "title": _single_candidate_title(trial),
@@ -252,6 +261,8 @@ def _construction_record(
         "plan": deepcopy(trial.get("plan") or interpretation.get("plan") or {}),
         "assertions": deepcopy(trial.get("assertions") or {}),
         "constraint_solve": deepcopy(trial.get("constraint_solve") or {}),
+        "symbol_table": deepcopy(trial.get('symbol_table') or {}),
+        "geometry_hash": geometry_evidence_hash(trial.get('geometries') or []),
         "curve_quality": deepcopy(trial.get("curve_quality") or {}),
         "feasibility": deepcopy(trial.get("feasibility") or {}),
         "graph_validation": deepcopy(trial.get("graph_validation") or {}),

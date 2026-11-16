@@ -526,6 +526,14 @@ def resolve_incremental_followup(
 
 
 def parse_incremental_edit(message: str) -> dict[str, Any] | None:
+    from .cad_target_resolver import recent_creation_selector
+    recent=recent_creation_selector(message)
+    if recent:
+        parsed=parse_incremental_edit(message.replace(recent['text'],'第1个图形',1))
+        if parsed is None:return None
+        parsed.pop('instance',None)
+        parsed['recent_creation']=recent
+        return parsed
     text = message.lower()
     # The advanced UI prefixes edits with the selected candidate title. That
     # title may contain stale ordinals such as "第 2 个图形平移" and must not
@@ -996,7 +1004,7 @@ def parse_incremental_edit(message: str) -> dict[str, Any] | None:
             ),
             "dx_mm": dx * distance, "dy_mm": dy * distance,
         })
-    size = re.search(r"(宽度|高度|半径)\s*(?:改成|改为|调整为|调成|设为|设置为|变成|为)\s*" + _DISTANCE, text)
+    size = re.search(r"(宽度|高度|半径)\s*(?:改成|改为|修改为|调整为|调成|设为|设置为|变成|为)\s*" + _DISTANCE, text)
     if size:
         return selected({"operation": "resize", "instance": None if multiple_instances else instance,
                 **({"instances": multiple_instances} if multiple_instances else {}),
@@ -1895,6 +1903,49 @@ def _resolve_edit_selector(
 def edit_candidate_geometries(
     source: list[dict[str, Any]], edit: dict[str, Any]
 ) -> tuple[list[dict[str, Any]] | None, str | None]:
+    import hashlib
+    import json
+    if edit.get('operation')!='duplicate':
+        return _edit_candidate_geometries(source,edit)
+    previous_proof = deepcopy(edit.get('execution_identity') or {})
+    operation_id=hashlib.sha256(json.dumps({'source':source,'edit':edit},sort_keys=True,default=str).encode()).hexdigest()
+    result,error=_edit_candidate_geometries(source,edit)
+    if result is None:return result,error
+    ids=[g.get('id') for g in result]
+    if len(ids)!=len(set(ids)):return None,'编辑结果存在重复图元ID，未提交修改。'
+    old_ids={g.get('id') for g in source};members=[]
+    for g in result:
+        source_id=g.pop('_cad_source_id',None)
+        if g['id'] not in old_ids:
+            members.append({'operation_id':operation_id,'operation':edit.get('operation'),
+                'source_geometry_id':source_id if source_id in old_ids else None,
+                'geometry_id':g['id']})
+    from .cad_candidate_state import geometry_evidence_hash
+    edit['execution_identity']={'source_hash':geometry_evidence_hash(source),
+        'result_hash':geometry_evidence_hash(result),'members':members}
+    # Confirmation replays a serialized command. Preserve its operation identity
+    # only when freshly executed hashes AND every source-to-copy edge agree.
+    actual = edit['execution_identity']
+    previous_members = previous_proof.get('members') or []
+    def edges(items):
+        return sorted(((m.get('source_geometry_id'), m.get('geometry_id'), m.get('operation'))
+                       for m in items if isinstance(m, dict)), key=repr)
+    if (previous_proof.get('source_hash') == actual['source_hash']
+        and previous_proof.get('result_hash') == actual['result_hash']
+        and len(previous_members) == len(members)
+        and edges(previous_members) == edges(members)
+        and previous_members
+        and all(isinstance(m, dict) and isinstance(m.get('operation_id'), str)
+                and m['operation_id'] for m in previous_members)
+        and len({m['operation_id'] for m in previous_members}) == 1):
+        for member in members:
+            member['operation_id'] = previous_members[0]['operation_id']
+    return result,error
+
+
+def _edit_candidate_geometries(
+    source: list[dict[str, Any]], edit: dict[str, Any]
+) -> tuple[list[dict[str, Any]] | None, str | None]:
     geometries = deepcopy(source)
     if edit.get("constraint_conflict"):
         return None, "本轮包含多个约束或否定要求，请明确本次执行哪一种约束。"
@@ -2301,6 +2352,7 @@ def edit_candidate_geometries(
             while str(next_id) in used_ids:
                 next_id += 1
             copied["id"] = next_id
+            copied["_cad_source_id"] = item.get("id")
             used_ids.add(str(next_id))
             next_id += 1
             copied["template_instance"] = new_instance

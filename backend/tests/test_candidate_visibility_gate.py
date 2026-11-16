@@ -30,6 +30,22 @@ def _result(status: str = "passed") -> dict:
     }
 
 
+def test_reviewable_draft_uses_separate_bound_response():
+    result=_result('review_required')
+    result['variant'].update(geometries=[{'id':1}],preview_paths=[[[0,0],[1,1]]],
+        construction_record={'feasibility':{'ok':True},'constraint_solve':{'verified':True}})
+    with patch('app.agent_http_service.agent_runs.get',return_value={'id':'run-1','project_id':'project-1'}):
+        output=_bind_and_filter_candidate_visibility('run-1',deepcopy(result))
+    assert output['variant'] is None and not output['preview_paths']
+    assert output['draft_preview']['run_id']=='run-1'
+    assert output['draft_preview']['geometry_hash']
+    assert not output['draft_preview']['construction_authorized']
+    assert output['next_action']=='review_cad_draft'
+    with patch('app.agent_http_service.agent_runs.get',return_value={'id':'run-2','project_id':'other'}):
+        output=_bind_and_filter_candidate_visibility('run-2',deepcopy(result))
+    assert 'draft_preview' not in output and output['candidate_visibility']['status']=='hidden'
+
+
 def test_candidate_is_visible_only_when_passed_and_bound_to_current_run() -> None:
     with patch(
         "app.agent_http_service.agent_runs.get",

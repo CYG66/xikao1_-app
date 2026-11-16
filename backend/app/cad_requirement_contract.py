@@ -132,3 +132,66 @@ def requirement_contract(sources):
         'coverage':{'status':'partial','supported_fields':sorted(set(FIELDS.values())-{'width_height'}),
                     'normalized_fields':['objects','raw_text','clauses','scoped_scalar_facts','unresolved_facts'],
                     'note':'未绑定的尺寸不自动归给整体；位置、数量和连接保留原文、分句及证据账本中'}}
+
+
+def build_requirement_source_index(contract, *, request_id=None, project_id=None, contract_version=None):
+    """Build an immutable, request-scoped index for model source references."""
+    version = contract_version or hashlib.sha256(json.dumps(contract, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+    index={}
+    for source in contract.get('sources') or []:
+        ref=str(source.get('source_id') or '')
+        if not ref or ref in index: continue
+        index[ref]={'requirement_ref':ref,'source_type':'explicit','original_text':source.get('text',''),
+                    'semantic_category':'user_requirement','request_id':request_id,
+                    'contract_version':version,'project_id':project_id,'source_status':'valid'}
+    return {'schema':'cad.requirement-source-index.v1','contract_version':version,
+            'request_id':request_id,'project_id':project_id,'entries':index}
+
+
+def validate_junction_source_refs(junction_constraints, source_index):
+    """Validate model refs without allowing it to create or upgrade sources."""
+    entries=(source_index or {}).get('entries') or {}; results=[]; invalid=[]
+    for item in junction_constraints or []:
+        refs=list(item.get('source_requirement_refs') or [])
+        linked=[entries[r] for r in refs if r in entries and entries[r].get('source_status')=='valid']
+        unknown=[r for r in refs if r not in entries]
+        intent=item.get('intent')
+        allowed=bool(linked) and not unknown
+        text=' '.join(str(e.get('original_text') or '') for e in linked)
+        semantic_ok=True
+        if intent=='smooth': semantic_ok=bool(re.search(r'平滑|光滑|切向连续|C1|G1',text,re.I))
+        elif intent=='intentional_cusp': semantic_ok=bool(re.search(r'尖点|尖角|尖端|尖锐',text))
+        elif intent=='intentional_corner': semantic_ok=bool(re.search(r'折角|直角|转角|拐角',text))
+        if intent in {'intentional_cusp','intentional_corner'}:
+            allowed=allowed and any(e.get('source_type') in {'explicit','trusted_semantic'} for e in linked)
+        allowed=allowed and semantic_ok
+        if intent=='unknown': allowed=False
+        result={**item,'source_validation':{'valid':allowed,'linked_sources':linked,'unknown_refs':unknown,
+                                              'semantic_match':semantic_ok,
+                                              'authorization':'none' if not allowed else 'source_bound'}}
+        results.append(result)
+        if not allowed: invalid.append(result)
+    return {'schema':'cad.junction-source-validation.v1','constraints':results,
+            'valid':not invalid,'invalid_count':len(invalid)}
+
+
+def inherit_requirement_source_index(previous_index, current_contract, *, request_id=None,
+                                     project_id=None, contract_version=None):
+    """Carry only sources present in the current immutable contract.
+
+    Prior-turn refs are provenance metadata, never authorization to introduce
+    facts absent from the current contract.  This keeps conversation/project
+    switches from leaking old junction intent sources.
+    """
+    current=build_requirement_source_index(current_contract, request_id=request_id,
+                                            project_id=project_id, contract_version=contract_version)
+    previous=(previous_index or {}).get('entries') or {}
+    inherited=[]
+    for ref,entry in current['entries'].items():
+        old=previous.get(ref)
+        if old and old.get('original_text') == entry.get('original_text'):
+            entry['inherited_from_contract_version']=previous_index.get('contract_version')
+            inherited.append(ref)
+    current['inherited_refs']=inherited
+    current['stale_previous_refs']=sorted(set(previous)-set(current['entries']))
+    return current

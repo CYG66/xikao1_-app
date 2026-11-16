@@ -1,0 +1,64 @@
+{
+  "schema": "cad.p1.3e.dual-case.v1",
+  "status": "frozen_for_future_authorized_run",
+  "cases": {
+    "A9": {
+      "kind": "historical_regression",
+      "prompt": "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米",
+      "units": "m",
+      "acceptance": {
+        "width_mm": 4000,
+        "height_mm": 4000,
+        "center_mm": [
+          2000,
+          3000
+        ],
+        "closed": true,
+        "no_self_intersection": true,
+        "semantic_features": [
+          "left_lobe",
+          "right_lobe",
+          "center_notch",
+          "lower_tip"
+        ],
+        "continuity": "measure_C0_and_C1_without_inventing_point_exemptions"
+      },
+      "historical_plan": "D:/xikao/.local-ai-test/p1.2e-live-20261107/A9/service-step-3.json"
+    },
+    "S1": {
+      "kind": "new_unseen_synthetic_case",
+      "prompt": "新建一条开放式、平滑的 S 形曲线，使用 3 段三次 Bezier 曲线连接。起点为 (0,0) 米，依次经过 (2,1) 米、(4,-1) 米，终点为 (6,0) 米。两处内部连接点必须满足 C1 连续，不允许尖点或自交，曲线不闭合。",
+      "units": "m",
+      "acceptance": {
+        "open": true,
+        "endpoints_m": [
+          [
+            0,
+            0
+          ],
+          [
+            6,
+            0
+          ]
+        ],
+        "internal_anchors_m": [
+          [
+            2,
+            1
+          ],
+          [
+            4,
+            -1
+          ]
+        ],
+        "bezier_segments": 3,
+        "continuity": "C1",
+        "tangent_tolerance_deg": 0.01,
+        "no_self_intersection": true,
+        "no_degenerate_segments": true
+      }
+    }
+  },
+  "real_model_calls": 0,
+  "frozen_input_sha256": "726a5da06e2130c9a4f4b905ece27cc1c3fa922e931f079de4e57243183054c3"
+}

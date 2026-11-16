@@ -183,13 +183,14 @@ def validate_counterfactual_followup(
 
     if _target(previous_contract) != _target(current_contract):
         changed.append("target")
+        from .cad_target_resolver import recent_creation_selector
         target_evidence = bool(re.search(
             r"第\s*(?:\d+|[一二两三四五六七八九十]+)\s*(?:个|组|座|块|片|条)?",
             user_text,
         )) or any(word in user_text for word in (
             "上方", "下方", "左侧", "右侧", "中间", "另一个", "其余", "剩下",
             "中心圆", "外框", "中线", "选中", "图层", "喷墨路径", "参考线",
-        ))
+        )) or recent_creation_selector(user_text) is not None
         if not target_evidence:
             unsupported.append("target")
 

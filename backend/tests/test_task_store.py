@@ -11,6 +11,26 @@ from app.mission_ledger import MissionLedgerStore
 
 
 class AgentTaskStoreTest(unittest.TestCase):
+    def test_execution_context_survives_restart(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "tasks.json"
+            context = {"request_id": "r1", "conversation_id": "c1", "sha256": "h"}
+            AgentTaskStore(path).create_pending(
+                "ctx-task", "drive_robot", {"linear": 0.1},
+                datetime.now() + timedelta(minutes=2), execution_context=context,
+            )
+            restored = AgentTaskStore(path).get("ctx-task")
+            self.assertEqual(restored["execution_context"], context)
+
+    def test_legacy_pending_without_context_remains_identifiable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "tasks.json"
+            AgentTaskStore(path).create_pending(
+                "legacy", "drive_robot", {"linear": 0.1}, datetime.now() + timedelta(minutes=2),
+            )
+            restored = AgentTaskStore(path).get("legacy")
+            self.assertIsNone(restored.get("execution_context"))
+
     def test_task_lifecycle_is_persisted(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "tasks.json"

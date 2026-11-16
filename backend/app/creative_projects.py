@@ -156,6 +156,33 @@ class CreativeProjectStore:
             self._save()
             return deepcopy(project)
 
+    def record_manual_cad_confirmation(self, project_id, variant_id, geometry_hash, event_id):
+        """Append version-bound human evidence without changing machine acceptance."""
+        from .cad_candidate_state import geometry_evidence_hash
+        if not event_id or not geometry_hash:
+            raise ValueError('确认必须携带事件ID和几何哈希')
+        with self._lock:
+            project=self._projects.get(project_id)
+            variant=next((v for v in (project or {}).get('variants',[]) if v['id']==variant_id),None)
+            if variant is None or geometry_evidence_hash(variant.get('geometries',[]))!=geometry_hash:
+                raise ValueError('确认版本或几何已变化')
+            entries=project.get('manual_cad_confirmations',[])
+            for entry in entries:
+                if entry['event_id']==event_id:
+                    if entry['variant_id']!=variant_id or entry['geometry_hash']!=geometry_hash:
+                        raise ValueError('确认事件绑定冲突')
+                    return deepcopy(entry)
+            before=deepcopy(project)
+            entry={'event_id':event_id,'project_id':project_id,'variant_id':variant_id,
+                   'geometry_hash':geometry_hash,'confirmed_at':utc_now(),
+                   'construction_authorized':False,'kind':'manual_cad_review'}
+            project.setdefault('manual_cad_confirmations',[]).append(entry)
+            try:self._save()
+            except Exception:
+                self._projects[project_id]=before
+                raise
+            return deepcopy(entry)
+
     def get(self, project_id: str) -> dict[str, Any] | None:
         with self._lock:
             project = self._projects.get(project_id)
@@ -289,7 +316,8 @@ class CreativeProjectStore:
                      edit_preview: dict[str, Any] | None = None,
                      machine_assertions: dict[str, Any] | None = None,
                      construction_record: dict[str, Any] | None = None,
-                     acceptance_summary: dict[str, Any] | None = None) -> dict[str, Any] | None:
+                     acceptance_summary: dict[str, Any] | None = None,
+                     execution_context: dict[str, Any] | None = None) -> dict[str, Any] | None:
         with self._lock:
             project = self._projects.get(project_id)
             if project is None or project.get("deleted_at"):
@@ -375,6 +403,10 @@ class CreativeProjectStore:
                     **deepcopy(topology or {}),
                 },
             }
+            if isinstance(execution_context, dict):
+                variant["execution_context"] = deepcopy(execution_context)
+                variant["execution_context_hash"] = str(execution_context.get("sha256") or "") or None
+                variant["parent_version_id"] = effective_parent_id
             if expected_quantity is not None:
                 variant["expected_quantity"] = expected_quantity
             if isinstance(edit_plan, dict):
@@ -431,9 +463,14 @@ class CreativeProjectStore:
                 ):
                     return None
                 variant["construction_record"] = deepcopy(construction_record)
+                from .cad_candidate_state import bind_version_symbols
+                variant['construction_record']['version_symbols']=bind_version_symbols(construction_record,variant,project_id)
                 if construction_record.get("requirement_ledger"):
                     variant["requirement_ledger"] = deepcopy(construction_record["requirement_ledger"])
             elif parent_variant is not None and isinstance(edit_contract, dict):
+                from .cad_candidate_state import transformed_version_symbols
+                variant['reference_mapping']=transformed_version_symbols(parent_variant,variant,project_id,edit_contract.get('operation'))
+                variant['edit_outcome']=('no_change' if geometries==parent_variant.get('geometries') else 'changed')
                 parent_ledger=parent_variant.get("requirement_ledger") or (parent_variant.get("construction_record") or {}).get("requirement_ledger")
                 if parent_ledger:
                     from .cad_requirement_ledger import project_requirement_ledger, _revision
@@ -572,6 +609,8 @@ class CreativeProjectStore:
                         for points in build_preview_paths({"lines": [geometry]})
                     )
                 variant["diff_preview_paths"] = diff_paths
+            from .cad_candidate_state import bind_creation_history
+            variant.setdefault('reference_mapping',{}).update(bind_creation_history(parent_variant,variant,project_id,edit_contract))
             project["variants"].append(variant)
             if not self._transition(project, "designing"):
                 project["variants"].pop()
@@ -1014,6 +1053,11 @@ class CreativeProjectStore:
         self, project: dict[str, Any], planning: dict[str, Any]
     ) -> bool:
         """Apply planning state in memory for a larger atomic unit of work."""
+        selected_id=project.get('selected_variant_id')
+        if selected_id is not None:
+            selected=next((v for v in project.get('variants',[]) if v.get('id')==selected_id),None)
+            if not candidate_is_accepted(selected):
+                return False
         stage = str(planning.get("stage", ""))
         target_status = "planning"
         if stage == "ready" and (planning.get("validation") or {}).get("ok") is True:

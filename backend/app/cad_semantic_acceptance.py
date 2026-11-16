@@ -39,6 +39,8 @@ def semantic_requirements(source):
     text='\n'.join(source_texts(source))
     if re.search(r'astroid|星形线',text,re.I):
         return [{'kind':'astroid_identity','instruction':'星形线astroid具有四个内禀尖点，按用户数学关系和最大半径构造；不要添加要求处处无尖角的radial_pattern profile=smooth断言。不能用直边四角星替代。'}]
+    if re.search(r'爱心|心形',text) and len(local_creation_objects(text)) <= 2:
+        return [{'kind':'heart_outline_features','instruction':'爱心必须是单一闭合外轮廓，顶部左右两个凸瓣、中间凹口、底部中央尖点；参数曲线的坐标轴方向要保持该拓扑，不能用椭圆、单瓣曲线或上下颠倒的曲线替代。尺寸和中心由需求契约绑定。'}]
     nested=nested_frame_requirement(text)
     if nested:return [nested]
     polygon=regular_polygon_requirement(text)
@@ -77,6 +79,25 @@ def verify_semantic_requirements(source,geometries):
     direct_checks=[]
     from .cad_source_acceptance import source_texts
     original='\n'.join(source_texts(source))
+    center_match=re.search(r'(?:几何中心|中心点)(?:位于|在|为|是)?\s*[（(]\s*(-?\d+(?:\.\d+)?)\s*[,，]\s*(-?\d+(?:\.\d+)?)\s*[）)]',original)
+    if center_match and geometries:
+        pts=[]
+        for geometry in geometries:
+            pts.extend([(p['x'],p['y']) for p in geometry.get('vertices',[])])
+        if pts:
+            measured_center=((min(x for x,y in pts)+max(x for x,y in pts))/2,
+                             (min(y for x,y in pts)+max(y for x,y in pts))/2)
+            units=re.search(r'坐标单位(?:为|是)?\s*(毫米|厘米|米|mm|cm|m)',original,re.I)
+            factor={'毫米':1,'mm':1,'厘米':10,'cm':10,'米':1000,'m':1000}
+            scale=factor[units[1].lower()] if units else 1000
+            expected=(float(center_match[1])*scale,float(center_match[2])*scale)
+            error=math.dist(measured_center,expected)
+            if error>.5:
+                raise StructureContractError('实际几何中心不符合用户要求',{
+                    'authority':'backend_measured_geometry','check':'explicit_center',
+                    'measured_center_mm':list(measured_center),'expected_center_mm':list(expected),
+                    'error_mm':error,'tolerance_mm':.5,
+                    'repair_instruction':'保持部件形状和尺寸，仅修正整体平移，使实际外接框中心回到用户指定中心。'})
     if re.search(r'astroid|星形线',original,re.I):
         from .cad_curve_fit_acceptance import verify_astroid
         size=re.search(r'最大半径\s*(\d+(?:\.\d+)?)\s*(毫米|厘米|米|mm|cm|m)',original,re.I)
@@ -183,9 +204,13 @@ def verify_semantic_requirements(source,geometries):
             if w>0 and h>0:
                 normalized=[((x-min(xs))/w,(y-min(ys))/h) for x,y in points]
                 features = {
-                    'center_notch': any(abs(x-.5)<.03 and .5<y<.98 for x,y in normalized),
-                    'left_upper_lobe': any(x<.45 and y>.98 for x,y in normalized),
-                    'right_upper_lobe': any(x>.55 and y>.98 for x,y in normalized),
+                    # Parametric heart curves commonly have lobe maxima below
+                    # the absolute bounding box after exact-height fitting.
+                    # Measure the relative upper band, while retaining the
+                    # independent notch and lower-tip checks.
+                    'center_notch': any(abs(x-.5)<.03 and .5<y<.9 for x,y in normalized),
+                    'left_upper_lobe': any(x<.45 and y>.85 for x,y in normalized),
+                    'right_upper_lobe': any(x>.55 and y>.85 for x,y in normalized),
                     'lower_tip': any(abs(x-.5)<.1 and y<.01 for x,y in normalized),
                 }
                 if not all(features.values()):

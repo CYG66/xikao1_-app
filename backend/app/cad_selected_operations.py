@@ -71,6 +71,11 @@ def apply_selected_operation(geometries,selected,edit):
     next_id=max(g['id'] for g in geometries)+1;created=[]
     for batch in batches:
         for g in batch:
+            if operation == 'duplicate':
+                # Capture provenance before replacing the copied source ID.
+                # The outer executor consumes this transient marker into the
+                # existing execution_identity proof and removes it from geometry.
+                g['_cad_source_id'] = g['id']
             g['id']=next_id;created.append(next_id);next_id+=1
     edit['created_geometry_ids']=created
     return geometries+[g for batch in batches for g in batch],None

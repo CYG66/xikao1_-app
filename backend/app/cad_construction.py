@@ -1194,18 +1194,33 @@ def _validate_composite_path_quality(
     affected_segments = {i for pair in intersection_pairs for i in pair}
     for contact in curve_contacts:
         affected_segments.update(contact["segment_indices"])
-    if (self_intersection_count or curve_contacts) and not step.allow_self_intersection:
+    verified_contacts = [
+        contact for contact in curve_contacts
+        if contact["kind"] != "near_contact"
+    ]
+    has_contact = bool(self_intersection_count) or bool(curve_contacts)
+    if (has_contact or safety_report.unresolved) and not step.allow_self_intersection:
+        unresolved_only = safety_report.unresolved and not has_contact
         safety_details = {
             **conflict_details(intersection_pairs),
             "curve_contacts": curve_contacts,
             "affected_segment_indices": sorted(affected_segments),
-            "failure_scope": "intersecting_segments_only",
+            "failure_scope": (
+                "unresolved_topology" if unresolved_only
+                else "intersecting_segments_only"
+            ),
         }
         if safety_report.unresolved:
             safety_details["unresolved_topology"] = True
+            safety_details["escalation"] = "replan_or_human_review"
         raise ConstructionPlanError(
             "self_intersecting_composite_path",
-            f"复合路径包含 {self_intersection_count + len(curve_contacts)} 处自相交或接触",
+            (
+                f"复合路径包含 {self_intersection_count + len(verified_contacts)} "
+                "处已确认自相交或接触"
+                if not unresolved_only
+                else "复合路径拓扑尚未判定，需重规划或人工复核"
+            ),
             step_id=step.step_id,
             details=safety_details,
         )

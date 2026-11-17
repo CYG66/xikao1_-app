@@ -4,15 +4,34 @@ Shape-agnostic curve-level contact detection for composite construction
 paths.  The module operates on plain segment mappings and contains no
 case ids, no shape names and no fixed control-point constants.
 
+Detection model
+---------------
 Curves are refined by de Casteljau subdivision with convex-hull bounding
-box exclusion; only overlapping hull pairs are refined locally, and leaf
-proximity is verified by direct sampling.  Line and Bezier
-(quadratic/cubic) segments are analysed at curve level; other segment
-kinds are left to the caller's flattened-polyline checks.
+box exclusion.  Internal nodes are pruned only by hull separation; the
+coarse sample distance is *not* used to prune an internal subtree,
+because a large sub-curve whose samples miss the contact can still
+contain a crossing between samples.  Only at a leaf do we verify
+proximity by point-to-segment projection against the leaf chord.
 
-The detector is fail-closed: when the subdivision budget is exhausted
-while two curve hulls still overlap, the report flags ``unresolved``
-instead of assuming the path is clear.
+Convergence criteria (explicit)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+A node becomes a leaf when either:
+
+* both portions are spatially small: their control-hull diagonal is at
+  most ``leaf_size`` (lines are leaves by construction); or
+* the subdivision depth reaches ``SUBDIVISION_MAX_DEPTH``.
+
+Each pair search is bounded by a per-search node budget
+``NODE_BUDGET_CAP``.  When the budget is exhausted, or the depth cap is
+reached while two hulls still overlap inside the proximity band, the
+report flags ``unresolved`` instead of assuming the path is clear
+(fail-closed).
+
+Supported curve kinds: ``line``, quadratic ``bezier`` (3 control points)
+and cubic ``bezier`` (4 control points).  ``arc`` and ``spline`` are not
+refined here; they remain covered by the caller's flattened-polyline
+checks.  See :func:`arc_chord_height` for the chord-approximation error
+bound used in that fallback.
 """
 from __future__ import annotations
 
@@ -21,20 +40,25 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 PROXIMITY_TOLERANCE = 1e-6
-SUBDIVISION_MAX_DEPTH = 14
+SUBDIVISION_MAX_DEPTH = 16
 LEAF_SAMPLE_COUNT = 5
 MIN_PARAM_GAP = 1e-3
 LEAF_SIZE_FACTOR = 4.0
+LEAF_SIZE_SCALE = 0.0005
 PROXIMITY_FACTOR = 2.0
+NODE_BUDGET_CAP = 8000
+SELF_HALF_DEPTH = 10
 
 CONTACT_CROSSING = "crossing"
 CONTACT_TANGENT = "tangent"
 CONTACT_SELF = "self"
+CONTACT_ENDPOINT = "endpoint"
+CONTACT_NEAR = "near_contact"
 
 
 @dataclass(frozen=True)
 class Contact:
-    """One verified curve-level contact between two path portions."""
+    """One verified or flagged curve-level contact between two portions."""
 
     segment_a: int
     segment_b: int
@@ -44,6 +68,8 @@ class Contact:
     point_b: tuple[float, float]
     distance: float
     kind: str
+    interval_a: tuple[float, float] = (0.0, 1.0)
+    interval_b: tuple[float, float] = (0.0, 1.0)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -51,6 +77,10 @@ class Contact:
             "parameters": [
                 round(self.parameter_a, 6),
                 round(self.parameter_b, 6),
+            ],
+            "parameter_intervals": [
+                [round(self.interval_a[0], 6), round(self.interval_a[1], 6)],
+                [round(self.interval_b[0], 6), round(self.interval_b[1], 6)],
             ],
             "points": [
                 {"x": round(self.point_a[0], 9), "y": round(self.point_a[1], 9)},
@@ -169,29 +199,6 @@ def _point_segment_distance(
     return math.hypot(point[0] - projection[0], point[1] - projection[1]), projection
 
 
-def _min_distance(
-    first: list[tuple[float, float]],
-    second: list[tuple[float, float]],
-    second_is_line: bool = False,
-) -> tuple[float, tuple[float, float], tuple[float, float]]:
-    best = math.inf
-    best_a = first[0]
-    best_b = second[0]
-    if second_is_line:
-        line_a, line_b = second[0], second[-1]
-        for point_a in first:
-            distance, projection = _point_segment_distance(point_a, line_a, line_b)
-            if distance < best:
-                best, best_a, best_b = distance, point_a, projection
-        return best, best_a, best_b
-    for point_a in first:
-        for point_b in second:
-            distance = math.hypot(point_a[0] - point_b[0], point_a[1] - point_b[1])
-            if distance < best:
-                best, best_a, best_b = distance, point_a, point_b
-    return best, best_a, best_b
-
-
 def _leaf_chord(
     kind: str,
     points: list[tuple[float, float]],
@@ -201,19 +208,71 @@ def _leaf_chord(
     return _eval_bezier(points, 0.0), _eval_bezier(points, 1.0)
 
 
-def _classify_crossing(
+def _leaf_distance(
     kind_a: str,
     points_a: list[tuple[float, float]],
     kind_b: str,
     points_b: list[tuple[float, float]],
+) -> tuple[float, tuple[float, float], tuple[float, float]]:
+    """Minimum distance between two leaf portions, using chord projection.
+
+    Each sample of one side is projected onto the other side's leaf
+    chord; this is tighter than point-to-point sampling and does not
+    require extra subdivision points.
+    """
+    samples_a = _leaf_sample_points(kind_a, points_a)
+    samples_b = _leaf_sample_points(kind_b, points_b)
+    chord_b = _leaf_chord(kind_b, points_b)
+    chord_a = _leaf_chord(kind_a, points_a)
+    best = math.inf
+    best_a = samples_a[0]
+    best_b = samples_b[0]
+    for point_a in samples_a:
+        distance, projection = _point_segment_distance(point_a, chord_b[0], chord_b[1])
+        if distance < best:
+            best, best_a, best_b = distance, point_a, projection
+    for point_b in samples_b:
+        distance, projection = _point_segment_distance(point_b, chord_a[0], chord_a[1])
+        if distance < best:
+            best, best_a, best_b = distance, projection, point_b
+    return best, best_a, best_b
+
+
+def _near_endpoint(
+    kind: str,
+    points: list[tuple[float, float]],
+    point: tuple[float, float],
+    tolerance: float,
 ) -> bool:
-    a0, a1 = _leaf_chord(kind_a, points_a)
-    b0, b1 = _leaf_chord(kind_b, points_b)
+    if not points:
+        return False
+    for endpoint in (points[0], points[-1]):
+        if math.hypot(point[0] - endpoint[0], point[1] - endpoint[1]) <= tolerance:
+            return True
+    return False
+
+
+def _chord_intersection(
+    a0: tuple[float, float],
+    a1: tuple[float, float],
+    b0: tuple[float, float],
+    b1: tuple[float, float],
+) -> tuple[float, float] | None:
+    """Intersection of two leaf chords, or None if they do not straddle."""
     o1 = _orientation(a0, a1, b0)
     o2 = _orientation(a0, a1, b1)
     o3 = _orientation(b0, b1, a0)
     o4 = _orientation(b0, b1, a1)
-    return o1 * o2 < 0 and o3 * o4 < 0
+    if not (o1 * o2 < 0 and o3 * o4 < 0):
+        return None
+    da = (a1[0] - a0[0], a1[1] - a0[1])
+    db = (b1[0] - b0[0], b1[1] - b0[1])
+    denom = da[0] * db[1] - da[1] * db[0]
+    if abs(denom) <= 1e-18:
+        return None
+    delta = (b0[0] - a0[0], b0[1] - a0[1])
+    t = (delta[0] * db[1] - delta[1] * db[0]) / denom
+    return (a0[0] + t * da[0], a0[1] + t * da[1])
 
 
 def _children(
@@ -223,8 +282,9 @@ def _children(
     t1: float,
     depth: int,
     leaf_size: float,
+    force: bool = False,
 ) -> list[tuple[list[tuple[float, float]], float, float, int]]:
-    if kind == "line" or _bbox_diagonal(_bbox(points)) <= leaf_size:
+    if kind == "line" or (not force and _bbox_diagonal(_bbox(points)) <= leaf_size):
         return [(points, t0, t1, depth)]
     left, right = _split_bezier(points)
     middle = (t0 + t1) * 0.5
@@ -232,10 +292,6 @@ def _children(
         (left, t0, middle, depth + 1),
         (right, middle, t1, depth + 1),
     ]
-
-
-NODE_BUDGET_CAP = 4000
-SELF_HALF_DEPTH = 10
 
 
 def _search_pair(
@@ -256,6 +312,8 @@ def _search_pair(
 ) -> tuple[list[Contact], bool]:
     contacts: list[Contact] = []
     unresolved = False
+    verified = False
+    node_budget = 0
     tol = max(tolerance, 1e-12)
     proximity = PROXIMITY_FACTOR * tol
     scale = max(
@@ -263,73 +321,103 @@ def _search_pair(
         _bbox_diagonal(_bbox(points_b)),
         tol,
     )
-    leaf_size = max(LEAF_SIZE_FACTOR * tol, 0.002 * scale)
+    leaf_size = max(LEAF_SIZE_FACTOR * tol, LEAF_SIZE_SCALE * scale)
     loose_band = max(8.0 * leaf_size, 16.0 * tol)
-    node_budget = 0
-
-    def node_distance(
-        pa: list[tuple[float, float]], pb: list[tuple[float, float]]
-    ) -> tuple[float, tuple[float, float], tuple[float, float]]:
-        samples_a = _leaf_sample_points(kind_a, pa)
-        samples_b = _leaf_sample_points(kind_b, pb)
-        if kind_b == "line":
-            return _min_distance(samples_a, samples_b, second_is_line=True)
-        if kind_a == "line":
-            distance, point_b, point_a = _min_distance(
-                samples_b, samples_a, second_is_line=True)
-            return distance, point_a, point_b
-        return _min_distance(samples_a, samples_b)
 
     def recurse(
         pa: list[tuple[float, float]], ta0: float, ta1: float, da: int,
         pb: list[tuple[float, float]], tb0: float, tb1: float, db: int,
     ) -> None:
-        nonlocal unresolved, node_budget
+        nonlocal unresolved, verified, node_budget
         node_budget += 1
         if node_budget > NODE_BUDGET_CAP:
             unresolved = True
             return
         if not _bbox_overlap(_bbox(pa), _bbox(pb), tolerance):
             return
-        distance, point_a, point_b = node_distance(pa, pb)
-        if distance > loose_band:
-            return
         small_a = kind_a == "line" or _bbox_diagonal(_bbox(pa)) <= leaf_size
         small_b = kind_b == "line" or _bbox_diagonal(_bbox(pb)) <= leaf_size
         depth_cap = da >= SUBDIVISION_MAX_DEPTH or db >= SUBDIVISION_MAX_DEPTH
-        if (small_a and small_b) or depth_cap:
-            mid_a = (ta0 + ta1) * 0.5
-            mid_b = (tb0 + tb1) * 0.5
-            on_boundary = (
-                boundary is not None
-                and abs(mid_a - boundary) <= param_gap
-                and abs(mid_b - boundary) <= param_gap
-            )
-            if distance <= proximity and not on_boundary:
-                crossing = contact_kind != CONTACT_SELF and _classify_crossing(
-                    kind_a, pa, kind_b, pb)
-                contacts.append(Contact(
-                    segment_a=index_a,
-                    segment_b=index_b,
-                    parameter_a=mid_a,
-                    parameter_b=mid_b,
-                    point_a=point_a,
-                    point_b=point_b,
-                    distance=distance,
-                    kind=CONTACT_CROSSING if crossing else contact_kind,
-                ))
-            elif depth_cap:
-                unresolved = True
+        distance, point_a, point_b = _leaf_distance(kind_a, pa, kind_b, pb)
+        mid_a = (ta0 + ta1) * 0.5
+        mid_b = (tb0 + tb1) * 0.5
+        on_boundary = (
+            boundary is not None
+            and abs(mid_a - boundary) <= param_gap
+            and abs(mid_b - boundary) <= param_gap
+        )
+        if on_boundary:
             return
-
-        children_a = _children(kind_a, pa, ta0, ta1, da, leaf_size)
-        children_b = _children(kind_b, pb, tb0, tb1, db, leaf_size)
-        for child_a in children_a:
-            for child_b in children_b:
-                recurse(*child_a, *child_b)
+        # A spatially small leaf whose residual still sits in the uncertain
+        # band is refined further (local subdivision) instead of being
+        # called clear; only depth/budget truncation downgrades it to
+        # unresolved near-contact.
+        near_band = proximity < distance <= loose_band
+        can_refine = near_band and (kind_a == "bezier" or kind_b == "bezier")
+        if not depth_cap and not ((small_a and small_b) and not can_refine):
+            children_a = _children(kind_a, pa, ta0, ta1, da, leaf_size, force=can_refine)
+            children_b = _children(kind_b, pb, tb0, tb1, db, leaf_size, force=can_refine)
+            for child_a in children_a:
+                for child_b in children_b:
+                    recurse(*child_a, *child_b)
+            return
+        chord_a0, chord_a1 = _leaf_chord(kind_a, pa)
+        chord_b0, chord_b1 = _leaf_chord(kind_b, pb)
+        cross_point = _chord_intersection(chord_a0, chord_a1, chord_b0, chord_b1)
+        endpoint = _near_endpoint(kind_a, pa, point_a, tol) and _near_endpoint(
+            kind_b, pb, point_b, tol)
+        if cross_point is not None:
+            resolved_kind = (
+                CONTACT_CROSSING if contact_kind != CONTACT_SELF else CONTACT_SELF
+            )
+            contacts.append(Contact(
+                segment_a=index_a,
+                segment_b=index_b,
+                parameter_a=mid_a,
+                parameter_b=mid_b,
+                point_a=cross_point,
+                point_b=cross_point,
+                distance=0.0,
+                kind=resolved_kind,
+                interval_a=(ta0, ta1),
+                interval_b=(tb0, tb1),
+            ))
+            verified = True
+        elif distance <= proximity:
+            resolved_kind = CONTACT_ENDPOINT if endpoint else contact_kind
+            contacts.append(Contact(
+                segment_a=index_a,
+                segment_b=index_b,
+                parameter_a=mid_a,
+                parameter_b=mid_b,
+                point_a=point_a,
+                point_b=point_b,
+                distance=distance,
+                kind=resolved_kind,
+                interval_a=(ta0, ta1),
+                interval_b=(tb0, tb1),
+            ))
+            verified = True
+        elif depth_cap and distance <= loose_band:
+            # Depth/budget truncation while still inside the uncertain
+            # band: record the geometry for the planner and mark
+            # unresolved (fail-closed).  This is never counted as clear.
+            contacts.append(Contact(
+                segment_a=index_a,
+                segment_b=index_b,
+                parameter_a=mid_a,
+                parameter_b=mid_b,
+                point_a=point_a,
+                point_b=point_b,
+                distance=distance,
+                kind=CONTACT_NEAR,
+                interval_a=(ta0, ta1),
+                interval_b=(tb0, tb1),
+            ))
+            unresolved = True
 
     recurse(points_a, ta0, ta1, 0, points_b, tb0, tb1, 0)
-    return contacts, unresolved
+    return contacts, unresolved and not verified
 
 
 def _analyze_pair(
@@ -396,6 +484,29 @@ def _dedupe(contacts: Iterable[Contact]) -> list[Contact]:
     return list(best.values())
 
 
+def arc_chord_height(
+    radius: float, total_angle_deg: float, chord_count: int
+) -> float:
+    """Sagitta (chord-height) bound for ``chord_count`` equal chords.
+
+    For a circular arc of radius ``radius`` swept over ``total_angle_deg``
+    degrees, split into ``chord_count`` equal angular steps of
+    ``phi = total_angle_deg / chord_count``, the maximum distance between
+    the arc and its replacement chord is the sagitta
+
+    ``h = R * (1 - cos(phi / 2))``.
+
+    For small steps ``h ~= R * (phi / 2) ** 2 / 2`` (quadratic in step
+    angle).  This is the error bound used when arcs are checked through
+    the caller's flattened-polyline fallback; it does not apply to the
+    curve-level bezier/line search in this module.
+    """
+    if chord_count <= 0:
+        raise ValueError("chord_count must be positive")
+    half = math.radians(total_angle_deg) / (2.0 * chord_count)
+    return radius * (1.0 - math.cos(half))
+
+
 def analyze_composite_segments(
     segments: list[Any],
     tolerance: float = PROXIMITY_TOLERANCE,
@@ -421,7 +532,8 @@ def analyze_composite_segments(
 
     for index, (kind, points) in enumerate(parsed):
         if kind == "bezier" and len(points) >= 3:
-            self_contacts, self_unresolved = _analyze_self(index, points, tolerance)
+            self_contacts, self_unresolved = _analyze_self(
+                index, points, tolerance)
             contacts.extend(self_contacts)
             unresolved = unresolved or self_unresolved
         for other in range(index + 1, count):
@@ -431,7 +543,8 @@ def analyze_composite_segments(
             if kind not in {"line", "bezier"} or other_kind not in {"line", "bezier"}:
                 continue
             pair_contacts, pair_unresolved = _analyze_pair(
-                index, kind, points, other, other_kind, other_points, tolerance,
+                index, kind, points, other, other_kind, other_points,
+                tolerance,
             )
             contacts.extend(pair_contacts)
             unresolved = unresolved or pair_unresolved

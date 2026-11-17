@@ -51,16 +51,16 @@
       "note": "基线整步替换会丢弃未回写的继承约束字段。属依赖 A1 尚未合入；断言未放宽。"
     },
     {
-      "case": "test_c1_service_exact_bezier_intersection_details_present",
+      "case": "test_c1_service_curve_contact_details_present",
       "file": "backend/tests/test_c1_integration_mock.py",
-      "intent": "拓扑失败 details 携带 B1 精确交点字段（left/right_segment_index、left_t、right_t、kind、error_bound）。",
+      "intent": "拓扑失败 details 携带 B1 曲线接触字段（curve_contacts[].segment_indices/parameters/kind/distance）。",
       "entry": "RobotAgentService._interpret_cad_construction_plan",
       "mocked_boundary": "_structured_review_text",
       "state": "failed_dep_pending",
       "depends_on": "B1",
       "dependency_commit": "not_committed",
       "reason_category": "B1_not_committed",
-      "note": "B 工作树 HEAD a4f2af7、工作区干净，尚无 cad_curve_intersection.py；基线仅有采样折线求交诊断。属 B 尚未提交，与 A1 自身缺口分开标注。"
+      "note": "B 工作树 HEAD a4f2af7，存在未提交草稿 cad_topology_safety.py 与 cad_construction.py 改动；草稿自带回归当前 2 failed（_min_distance second_is_line TypeError，B 线自身缺陷）。C 基线仅有采样折线求交诊断。属 B 尚未提交且草稿待稳定，与 A1 自身缺口分开标注。"
     }
   ],
   "review_findings": {

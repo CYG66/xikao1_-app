@@ -43,7 +43,12 @@ def _a1_component_repair_error_available() -> bool:
 
 
 def _b1_curve_intersection_available() -> bool:
-    return importlib.util.find_spec("app.cad_curve_intersection") is not None
+    # B1 draft module name observed on the B worktree; the breakdown also
+    # allowed a cad_curve_intersection name. Either counts as B1 present.
+    return (
+        importlib.util.find_spec("app.cad_topology_safety") is not None
+        or importlib.util.find_spec("app.cad_curve_intersection") is not None
+    )
 
 
 # A1 commits already present on the A branch; not yet merged into the C baseline.
@@ -306,11 +311,11 @@ def test_c1_service_merged_repair_keeps_inherited_junction_fields():
 # service-level structured error. B1 module/fields are not committed yet.
 # ---------------------------------------------------------------------------
 
-def test_c1_service_exact_bezier_intersection_details_present():
+def test_c1_service_curve_contact_details_present():
     if not _b1_curve_intersection_available():
         pytest.fail(
-            "failed_dep_pending: B1 cad_curve_intersection not committed; "
-            f"depends on B commit {B1_COMMIT} (B worktree HEAD a4f2af7, clean). "
+            "failed_dep_pending: B1 cad_topology_safety not committed; "
+            f"depends on B commit {B1_COMMIT} (B worktree HEAD a4f2af7, draft uncommitted). "
             "Baseline only has sampled polyline intersection diagnostics."
         )
 
@@ -324,8 +329,11 @@ def test_c1_service_exact_bezier_intersection_details_present():
 
     error = result.get("construction_error") or {}
     details = error.get("details") or {}
-    exact = details.get("exact_intersection_pairs") or []
-    assert exact, "B1 must surface exact intersection pairs in the structured error"
-    pair = exact[0]
-    for field in ("left_segment_index", "right_segment_index", "left_t", "right_t", "kind", "error_bound"):
-        assert field in pair, f"missing exact intersection field: {field}"
+    contacts = details.get("curve_contacts") or []
+    assert contacts, "B1 must surface curve-level contacts in the structured error"
+    contact = contacts[0]
+    # B1 draft contact contract: segment pair, pair of parameters, kind, distance.
+    for field in ("segment_indices", "parameters", "kind", "distance"):
+        assert field in contact, f"missing curve contact field: {field}"
+    assert len(contact["segment_indices"]) == 2
+    assert len(contact["parameters"]) == 2

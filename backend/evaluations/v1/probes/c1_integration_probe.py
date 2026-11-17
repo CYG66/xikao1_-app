@@ -31,9 +31,16 @@ def _a1_symbol_present() -> bool:
     return True
 
 
+def _b1_module_present() -> bool:
+    return (
+        _module_present("app.cad_topology_safety")
+        or _module_present("app.cad_curve_intersection")
+    )
+
+
 def main() -> int:
     a1_available = _a1_symbol_present()
-    b1_module = _module_present("app.cad_curve_intersection")
+    b1_module = _b1_module_present()
 
     report = {
         "schema": "cad.c1-integration-probe.v1",
@@ -53,7 +60,8 @@ def main() -> int:
                 "branch": "v1/b1-topology",
                 "commit": "not_committed",
                 "HEAD": "a4f2af7bbfe86509c7a900adbd6b366e12f598a5",
-                "cad_curve_intersection_available_on_C": b1_module,
+                "modules_observed_on_B_draft": ["cad_topology_safety"],
+                "cad_topology_safety_available_on_C": b1_module,
                 "status": "available" if b1_module else "failed_dep_pending",
             },
         },
@@ -74,7 +82,7 @@ def main() -> int:
                 "expected_state_if_dependency_missing": "environment_blocked",
             },
             {
-                "case": "test_c1_service_exact_bezier_intersection_details_present",
+                "case": "test_c1_service_curve_contact_details_present",
                 "depends_on": "B1",
                 "expected_state_if_dependency_missing": "failed_dep_pending",
             },

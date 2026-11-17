@@ -1,0 +1,146 @@
+{
+  "schema": "cad.d1.pending-forensics.v1",
+  "generated_at": "2026-11-17T06:40:28.445359+00:00",
+  "target_backend": "C:\\Users\\29924\\Codes\\worktrees\\tmp\\a11-b11-c11-combo\\backend",
+  "case_node": "tests.test_c1_integration_mock::test_c1_service_curve_contact_details_present",
+  "guard_source": {
+    "file": "backend/tests/test_c1_integration_mock.py",
+    "guard_lines": "45-51 (_b1_curve_intersection_available)",
+    "fail_lines": "315-321 (pytest.fail failed_dep_pending)",
+    "assertion_lines": "331-340"
+  },
+  "fixture": {
+    "closed": true,
+    "segments": [
+      {
+        "kind": "line",
+        "start": {
+          "x": 0,
+          "y": 0
+        },
+        "end": {
+          "x": 2,
+          "y": 2
+        }
+      },
+      {
+        "kind": "line",
+        "start": {
+          "x": 2,
+          "y": 2
+        },
+        "end": {
+          "x": 0,
+          "y": 2
+        }
+      },
+      {
+        "kind": "line",
+        "start": {
+          "x": 0,
+          "y": 2
+        },
+        "end": {
+          "x": 2,
+          "y": 0
+        }
+      },
+      {
+        "kind": "line",
+        "start": {
+          "x": 2,
+          "y": 0
+        },
+        "end": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    ]
+  },
+  "analyzer_output": {
+    "module_present": true,
+    "contacts": [
+      {
+        "segment_indices": [
+          0,
+          2
+        ],
+        "parameters": [
+          0.5,
+          0.5
+        ],
+        "parameter_intervals": [
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0
+          ]
+        ],
+        "points": [
+          {
+            "x": 1.0,
+            "y": 1.0
+          },
+          {
+            "x": 1.0,
+            "y": 1.0
+          }
+        ],
+        "distance": 0.0,
+        "kind": "crossing"
+      }
+    ],
+    "unresolved": false
+  },
+  "verdict": {
+    "candidate": "a",
+    "excluded": [
+      {
+        "option": "b",
+        "note": "as_dict keys: segment_indices/parameters/kind/distance"
+      },
+      {
+        "option": "c",
+        "note": "Closed four-line bow tie; diagonal pair crosses at (1,1)."
+      },
+      {
+        "option": "d",
+        "note": "contacts_detected=1"
+      }
+    ],
+    "reason": "B detection returns the expected crossing contact with aligned fields; the old combo failure was the missing B module guard."
+  },
+  "environment": {
+    "versions": {
+      "python": "3.11.18",
+      "pytest": "9.2.0",
+      "httpx": "0.28.1",
+      "fastapi": "0.116.1",
+      "pydantic": "2.11.7",
+      "shapely": "2.2.0",
+      "ezdxf": "1.4.2",
+      "numpy": "2.4.6",
+      "scipy": "1.17.1"
+    },
+    "guard": {
+      "forced_provider": "local",
+      "stripped_keys": {
+        "DEEPSEEK_API_KEY": "absent",
+        "OPENAI_API_KEY": "absent",
+        "ARK_API_KEY": "absent",
+        "MODEL_API_KEY": "absent"
+      },
+      "deepseek_key_present": false,
+      "openai_key_present": false
+    }
+  },
+  "guards": {
+    "live_model_calls": 0,
+    "production_code_modified": false
+  },
+  "snapshot_sha256": "ee5035163b06b5d99bb0c75f4a402bf4c8cb74e97ca2161e81d876b054f72839"
+}

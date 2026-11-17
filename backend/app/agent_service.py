@@ -137,7 +137,8 @@ from .cad_construction_interpreter import (
 from .cad_structure_contract import reference_contract, explicit_composition
 from .cad_generation_recovery import (
     should_repair, recovery_record, confidence_only_repair,
-    bounded_repair_available,
+    bounded_repair_available, evaluate_repair_progress, classify_feature_failure,
+    M3_PROGRESS_GATE_ENABLED, M2_SCOPE_CLASSIFIER_ENABLED,
 )
 from .cad_requirement_ledger import project_requirement_ledger
 from .cad_creation_intent import has_compound_primitives
@@ -6476,12 +6477,34 @@ class RobotAgentService:
         construction_attempts = [deepcopy(interpretation)]
         while (should_repair(interpretation)
                and bounded_repair_available(construction_attempts, max_repairs=2)):
+            # M3: stall guard between consecutive attempts. The first repair
+            # (single attempt) is never gated. Block only on a proven stall;
+            # every undetermined or missing-snapshot path releases.
+            if M3_PROGRESS_GATE_ENABLED and len(construction_attempts) >= 2:
+                progress=evaluate_repair_progress(construction_attempts[-2], construction_attempts[-1])
+                if progress['decision']=='block':
+                    interpretation={
+                        'schema':'cad.construction-interpretation-result.v1',
+                        'status':'invalid','parser':interpretation.get('parser'),
+                        'provider_attempted':interpretation.get('provider_attempted'),
+                        'rejected_plan':deepcopy(interpretation.get('plan')),
+                        'progress':deepcopy(progress),
+                        'error':{'code':'no_progress','message':'连续两次修复在失败特征与几何上均无实质进展，已停止无效重试；可重新生成整体方案。'}}
+                    break
             failed_attempt=deepcopy(interpretation)
             repair_details=(failed_attempt.get('construction_error') or {}).get('details') or {}
             failed_refs=set(repair_details.get('affected_output_refs') or [])
             plan_refs={s.get('output_ref') for s in (failed_attempt.get('plan') or failed_attempt.get('rejected_plan') or {}).get('steps',[])}
-            structural_replan=bool(repair_details.get('requires_structural_replan')
+            failed_error=failed_attempt.get('construction_error') or failed_attempt.get('error') or {}
+            if M2_SCOPE_CLASSIFIER_ENABLED:
+                classification=classify_feature_failure(repair_details, failed_error.get('code') or '')
+            else:
+                classification={'repair_class':'unspecified',
+                    'requires_structural_replan':bool(repair_details.get('requires_structural_replan')),
+                    'reason':'classifier disabled'}
+            legacy_replan=bool(repair_details.get('requires_structural_replan')
                 and plan_refs and plan_refs.issubset(failed_refs))
+            structural_replan=legacy_replan or classification['requires_structural_replan']
             failure = interpretation.get("error") or {}
             feedback = str(failure.get("message") or "构造计划未通过验证")
             if isinstance(interpretation.get("construction_error"), dict):
@@ -6490,6 +6513,15 @@ class RobotAgentService:
                 )
                 if (interpretation['construction_error'].get('details') or {}).get('local_repair_scope'):
                     feedback += "\n本次是受保护的局部修复：仅可修改editable_fields_by_ref列出的坐标字段。必须保留全部步骤及其顺序、标识、语义和全局参数；不得增删步骤、重命名或改变其他部件。修复后会逐项比较并校验受保护几何。"
+                expected_feature=(repair_details.get('required_features')
+                    or {k:v for k,v in repair_details.items() if str(k).startswith('expected')})
+                measured_feature=(repair_details.get('measured_features')
+                    or repair_details.get('measurements') or repair_details.get('measured_center_mm'))
+                feedback += "\n修复范围判定：" + json.dumps(
+                    {'repair_class':classification['repair_class'],'requires_structural_replan':structural_replan,
+                     'expected_feature':expected_feature,'measured_feature':measured_feature,
+                     'difference':repair_details.get('failed_features') or []},
+                    ensure_ascii=False)
             rejected_plan = interpretation.get("plan") or interpretation.get("rejected_plan")
             previous_plan = (
                 "\n前次未通过的计划（仅供修正，禁止当成用户要求）："
@@ -6696,6 +6728,7 @@ class RobotAgentService:
                             "alternative_selection": deepcopy(interpretation.get("alternative_selection")),
                             "status": interpretation.get("status"),
                             "error": deepcopy(error),
+                            "progress": deepcopy(interpretation.get("progress")),
                             "provider_attempted": interpretation.get("provider_attempted", False),
                         },
                     }

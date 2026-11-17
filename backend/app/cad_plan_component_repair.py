@@ -11,6 +11,9 @@ class ComponentRepairError(ValueError):
         self.code = code
         self.message = message
         self.details = details
+        # Previous plan attached by the merger so the interpreter can surface
+        # it to the next repair round; kept out of the serializable details.
+        self.previous_plan = None
 
 
 _POLICY_FIELDS = (
@@ -318,54 +321,61 @@ def merge_component_repair(context, payload):
             replacements[ref] = step
     if set(replacements) != affected:
         raise ValueError('部件修复必须保留失败部件的原输出引用')
-    merged = deepcopy(plan)
-    if details.get('identity_only_repair'):
+    try:
+        merged = deepcopy(plan)
+        if details.get('identity_only_repair'):
+            for index, original in enumerate(plan['steps']):
+                ref=original['output_ref']
+                if ref not in affected:continue
+                identity=(replacements[ref].get('semantic') or {}).get('object_id')
+                if not isinstance(identity,str) or not identity.strip():
+                    raise ValueError('身份修复必须返回明确的object_id')
+                merged['steps'][index].setdefault('semantic',{})['object_id']=identity
+            result=deepcopy(payload);result['plan']=merged
+            return result
         for index, original in enumerate(plan['steps']):
-            ref=original['output_ref']
-            if ref not in affected:continue
-            identity=(replacements[ref].get('semantic') or {}).get('object_id')
-            if not isinstance(identity,str) or not identity.strip():
-                raise ValueError('身份修复必须返回明确的object_id')
-            merged['steps'][index].setdefault('semantic',{})['object_id']=identity
-        result=deepcopy(payload);result['plan']=merged
+            if original['output_ref'] not in affected:
+                continue
+            replacement = deepcopy(replacements[original['output_ref']])
+            for key in ('step_id', 'output_ref', 'semantic', 'layer_id'):
+                if key in original:
+                    replacement[key] = deepcopy(original[key])
+            if original.get('op') != replacement.get('op'):
+                has_connection_semantics = bool(original.get('junction_constraints')) \
+                    or 'continuity' in original or 'tangent_tolerance_deg' in original
+                if has_connection_semantics:
+                    raise ComponentRepairError(
+                        'component_repair_op_change_requires_replan',
+                        '更换构造操作会破坏原连接语义；请重新规划而不是局部修复',
+                        output_ref=original['output_ref'],
+                        original_op=original.get('op'),
+                        replacement_op=replacement.get('op'),
+                    )
+            _merge_step_policy(original, replacement, output_ref=original['output_ref'])
+            _merge_junction_constraints(
+                original, replacement, output_ref=original['output_ref']
+            )
+            merged['steps'][index] = replacement
+        failed_assertion = (context.get('construction_error') or {}).get('assertion_id')
+        if failed_assertion:
+            # A model-authored assertion that failed is not a user requirement.
+            # Allow its correction while retaining every unrelated assertion;
+            # source-based geometry acceptance still runs after the merge.
+            updates = [a for a in proposed.get('assertions', [])
+                       if a.get('assertion_id') == failed_assertion
+                       and a.get('target_ref') in affected]
+            if len(updates) > 1:
+                raise ValueError('失败断言重复')
+            if updates:
+                merged['assertions'] = [deepcopy(updates[0]) if a.get('assertion_id') == failed_assertion
+                    and a.get('target_ref') == updates[0].get('target_ref') else a
+                    for a in merged.get('assertions', [])]
+        result = deepcopy(payload)
+        result['plan'] = merged
         return result
-    for index, original in enumerate(plan['steps']):
-        if original['output_ref'] not in affected:
-            continue
-        replacement = deepcopy(replacements[original['output_ref']])
-        for key in ('step_id', 'output_ref', 'semantic', 'layer_id'):
-            if key in original:
-                replacement[key] = deepcopy(original[key])
-        if original.get('op') != replacement.get('op'):
-            has_connection_semantics = bool(original.get('junction_constraints')) \
-                or 'continuity' in original or 'tangent_tolerance_deg' in original
-            if has_connection_semantics:
-                raise ComponentRepairError(
-                    'component_repair_op_change_requires_replan',
-                    '更换构造操作会破坏原连接语义；请重新规划而不是局部修复',
-                    output_ref=original['output_ref'],
-                    original_op=original.get('op'),
-                    replacement_op=replacement.get('op'),
-                )
-        _merge_step_policy(original, replacement, output_ref=original['output_ref'])
-        _merge_junction_constraints(
-            original, replacement, output_ref=original['output_ref']
+    except ComponentRepairError as exc:
+        exc.details['affected_output_refs'] = sorted(
+            {ref for ref in affected if isinstance(ref, str) and ref}
         )
-        merged['steps'][index] = replacement
-    failed_assertion = (context.get('construction_error') or {}).get('assertion_id')
-    if failed_assertion:
-        # A model-authored assertion that failed is not a user requirement.
-        # Allow its correction while retaining every unrelated assertion;
-        # source-based geometry acceptance still runs after the merge.
-        updates = [a for a in proposed.get('assertions', [])
-                   if a.get('assertion_id') == failed_assertion
-                   and a.get('target_ref') in affected]
-        if len(updates) > 1:
-            raise ValueError('失败断言重复')
-        if updates:
-            merged['assertions'] = [deepcopy(updates[0]) if a.get('assertion_id') == failed_assertion
-                and a.get('target_ref') == updates[0].get('target_ref') else a
-                for a in merged.get('assertions', [])]
-    result = deepcopy(payload)
-    result['plan'] = merged
-    return result
+        exc.previous_plan = deepcopy(plan)
+        raise

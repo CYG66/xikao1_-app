@@ -632,6 +632,7 @@ def interpret_construction_request(
             payload = bind_outline_requirements(payload, text)
             interpreted = StructuredConstructionInterpretation.model_validate(payload)
         except ComponentRepairError as exc:
+            previous_plan = getattr(exc, "previous_plan", None)
             return {
                 **_failure("component_repair_failed", exc.message, parser),
                 "construction_error": {
@@ -640,6 +641,7 @@ def interpret_construction_request(
                     "details": deepcopy(exc.details),
                 },
                 "deterministic_repairs": deterministic_repairs,
+                **({"rejected_plan": deepcopy(previous_plan)} if isinstance(previous_plan, dict) else {}),
             }
         except Exception as exc:
             rejected_plan = payload.get("plan") if isinstance(payload, dict) else None

@@ -660,3 +660,136 @@ def test_valid_geometry_edit_is_merged_while_protected_junction_fields_are_kept(
     assert 'junction_constraints' not in replacement_step
     assert len(merged_step['junction_constraints']) == len(original_constraints)
 
+
+def _two_step_plan():
+    base_segments = [
+        [_point(0.0, 0.0), _point(0.8, 0.6), _point(1.4, 1.2), _point(2.0, 1.0)],
+        [_point(2.0, 1.0), _point(2.2, 0.9333333333333333), _point(3.6, -0.9), _point(4.0, -1.0)],
+        [_point(4.0, -1.0), _point(4.4, -1.1), _point(5.2, -0.6), _point(6.0, 0.0)],
+    ]
+
+    def step(ref, x0):
+        segments = [
+            {'kind': 'bezier', 'control_points': [
+                {'x': round(point['x'] + x0, 9), 'y': point['y']} for point in segment
+            ]}
+            for segment in base_segments
+        ]
+        return {
+            'op': 'add_composite_path',
+            'step_id': ref,
+            'output_ref': ref,
+            'layer_id': 1,
+            'semantic': {'object_type': 'drawing_part', 'label': ref},
+            'segments': segments,
+            'closed': False,
+            'samples_per_curve': 64,
+            'connection_tolerance': 0.000001,
+            'continuity': 'C1',
+            'tangent_tolerance_deg': 0.01,
+            'allow_self_intersection': False,
+            'allow_duplicate_segments': False,
+            'junction_constraints': deepcopy(_junction_constraints()),
+        }
+
+    return {
+        'schema_version': 'cad.construction-plan.v1',
+        'units': 'm',
+        'steps': [step('step-a', 0), step('step-b', 6)],
+        'assertions': [],
+    }
+
+
+def _repair_envelope(plan, prompt):
+    return json.dumps({
+        'schema_version': 'cad.construction-interpretation.v1',
+        'is_construction_request': True,
+        'plan': plan,
+        'confidence': 0.95,
+        'evidence_text': [prompt],
+        'assumptions': [],
+    }, ensure_ascii=False)
+
+
+def test_two_round_service_repair_keeps_scope_refs_previous_plan_then_merges_geometry():
+    """Service-entry two-round repair: error scope survives round 1, geometry lands in round 2.
+
+    Round 1 raises a ComponentRepairError. The surfaced error must carry the
+    complete deduplicated affected ref set, the compat single ref, and the
+    previous plan so the next round can re-enter the component repair channel.
+    Round 2 edits only the target geometry; the other component and every
+    protected junction field stay intact.
+    """
+    prompt = '生成两条开放、平滑的三段三次 Bezier 复合路径，两处内部连接点满足 C1 切向连续，坐标单位为米。'
+    plan = _two_step_plan()
+
+    # Round 1: the replacement clears the junction constraints of step-a.
+    bad_plan = deepcopy(plan)
+    bad_plan['steps'][0]['junction_constraints'] = []
+    context = {
+        'plan': plan,
+        'construction_error': {'details': {'affected_output_refs': ['step-b', 'step-a']}},
+    }
+
+    service = _service()
+    with patch.object(
+        service, '_structured_review_text',
+        side_effect=[_repair_envelope(bad_plan, prompt), 'round-two-payload'],
+    ) as review:
+        first = service._interpret_cad_construction_plan(
+            prompt, component_repair_context=context,
+        )
+
+    assert review.call_count == 1
+    assert first['status'] == 'invalid'
+    first_error = first['construction_error']
+    assert first_error['code'] == 'junction_constraints_clear_rejected'
+    # GAP-1: complete, deduplicated, stably ordered affected refs; compat ref kept.
+    assert first_error['details']['affected_output_refs'] == ['step-a', 'step-b']
+    assert first_error['details']['output_ref'] == 'step-a'
+    # GAP-2: the previous plan survives the exception for the next repair round.
+    assert first['rejected_plan'] == plan
+
+    # Round 2: re-enter the component repair channel from the failed attempt.
+    repaired_plan = deepcopy(plan)
+    repaired_plan['steps'][0]['segments'][2]['control_points'][3] = _point(6.0, 0.2)
+    replacement_steps = []
+    for original in repaired_plan['steps']:
+        replacement_steps.append({
+            'op': original['op'],
+            'step_id': original['step_id'],
+            'output_ref': original['output_ref'],
+            'semantic': original['semantic'],
+            'segments': deepcopy(original['segments']),
+        })
+    second_payload = _repair_envelope({'units': 'm', 'steps': replacement_steps}, prompt)
+
+    failed_attempt = {
+        'rejected_plan': first['rejected_plan'],
+        'construction_error': first_error,
+        'assumptions': [],
+    }
+    with patch.object(
+        service, '_structured_review_text',
+        return_value=second_payload,
+    ):
+        second = service._interpret_cad_construction_plan(
+            prompt, component_repair_context=failed_attempt,
+        )
+
+    assert second['status'] == 'ready', json.dumps(second, ensure_ascii=False)[:3000]
+    merged = second['plan']
+    # Target geometry edit landed; the other component's geometry and protected
+    # fields are untouched (schema-normalized defaults are compared field by field).
+    assert merged['steps'][0]['segments'][2]['control_points'][3] == _point(6.0, 0.2)
+    other = merged['steps'][1]
+    original_other = plan['steps'][1]
+    assert other['output_ref'] == original_other['output_ref']
+    assert other['segments'] == original_other['segments']
+    assert other['junction_constraints'] == original_other['junction_constraints']
+    for index, merged_step in enumerate(merged['steps']):
+        assert merged_step['junction_constraints'] == plan['steps'][index]['junction_constraints']
+        assert merged_step['continuity'] == 'C1'
+        assert merged_step['tangent_tolerance_deg'] == 0.01
+
+

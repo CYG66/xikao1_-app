@@ -1,0 +1,148 @@
+{
+  "schema": "cad.c1-test-status.v1",
+  "branch": "v1/c1-integration",
+  "baseline_head": "a4f2af7bbfe86509c7a900adbd6b366e12f598a5",
+  "c_round2_head": "37961808f8d7ebb863396bdc98573d1450764c19",
+  "c_round3_head": "f38cf63cae1a23ac37f06127ee2ea0aebf70c2d9",
+  "real_model_calls": 0,
+  "network_model_requests": 0,
+  "production_code_modified": false,
+  "dependencies": {
+    "A1": "0ed2288ca068534d86e1afddc93f592b7ef35e35",
+    "A1_TEST": "d8cb85f68db08b90beb4872ccfc9fdf93d8735d9",
+    "A11": "ea8323a230f1cd53cf80f4fd4398328e836962b2",
+    "B1": "b519740550eb991beac9848798bad7ede228fbf6"
+  },
+  "run": {
+    "python": "C:\\Users\\29924\\Softwares\\miniconda\\envs\\xikao\\python.exe",
+    "directory": "backend",
+    "c_baseline_counts": { "passed": 2, "failed": 5, "error": 0, "skipped": 0 },
+    "combo_counts": { "passed": 6, "failed": 1, "error": 0, "skipped": 0 }
+  },
+  "combo": {
+    "branch": "tmp/a11-c1-combo",
+    "non_final_integration_branch": true,
+    "worktree": "C:\\Users\\29924\\Codes\\worktrees\\tmp\\a11-c1-combo",
+    "base_commit": "ea8323a230f1cd53cf80f4fd4398328e836962b2",
+    "combo_snapshot_commit": "dee5849a7c0c7cc115a018754cada8b62588df72",
+    "combo_c12_head": "7ebf5af375eeaa7216fec9d841173785221bd5a0",
+    "combo_commit": "7ebf5af375eeaa7216fec9d841173785221bd5a0",
+    "note": "一次性临时组合，保留供 D 独立验收；不合并回 v1/c1-integration 或任何研发分支，不推送，不删除。"
+  },
+  "cases": [
+    {
+      "case": "test_c1_service_topology_failure_is_structured_not_silent_success",
+      "file": "backend/tests/test_c1_integration_mock.py",
+      "intent": "自相交复合路径经真实服务入口返回 invalid + 结构化 construction_error(self_intersecting_composite_path)，details 非空，不保存候选、不静默成功。",
+      "entry": "RobotAgentService._interpret_cad_construction_plan",
+      "mocked_boundary": "_structured_review_text",
+      "state": "passed",
+      "combo_state": "passed",
+      "depends_on": "baseline-existing-executor",
+      "dependency_commit": "a4f2af7bbfe86509c7a900adbd6b366e12f598a5",
+      "reason_category": "none",
+      "note": "基线执行器既有采样折线求交拒绝能力，本用例在 C 基线与组合树均通过。"
+    },
+    {
+      "case": "test_c1_service_component_repair_failure_maps_to_structured_local_error",
+      "file": "backend/tests/test_c1_integration_mock.py",
+      "intent": "局部修复被拒绝时，服务层形成结构化约束错误，归类为可局部修复(constraint_conflict / should_repair=True)，不被提升为整体结构重规划。",
+      "entry": "RobotAgentService._interpret_cad_construction_plan",
+      "mocked_boundary": "_structured_review_text",
+      "state": "failed_dep_pending",
+      "combo_state": "passed",
+      "depends_on": "A1+A1.1",
+      "dependency_commit": "ea8323a230f1cd53cf80f4fd4398328e836962b2",
+      "reason_category": "A_not_merged_into_C",
+      "note": "C 基线无 ComponentRepairError；组合树叠加 A1.1 后通过。属依赖 A 尚未合入 C 分支，不是放宽断言。缺口层为 A 生产者侧，服务路由层已核实无缺口（见 C1.1 报告 GAP-1）。"
+    },
+    {
+      "case": "test_c1_service_merged_repair_keeps_inherited_junction_fields",
+      "file": "backend/tests/test_c1_integration_mock.py",
+      "intent": "合法就地修复后，服务层合并计划仍完整保留原 junction_constraints/continuity/tangent_tolerance_deg，未受影响断言不变。",
+      "entry": "RobotAgentService._interpret_cad_construction_plan",
+      "mocked_boundary": "_structured_review_text",
+      "state": "failed_dep_pending",
+      "combo_state": "passed",
+      "depends_on": "A1",
+      "dependency_commit": "0ed2288ca068534d86e1afddc93f592b7ef35e35",
+      "test_commit": "d8cb85f68db08b90beb4872ccfc9fdf93d8735d9",
+      "reason_category": "A_not_merged_into_C",
+      "note": "基线整步替换会丢弃未回写的继承约束字段；组合树叠加 A 栈后通过。属依赖 A 尚未合入，断言未放宽。"
+    },
+    {
+      "case": "test_c1_service_curve_contact_details_present",
+      "file": "backend/tests/test_c1_integration_mock.py",
+      "intent": "拓扑失败 details 携带 B1 曲线接触字段（curve_contacts[].segment_indices/parameters/kind/distance）。",
+      "entry": "RobotAgentService._interpret_cad_construction_plan",
+      "mocked_boundary": "_structured_review_text",
+      "state": "failed_dep_pending",
+      "combo_state": "failed_dep_pending",
+      "depends_on": "B1",
+      "dependency_commit": "b519740550eb991beac9848798bad7ede228fbf6",
+      "reason_category": "B_not_merged_into_C",
+      "note": "组合树基于 A1.1，未纳入 B1；B 树自身回归 test_cad_topology_safety_b1.py 2 passed。曲线接触服务级接线待 B1 合入后复核。与 A 侧缺口分开标注。"
+    },
+    {
+      "case": "test_c11_round1_surfaces_full_ref_scope_and_previous_plan",
+      "file": "backend/tests/test_c11_service_two_round_mock.py",
+      "intent": "首轮修复被拒：details 含完整去重有序 affected_output_refs + 兼容单 ref；顶层 rejected_plan 保留前次计划；归类可局部修复、不提升结构重规划。",
+      "entry": "RobotAgentService._interpret_cad_construction_plan",
+      "mocked_boundary": "_structured_review_text",
+      "state": "failed_dep_pending",
+      "combo_state": "passed",
+      "depends_on": "A1.1",
+      "dependency_commit": "ea8323a230f1cd53cf80f4fd4398328e836962b2",
+      "reason_category": "A_not_merged_into_C",
+      "note": "GAP-1(a)/GAP-2 生产者侧由 A1.1 关闭；服务路由与前次计划回挂层核实无缺口。"
+    },
+    {
+      "case": "test_c11_round2_reuses_scope_keeps_unaffected_part_and_constraints",
+      "file": "backend/tests/test_c11_service_two_round_mock.py",
+      "intent": "第二轮以失败尝试为上下文重入部件修复；仅目标几何改动，其余部件几何与连接约束不变；最终 ready，provider_attempted=True，未持久化。",
+      "entry": "RobotAgentService._interpret_cad_construction_plan",
+      "mocked_boundary": "_structured_review_text",
+      "state": "failed_dep_pending",
+      "combo_state": "passed",
+      "depends_on": "A1.1",
+      "dependency_commit": "ea8323a230f1cd53cf80f4fd4398328e836962b2",
+      "reason_category": "A_not_merged_into_C",
+      "note": "两轮链路经服务入口验证；未直接调用独立合并函数。"
+    },
+    {
+      "case": "test_c12_production_loop_two_round_component_repair_persists_one_candidate",
+      "file": "backend/tests/test_c12_production_loop_mock.py",
+      "intent": "真实生产循环 _formal_cad_construction：首轮断言失败携带 affected_output_refs 且无局部范围，服务自动捕获并保留前次计划；第二轮自动进入 component_repair_context 经真实合并器仅改目标几何，未受部件身份字段保留；独立验收通过后在隔离存储落库恰好 1 个候选。",
+      "entry": "RobotAgentService._formal_cad_construction",
+      "mocked_boundary": "_structured_review_text",
+      "observer": "merge_component_repair 以委托观察者记录 refs/前次计划，不替换合并逻辑",
+      "state": "passed",
+      "combo_state": "passed",
+      "depends_on": "baseline-executor-assertion-path",
+      "dependency_commit": "a4f2af7bbfe86509c7a900adbd6b366e12f598a5",
+      "reason_category": "none",
+      "note": "循环轮次计数：review 调用 2 次，recovery repair_count=1，attempts=2。首轮失败为 assertion_failed（ConstructionPlanError 路径），前次计划经 plan 保留；顶层 rejected_plan 别名属 A1.1 ComponentRepairError 形状，本场景不涉及。"
+    }
+  ],
+  "gap_findings": {
+    "GAP-1": {
+      "service_layer": "pass_no_gap",
+      "producer_layer": "closed_by_A11",
+      "evidence": "agent_service.py:6481/6509/6225/6234 整表消费，无首元素短路；A1.1 在 except 段归一 sorted(dict) affected_output_refs。"
+    },
+    "GAP-2": {
+      "service_layer": "pass_no_gap",
+      "producer_layer": "closed_by_A11",
+      "evidence": "agent_service.py:6482/6493/6224 与 cad_generation_recovery.py:49-51/66 读取 plan or rejected_plan；A1.1 解释器回挂 rejected_plan、合并器挂 previous_plan。"
+    },
+    "GAP-3": {
+      "service_layer": "pass_keep_schema",
+      "producer_layer": "not_applicable",
+      "evidence": "cad_generation_recovery.py:11 优先 construction_error.code；:57 顶层 error.code 仅识别 low_confidence/confidence_only_repair；agent_http_service.py 不读构造错误码。无消费者依赖顶层精确约束码。"
+    },
+    "service_patch": "none",
+    "retry_cap_unchanged": true,
+    "budget_unchanged": true,
+    "candidate_save_unchanged": true
+  }
+}

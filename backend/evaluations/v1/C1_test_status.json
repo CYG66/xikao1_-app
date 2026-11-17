@@ -3,6 +3,7 @@
   "branch": "v1/c1-integration",
   "baseline_head": "a4f2af7bbfe86509c7a900adbd6b366e12f598a5",
   "c_round2_head": "37961808f8d7ebb863396bdc98573d1450764c19",
+  "c_round3_head": "f38cf63cae1a23ac37f06127ee2ea0aebf70c2d9",
   "real_model_calls": 0,
   "network_model_requests": 0,
   "production_code_modified": false,
@@ -15,8 +16,8 @@
   "run": {
     "python": "C:\\Users\\29924\\Softwares\\miniconda\\envs\\xikao\\python.exe",
     "directory": "backend",
-    "c_baseline_counts": { "passed": 1, "failed": 5, "error": 0, "skipped": 0 },
-    "combo_counts": { "passed": 5, "failed": 1, "error": 0, "skipped": 0 }
+    "c_baseline_counts": { "passed": 2, "failed": 5, "error": 0, "skipped": 0 },
+    "combo_counts": { "passed": 6, "failed": 1, "error": 0, "skipped": 0 }
   },
   "combo": {
     "branch": "tmp/a11-c1-combo",
@@ -24,7 +25,8 @@
     "worktree": "C:\\Users\\29924\\Codes\\worktrees\\tmp\\a11-c1-combo",
     "base_commit": "ea8323a230f1cd53cf80f4fd4398328e836962b2",
     "combo_snapshot_commit": "dee5849a7c0c7cc115a018754cada8b62588df72",
-    "combo_commit": "dee5849a7c0c7cc115a018754cada8b62588df72",
+    "combo_c12_head": "7ebf5af375eeaa7216fec9d841173785221bd5a0",
+    "combo_commit": "7ebf5af375eeaa7216fec9d841173785221bd5a0",
     "note": "一次性临时组合，保留供 D 独立验收；不合并回 v1/c1-integration 或任何研发分支，不推送，不删除。"
   },
   "cases": [
@@ -106,6 +108,20 @@
       "dependency_commit": "ea8323a230f1cd53cf80f4fd4398328e836962b2",
       "reason_category": "A_not_merged_into_C",
       "note": "两轮链路经服务入口验证；未直接调用独立合并函数。"
+    },
+    {
+      "case": "test_c12_production_loop_two_round_component_repair_persists_one_candidate",
+      "file": "backend/tests/test_c12_production_loop_mock.py",
+      "intent": "真实生产循环 _formal_cad_construction：首轮断言失败携带 affected_output_refs 且无局部范围，服务自动捕获并保留前次计划；第二轮自动进入 component_repair_context 经真实合并器仅改目标几何，未受部件身份字段保留；独立验收通过后在隔离存储落库恰好 1 个候选。",
+      "entry": "RobotAgentService._formal_cad_construction",
+      "mocked_boundary": "_structured_review_text",
+      "observer": "merge_component_repair 以委托观察者记录 refs/前次计划，不替换合并逻辑",
+      "state": "passed",
+      "combo_state": "passed",
+      "depends_on": "baseline-executor-assertion-path",
+      "dependency_commit": "a4f2af7bbfe86509c7a900adbd6b366e12f598a5",
+      "reason_category": "none",
+      "note": "循环轮次计数：review 调用 2 次，recovery repair_count=1，attempts=2。首轮失败为 assertion_failed（ConstructionPlanError 路径），前次计划经 plan 保留；顶层 rejected_plan 别名属 A1.1 ComponentRepairError 形状，本场景不涉及。"
     }
   ],
   "gap_findings": {

@@ -136,11 +136,15 @@ _GEOMETRY_EVALUATOR = None
 # by the B version in use; both mean determined-equivalent and are the only
 # relations that can feed a stall block.
 EQUIVALENT_RELATIONS = {'identical', 'equivalent'}
-# Non-equivalent relations: these are deliberate geometry changes or a
-# non-progress orientation reversal; they must release, never block.
-_NON_EQUIVALENT_RELATIONS = {
-    'same_trajectory_reversed', 'similar_transform', 'compliant_other', 'different',
+# Deliberate geometry changes / non-progress reversal: determined non-equivalent,
+# released via geometry_changed.
+_CHANGED_RELEASE_RELATIONS = {
+    'same_trajectory_reversed', 'compliant_other', 'different',
 }
+# Compliant rigid/scale/reflection or topology-preserving transform. Similar
+# is NOT equivalence: the target geometry may really have moved, so it maps to
+# undetermined and releases; it must never be treated as equivalent.
+_SIMILAR_UNDETERMINED_RELATIONS = {'similar_transform', 'similar'}
 
 
 def set_geometry_evaluator(fn):
@@ -152,8 +156,47 @@ def set_geometry_evaluator(fn):
     _GEOMETRY_EVALUATOR = fn
 
 
+def _target_refs(result):
+    _, details = _error_bundle(result)
+    refs = details.get('affected_output_refs') or []
+    return [str(r) for r in refs if r]
+
+
+def _scoped_geometries(result, evidence):
+    """Pick only the geometries bound to the failing target refs.
+
+    The stall judgement must not be misled by an unrelated part moving: the
+    comparison is over the target component, not the whole snapshot. Ref to
+    geometry ids resolves through ``trial_result.symbol_table``. Returns
+    ``(geometries, scope_refs, scope_resolvable)``; when refs are declared but
+    cannot be resolved, ``scope_resolvable`` is False and the caller releases
+    conservatively instead of comparing the whole plan.
+    """
+    refs = _target_refs(result)
+    trial = result.get('trial_result') if isinstance(result.get('trial_result'), dict) else {}
+    table = trial.get('symbol_table') if isinstance(trial, dict) else {}
+    geometries = evidence.get('geometries') or []
+    if not refs:
+        return geometries, refs, True
+    if not isinstance(table, dict):
+        # Refs declared but the ref->geometry binding is absent: scope cannot
+        # be resolved; caller releases instead of comparing the whole plan.
+        return [], refs, False
+    by_id = {g.get('id'): g for g in geometries if isinstance(g, dict) and 'id' in g}
+    selected = []
+    for ref in refs:
+        for gid in table.get(ref) or []:
+            if gid in by_id:
+                selected.append(by_id[gid])
+    if not selected:
+        return [], refs, False
+    return selected, refs, True
+
+
 def _geometry_spec(result, evidence):
-    return {'geometries': evidence.get('geometries'),
+    scoped, refs, resolvable = _scoped_geometries(result, evidence)
+    return {'geometries': scoped, 'scope_refs': refs,
+            'scope_resolvable': resolvable,
             'plan': result.get('plan') or result.get('rejected_plan')}
 
 
@@ -164,9 +207,10 @@ def evaluate_geometry_progress(before, after, tolerance=None):
         (both are the B equivalence vocabulary; see EQUIVALENT_RELATIONS).
       - ``same_trajectory_reversed``: same point set, direction reversed; this
         is NOT progress and the orientation dimension fails -> release.
-      - ``similar_transform`` / ``compliant_other``: compliant rigid/scale/
-        reflection or topology-preserving adjustment -> release, never block.
-      - ``different``: geometry changed -> release.
+      - ``similar_transform`` / ``similar``: compliant transform, NOT
+        equivalence -> explicit undetermined release.
+      - ``compliant_other`` / ``different``: geometry changed -> release.
+      - unknown relation -> undetermined release with audit record.
       - any missing snapshot, missing required field, or absent evaluator ->
         ``undetermined``; undetermined is neither equivalent nor a pass, it is
         released and recorded. Symmetry alone is never a blocking basis.
@@ -177,15 +221,22 @@ def evaluate_geometry_progress(before, after, tolerance=None):
         return {'equivalent': None, 'undetermined': True, 'relation': 'unavailable',
                 'reversed': False, 'checks': {}, 'fail_reasons': ['geometry snapshot unavailable'],
                 'source': 'missing'}
+    spec_before = _geometry_spec(before, evidence_before)
+    spec_after = _geometry_spec(after, evidence_after)
+    if not spec_before['scope_resolvable'] or not spec_after['scope_resolvable']:
+        # Declared target refs cannot be bound to geometries; do not fall back
+        # to a whole-plan comparison, release conservatively.
+        return {'equivalent': None, 'undetermined': True, 'relation': 'scope_unresolved',
+                'reversed': False, 'checks': {},
+                'fail_reasons': ['target geometry scope unresolved'],
+                'source': 'adapter'}
     if _GEOMETRY_EVALUATOR is None:
         return {'equivalent': None, 'undetermined': True, 'relation': 'evaluator_unavailable',
                 'reversed': False, 'checks': {},
                 'fail_reasons': ['B geometry evaluator not injected in this tree'],
                 'source': 'adapter'}
     try:
-        verdict = _GEOMETRY_EVALUATOR(
-            _geometry_spec(before, evidence_before),
-            _geometry_spec(after, evidence_after), tolerance)
+        verdict = _GEOMETRY_EVALUATOR(spec_before, spec_after, tolerance)
     except Exception as exc:  # evaluator failure must fail closed, not block
         return {'equivalent': None, 'undetermined': True, 'relation': 'evaluator_error',
                 'reversed': False, 'checks': {},
@@ -210,9 +261,15 @@ def evaluate_geometry_progress(before, after, tolerance=None):
     elif relation in EQUIVALENT_RELATIONS:
         # Proven same-trajectory match (B vocabulary: identical | equivalent).
         equivalent = bool(verdict.get('equivalent', True))
-    elif relation in _NON_EQUIVALENT_RELATIONS:
-        # Reversal is not progress; similar_transform / compliant_other /
-        # different are geometry changes. All release via geometry_changed.
+    elif relation in _SIMILAR_UNDETERMINED_RELATIONS:
+        # Similar transform is NOT equivalence: the target may really have
+        # moved. Map explicitly to undetermined and release; never block on it.
+        undetermined = True
+        equivalent = None
+        fail_reasons.append('similar transform is not equivalence; released as undetermined')
+    elif relation in _CHANGED_RELEASE_RELATIONS:
+        # Reversal is not progress; compliant_other / different are geometry
+        # changes. Determined non-equivalent, released via geometry_changed.
         equivalent = False
     else:
         # Out-of-contract vocabulary: fail safe. Treat as undetermined, release,
@@ -221,13 +278,12 @@ def evaluate_geometry_progress(before, after, tolerance=None):
         undetermined = True
         equivalent = None
         fail_reasons.append(f'unknown geometry relation: {relation}')
-    # Similarity-transform channel: C does NOT call B's ``similarity_transform``
-    # separately. A rigid/scale/reflection or topology-preserving adjustment
-    # moves the sampled points beyond the raw equivalence tolerance, so B
-    # reports ``similar_transform``/``compliant_other`` rather than an
-    # equivalence relation; that non-equivalent verdict is released above and
-    # cannot be mistaken for a stall. Only a verdict inside EQUIVALENT_RELATIONS
-    # is eligible to block.
+    # C does NOT call B's ``similarity_transform`` separately. A rigid/scale/
+    # reflection or topology-preserving adjustment moves sampled points beyond
+    # the raw equivalence tolerance, so B reports ``similar_transform`` rather
+    # than an equivalence relation; that verdict is released above and cannot
+    # be mistaken for a stall. Only a verdict inside EQUIVALENT_RELATIONS is
+    # eligible to block.
     return {'equivalent': equivalent, 'undetermined': undetermined,
             'relation': relation, 'reversed': reversed_flag, 'checks': checks,
             'fail_reasons': fail_reasons, 'source': 'b_evaluator'}

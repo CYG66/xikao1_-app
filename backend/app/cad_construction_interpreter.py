@@ -11,6 +11,8 @@ import json
 import math
 import re
 
+from .cad_plan_component_repair import ComponentRepairError
+
 
 def _coerce_model_payload(value):
     """Accept provider JSON envelopes while keeping schema validation strict."""
@@ -629,6 +631,16 @@ def interpret_construction_request(
             deterministic_repairs.extend(center_repairs)
             payload = bind_outline_requirements(payload, text)
             interpreted = StructuredConstructionInterpretation.model_validate(payload)
+        except ComponentRepairError as exc:
+            return {
+                **_failure("component_repair_failed", exc.message, parser),
+                "construction_error": {
+                    "code": exc.code,
+                    "message": exc.message,
+                    "details": deepcopy(exc.details),
+                },
+                "deterministic_repairs": deterministic_repairs,
+            }
         except Exception as exc:
             rejected_plan = payload.get("plan") if isinstance(payload, dict) else None
             reference_diagnostic = None

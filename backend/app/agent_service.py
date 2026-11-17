@@ -6229,6 +6229,8 @@ class RobotAgentService:
                     source + '\n后端部件合并协议：本次仅输出 affected_output_refs 对应的步骤，'
                     + ('本次仅修复重复身份：保持每个output_ref，给出semantic.object_id的互不重复标识，不得重新规划几何。后端只采用object_id，其他字段全部使用原计划。' if identity_only else '') +
                     '其他部件、布局和断言由后端保留，禁止重新生成；不要添加辅助占位图形。'
+                    '保留失败步骤原有的 junction_constraints、continuity、tangent_tolerance_deg 等有效约束，不得清空或放宽；'
+                    '若改变段结构，必须输出与新段结构匹配的完整连接约束集合。'
                     'plan.units必须保持原单位。此精简计划仅用于合并，合并后仍执行全部验收。'
                     + (f'唯一允许同步修正的模型自拟错误断言是{failed_assertion}，放入assertions并保持原ID及target_ref；不可修改其他断言或用户原始要求。' if failed_assertion else '') + '\n'
                     + json.dumps({'affected_output_refs': affected,

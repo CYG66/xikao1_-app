@@ -6,16 +6,25 @@ case ids, no shape names and no fixed control-point constants.
 
 Detection model
 ---------------
-Curves are refined by de Casteljau subdivision with convex-hull bounding
-box exclusion.  Internal nodes are pruned only by hull separation; the
-coarse sample distance is *not* used to prune an internal subtree,
-because a large sub-curve whose samples miss the contact can still
-contain a crossing between samples.  Only at a leaf do we verify
-proximity by point-to-segment projection against the leaf chord.
+Lines and Bezier curves are refined by de Casteljau subdivision with
+convex-hull bounding-box exclusion.  Internal nodes are pruned only by
+hull separation; the coarse sample distance is *not* used to prune an
+internal subtree, because a large sub-curve whose samples miss the
+contact can still contain a crossing between samples.  Only at a leaf do
+we verify proximity by point-to-segment projection against the leaf
+chord.
+
+Arcs and clamped-uniform splines do not have a de Casteljau hull to
+subdivide, so they are rasterized into a controlled polyline whose
+chord-height residual is bounded explicitly (see :func:`arc_chord_height`,
+:func:`arc_chord_count_for_tolerance` and :func:`spline_residual_bound`).
+If the required piece count exceeds the hard cap, or the spline residual
+cannot be bounded below the tolerance, the segment pair is reported
+``unresolved`` rather than assumed clear (fail-closed).
 
 Convergence criteria (explicit)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-A node becomes a leaf when either:
+A Bezier node becomes a leaf when either:
 
 * both portions are spatially small: their control-hull diagonal is at
   most ``leaf_size`` (lines are leaves by construction); or
@@ -24,14 +33,13 @@ A node becomes a leaf when either:
 Each pair search is bounded by a per-search node budget
 ``NODE_BUDGET_CAP``.  When the budget is exhausted, or the depth cap is
 reached while two hulls still overlap inside the proximity band, the
-report flags ``unresolved`` instead of assuming the path is clear
-(fail-closed).
+report flags ``unresolved`` instead of assuming the path is clear.
 
-Supported curve kinds: ``line``, quadratic ``bezier`` (3 control points)
-and cubic ``bezier`` (4 control points).  ``arc`` and ``spline`` are not
-refined here; they remain covered by the caller's flattened-polyline
-checks.  See :func:`arc_chord_height` for the chord-approximation error
-bound used in that fallback.
+Only a proven leaf chord straddle, an endpoint match within tolerance,
+or a sub-proximity parallel contact produces a definite contact kind.
+Every other outcome at truncation is recorded as ``near_contact`` and
+flagged unresolved; the search never concludes "definitely clear" or
+"definitely intersecting" from a truncated subtree.
 """
 from __future__ import annotations
 
@@ -48,6 +56,20 @@ LEAF_SIZE_SCALE = 0.0005
 PROXIMITY_FACTOR = 2.0
 NODE_BUDGET_CAP = 8000
 SELF_HALF_DEPTH = 10
+
+ARC_MAX_PIECES = 2048
+SPLINE_MIN_PIECES = 8
+SPLINE_MAX_PIECES = 512
+# Conservative wiggle multiplier on the measured spline chord residual:
+# an unsampled portion of the spline can bow away from the sampled chord
+# by more than the sampled residual, so the measured bound is inflated
+# before it is compared against tolerance.
+SPLINE_RESIDUE_FACTOR = 3.0
+# Two leaf chords meeting at a contact within this angle are accepted as
+# a tangent; a sharper angle at sub-proximity distance is not proven
+# tangent (it may be a shallow crossing the leaf missed) and is kept
+# unresolved instead of being misclassified.
+TANGENT_ANGLE_DEG = 15.0
 
 CONTACT_CROSSING = "crossing"
 CONTACT_TANGENT = "tangent"
@@ -97,19 +119,29 @@ class TopologyReport:
     unresolved: bool = False
 
 
+@dataclass
+class _Piece:
+    """One rasterized / subdivided portion of an original segment."""
+
+    kind: str
+    points: list[tuple[float, float]]
+    t0: float
+    t1: float
+
+
 def _point(value: Any) -> tuple[float, float]:
     if isinstance(value, dict):
         return float(value["x"]), float(value["y"])
     return float(value[0]), float(value[1])
 
 
-def _parse_segment(segment: Any) -> tuple[str, list[tuple[float, float]]]:
+def _parse_segment(segment: Any) -> tuple[str, list[tuple[float, float]], dict[str, Any]]:
     kind = str(segment.get("kind", ""))
     if kind == "line":
-        return "line", [_point(segment["start"]), _point(segment["end"])]
+        return "line", [_point(segment["start"]), _point(segment["end"])], dict(segment)
     if kind == "bezier":
-        return "bezier", [_point(point) for point in segment["control_points"]]
-    return kind, []
+        return "bezier", [_point(point) for point in segment["control_points"]], dict(segment)
+    return kind, [], dict(segment)
 
 
 def _eval_bezier(points: list[tuple[float, float]], t: float) -> tuple[float, float]:
@@ -141,6 +173,209 @@ def _split_bezier(points: list[tuple[float, float]]) -> tuple[
     return left, list(reversed(right))
 
 
+# ---------------------------------------------------------------------------
+# Arc and clamped-uniform spline evaluation (mirrors the construction layer's
+# clamped-uniform knot scheme; kept local so this module stays pure geometry).
+# ---------------------------------------------------------------------------
+
+def _clamped_uniform_knots(count: int, degree: int) -> list[float]:
+    interior_count = count - degree - 1
+    knots = [0.0] * (degree + 1)
+    if interior_count > 0:
+        knots.extend(index / (interior_count + 1) for index in range(1, interior_count + 1))
+    knots.extend([1.0] * (degree + 1))
+    return knots
+
+
+def _bspline_point(
+    control: list[tuple[float, float]], degree: int, parameter: float
+) -> tuple[float, float]:
+    count = len(control)
+    knots = _clamped_uniform_knots(count, degree)
+    if parameter >= 1.0:
+        return control[-1]
+    span = degree
+    for index in range(degree, count):
+        if knots[index] <= parameter < knots[index + 1]:
+            span = index
+            break
+    values = [list(control[index]) for index in range(span - degree, span + 1)]
+    for level in range(1, degree + 1):
+        for index in range(degree, level - 1, -1):
+            knot_index = span - degree + index
+            denominator = knots[knot_index + degree - level + 1] - knots[knot_index]
+            alpha = 0.0 if abs(denominator) < 1e-12 else (
+                parameter - knots[knot_index]
+            ) / denominator
+            values[index][0] = (1.0 - alpha) * values[index - 1][0] + alpha * values[index][0]
+            values[index][1] = (1.0 - alpha) * values[index - 1][1] + alpha * values[index][1]
+    return values[degree][0], values[degree][1]
+
+
+def _arc_sweep(segment: dict[str, Any]) -> tuple[float, float]:
+    start = float(segment["start_angle"])
+    end = float(segment["end_angle"])
+    clockwise = bool(segment.get("clockwise", False))
+    sweep = ((start - end) % 360.0) if clockwise else ((end - start) % 360.0)
+    if math.isclose(sweep, 0.0, abs_tol=1e-12) and not math.isclose(
+        end, start, abs_tol=1e-12
+    ):
+        sweep = 360.0
+    direction = -1.0 if clockwise else 1.0
+    return sweep, direction
+
+
+def _arc_points(
+    segment: dict[str, Any], count: int
+) -> list[tuple[float, float]]:
+    center = _point(segment["center"])
+    radius = float(segment["radius"])
+    start = float(segment["start_angle"])
+    sweep, direction = _arc_sweep(segment)
+    return [
+        (
+            center[0] + radius * math.cos(math.radians(start + direction * sweep * k / count)),
+            center[1] + radius * math.sin(math.radians(start + direction * sweep * k / count)),
+        )
+        for k in range(count + 1)
+    ]
+
+
+def _polylines(points: list[tuple[float, float]]) -> list[_Piece]:
+    pieces: list[_Piece] = []
+    for index in range(len(points) - 1):
+        pieces.append(_Piece(
+            "line",
+            [points[index], points[index + 1]],
+            index / (len(points) - 1),
+            (index + 1) / (len(points) - 1),
+        ))
+    return pieces
+
+
+# ---------------------------------------------------------------------------
+# Error bounds
+# ---------------------------------------------------------------------------
+
+def arc_chord_height(
+    radius: float, total_angle_deg: float, chord_count: int
+) -> float:
+    """Sagitta (chord-height) bound for ``chord_count`` equal chords.
+
+    For a circular arc of radius ``radius`` swept over ``total_angle_deg``
+    degrees, split into ``chord_count`` equal angular steps of
+    ``phi = total_angle_deg / chord_count``, the maximum distance between
+    the arc and its replacement chord is the sagitta
+
+    ``h = R * (1 - cos(phi / 2))``.
+
+    For small steps ``h ~= R * (phi / 2) ** 2 / 2`` (quadratic in step
+    angle).  The inequality ``1 - cos x <= x**2 / 2`` makes the
+    quadratic form an upper bound, so :func:`arc_chord_count_for_tolerance`
+    solves a conservative count, not an asymptotic one.
+    """
+    if chord_count <= 0:
+        raise ValueError("chord_count must be positive")
+    half = math.radians(total_angle_deg) / (2.0 * chord_count)
+    return radius * (1.0 - math.cos(half))
+
+
+def arc_chord_count_for_tolerance(
+    radius: float, sweep_deg: float, max_chord_height: float
+) -> int:
+    """Minimum equal-chord count keeping the sagitta under ``max_chord_height``.
+
+    Solves ``R * (Phi/(2n))**2 / 2 <= h_max`` using the conservative
+    inequality ``1 - cos x <= x**2/2``; the returned ``n`` therefore
+    satisfies the exact sagitta bound as well.
+    """
+    if max_chord_height <= 0:
+        raise ValueError("max_chord_height must be positive")
+    sweep = math.radians(sweep_deg)
+    count = sweep / 2.0 * math.sqrt(radius / (2.0 * max_chord_height))
+    return max(1, math.ceil(count - 1e-9))
+
+
+def spline_residual_bound(
+    control: list[tuple[float, float]],
+    degree: int,
+    pieces: int,
+) -> float:
+    """Conservative chord-height residual bound for a rasterized spline.
+
+    The spline is evaluated on a fine grid (twice the piece count) and the
+    maximum distance from those fine samples to the coarse piece chords is
+    measured.  That measured residual is inflated by
+    :data:`SPLINE_RESIDUE_FACTOR` to cover unsampled bowing between the
+    evaluation samples.  The bound is valid for the clamped-uniform knot
+    scheme used here; it is not valid for non-uniform knots, open splines
+    with unclamped ends, or a control polygon whose unsampled interior
+    contains a loop the sample grid misses.
+    """
+    fine = 2 * pieces
+    coarse: list[tuple[tuple[float, float], tuple[float, float]]] = []
+    for k in range(pieces):
+        coarse.append((
+            _bspline_point(control, degree, k / pieces),
+            _bspline_point(control, degree, (k + 1) / pieces),
+        ))
+    worst = 0.0
+    for k in range(fine):
+        u = k / fine
+        piece_index = min(pieces - 1, int(u * pieces))
+        p0, p1 = coarse[piece_index]
+        distance, _ = _point_segment_distance(
+            _bspline_point(control, degree, u), p0, p1)
+        worst = max(worst, distance)
+    return SPLINE_RESIDUE_FACTOR * worst
+
+
+def _arc_pieces(
+    segment: dict[str, Any], tolerance: float
+) -> tuple[list[_Piece], bool]:
+    radius = float(segment["radius"])
+    sweep, _ = _arc_sweep(segment)
+    # The chord target follows the proximity band rather than the raw
+    # junction tolerance: a chord deviation below the proximity band cannot
+    # hide a contact the leaf-level projection would miss.
+    h_max = max(PROXIMITY_FACTOR * tolerance, 1e-12)
+    required = arc_chord_count_for_tolerance(radius, sweep, h_max)
+    if required > ARC_MAX_PIECES:
+        # Bound cannot be established within the piece cap: fail-closed.
+        points = _arc_points(segment, ARC_MAX_PIECES)
+        return _polylines(points), False
+    points = _arc_points(segment, required)
+    return _polylines(points), True
+
+
+def _spline_pieces(
+    segment: dict[str, Any], tolerance: float
+) -> tuple[list[_Piece], bool]:
+    control = [_point(point) for point in segment["control_points"]]
+    degree = int(segment.get("degree", 3))
+    degree = max(1, min(5, degree))
+    h_max = max(tolerance, 1e-12)
+    pieces = SPLINE_MIN_PIECES
+    while pieces <= SPLINE_MAX_PIECES:
+        bound = spline_residual_bound(control, degree, pieces)
+        if bound <= h_max:
+            sampled = [
+                _bspline_point(control, degree, k / pieces)
+                for k in range(pieces + 1)
+            ]
+            return _polylines(sampled), True
+        pieces *= 2
+    sampled = [
+        _bspline_point(control, degree, k / SPLINE_MAX_PIECES)
+        for k in range(SPLINE_MAX_PIECES + 1)
+    ]
+    return _polylines(sampled), False
+
+
+# ---------------------------------------------------------------------------
+# Generic hull / leaf primitives
+# ---------------------------------------------------------------------------
+
 def _bbox(points: list[tuple[float, float]]) -> tuple[float, float, float, float]:
     xs = [point[0] for point in points]
     ys = [point[1] for point in points]
@@ -166,6 +401,21 @@ def _bbox_diagonal(box: tuple[float, float, float, float]) -> float:
 
 def _orientation(a, b, c) -> float:
     return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+
+def _chord_angle_deg(
+    a0: tuple[float, float], a1: tuple[float, float],
+    b0: tuple[float, float], b1: tuple[float, float],
+) -> float:
+    da = (a1[0] - a0[0], a1[1] - a0[1])
+    db = (b1[0] - b0[0], b1[1] - b0[1])
+    la = math.hypot(*da)
+    lb = math.hypot(*db)
+    if la <= 1e-18 or lb <= 1e-18:
+        return 0.0
+    cosine = abs(da[0] * db[0] + da[1] * db[1]) / (la * lb)
+    cosine = max(-1.0, min(1.0, cosine))
+    return math.degrees(math.acos(cosine))
 
 
 def _leaf_sample_points(
@@ -214,12 +464,7 @@ def _leaf_distance(
     kind_b: str,
     points_b: list[tuple[float, float]],
 ) -> tuple[float, tuple[float, float], tuple[float, float]]:
-    """Minimum distance between two leaf portions, using chord projection.
-
-    Each sample of one side is projected onto the other side's leaf
-    chord; this is tighter than point-to-point sampling and does not
-    require extra subdivision points.
-    """
+    """Minimum distance between two leaf portions, using chord projection."""
     samples_a = _leaf_sample_points(kind_a, points_a)
     samples_b = _leaf_sample_points(kind_b, points_b)
     chord_b = _leaf_chord(kind_b, points_b)
@@ -384,7 +629,31 @@ def _search_pair(
             ))
             verified = True
         elif distance <= proximity:
-            resolved_kind = CONTACT_ENDPOINT if endpoint else contact_kind
+            angle = _chord_angle_deg(chord_a0, chord_a1, chord_b0, chord_b1)
+            if endpoint:
+                resolved_kind = CONTACT_ENDPOINT
+                verified = True
+            elif angle <= TANGENT_ANGLE_DEG:
+                resolved_kind = contact_kind
+                verified = True
+            else:
+                # Sub-proximity but chords meet at a sharp angle: could be a
+                # shallow crossing the leaf missed.  Keep it unresolved rather
+                # than mislabelling it a tangent contact.
+                contacts.append(Contact(
+                    segment_a=index_a,
+                    segment_b=index_b,
+                    parameter_a=mid_a,
+                    parameter_b=mid_b,
+                    point_a=point_a,
+                    point_b=point_b,
+                    distance=distance,
+                    kind=CONTACT_NEAR,
+                    interval_a=(ta0, ta1),
+                    interval_b=(tb0, tb1),
+                ))
+                unresolved = True
+                return
             contacts.append(Contact(
                 segment_a=index_a,
                 segment_b=index_b,
@@ -397,7 +666,6 @@ def _search_pair(
                 interval_a=(ta0, ta1),
                 interval_b=(tb0, tb1),
             ))
-            verified = True
         elif depth_cap and distance <= loose_band:
             # Depth/budget truncation while still inside the uncertain
             # band: record the geometry for the planner and mark
@@ -422,16 +690,14 @@ def _search_pair(
 
 def _analyze_pair(
     index_a: int,
-    kind_a: str,
-    points_a: list[tuple[float, float]],
+    piece_a: _Piece,
     index_b: int,
-    kind_b: str,
-    points_b: list[tuple[float, float]],
+    piece_b: _Piece,
     tolerance: float,
 ) -> tuple[list[Contact], bool]:
     return _search_pair(
-        index_a, kind_a, points_a, 0.0, 1.0,
-        index_b, kind_b, points_b, 0.0, 1.0,
+        index_a, piece_a.kind, piece_a.points, piece_a.t0, piece_a.t1,
+        index_b, piece_b.kind, piece_b.points, piece_b.t0, piece_b.t1,
         tolerance, CONTACT_TANGENT,
     )
 
@@ -484,27 +750,25 @@ def _dedupe(contacts: Iterable[Contact]) -> list[Contact]:
     return list(best.values())
 
 
-def arc_chord_height(
-    radius: float, total_angle_deg: float, chord_count: int
-) -> float:
-    """Sagitta (chord-height) bound for ``chord_count`` equal chords.
+def _expand_segment(
+    segment: Any, tolerance: float
+) -> tuple[list[_Piece], bool]:
+    """Split one original segment into searchable pieces.
 
-    For a circular arc of radius ``radius`` swept over ``total_angle_deg``
-    degrees, split into ``chord_count`` equal angular steps of
-    ``phi = total_angle_deg / chord_count``, the maximum distance between
-    the arc and its replacement chord is the sagitta
-
-    ``h = R * (1 - cos(phi / 2))``.
-
-    For small steps ``h ~= R * (phi / 2) ** 2 / 2`` (quadratic in step
-    angle).  This is the error bound used when arcs are checked through
-    the caller's flattened-polyline fallback; it does not apply to the
-    curve-level bezier/line search in this module.
+    Returns the pieces and a flag that is False when the arc/spline chord
+    residual could not be bounded within the piece cap (fail-closed).
     """
-    if chord_count <= 0:
-        raise ValueError("chord_count must be positive")
-    half = math.radians(total_angle_deg) / (2.0 * chord_count)
-    return radius * (1.0 - math.cos(half))
+    kind, points, raw = _parse_segment(segment)
+    if kind == "line":
+        return [_Piece("line", points, 0.0, 1.0)], True
+    if kind == "bezier":
+        return [_Piece("bezier", points, 0.0, 1.0)], True
+    if kind == "arc":
+        return _arc_pieces(raw, tolerance)
+    if kind == "spline":
+        return _spline_pieces(raw, tolerance)
+    # Unknown kind: do not claim it was checked.
+    return [], False
 
 
 def analyze_composite_segments(
@@ -517,36 +781,78 @@ def analyze_composite_segments(
     Parameters
     ----------
     segments:
-        Plain segment mappings (line / bezier).  Arc and spline segments
-        are ignored here and remain covered by the flattened-polyline
-        checks in the construction layer.
+        Plain segment mappings (line / bezier / arc / spline).  Arc and
+        spline portions are rasterized under an explicit chord-height
+        bound; a segment that cannot be bounded is flagged unresolved.
     tolerance:
         Junction/proximity tolerance carried from the construction plan.
     closed:
         Whether the path closes back to its first segment.
     """
-    parsed = [_parse_segment(segment) for segment in segments]
+    expanded = [_expand_segment(segment, tolerance) for segment in segments]
+    pieces_per = [pieces for pieces, _ in expanded]
     contacts: list[Contact] = []
-    unresolved = False
-    count = len(parsed)
+    unresolved = any(not bounded for _, bounded in expanded)
+    count = len(expanded)
 
-    for index, (kind, points) in enumerate(parsed):
+    for index, (kind, points, _) in enumerate(
+        _parse_segment(segment) for segment in segments
+    ):
         if kind == "bezier" and len(points) >= 3:
             self_contacts, self_unresolved = _analyze_self(
                 index, points, tolerance)
             contacts.extend(self_contacts)
             unresolved = unresolved or self_unresolved
+
+    pair_unresolved: dict[tuple[int, int], bool] = {}
+    pair_verified: dict[tuple[int, int], bool] = {}
+    for index in range(count):
+        pieces_a = pieces_per[index]
+        bboxes_a = [_bbox(piece.points) for piece in pieces_a]
         for other in range(index + 1, count):
             if _adjacent(index, other, count, closed):
                 continue
-            other_kind, other_points = parsed[other]
-            if kind not in {"line", "bezier"} or other_kind not in {"line", "bezier"}:
-                continue
-            pair_contacts, pair_unresolved = _analyze_pair(
-                index, kind, points, other, other_kind, other_points,
-                tolerance,
-            )
-            contacts.extend(pair_contacts)
-            unresolved = unresolved or pair_unresolved
+            pieces_b = pieces_per[other]
+            bboxes_b = [_bbox(piece.points) for piece in pieces_b]
+            key = (index, other)
+            for piece_a, box_a in zip(pieces_a, bboxes_a):
+                for piece_b, box_b in zip(pieces_b, bboxes_b):
+                    if not _bbox_overlap(box_a, box_b, tolerance):
+                        continue
+                    pair_contacts, pair_unresolved_flag = _analyze_pair(
+                        index, piece_a, other, piece_b, tolerance,
+                    )
+                    contacts.extend(pair_contacts)
+                    pair_unresolved[key] = (
+                        pair_unresolved.get(key, False) or pair_unresolved_flag
+                    )
+                    pair_verified[key] = pair_verified.get(key, False) or any(
+                        contact.kind != CONTACT_NEAR for contact in pair_contacts
+                    )
 
+    # A pair that produced a definite contact is resolved by that contact;
+    # its residual unproven near-contact does not keep the report unresolved.
+    unresolved = unresolved or any(
+        flag and not pair_verified.get(key, False)
+        for key, flag in pair_unresolved.items()
+    )
+    contacts = _suppress_near_when_verified(contacts)
     return TopologyReport(contacts=_dedupe(contacts), unresolved=unresolved)
+
+
+def _suppress_near_when_verified(contacts: list[Contact]) -> list[Contact]:
+    """Drop unresolved near-contact entries whose segment pair is already
+    covered by a definite contact (a dense rasterization can show the same
+    crossing in one piece pair and an unproven proximity residual in
+    another)."""
+    definite: dict[tuple[int, int], bool] = {}
+    for contact in contacts:
+        key = (min(contact.segment_a, contact.segment_b),
+               max(contact.segment_a, contact.segment_b))
+        definite[key] = definite.get(key, False) or contact.kind != CONTACT_NEAR
+    return [
+        contact for contact in contacts
+        if contact.kind != CONTACT_NEAR
+        or not definite[(min(contact.segment_a, contact.segment_b),
+                         max(contact.segment_a, contact.segment_b))]
+    ]

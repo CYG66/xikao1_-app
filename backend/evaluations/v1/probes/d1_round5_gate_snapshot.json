@@ -1,0 +1,91 @@
+{
+  "schema": "cad.d1.round5.gate.v1",
+  "generated_at_utc": "2026-11-17T10:50:33+00:00",
+  "gate_pass": true,
+  "admission_ready": false,
+  "admission_blockers": [
+    "C M2/M3 committed, wired to production and D-verified at production level",
+    "A feature-contract schema landed in backend; FC cases verified against it",
+    "B round-5 matrix formally accepted; direction/endpoint/closed/topology coverage signed off",
+    "Red-line 1/2/3/4 third-party evidence collected against committed code"
+  ],
+  "findings": {
+    "protected_evidence": {
+      "D1_round4_budget_ledger.json": {
+        "norm_sha256": "D6E66B7A5D774976EB94C52CBD87F784A5405C56B4E8633518397339EEE595CB",
+        "recorded": "D6E66B7A5D774976EB94C52CBD87F784A5405C56B4E8633518397339EEE595CB",
+        "unchanged": true
+      },
+      "round4/A9_case_record.json": {
+        "norm_sha256": "6FF6D252D05462EFC53A8E6169AAAF17BEF0CBCAF7B36456F8464C53955928D3",
+        "recorded": "6FF6D252D05462EFC53A8E6169AAAF17BEF0CBCAF7B36456F8464C53955928D3",
+        "unchanged": true
+      },
+      "round4/A9_raw_responses.jsonl": {
+        "norm_sha256": "4A471C6213B75521CFB65AF01959075895924E2D85729D4106D787438A0B02FF",
+        "recorded": "4A471C6213B75521CFB65AF01959075895924E2D85729D4106D787438A0B02FF",
+        "unchanged": true
+      },
+      "round4/README.md": {
+        "norm_sha256": "B67C208382FA0351A43779252F94E80F0AB17DDA98A1704187C69C85FC29D13C",
+        "recorded": "B67C208382FA0351A43779252F94E80F0AB17DDA98A1704187C69C85FC29D13C",
+        "unchanged": true
+      }
+    },
+    "regression": {
+      "modules": 12,
+      "passed": 184,
+      "failed": 0,
+      "errors": 0,
+      "per_module_match": {
+        "S1-requirement-contract": true,
+        "S2-plan-component-repair": true,
+        "S3-final-source-contract": true,
+        "S4-construction-interpreter": true,
+        "S5-candidate-visibility-gate": true,
+        "executor-construction": true,
+        "B1-topology-detection": true,
+        "B11-topology-detection": true,
+        "B12-arcspline-detection": true,
+        "C1-service-mock": true,
+        "C11-two-round-service-mock": true,
+        "C12-production-loop-mock": true
+      },
+      "all_match": true,
+      "snapshot_sha256": "5c54c6bf5ea7bae91830385dc916d9f9c2338c278954db20ed20acbc6949092e",
+      "head": "f89bf41facfb7032cbb9647250cff6bbdcc6bbb7",
+      "real_generation": "not_run"
+    },
+    "fixture": {
+      "fixture_kind": "reconstructed_fixture",
+      "disclaimer_present": true,
+      "raw_note_present": true,
+      "attempts": 2,
+      "bucket": "reconstructed_fixture (separate from real case results)"
+    },
+    "contract_suite": {
+      "total": 11,
+      "pending_adapter": 11,
+      "evaluated": 0,
+      "offline_stub_only": true,
+      "stub_all_match": true,
+      "stub_call_counts": {
+        "allowed_requests": 4,
+        "blocked_requests": 1,
+        "avoided_requests": 1,
+        "max_repairs": 2
+      }
+    },
+    "git_discipline": {
+      "backend_app_modified_files": [],
+      "backend_app_zero_diff": true,
+      "merge_commits": [],
+      "no_merge": true
+    },
+    "zero_cost": {
+      "real_model_calls_round5": 0,
+      "network_probe": "none issued by D",
+      "http_client_instantiated": false
+    }
+  }
+}

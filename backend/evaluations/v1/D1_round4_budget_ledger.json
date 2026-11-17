@@ -1,10 +1,11 @@
 {
   "round": 4,
-  "schema": "cad.d1.round4.budget-ledger.v1",
-  "status": "precheck_blocked_no_request_sent",
+  "schema": "cad.d1.round4.budget-ledger.v2",
+  "status": "a9_completed_failed_stopped",
+  "authorization_scope": "Only A9 (heart) is authorized for one real case. After A9 completes, stop and wait for explicit next instruction; do not auto-start S1, multi-object, Arc or free-curve cases.",
   "baseline_commit": "f89bf41facfb7032cbb9647250cff6bbdcc6bbb7",
   "baseline_description": "A1.1 ea8323a + B1.2 d7e00bd + C1.2 49d48de combo",
-  "real_model_calls": 0,
+  "real_model_calls": 2,
   "history": {
     "rounds_1_to_3_real_model_calls": 0,
     "rounds_1_to_3_cost_usd": 0.0,
@@ -15,70 +16,143 @@
     "max_requests": 30,
     "max_input_tokens": 300000,
     "max_output_tokens": 60000,
-    "max_cost_usd": 1.00
+    "max_cost_usd": 1.0
   },
-  "price_snapshot": {
+  "price_adoption": {
+    "ruling_source": "Controller ruling supersedes the earlier 0.14/0.28 assumption; adopted rates are the official DeepSeek Flash rates below, worst-case peak.",
     "source_url": "https://api-docs.deepseek.com/quick_start/pricing",
     "changelog_url": "https://api-docs.deepseek.com/updates/",
     "fetched_local": "2026-11-17T16:16:43+08:00",
     "fetched_utc": "2026-11-17T08:16:43Z",
     "model_version": "DeepSeek-V4.1-Flash-1017",
     "model_name": "deepseek-flash",
-    "prices_per_1m_tokens": {
-      "input_cache_hit_off_peak_usd": 0.003,
-      "input_cache_hit_peak_usd": 0.006,
-      "input_cache_miss_off_peak_usd": 0.15,
-      "input_cache_miss_peak_usd": 0.30,
-      "output_off_peak_usd": 0.60,
-      "output_peak_usd": 1.20
+    "key_availability": "Controller reports the DeepSeek key is valid and reachable; this result is reused as precheck evidence. No repeated /models probe was issued by D.",
+    "prices_per_1m_tokens_usd": {
+      "input_cache_hit_off_peak": 0.003,
+      "input_cache_hit_peak": 0.006,
+      "input_cache_miss_off_peak": 0.15,
+      "input_cache_miss_peak": 0.3,
+      "output_off_peak": 0.6,
+      "output_peak": 1.2
     },
-    "peak_hours_utc": "Mon-Fri 01:00-04:00 and 06:00-10:00, excluding Chinese public holidays; all other hours off-peak.",
-    "task_assumed_rates": {
-      "input_cache_miss_usd_per_1m": 0.14,
-      "output_usd_per_1m": 0.28,
-      "match_official": false,
-      "discrepancy": "Official current Flash cache-miss input is 0.15 off-peak / 0.30 peak; output 0.60 off-peak / 1.20 peak. The assumed 0.14 / 0.28 rates cannot be confirmed against the official page."
-    },
-    "alias_status": {
-      "configured_model_in_config_file": "deepseek-chat",
-      "official_current_model_names": ["deepseek-flash", "deepseek-v4-pro"],
-      "accepted_legacy_names_listed": ["deepseek-v4-flash", "deepseek-v4-flash-vision-exp"],
-      "deepseek_chat_retirement_note": "The 2026-04-24 changelog states deepseek-chat / deepseek-reasoner would be retired after 2026-07-24 15:59 UTC; the current pricing and first-call pages do not list deepseek-chat as an accepted name. Routing of deepseek-chat to Flash cannot be confirmed from current docs."
-    }
+    "peak_hours_utc": "Mon-Fri 01:00-04:00 and 06:00-10:00, excluding Chinese public holidays; all other hours off-peak. Any request crossing a peak/off-peak boundary is billed at peak.",
+    "current_band_at_precheck": "2026-11-17 08:2x UTC Tuesday -> peak; reserve uses peak prices.",
+    "superseded_assumption_note": "The earlier 0.14 input / 0.28 output assumption is retired and must not be used for settlement."
   },
   "worst_case_reserve": {
-    "method": "Per request: max possible input tokens x input price + planned max output tokens x output price; peak prices used as worst case. Cumulative reserve is recomputed against remaining token and cost budgets before every request.",
-    "assumed_max_input_tokens_per_request": 10000,
-    "assumed_max_output_tokens_per_request": 8192,
-    "output_token_budget_binds_first": "At 8192 max output tokens, the 60000 output-token cap allows at most 7 requests before the output guard stops the run.",
-    "per_request_peak_usd": {
-      "input": 0.003000,
-      "output": 0.009830,
-      "total": 0.012830
+    "method": "Before each request: reserve = (this request input estimate x peak input miss price) + (this request actual max_tokens x peak output price). After response, settle from real usage and release unused reserve. Peak prices are the worst case.",
+    "input_estimate_per_request_tokens": 10000,
+    "construction_max_tokens_default": 8192,
+    "construction_max_tokens_anchor": "agent_service.py:2616-2621 (_construction_review_max_tokens; env XLINE_AGENT_CONSTRUCTION_MAX_TOKENS, clamp 1200-32768, default 8192)",
+    "local_repair_max_tokens_cap": 4096,
+    "local_repair_anchor": "agent_service.py:6156 (repair_context token budget min(token_budget, 4096))",
+    "per_request_peak_reserve_usd": {
+      "input_estimate_tokens": 10000,
+      "input_peak_price_per_1m": 0.3,
+      "input_reserve": 0.003,
+      "output_max_tokens": 8192,
+      "output_peak_price_per_1m": 1.2,
+      "output_reserve": 0.00983,
+      "total": 0.01283
     },
-    "per_request_off_peak_usd": {
-      "input": 0.001500,
-      "output": 0.004915,
-      "total": 0.006415
-    },
-    "thirty_request_peak_usd_ceiling": 0.384912,
-    "reserve_caveat": "The 30-request ceiling is arithmetic only; the output-token guard and any real usage always bind earlier. Fees must be settled from real provider usage; missing usage, uncertain pricing, timeout or unknown status stops the run without retry."
+    "output_token_budget_note": "At 8192 max output tokens, the 60000 output cap allows at most 7 full-output requests; the output guard binds before the 30-request cap.",
+    "stop_if_reserve_breaks": "If settled cumulative + this request worst reserve would exceed 1.00 USD, 300000 input or 60000 output, do not start the request; stop at the current case and report. Do not shrink max_tokens or parameters to bypass."
   },
   "requests": [],
-  "cases": [],
+  "cases": [
+    {
+      "case_id": "A9",
+      "original_input": "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米",
+      "input_sha256": "af12df04393e1da42acd9eae6e590f81fa8c66a4720c546c9d292fef89707d5b",
+      "expected_route": "construction_scope",
+      "state": "failed",
+      "settled": true,
+      "usage": {
+        "input_tokens": 31554,
+        "output_tokens": 804,
+        "cost_usd": 0.005764632,
+        "missing_usage_calls": 0
+      },
+      "requests": [
+        {
+          "request_id": "1df31f91-b4bf-4331-b3e8-c24e2cbac675",
+          "model": "deepseek-flash",
+          "finish_reason": "stop",
+          "peak_band": true,
+          "prompt_tokens": 15382,
+          "completion_tokens": 354,
+          "cache_hit_tokens": 1024,
+          "cache_miss_tokens": 14358,
+          "input_cost_usd": 0.004313544,
+          "output_cost_usd": 0.0004248,
+          "total_cost_usd": 0.004738344
+        },
+        {
+          "request_id": "6bda0ebb-7a0b-4f01-818c-559a060bb1b0",
+          "model": "deepseek-flash",
+          "finish_reason": "stop",
+          "peak_band": true,
+          "prompt_tokens": 16172,
+          "completion_tokens": 450,
+          "cache_hit_tokens": 14848,
+          "cache_miss_tokens": 1324,
+          "input_cost_usd": 0.000486288,
+          "output_cost_usd": 0.00054,
+          "total_cost_usd": 0.001026288
+        }
+      ],
+      "failure_root_cause": {
+        "code": "structure_requirement_failed",
+        "check": "heart_bilateral_lobes_notch_and_lower_tip",
+        "message": "爱心缺少双侧上凸、中央凹口或下方尖点；两次尝试 lower_tip 均为 false",
+        "measured_features": {
+          "center_notch": true,
+          "left_upper_lobe": true,
+          "right_upper_lobe": true,
+          "lower_tip": false
+        },
+        "failed_features": [
+          "lower_tip"
+        ]
+      },
+      "buckets": {
+        "detection_executed": 1,
+        "detection_note": "后端在模型计划生成的几何上实测 4 个爱心特征；检出 lower_tip 缺失。",
+        "repair_success_live": 0,
+        "repair_success_live_total": 1,
+        "real_generation_success": 0,
+        "real_generation_total": 1
+      },
+      "metrics": {
+        "FSR_first_plan_pass": "0/1",
+        "repair_success": "0/1",
+        "CGQ": "not_available_no_persisted_geometry",
+        "detection": 1,
+        "rejection": 1
+      }
+    }
+  ],
   "totals": {
-    "requests": 0,
-    "input_tokens": 0,
-    "output_tokens": 0,
-    "cache_hit_input_tokens": 0,
-    "cost_usd": 0.0
+    "requests": 2,
+    "input_tokens": 31554,
+    "output_tokens": 804,
+    "cache_hit_input_tokens": 15872,
+    "cost_usd": 0.005764632,
+    "cache_miss_input_tokens": 15682
   },
   "stop_conditions": {
     "max_cost_usd_reached": false,
     "max_cases_reached": false,
     "max_requests_reached": false,
     "token_budget_reached": false,
-    "blocking_reason": "Price/alias precheck failed closed; no first request authorized."
+    "blocking_reason": null
   },
-  "redaction": "Raw response logs are written only in the isolated round4 directory; Authorization headers and API keys are replaced before serialization. No key fragment is stored in this ledger, reports or git history."
+  "redaction": "Raw response logs are written only in the isolated round4 directory; Authorization headers and API keys are replaced before serialization. No key fragment is stored in this ledger, reports or git history.",
+  "consumption_ratio": {
+    "cost_usd": 0.005765,
+    "input_tokens": 0.10518,
+    "output_tokens": 0.0134,
+    "requests": 0.066667,
+    "cases": 0.2
+  }
 }

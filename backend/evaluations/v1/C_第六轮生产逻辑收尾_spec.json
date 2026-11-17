@@ -1,0 +1,66 @@
+{
+  "schema": "c1-round6-production-finalize.spec.v1",
+  "round": 6,
+  "branch": "v1/c1-integration",
+  "base_head": "c3bc8bf4e754b4a8951cc928e15f130b5b17bcfd",
+  "constraints": {
+    "max_repairs": 2,
+    "model_calls": 0,
+    "network": false,
+    "schema_change": false,
+    "push": false,
+    "amend": false,
+    "merge": false,
+    "special_branch": "none"
+  },
+  "production_chain": {
+    "entry": "agent_service._formal_cad_construction",
+    "attempts_init": "agent_service.py:6477",
+    "while_predicate": "agent_service.py:6478-6479",
+    "should_repair": "cad_generation_recovery.py:36-38",
+    "bounded_repair_available": "cad_generation_recovery.py:41-67",
+    "m3_gate": "agent_service.py:6483-6493",
+    "gate_min_precondition": "len(construction_attempts)>=2 and M3_PROGRESS_GATE_ENABLED",
+    "first_repair_released": true,
+    "order": "should_repair then bounded_repair_available in while predicate; M3 gate inside body before next request"
+  },
+  "vocabulary": {
+    "equivalent_relations": ["identical", "equivalent"],
+    "changed_release_relations": ["same_trajectory_reversed", "compliant_other", "different"],
+    "similar_undetermined_relations": ["similar_transform", "similar"],
+    "unknown_policy": "undetermined_release_with_audit_record",
+    "missing_snapshot_policy": "undetermined_release",
+    "scope_unresolved_policy": "undetermined_release_no_whole_plan_fallback",
+    "constants": {
+      "EQUIVALENT_RELATIONS": "cad_generation_recovery.py:138",
+      "_CHANGED_RELEASE_RELATIONS": "cad_generation_recovery.py:141-143",
+      "_SIMILAR_UNDETERMINED_RELATIONS": "cad_generation_recovery.py:147"
+    }
+  },
+  "scope_comparison": {
+    "target_refs": "cad_generation_recovery.py:159-162",
+    "scoped_geometries": "cad_generation_recovery.py:165-193",
+    "geometry_spec": "cad_generation_recovery.py:196-200",
+    "binding": "trial_result.symbol_table[ref] -> geometry ids",
+    "rule": "compare only target-bound geometries; unrelated part movement must not trigger geometry_changed release"
+  },
+  "m2_preserve": {
+    "items": ["source_requirement_refs", "user_dimensions", "non_target_part", "junction_dependency_closure"],
+    "test": "test_m2_replan_preserves_source_dimensions_part_and_closure",
+    "structural_channel_bypass": ["repair_context", "component_repair_context"]
+  },
+  "regression": {
+    "new_tests": {"file": "tests/test_c13_m2m3_loop_mock.py", "passed": 30, "failed": 0},
+    "recovery": {"passed": 14, "failed": 0},
+    "executor": {"passed": 37, "failed": 0},
+    "interpreter": {"passed": 74, "failed": 0},
+    "combined_three_suites": {"passed": 125, "failed": 0, "seconds": 25.60},
+    "c_mock_suite": {"passed": 16, "failed": 5, "failure_kind": "dep_pending", "depends_on": "A1.1 ea8323a230f1cd53cf80f4fd4398328e836962b2"}
+  },
+  "pending": [
+    "real B geometry judge end-to-end in D combo tree, adapter injected without mapping",
+    "executed geometry snapshot on failure path (interpreter side)",
+    "A1.1 merge clears 5 dep_pending failures",
+    "A cad_feature_acceptance module replacement of classifier, same signature"
+  ]
+}

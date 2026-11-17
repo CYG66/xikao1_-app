@@ -215,30 +215,60 @@ def test_m2_loop_feedback_four_elements_and_channel(tmp_path, channel, structura
         assert kwargs.get("component_repair_context") is not None
 
 
-def test_m2_replan_preserves_dimensions_count_and_other_part(tmp_path):
-    """Structural replan changes the failing part while keeping the other part,
-    its source-backed size and the part count; acceptance is not lowered."""
+def _two_step_plan():
     outline = _plan()
+    outline["steps"][0]["source_requirement_refs"] = ["R1"]
+    outline["steps"][0]["junction_constraints"] = [
+        {"left_segment_index": 0, "right_segment_index": 1,
+         "source_requirement_refs": ["R3"]}]
     outline["steps"].append({
         "op": "add_line", "step_id": "keep", "output_ref": "keep",
         "semantic": {"label": "keep", "object_id": "keep", "assembly_id": "whole"},
-        "start": {"x": 0.0, "y": 0.0}, "end": {"x": 0.0, "y": 1.0}})
+        "start": {"x": 0.0, "y": 0.0}, "end": {"x": 0.0, "y": 1.0},
+        "source_requirement_refs": ["R2"],
+        "junction_constraints": [
+            {"left_segment_index": 1, "right_segment_index": 0,
+             "source_requirement_refs": ["R3"]}]})
+    return outline
+
+
+def test_m2_replan_preserves_source_dimensions_part_and_closure(tmp_path):
+    """Structural replan rebuilds the failing part while preserving: source
+    requirement refs, user dimensions, the non-target part, and the dependency
+    closure. Acceptance is not lowered."""
+    outline = _two_step_plan()
     fail_details = {"required_features": {"cusp": "lower center cusp"},
                      "measured_features": {"cusp": False}, "failed_features": ["cusp"],
                      "geometry_ids": [REF], "affected_output_refs": [REF]}
     first = _invalid(fail_details, plan=outline)
-    replan = _ready(deepcopy(outline))
+
+    # Replan: target expression rebuilt; source refs and junction closure kept;
+    # keep step carried over verbatim.
+    replan_plan = deepcopy(outline)
+    replan_plan["steps"][0]["y_expression"] = "3+2*cos(t)+abs(sin(t))"
+    replan = _ready(replan_plan)
     result, calls, store, project = _run([first, replan], tmp_path)
 
     assert len(calls) == 2
-    # Replan call carries no ref-scoped component context.
+    # Structural channel bypasses the ref-scoped component merger context.
     assert "component_repair_context" not in calls[1]["kwargs"]
-    variants = store.get(project["id"]).get("variants") or []
-    if result["ok"]:
-        plan_steps = {s["output_ref"]: s for s in replan["plan"]["steps"]}
-        assert set(plan_steps) == {REF, "keep"}
-        assert plan_steps["keep"]["object_id"] == "keep"
-        assert outline["assertions"] == replan["plan"]["assertions"]
+    assert "repair_context" not in calls[1]["kwargs"]
+
+    before_steps = {s["output_ref"]: s for s in outline["steps"]}
+    after_steps = {s["output_ref"]: s for s in replan["plan"]["steps"]}
+    # Non-target part preserved verbatim (identity, coordinates).
+    assert set(after_steps) == {REF, "keep"}
+    assert after_steps["keep"] == before_steps["keep"]
+    # Source requirement refs preserved on both target and non-target.
+    assert after_steps[REF]["source_requirement_refs"] == ["R1"]
+    assert after_steps["keep"]["source_requirement_refs"] == ["R2"]
+    # User dimensions preserved; acceptance assertions unchanged.
+    assert outline["assertions"] == replan["plan"]["assertions"]
+    assert after_steps["keep"]["start"] == before_steps["keep"]["start"]
+    assert after_steps["keep"]["end"] == before_steps["keep"]["end"]
+    # Dependency closure (junction constraints + their source refs) preserved.
+    assert after_steps[REF]["junction_constraints"] == before_steps[REF]["junction_constraints"]
+    assert after_steps["keep"]["junction_constraints"] == before_steps["keep"]["junction_constraints"]
 
 
 # ---------------------------------------------------------------------------
@@ -316,23 +346,41 @@ def test_m3_whitelist_releases(factory, expected_progress):
     assert outcome["progress"] == expected_progress
 
 
-@pytest.mark.parametrize("relation,equivalent", [
-    ("same_trajectory_reversed", False),
-    ("similar_transform", False),
-    ("compliant_other", False),
-    ("different", False),
+@pytest.mark.parametrize("relation", [
+    "same_trajectory_reversed", "compliant_other", "different",
 ])
-def test_m3_b_relation_changes_never_block(monkeypatch, relation, equivalent):
+def test_m3_changed_relations_release(monkeypatch, relation):
+    """Determined non-equivalent geometry changes release via geometry_changed."""
     monkeypatch.setattr("app.cad_generation_recovery._GEOMETRY_EVALUATOR",
-                        _stub_evaluator(relation, equivalent=equivalent,
+                        _stub_evaluator(relation, equivalent=False,
                                         reversed_flag=relation == "same_trajectory_reversed"))
     a = _invalid({"failed_features": ["cusp"], "measured_features": {"cusp": False}}, geom=GEOM)
     b = _invalid({"failed_features": ["cusp"], "measured_features": {"cusp": False}},
                  plan=_plan(3), geom=GEOM_OTHER)
     outcome = evaluate_repair_progress(a, b)
     assert outcome["decision"] == "allow"
+    assert outcome["progress"] == "geometry_changed"
+    assert outcome["geometry"]["equivalent"] is False
     assert outcome["geometry"]["relation"] == relation
     assert outcome["geometry"]["reversed"] == (relation == "same_trajectory_reversed")
+
+
+@pytest.mark.parametrize("relation", ["similar_transform", "similar"])
+def test_m3_similar_relation_maps_to_undetermined_release(monkeypatch, relation):
+    """Similar transform is NOT equivalence: the target may really have moved.
+    Explicitly mapped to undetermined and released; never blocked."""
+    monkeypatch.setattr("app.cad_generation_recovery._GEOMETRY_EVALUATOR",
+                        _stub_evaluator(relation, equivalent=True))
+    a = _invalid({"failed_features": ["cusp"], "measured_features": {"cusp": False}}, geom=GEOM)
+    b = _invalid({"failed_features": ["cusp"], "measured_features": {"cusp": False}},
+                 plan=_plan(3), geom=GEOM)
+    outcome = evaluate_repair_progress(a, b)
+    assert outcome["decision"] == "allow"
+    assert outcome["progress"] == "undetermined"
+    assert outcome["geometry"]["undetermined"] is True
+    assert outcome["geometry"]["equivalent"] is None
+    assert any("similar transform is not equivalence" in r
+               for r in outcome["geometry"]["fail_reasons"])
 
 
 def test_m3_undetermined_evaluator_releases(monkeypatch):
@@ -344,6 +392,71 @@ def test_m3_undetermined_evaluator_releases(monkeypatch):
     outcome = evaluate_repair_progress(a, b)
     assert outcome["decision"] == "allow"
     assert outcome["geometry"]["undetermined"] is True
+
+
+def _poly(gid, pts):
+    return {"id": gid, "type": "polyline", "closed": True, "vertices": pts}
+
+
+def _recording_stub(records):
+    def _fn(spec_a, spec_b, tolerance):
+        records.append({
+            "a": [g.get("id") for g in spec_a.get("geometries") or []],
+            "b": [g.get("id") for g in spec_b.get("geometries") or []],
+            "scope_refs": spec_b.get("scope_refs"),
+        })
+        return {"equivalent": True, "undetermined": False, "relation": "identical",
+                "reversed": False,
+                "checks": {"geometry": "pass", "orientation": "pass", "endpoints": "pass",
+                           "closed": "pass", "topology": "pass", "transformation": "n/a"},
+                "fail_reasons": []}
+    return _fn
+
+
+def test_m3_target_stall_unrelated_part_moved_blocks(monkeypatch):
+    """Target part makes no progress while an unrelated part moves slightly.
+
+    Comparison must be scoped to the failing target ref; the unrelated move
+    must not surface as a whole-geometry ``geometry_changed`` release.
+    """
+    records = []
+    monkeypatch.setattr("app.cad_generation_recovery._GEOMETRY_EVALUATOR",
+                        _recording_stub(records))
+    target_pts = [{"x": 0.0, "y": 0.0}, {"x": 1.0, "y": 1.0}]
+    keep_before = _poly("g2", [{"x": 0.0, "y": 0.0}, {"x": 0.0, "y": 1.0}])
+    keep_after = _poly("g2", [{"x": 0.2, "y": 0.0}, {"x": 0.2, "y": 1.0}])
+    details = {"check": "outline", "failed_features": ["cusp"],
+               "measured_features": {"cusp": False}, "affected_output_refs": [REF]}
+    table = {REF: ["g1"], "keep": ["g2"]}
+
+    def _case(keep_geom):
+        res = _invalid(details, plan=_plan())
+        res["trial_result"] = {"geometries": [_poly("g1", target_pts), keep_geom],
+                               "symbol_table": dict(table)}
+        return res
+
+    a, b = _case(keep_before), _case(keep_after)
+    outcome = evaluate_repair_progress(a, b)
+    # Evaluator sees only the target geometry on both sides.
+    assert records and records[0]["a"] == ["g1"] and records[0]["b"] == ["g1"]
+    assert records[0]["scope_refs"] == [REF]
+    assert outcome["decision"] == "block"
+    assert outcome["progress"] == "stalled_equivalent"
+
+
+def test_m3_unresolved_target_scope_releases(monkeypatch):
+    """Declared target refs cannot be bound to geometries: release, do not fall
+    back to a whole-plan comparison."""
+    monkeypatch.setattr("app.cad_generation_recovery._GEOMETRY_EVALUATOR",
+                        _stub_evaluator("identical", equivalent=True))
+    details = {"failed_features": ["cusp"], "measured_features": {"cusp": False},
+               "affected_output_refs": [REF]}
+    a = _invalid(details, geom=GEOM)
+    b = _invalid(details, plan=_plan(3), geom=GEOM)
+    outcome = evaluate_repair_progress(a, b)
+    assert outcome["decision"] == "allow"
+    assert outcome["geometry"]["undetermined"] is True
+    assert outcome["geometry"]["relation"] == "scope_unresolved"
 
 
 # ---------------------------------------------------------------------------
@@ -363,7 +476,9 @@ def test_m3_loop_blocks_proven_stall_after_second_request(tmp_path, monkeypatch)
     details = {"check": "outline", "failed_features": ["cusp"],
                "measured_features": {"cusp": False}, "affected_output_refs": [REF]}
     a1 = _invalid(details, plan=_plan(0), geom=GEOM, message="失败轮次1")
+    a1["trial_result"]["symbol_table"] = {REF: [REF]}
     a2 = _invalid(details, plan=_plan(3), geom=GEOM, message="失败轮次2")
+    a2["trial_result"]["symbol_table"] = {REF: [REF]}
     result, calls, store, project = _run([a1, a2], tmp_path)
 
     assert len(calls) == 2, f"third request must be avoided, got {len(calls)}"
@@ -403,7 +518,9 @@ def test_m3_loop_releases_on_geometry_change(tmp_path, monkeypatch):
     details = {"check": "outline", "failed_features": ["cusp"],
                "measured_features": {"cusp": False}, "affected_output_refs": [REF]}
     a1 = _invalid(details, plan=_plan(0), geom=GEOM, message="失败轮次1")
+    a1["trial_result"]["symbol_table"] = {REF: [REF]}
     a2 = _invalid(details, plan=_plan(3), geom=GEOM_OTHER, message="失败轮次2")
+    a2["trial_result"]["symbol_table"] = {REF: [REF]}
     a3 = _invalid(details, plan=_plan(6), message="失败轮次3")
     result, calls, store, project = _run([a1, a2, a3], tmp_path)
 

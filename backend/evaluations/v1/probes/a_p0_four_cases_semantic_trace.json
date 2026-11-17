@@ -1,0 +1,553 @@
+{
+  "schema": "cad.p0-semantic-pollution-trace.v1",
+  "model_calls": 0,
+  "cases": [
+    {
+      "case_id": "A1",
+      "input": "生成一个闭合爱心轮廓，宽度4米，高度4米",
+      "entry_normalization": {
+        "trim_only": false,
+        "lowercase_applied_to_rule_text": false,
+        "prefix_or_suffix_added": false
+      },
+      "local_creation_objects": [
+        "闭合爱心轮廓"
+      ],
+      "regex_matches": {
+        "heart": {
+          "start": 6,
+          "end": 8,
+          "text": "爱心",
+          "count": 1
+        },
+        "capital_a": null
+      },
+      "requirement_contract": {
+        "subjects": [
+          "闭合爱心轮廓"
+        ],
+        "facts": [
+          {
+            "fact_id": "user-1:scalar-1:width:闭合爱心轮廓",
+            "source_id": "user-1",
+            "field": "width",
+            "operator": "eq",
+            "value_mm": 4000.0,
+            "binding": "single_subject",
+            "status": "effective",
+            "evidence": {
+              "start": 11,
+              "end": 15,
+              "text": "宽度4米"
+            }
+          },
+          {
+            "fact_id": "user-1:scalar-2:height:闭合爱心轮廓",
+            "source_id": "user-1",
+            "field": "height",
+            "operator": "eq",
+            "value_mm": 4000.0,
+            "binding": "single_subject",
+            "status": "effective",
+            "evidence": {
+              "start": 16,
+              "end": 20,
+              "text": "高度4米"
+            }
+          }
+        ]
+      },
+      "semantic_requirements": [
+        {
+          "kind": "heart_outline_features",
+          "origin": null,
+          "source_evidence": null
+        }
+      ],
+      "parameterize_design": {
+        "ok": true,
+        "shape": "heart_outline",
+        "dimensions": {
+          "width_m": 4.0,
+          "height_m": 4.0
+        },
+        "printer": "center",
+        "origin": "current_robot_pose",
+        "units": "m",
+        "missing": [],
+        "assumptions": [
+          "未指定单位时按米解释设计尺寸",
+          "未指定起点时按小车当前位姿作为图纸原点",
+          "未指定执行方式时只生成设计和规划预览，不启动小车",
+          "未指定喷头时使用当前唯一可用的中心喷码机"
+        ],
+        "closed": true,
+        "smooth": true,
+        "symmetric": true,
+        "self_intersection": false
+      },
+      "sidecar_shadow": {
+        "records": [
+          {
+            "feature_id": "fc-A1-1",
+            "valid": true,
+            "source_class": "explicit",
+            "acceptance_scope": "mandatory",
+            "source_refs": [
+              "user-1"
+            ],
+            "errors": []
+          }
+        ],
+        "bindings": [
+          {
+            "schema": "cad.feature-binding.v1",
+            "binding_id": "binding:fc-A1-1",
+            "contract_id": "fc-A1-1",
+            "target_ref": "step-1:outline",
+            "reference_ref": null,
+            "source_refs": [
+              "user-1"
+            ]
+          }
+        ],
+        "errors": [],
+        "shadow_only": true
+      }
+    },
+    {
+      "case_id": "A9",
+      "input": "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米",
+      "entry_normalization": {
+        "trim_only": false,
+        "lowercase_applied_to_rule_text": false,
+        "prefix_or_suffix_added": false
+      },
+      "local_creation_objects": [
+        "左右对称、平滑闭合的爱心"
+      ],
+      "regex_matches": {
+        "heart": {
+          "start": 14,
+          "end": 16,
+          "text": "爱心",
+          "count": 1
+        },
+        "capital_a": null
+      },
+      "requirement_contract": {
+        "subjects": [
+          "左右对称、平滑闭合的爱心"
+        ],
+        "facts": [
+          {
+            "fact_id": "user-1:scalar-1:width:左右对称、平滑闭合的爱心",
+            "source_id": "user-1",
+            "field": "width",
+            "operator": "eq",
+            "value_mm": 4000.0,
+            "binding": "single_subject",
+            "status": "effective",
+            "evidence": {
+              "start": 26,
+              "end": 29,
+              "text": "宽4米"
+            }
+          },
+          {
+            "fact_id": "user-1:scalar-2:height:左右对称、平滑闭合的爱心",
+            "source_id": "user-1",
+            "field": "height",
+            "operator": "eq",
+            "value_mm": 4000.0,
+            "binding": "single_subject",
+            "status": "effective",
+            "evidence": {
+              "start": 29,
+              "end": 32,
+              "text": "高4米"
+            }
+          }
+        ]
+      },
+      "semantic_requirements": [
+        {
+          "kind": "heart_outline_features",
+          "origin": null,
+          "source_evidence": null
+        }
+      ],
+      "parameterize_design": {
+        "ok": true,
+        "shape": "heart_outline",
+        "dimensions": {
+          "width_m": 4.0,
+          "height_m": 4.0
+        },
+        "printer": "center",
+        "origin": "current_robot_pose",
+        "units": "m",
+        "missing": [],
+        "assumptions": [
+          "未指定单位时按米解释设计尺寸",
+          "未指定起点时按小车当前位姿作为图纸原点",
+          "未指定执行方式时只生成设计和规划预览，不启动小车",
+          "未指定喷头时使用当前唯一可用的中心喷码机"
+        ],
+        "closed": true,
+        "smooth": true,
+        "symmetric": true,
+        "self_intersection": false
+      },
+      "sidecar_shadow": {
+        "records": [
+          {
+            "feature_id": "fc-A9-1",
+            "valid": true,
+            "source_class": "explicit",
+            "acceptance_scope": "mandatory",
+            "source_refs": [
+              "user-1"
+            ],
+            "errors": []
+          }
+        ],
+        "bindings": [
+          {
+            "schema": "cad.feature-binding.v1",
+            "binding_id": "binding:fc-A9-1",
+            "contract_id": "fc-A9-1",
+            "target_ref": "step-1:outline",
+            "reference_ref": null,
+            "source_refs": [
+              "user-1"
+            ]
+          }
+        ],
+        "errors": [],
+        "shadow_only": true
+      }
+    },
+    {
+      "case_id": "C10",
+      "input": "生成一个爱心和一个五角星，爱心在左，五角星在右",
+      "entry_normalization": {
+        "trim_only": false,
+        "lowercase_applied_to_rule_text": false,
+        "prefix_or_suffix_added": false
+      },
+      "local_creation_objects": [
+        "爱心",
+        "五角星"
+      ],
+      "regex_matches": {
+        "heart": {
+          "start": 4,
+          "end": 6,
+          "text": "爱心",
+          "count": 2
+        },
+        "capital_a": null
+      },
+      "requirement_contract": {
+        "subjects": [
+          "爱心",
+          "五角星"
+        ],
+        "facts": []
+      },
+      "semantic_requirements": [
+        {
+          "kind": "heart_outline_features",
+          "origin": null,
+          "source_evidence": null
+        }
+      ],
+      "parameterize_design": {
+        "ok": false,
+        "shape": "heart_outline",
+        "dimensions": {},
+        "printer": "center",
+        "origin": "current_robot_pose",
+        "units": "m",
+        "missing": [
+          "dimensions"
+        ],
+        "assumptions": [
+          "未指定单位时按米解释设计尺寸",
+          "未指定起点时按小车当前位姿作为图纸原点",
+          "未指定执行方式时只生成设计和规划预览，不启动小车",
+          "未指定喷头时使用当前唯一可用的中心喷码机"
+        ],
+        "closed": true,
+        "smooth": true,
+        "symmetric": true,
+        "self_intersection": false
+      },
+      "sidecar_shadow": {
+        "records": [
+          {
+            "feature_id": "fc-C10-multi",
+            "valid": false,
+            "source_class": "explicit",
+            "acceptance_scope": "advisory",
+            "source_refs": [
+              "user-1"
+            ],
+            "errors": [
+              "fc_evidence_missing",
+              "fc_multi_target_ambiguous"
+            ]
+          }
+        ],
+        "bindings": [],
+        "errors": [
+          {
+            "code": "fc_evidence_missing",
+            "feature_id": "fc-C10-multi",
+            "message": "evidence block is required"
+          },
+          {
+            "code": "fc_multi_target_ambiguous",
+            "feature_id": "fc-C10-multi",
+            "message": "one feature contract cannot bind multiple targets without a unique source correspondence",
+            "target_refs": [
+              "step-1:outline",
+              "step-2:outline"
+            ]
+          }
+        ],
+        "shadow_only": true
+      }
+    },
+    {
+      "case_id": "C26",
+      "input": "生成一个大写字母A的轮廓，高3米宽2米",
+      "entry_normalization": {
+        "trim_only": false,
+        "lowercase_applied_to_rule_text": false,
+        "prefix_or_suffix_added": false
+      },
+      "local_creation_objects": [
+        "大写字母A的轮廓"
+      ],
+      "regex_matches": {
+        "heart": null,
+        "capital_a": {
+          "start": 4,
+          "end": 9,
+          "text": "大写字母A",
+          "count": 1
+        }
+      },
+      "requirement_contract": {
+        "subjects": [
+          "大写字母A的轮廓"
+        ],
+        "facts": [
+          {
+            "fact_id": "user-1:scalar-1:height:大写字母A的轮廓",
+            "source_id": "user-1",
+            "field": "height",
+            "operator": "eq",
+            "value_mm": 3000.0,
+            "binding": "single_subject",
+            "status": "effective",
+            "evidence": {
+              "start": 13,
+              "end": 16,
+              "text": "高3米"
+            }
+          },
+          {
+            "fact_id": "user-1:scalar-2:width:大写字母A的轮廓",
+            "source_id": "user-1",
+            "field": "width",
+            "operator": "eq",
+            "value_mm": 2000.0,
+            "binding": "single_subject",
+            "status": "effective",
+            "evidence": {
+              "start": 16,
+              "end": 19,
+              "text": "宽2米"
+            }
+          }
+        ]
+      },
+      "semantic_requirements": [
+        {
+          "kind": "straight_capital_a",
+          "origin": "derived_semantic_requirement",
+          "source_evidence": [
+            "大写字母A"
+          ]
+        }
+      ],
+      "parameterize_design": {
+        "ok": false,
+        "shape": "generic_2d_cad",
+        "dimensions": {},
+        "printer": "center",
+        "origin": "current_robot_pose",
+        "units": "m",
+        "missing": [
+          "dimensions"
+        ],
+        "assumptions": [
+          "未指定单位时按米解释设计尺寸",
+          "未指定起点时按小车当前位姿作为图纸原点",
+          "未指定执行方式时只生成设计和规划预览，不启动小车",
+          "未指定喷头时使用当前唯一可用的中心喷码机"
+        ]
+      },
+      "sidecar_shadow": {
+        "records": [
+          {
+            "feature_id": "fc-C26-1",
+            "valid": true,
+            "source_class": "explicit",
+            "acceptance_scope": "mandatory",
+            "source_refs": [
+              "user-1"
+            ],
+            "errors": []
+          }
+        ],
+        "bindings": [
+          {
+            "schema": "cad.feature-binding.v1",
+            "binding_id": "binding:fc-C26-1",
+            "contract_id": "fc-C26-1",
+            "target_ref": "step-1:outline",
+            "reference_ref": null,
+            "source_refs": [
+              "user-1"
+            ]
+          }
+        ],
+        "errors": [],
+        "shadow_only": true
+      }
+    }
+  ],
+  "mixed_turn_traces": [
+    {
+      "key": "heart_then_A",
+      "text": "生成一个爱心轮廓。\n生成一个大写字母A的轮廓",
+      "local_creation_objects": [
+        "爱心轮廓"
+      ],
+      "semantic_requirements": [
+        "heart_outline_features"
+      ]
+    },
+    {
+      "key": "A_then_heart",
+      "text": "生成一个大写字母A的轮廓。\n生成一个爱心轮廓。",
+      "local_creation_objects": [
+        "大写字母A的轮廓"
+      ],
+      "semantic_requirements": [
+        "heart_outline_features"
+      ]
+    },
+    {
+      "key": "three_objects",
+      "text": "生成一个爱心、一个五角星和一个圆形。",
+      "local_creation_objects": [
+        "爱心、一个五角星",
+        "圆形"
+      ],
+      "semantic_requirements": [
+        "heart_outline_features"
+      ]
+    }
+  ],
+  "replay_cases": [
+    {
+      "case_id": "C4",
+      "text": "画一个三角形轮廓，顶点(0,0)(3,0)(1.5,2.6)",
+      "local_creation_objects": [
+        "三角形轮廓"
+      ],
+      "semantic_requirements": []
+    },
+    {
+      "case_id": "C5",
+      "text": "生成一个正五边形，外接圆半径1.5米",
+      "local_creation_objects": [
+        "正五边形"
+      ],
+      "semantic_requirements": [
+        "regular_polygon"
+      ]
+    },
+    {
+      "case_id": "C13",
+      "text": "生成一个正六边形，边长1米",
+      "local_creation_objects": [
+        "正六边形"
+      ],
+      "semantic_requirements": []
+    },
+    {
+      "case_id": "C15",
+      "text": "画一个圆环，外圆半径1米，内圆半径1米",
+      "local_creation_objects": [
+        "圆环"
+      ],
+      "semantic_requirements": []
+    },
+    {
+      "case_id": "C16",
+      "text": "生成一个房子轮廓，宽4米高3米，屋顶是三角形，下面加一个门",
+      "local_creation_objects": [
+        "房子轮廓"
+      ],
+      "semantic_requirements": [
+        "triangle_roof_house"
+      ]
+    },
+    {
+      "case_id": "C18",
+      "text": "生成一个星形线（内凹四角星），最大半径2米",
+      "local_creation_objects": [
+        "星形线（内凹四角星）"
+      ],
+      "semantic_requirements": [
+        "astroid_identity"
+      ]
+    },
+    {
+      "case_id": "C19",
+      "text": "生成一个心形线（cardioid），尖点朝下，最大宽度3米",
+      "local_creation_objects": [
+        "心形线（cardioid）"
+      ],
+      "semantic_requirements": [
+        "heart_outline_features"
+      ]
+    },
+    {
+      "case_id": "C29",
+      "text": "画一个回字形（嵌套正方形），外框边长2米，内框边长1米，内框居中",
+      "local_creation_objects": [
+        "回字形（嵌套正方形）"
+      ],
+      "semantic_requirements": [
+        "nested_square_frames"
+      ]
+    },
+    {
+      "case_id": "C32",
+      "text": "画一个六角螺母轮廓，外六角外接圆半径1.5米，中心圆孔半径0.8米",
+      "local_creation_objects": [
+        "六角螺母轮廓"
+      ],
+      "semantic_requirements": [
+        "regular_polygon"
+      ]
+    }
+  ]
+}

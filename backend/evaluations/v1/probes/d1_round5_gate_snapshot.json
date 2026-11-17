@@ -1,10 +1,10 @@
 {
   "schema": "cad.d1.round5.gate.v1",
-  "generated_at_utc": "2026-11-17T11:28:27+00:00",
+  "generated_at_utc": "2026-11-17T11:40:48+00:00",
   "gate_pass": true,
   "admission_ready": false,
   "admission_blockers": [
-    "M3 relation vocabulary aligned in production (C accepts B 'equivalent' or production adapter maps it); harness mapping is not a production contract",
+    "C c3bc8bf vocabulary alignment verified under zero-mapping adapter (reverify PASS); remaining similarity-channel decision listed under symmetry blocker",
     "A feature-contract schema landed in backend; FC cases and red-line 1 traceability verified against real ledger entries",
     "Preexisting route-count drift (30 vs 26) fixed by router/test owner",
     "B symmetry residual thresholds calibrated; decide whether C needs a dedicated similarity-transform channel"
@@ -156,6 +156,78 @@
       "faithful_no_translation": "allow",
       "mapped_equivalent_to_identical": "block",
       "required_fix": "Align vocabulary on one side: C accepts B's 'equivalent' label, or the production adapter normalizes relation to 'identical' before wiring."
+    },
+    "reverify_integration": {
+      "combo_head": "da795e48b8e27c939bce6e055233bb9241bd10f9",
+      "c_patch": "c3bc8bf4e754b4a8951cc928e15f130b5b17bcfd",
+      "adapter": "zero-mapping: B relation passed through verbatim",
+      "m3_unit": {
+        "total": 9,
+        "matched": 9,
+        "blocked": 1,
+        "allowed": 8
+      },
+      "m2": {
+        "total": 4,
+        "matched": 4,
+        "structural_channels": [
+          "feature_replan",
+          "topology_replan"
+        ],
+        "non_structural_channels": [
+          "parameter_repair",
+          "connection_repair"
+        ]
+      },
+      "loop": [
+        {
+          "case": "M3-LOOP-positive-stall-blocks-third-request",
+          "actual_calls": 2,
+          "expected_calls": 2,
+          "match": true
+        },
+        {
+          "case": "M3-LOOP-missing-snapshot-releases",
+          "actual_calls": 3,
+          "expected_calls": 3,
+          "match": true
+        }
+      ]
+    },
+    "reverify_regression": {
+      "combo_head": "da795e48b8e27c939bce6e055233bb9241bd10f9",
+      "baseline_summary": {
+        "tests": 184,
+        "passed": 184,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "not_run": 0
+      },
+      "round5_summary": {
+        "tests": 49,
+        "passed": 48,
+        "failed": 1,
+        "errors": 0,
+        "skipped": 0,
+        "not_run": 0
+      },
+      "parent_head": "8e3efadce5a2ccd07c196f728c817c2e81a44ac9",
+      "parent_summary": {
+        "tests": 15,
+        "passed": 9,
+        "failed": 6,
+        "errors": 0,
+        "skipped": 0,
+        "not_run": 0
+      },
+      "failed_cases": [
+        {
+          "group": "agent-service-boundaries",
+          "node": "tests.test_agent_service_boundaries::test_agent_management_routes_are_registered_once",
+          "attribution": "preexisting_on_parent"
+        }
+      ]
     },
     "zero_cost": {
       "real_model_calls_round5": 0,

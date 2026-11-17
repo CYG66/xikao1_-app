@@ -173,6 +173,37 @@ def main() -> int:
             "required_fix": gap["required_fix"],
         }
 
+    # 5c. C c3bc8bf vocabulary-alignment reverify: zero adapter mapping.
+    rev_int = v1 / "round5" / "d1_round5_reverify_integration.json"
+    rev_reg = v1 / "round5" / "d1_round5_reverify_regression.json"
+    if rev_int.exists():
+        reverify = load(rev_int)
+        findings["reverify_integration"] = {
+            "combo_head": reverify.get("combo_head"),
+            "c_patch": reverify.get("c_patch"),
+            "adapter": "zero-mapping: B relation passed through verbatim",
+            "m3_unit": reverify["m3_unit_summary"],
+            "m2": reverify["m2_summary"],
+            "loop": [
+                {"case": c["case"], "actual_calls": c["actual_calls"],
+                 "expected_calls": c["expected_calls"], "match": c["match"]}
+                for c in reverify["m3_loop_cases"]
+            ],
+        }
+    if rev_reg.exists():
+        rreg = load(rev_reg)
+        findings["reverify_regression"] = {
+            "combo_head": rreg["combo"]["head_sha"],
+            "baseline_summary": rreg["combo"]["baseline_summary"],
+            "round5_summary": rreg["combo"]["round5_summary"],
+            "parent_head": rreg["parent"]["head_sha"],
+            "parent_summary": rreg["parent"]["summary"],
+            "failed_cases": [
+                {"group": r["group"], "node": r["node"], "attribution": r["attribution"]}
+                for r in rreg["combo"]["failed_cases"]
+            ],
+        }
+
     # 6. Round-5 zero-cost markers.
     findings["zero_cost"] = {
         "real_model_calls_round5": 0,
@@ -193,7 +224,7 @@ def main() -> int:
         "gate_pass": gate_pass,
         "admission_ready": False,
         "admission_blockers": [
-            "M3 relation vocabulary aligned in production (C accepts B 'equivalent' or production adapter maps it); harness mapping is not a production contract",
+            "C c3bc8bf vocabulary alignment verified under zero-mapping adapter (reverify PASS); remaining similarity-channel decision listed under symmetry blocker",
             "A feature-contract schema landed in backend; FC cases and red-line 1 traceability verified against real ledger entries",
             "Preexisting route-count drift (30 vs 26) fixed by router/test owner",
             "B symmetry residual thresholds calibrated; decide whether C needs a dedicated similarity-transform channel",

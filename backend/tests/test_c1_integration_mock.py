@@ -54,8 +54,8 @@ def _b1_curve_intersection_available() -> bool:
 # A1 commits already present on the A branch; not yet merged into the C baseline.
 A1_COMMIT = "0ed2288ca068534d86e1afddc93f592b7ef35e35"
 A1_TEST_COMMIT = "d8cb85f68db08b90beb4872ccfc9fdf93d8735d9"
-# B1 has no committed change on the B worktree (HEAD a4f2af7, clean).
-B1_COMMIT = "not_committed"
+# B1 committed on the B branch; not yet merged into the C baseline.
+B1_COMMIT = "b519740550eb991beac9848798bad7ede228fbf6"
 
 
 # ---------------------------------------------------------------------------
@@ -308,14 +308,15 @@ def test_c1_service_merged_repair_keeps_inherited_junction_fields():
 
 # ---------------------------------------------------------------------------
 # Goal 3 (B1 pending): exact Bezier intersection diagnostics must reach the
-# service-level structured error. B1 module/fields are not committed yet.
+# service-level structured error. B1 is committed on its own branch but not yet
+# merged into the C baseline, and the A1.1 combo tree does not include B1.
 # ---------------------------------------------------------------------------
 
 def test_c1_service_curve_contact_details_present():
     if not _b1_curve_intersection_available():
         pytest.fail(
-            "failed_dep_pending: B1 cad_topology_safety not committed; "
-            f"depends on B commit {B1_COMMIT} (B worktree HEAD a4f2af7, draft uncommitted). "
+            "failed_dep_pending: B1 cad_topology_safety not merged into this tree; "
+            f"depends on B commit {B1_COMMIT} (committed on B branch, not on C baseline). "
             "Baseline only has sampled polyline intersection diagnostics."
         )
 

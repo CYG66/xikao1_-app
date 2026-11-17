@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-17T21:44:38+08:00",
+ "generated_at": "2026-11-17T21:55:25+08:00",
  "probe": "probes/d1_p0_semantic_forensic.py",
  "zero_real_model_calls": true,
  "zero_network": true,
@@ -7,13 +7,13 @@
  "note": "Read-only replay/extraction from persisted artifacts. No A9 re-run, no S1 start.",
  "python": "3.11.18",
  "corpus": {
-  "path": "C:\\Users\\29924\\Codes\\xikao\\文生文修CAD测试语料.md",
+  "path": "frozen 70-case corpus (supplied via --corpus; local absolute path intentionally not recorded)",
   "size": 13128,
   "sha256": "807f33a3c6ed5aad05943258cf406d9d88014bd1e4b02ec6f369e5a88f8a742d",
   "manifest_source_sha256": "807f33a3c6ed5aad05943258cf406d9d88014bd1e4b02ec6f369e5a88f8a742d"
  },
  "backend": {
-  "run_root": "C:\\Users\\29924\\Codes\\xikao\\backend",
+  "run_root": "external persisted backend snapshot (local-only root, intentionally not recorded)",
   "manifest_backend_code_sha256": "08eae81a3abab61bc9999f4c3327c0fdf6312883aa13d47c273deadfbc8e8e73",
   "recomputed_current_digest": "64f61868c5c85013204340ade4e11ebc4edb91cc2ec0ce8d1ba8ea55788167d4",
   "aggregate_digest_match": false,
@@ -62,10 +62,14 @@
    }
   },
   "before_fixes_acceptance_module": {
-   "path": "C:\\Users\\29924\\Codes\\cad-eval-20261117\\before-fixes\\cad_semantic_acceptance.py",
+   "path": "before-fixes/cad_semantic_acceptance.py (preserved pre-fix copy)",
    "size": 23960,
    "sha256": "423ed2ff4d23d2090921c19542e2e8d9c8dcfecb49b196e3e619eb543c3a1d09",
    "note": "only preserved pre-fix module; other run-time per-file hashes unavailable"
+  },
+  "a_tree_pre_fix_replay": {
+   "root": "A-line read-only worktree supplied via --a-tree",
+   "acceptance_module_sha256": "423ed2ff4d23d2090921c19542e2e8d9c8dcfecb49b196e3e619eb543c3a1d09"
   }
  },
  "environment": {
@@ -126,7 +130,8 @@
    },
    "harness": "probes/d1_round4_a9_runner.py (isolated in-process runner, transport stubbed for forensic probe; real provider on approved run)",
    "runtime_env": "unverified: Python version not persisted in record; service_config deepseek / deepseek-flash",
-   "rule_version": "unverified: no semantic-rule version constant recorded"
+   "rule_version": "unverified: no semantic-rule version constant recorded",
+   "capital_a_misfire_evidence": "无：记录①失败检查为爱心几何特征 heart_bilateral_lobes_notch_and_lower_tip，measured_features.lower_tip=false；无字母 A 验收报错记录。"
   },
   "record_2": {
    "record_label": "记录② 70 例语料中的 A9（本次复盘，未发起新请求）",
@@ -160,7 +165,8 @@
    },
    "harness": "tests/manual/run_user_cad_corpus.py via cad-eval-20261117/launch.py",
    "runtime_env": "unverified: Python version not persisted; launch.py redirects USERPROFILE/HOME to worktree home; model deepseek-flash",
-   "rule_version": "unverified: no semantic-rule version constant recorded"
+   "rule_version": "unverified: no semantic-rule version constant recorded",
+   "capital_a_misfire_evidence": "有（落盘验收报错签名）：记录② step 记录命中 straight_capital_a 上部三角区检查，required_relation=triangle_tip_above_horizontal_base，observed_triangular_regions=[]；但运行时逐文件哈希 unverified，选类层来源归因 unverified。"
   }
  }
 }

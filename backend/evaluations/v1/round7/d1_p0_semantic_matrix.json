@@ -1,6 +1,6 @@
 {
  "schema": "d1.p0.semantic-matrix.v1",
- "generated_at": "2026-11-17T21:44:38+08:00",
+ "generated_at": "2026-11-17T21:55:25+08:00",
  "zero_real_model_calls": true,
  "columns": [
   "case_id",
@@ -226,6 +226,24 @@
     ],
     "replay": true,
     "note": "local replay on persisted text; run-time per-file snapshot unverified"
+   },
+   "cross_check": {
+    "post_fix_replay": {
+     "input_text": "生成一个闭合爱心轮廓，宽度4米，高度4米\n宽度4米，高度4米。",
+     "output_kinds": [
+      "heart_outline_features"
+     ],
+     "replay": true,
+     "note": "local replay on persisted text; run-time per-file snapshot unverified"
+    },
+    "pre_fix_replay": {
+     "input_text": "生成一个闭合爱心轮廓，宽度4米，高度4米\n宽度4米，高度4米。",
+     "output_kinds": [
+      "heart_outline_features"
+     ],
+     "replay": true,
+     "note": "local replay on persisted text; run-time per-file snapshot unverified"
+    }
    }
   },
   {
@@ -451,6 +469,24 @@
     ],
     "replay": true,
     "note": "local replay on persisted text; run-time per-file snapshot unverified"
+   },
+   "cross_check": {
+    "post_fix_replay": {
+     "input_text": "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米\n中心(2,3)，宽4米、高4米，坐标单位米。",
+     "output_kinds": [
+      "heart_outline_features"
+     ],
+     "replay": true,
+     "note": "local replay on persisted text; run-time per-file snapshot unverified"
+    },
+    "pre_fix_replay": {
+     "input_text": "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米\n中心(2,3)，宽4米、高4米，坐标单位米。",
+     "output_kinds": [
+      "heart_outline_features"
+     ],
+     "replay": true,
+     "note": "local replay on persisted text; run-time per-file snapshot unverified"
+    }
    }
   },
   {
@@ -657,6 +693,22 @@
     "output_kinds": [],
     "replay": true,
     "note": "local replay on persisted text; run-time per-file snapshot unverified"
+   },
+   "cross_check": {
+    "post_fix_replay": {
+     "input_text": "生成一个爱心和一个五角星，爱心在左，五角星在右\n爱心宽4米高4米；五角星外接圆半径2米、固定为5个尖角且尖角朝上；两者中心水平相距6米，坐标单位米。",
+     "output_kinds": [],
+     "replay": true,
+     "note": "local replay on persisted text; run-time per-file snapshot unverified"
+    },
+    "pre_fix_replay": {
+     "input_text": "生成一个爱心和一个五角星，爱心在左，五角星在右\n爱心宽4米高4米；五角星外接圆半径2米、固定为5个尖角且尖角朝上；两者中心水平相距6米，坐标单位米。",
+     "output_kinds": [
+      "heart_outline_features"
+     ],
+     "replay": true,
+     "note": "local replay on persisted text; run-time per-file snapshot unverified"
+    }
    }
   },
   {
@@ -951,6 +1003,24 @@
     ],
     "replay": true,
     "note": "local replay on persisted text; run-time per-file snapshot unverified"
+   },
+   "cross_check": {
+    "post_fix_replay": {
+     "input_text": "生成一个大写字母A的轮廓，高3米宽2米\n字母A总高3米、总宽2米，两斜笔端点(-1,0)(0,3)(1,0)，横笔在高度1.5米处，坐标单位米。",
+     "output_kinds": [
+      "straight_capital_a"
+     ],
+     "replay": true,
+     "note": "local replay on persisted text; run-time per-file snapshot unverified"
+    },
+    "pre_fix_replay": {
+     "input_text": "生成一个大写字母A的轮廓，高3米宽2米\n字母A总高3米、总宽2米，两斜笔端点(-1,0)(0,3)(1,0)，横笔在高度1.5米处，坐标单位米。",
+     "output_kinds": [
+      "straight_capital_a"
+     ],
+     "replay": true,
+     "note": "local replay on persisted text; run-time per-file snapshot unverified"
+    }
    }
   }
  ],
@@ -990,7 +1060,8 @@
    },
    "harness": "probes/d1_round4_a9_runner.py (isolated in-process runner, transport stubbed for forensic probe; real provider on approved run)",
    "runtime_env": "unverified: Python version not persisted in record; service_config deepseek / deepseek-flash",
-   "rule_version": "unverified: no semantic-rule version constant recorded"
+   "rule_version": "unverified: no semantic-rule version constant recorded",
+   "capital_a_misfire_evidence": "无：记录①失败检查为爱心几何特征 heart_bilateral_lobes_notch_and_lower_tip，measured_features.lower_tip=false；无字母 A 验收报错记录。"
   },
   "record_2": {
    "record_label": "记录② 70 例语料中的 A9（本次复盘，未发起新请求）",
@@ -1024,7 +1095,8 @@
    },
    "harness": "tests/manual/run_user_cad_corpus.py via cad-eval-20261117/launch.py",
    "runtime_env": "unverified: Python version not persisted; launch.py redirects USERPROFILE/HOME to worktree home; model deepseek-flash",
-   "rule_version": "unverified: no semantic-rule version constant recorded"
+   "rule_version": "unverified: no semantic-rule version constant recorded",
+   "capital_a_misfire_evidence": "有（落盘验收报错签名）：记录② step 记录命中 straight_capital_a 上部三角区检查，required_relation=triangle_tip_above_horizontal_base，observed_triangular_regions=[]；但运行时逐文件哈希 unverified，选类层来源归因 unverified。"
   }
  },
  "cross_case_contamination": {

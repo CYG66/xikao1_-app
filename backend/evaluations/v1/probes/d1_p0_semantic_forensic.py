@@ -10,22 +10,27 @@ Snapshot roots (passed in by constant, resolved locally):
   BACKEND : backend that served that run (xikao/backend)
   D_TREE  : v1/d1-evaluation worktree (frozen round4 record lives here)
 """
+import argparse
 import hashlib
 import json
+import os
 import pathlib
 import re
 import sys
 import datetime
 
-RUN = pathlib.Path(r"C:\Users\29924\Codes\cad-eval-20261117\run")
-BACKEND = pathlib.Path(r"C:\Users\29924\Codes\xikao\backend")
-CORPUS = pathlib.Path(r"C:\Users\29924\Codes\xikao\文生文修CAD测试语料.md")
-BEFORE_FIX = pathlib.Path(
-    r"C:\Users\29924\Codes\cad-eval-20261117\before-fixes\cad_semantic_acceptance.py"
-)
-D_TREE = pathlib.Path(r"C:\Users\29924\Codes\worktrees\D")
-ROUND4_RECORD = D_TREE / r"backend\evaluations\v1\round4\A9_case_record.json"
-OUT_DIR = D_TREE / r"backend\evaluations\v1\round7"
+PROBE_DIR = pathlib.Path(__file__).resolve().parent
+V1_DIR = PROBE_DIR.parent
+OUT_DIR = V1_DIR / "round7"
+ROUND4_RECORD = V1_DIR / "round4" / "A9_case_record.json"
+
+# External persisted-artifact roots are supplied by CLI flags / environment
+# variables so this probe never hardcodes local absolute paths in the repo.
+RUN: pathlib.Path | None = None
+BACKEND: pathlib.Path | None = None
+CORPUS: pathlib.Path | None = None
+BEFORE_FIX: pathlib.Path | None = None
+A_TREE: pathlib.Path | None = None
 
 CASES = ["A1", "A9", "C10", "C26"]
 
@@ -84,13 +89,16 @@ def module_hashes(app_dir: pathlib.Path) -> dict:
     return out
 
 
-def replay_current_classification() -> dict:
-    """Replay CURRENT code's semantic_requirements on the recorded source texts.
+def _replay(root: pathlib.Path) -> dict:
+    """Replay semantic_requirements on recorded source texts against one backend root.
 
-    This is a local replay on persisted text, NOT a real run; it cannot prove
-    the run-time snapshot behaved this way.
+    Local replay on persisted text, NOT a real run; it cannot prove the
+    run-time snapshot behaved this way. Module cache is purged between roots.
     """
-    sys.path.insert(0, str(BACKEND))
+    for mod in list(sys.modules):
+        if mod.startswith("app"):
+            del sys.modules[mod]
+    sys.path.insert(0, str(root))
     from app.cad_semantic_acceptance import semantic_requirements  # noqa: WPS433
 
     results = {}
@@ -322,6 +330,23 @@ def record_two(matrix: dict) -> dict:
 
 
 def main() -> None:
+    global RUN, BACKEND, CORPUS, BEFORE_FIX, A_TREE
+    parser = argparse.ArgumentParser(description="D1 P0 semantic-contamination forensic probe (read-only)")
+    parser.add_argument("--run-root", default=os.environ.get("P0_RUN_ROOT"))
+    parser.add_argument("--backend", default=os.environ.get("P0_BACKEND"))
+    parser.add_argument("--corpus", default=os.environ.get("P0_CORPUS"))
+    parser.add_argument("--before-fix", default=os.environ.get("P0_BEFORE_FIX"))
+    parser.add_argument("--a-tree", default=os.environ.get("P0_A_TREE"),
+                        help="read-only A-line pre-fix worktree root for two-snapshot replay")
+    args = parser.parse_args()
+    if not (args.run_root and args.backend and args.corpus):
+        raise SystemExit("P0_RUN_ROOT / P0_BACKEND / P0_CORPUS (or -- flags) are required")
+    RUN = pathlib.Path(args.run_root)
+    BACKEND = pathlib.Path(args.backend)
+    CORPUS = pathlib.Path(args.corpus)
+    BEFORE_FIX = pathlib.Path(args.before_fix) if args.before_fix else None
+    A_TREE = pathlib.Path(args.a_tree) if args.a_tree else None
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     corpus_bytes = CORPUS.read_bytes()
     manifest = load_json(RUN / "manifest.json") or {}
@@ -329,13 +354,28 @@ def main() -> None:
     recorded_digest = manifest.get("backend_code_sha256")
 
     matrix = [case_evidence(c) for c in CASES]
-    replay = replay_current_classification()
+    replay_post = _replay(BACKEND)
+    replay_pre = _replay(A_TREE) if A_TREE else None
     for row in matrix:
-        row["semantic_requirements"] = replay[row["case_id"]]
+        row["semantic_requirements"] = replay_post[row["case_id"]]
+        row["cross_check"] = {
+            "post_fix_replay": replay_post[row["case_id"]],
+            "pre_fix_replay": replay_pre[row["case_id"]] if replay_pre else "unverified: A-line pre-fix worktree not supplied",
+        }
 
     rec1 = record_one()
     rec2 = record_two(matrix)
     rec2["code_snapshot"]["manifest_backend_code_sha256"] = recorded_digest
+
+    rec1["capital_a_misfire_evidence"] = (
+        "无：记录①失败检查为爱心几何特征 heart_bilateral_lobes_notch_and_lower_tip，"
+        "measured_features.lower_tip=false；无字母 A 验收报错记录。"
+    )
+    rec2["capital_a_misfire_evidence"] = (
+        "有（落盘验收报错签名）：记录② step 记录命中 straight_capital_a 上部三角区检查，"
+        "required_relation=triangle_tip_above_horizontal_base，observed_triangular_regions=[]；"
+        "但运行时逐文件哈希 unverified，选类层来源归因 unverified。"
+    )
 
     before_fix_hash = (
         sha256_bytes(BEFORE_FIX.read_bytes()) if BEFORE_FIX.exists() else None
@@ -350,13 +390,13 @@ def main() -> None:
         "note": "Read-only replay/extraction from persisted artifacts. No A9 re-run, no S1 start.",
         "python": sys.version.split()[0],
         "corpus": {
-            "path": str(CORPUS),
+            "path": "frozen 70-case corpus (supplied via --corpus; local absolute path intentionally not recorded)",
             "size": len(corpus_bytes),
             "sha256": sha256_bytes(corpus_bytes),
             "manifest_source_sha256": manifest.get("sha256"),
         },
         "backend": {
-            "run_root": str(BACKEND),
+            "run_root": "external persisted backend snapshot (local-only root, intentionally not recorded)",
             "manifest_backend_code_sha256": recorded_digest,
             "recomputed_current_digest": current_digest,
             "aggregate_digest_match": recorded_digest == current_digest,
@@ -364,11 +404,20 @@ def main() -> None:
             "git_commit": "unverified: xikao/backend has no git commits on its branch",
             "relevant_module_hashes_current": module_hashes(BACKEND),
             "before_fixes_acceptance_module": {
-                "path": str(BEFORE_FIX),
+                "path": "before-fixes/cad_semantic_acceptance.py (preserved pre-fix copy)",
                 "size": BEFORE_FIX.stat().st_size if BEFORE_FIX.exists() else None,
                 "sha256": before_fix_hash,
                 "note": "only preserved pre-fix module; other run-time per-file hashes unavailable",
             },
+            "a_tree_pre_fix_replay": (
+                {
+                    "root": "A-line read-only worktree supplied via --a-tree",
+                    "acceptance_module_sha256": sha256_bytes(
+                        (A_TREE / "app" / "cad_semantic_acceptance.py").read_bytes()
+                    ) if A_TREE else None,
+                }
+                if A_TREE else "unverified: A-line pre-fix worktree not supplied"
+            ),
         },
         "environment": {
             "launch_env": {

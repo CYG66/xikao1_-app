@@ -12,7 +12,7 @@
 - **三例爱心/双对象（A1、A9、C10）在复盘运行中被大写字母 A 结构检查器误触发**；正向对照 **C26（真实字母 A）规则被正确选中并触发**，说明问题不是"字母 A 规则整体失效"，而是**规则选择/分发层把非字母 A 轮廓放进了字母 A 检查器**。
 - **未发现 `case_id` 被拼进模型可见的消息/历史正文**；跨案例请求 ID 无串扰（143 个唯一请求 ID，`contamination=[]`，`blocked=false`）。同案历史中携带上一轮助手失败反馈，属会话内自反馈，不是跨案上下文污染。
 - 两条 A9 记录**输入文本逐字相同、输入哈希相同**，但属不同实验、不同代码快照、不同 harness、不同失败现象，**已并列留证，未合并根因**。
-- 代码级直接嫌疑（独立阅读代码所得，待 A 的代码定位报告交叉核对）：修复前验收模块的规则分发为 `if 房子 … else: 字母 A 检查器`，其余 profile（爱心/空/其他）全部落入 `else` 字母检查器；修复后改为显式 `elif straight_capital_a` 并对其他 profile 提前返回。运行时逐文件哈希未留存，该定性对运行时版本为**高置信但非逐字节证实**。
+- 代码级嫌疑（独立阅读 + 与 A 报告交叉核对，见 §8）：**选类层**在两套快照上都未把爱心文本判成字母 A kind；**分派层**修复前验收模块为 `if 房子 … else: 字母 A 检查器`，其余 profile（爱心/空/其他）全部兜底进字母检查器，与落盘字母 A 报错签名吻合；修复后改为显式 `elif straight_capital_a` 并对其他 profile 提前返回。运行时逐文件哈希未留存，该定性对运行时版本为**高置信但非逐字节证实**。
 
 ## 1. 附件版本与使用边界
 
@@ -34,7 +34,7 @@
 | C10 | `生成一个爱心和一个五角星，爱心在左，五角星在右` | heart + star 双对象 | 计划标签 `爱心`、`五角星`；验收命中 `straight_capital_a` 上部三角区检查 | 结构/几何验收：attempt 1 `structure_requirement_failed`，`observed_triangular_regions=[]` | 误命中：`straight_capital_a` / `triangle_tip_above_horizontal_base`；**version=unverified** | 否：正文无编号串 | 无跨案污染；同案自反馈 | 未持久化 | 输入/历史/契约事实（爱心宽高、五角星外接圆半径）/计划标签/错误测量：有证据；system 提示词、运行时逐文件哈希、规则版本：`unverified` |
 | C26（正向对照） | `生成一个大写字母A的轮廓，高3米宽2米` | straight_capital_a | 计划标签均为 `大写字母A`（外轮廓/三角空隙/横笔）；字母 A 规则**正确选中并触发** | 结构/几何验收：attempt 1 `大写A的三角区域须属于同一笔画结构，不能用游离三角形代替`；attempt 2 `大写A底部须保留分离的左右支脚`；attempt 3 `assertion_failed`（尺寸 1.44×3 vs 2×3） | 正确命中：`straight_capital_a`（游离三角形 / 左右支脚检查）；**version=unverified** | 否：正文无编号串 | 无跨案污染；同案自反馈 | 未持久化 | 输入/历史/契约事实/计划标签/三轮错误：有证据；system 提示词、运行时逐文件哈希、规则版本：`unverified` |
 
-**对照判读**：C26 证明字母 A 规则本身能在真实字母 A 上被触发；A1/A9/C10 的误触发不是规则"没跑"，而是**不该进字母 A 检查器的轮廓进了检查器**。当前代码回放（本地回放，非真实运行）结果：A1/A9 → `heart_outline_features`，C10 → `[]`（双对象不映射单一 profile），C26 → `straight_capital_a`。
+**对照判读**：C26 证明字母 A 规则本身能在真实字母 A 上被触发；A1/A9/C10 的误触发不是规则"没跑"，而是**不该进字母 A 检查器的轮廓进了检查器**。两套快照本地回放（回放，非真实运行）：pre-fix（A 树快照，模块哈希 `423ed2ff…`）A1/A9/C10 → `heart_outline_features`、C26 → `straight_capital_a`；post-fix（当前后端，模块哈希 `164a7d89…`）A1/A9 → `heart_outline_features`、C10 → `[]`（双对象守卫收紧到 ≤1）、C26 → `straight_capital_a`。回放只证明选类层行为，不能反推运行时分派层。
 
 ## 3. 逐例调用链留痕
 
@@ -118,6 +118,7 @@
 | 失败类别 | 几何特征验收（爱心下方尖点未检出） | 规则选择/结构验收串扰（爱心轮廓误入字母 A 检查器）；首轮另有模型计划表达式问题 |
 | 项目读回 ID | `e089c984-dda0-4ad2-b84d-b6e008e2534c` | `47d6b245-7c58-4bab-bc04-2842f443f902` |
 | 状态 | `failed`，未持久化候选 | `failed`，`has_candidate=False`，`app=not_run` |
+| 是否发现可证明大写 A 误识别的证据 | **无**：失败为爱心几何尖点，无字母 A 报错记录 | **有（落盘验收报错签名）**：字母 A 上部三角区检查 `observed_triangular_regions=[]`；选类层来源归因 `unverified`（详见 §8.5） |
 
 **并列结论**：两条记录输入文本与哈希相同，但代码快照、harness、请求规模、失败现象与失败类别均不同；**不得合成同一根因，不得用一条结论覆盖另一条**。记录①的爱心尖点几何问题与记录②的规则选择串扰是两类独立缺陷。
 
@@ -139,15 +140,60 @@
   6. 复盘运行 Python 版本；
   7. 修复前副本与运行时模块是否逐字节相同。
 
-## 8. 待 A 报告交叉核对项（预留）
+## 8. 交叉核对 A 结论（D 独立复核，有异议并列，不和稀泥）
 
-主控转来 A 的代码级定位报告后，本轮独立复核三点：
+### 8.1 复核范围与方法
 
-1. A 指出的代码行是否在四例中**真的被执行到**（对照落盘错误签名与计划标签）；
-2. A 所述匹配跨度 / 规则命中是否与本轮抓取的来源文本、正则分支一致；
-3. A 的"首次错误层"结论有无异议——A9 最早一层是表达式校验，语义误触发在后续 attempt，两层需分开记账。
+- A 报告：`A_P0_语义污染定位.md`，A 树 commit `91ff8fe`；其快照验收模块哈希 `423ed2ff4d23d2090921c19542e2e8d9c8dcfecb49b196e3e619eb543c3a1d09`（23,960 B，pre-fix）。
+- D 在两套快照上独立跑纯函数规则回放（无模型、无网络、无新请求）：pre-fix = A 树只读工作树；post-fix = 当前后端（模块哈希 `164a7d89e204d116275e31c50b8d55197f26ba620034954327b9fa9de7345c32`，24,540 B）。
+- 回放输入取落盘账本来源文本；回放只证明规则函数当前行为，**不证明运行时快照行为**。
+- A 探针 trace 字段止于 `sidecar_shadow`（`entry_normalization / local_creation_objects / regex_matches / requirement_contract / semantic_requirements / parameterize_design / sidecar_shadow`），**不含分派（dispatch）与验收可达性回放**。
 
-有异议将并列写出，不做和稀处理。
+### 8.2 逐条核对
+
+| # | A 的结论 | D 复核判定 | 证据与说明 |
+|---|---|---|---|
+| 1 | 选类层：A1/A9/C10 → `heart_outline_features`，C26 → `straight_capital_a`；爱心未在选类层被判成字母 A | **同意（限 pre-fix 快照）** | D 独立回放 pre-fix 与 A 取值完全一致：A1/A9/C10 heart、C26 letter。**快照差异注明**：post-fix 回放 C10 → `[]`（爱心对象数守卫由 ≤2 收紧到 ≤1）；A 表中"C10 = heart"是 pre-fix 行为，不能外推到 post-fix。 |
+| 2 | 代码行角色：`:42` 爱心正则；`:173` cardioid 分支；`:275-319` 字母 A 几何检查 | **同意，行号角色属实** | 逐行 Read 核验（A 快照）：`:42` `re.search(r'爱心\|心形', text)` + 对象数 ≤2 守卫；`:173` `re.search(r'cardioid\|心形线', original)`；`:253` `kind=requirements[0]['kind']`；`:254` 仅分流 `triangle_roof_house`；`:275 else:` 起字母 A 检查（上部三角 `:290-294`、分离双支脚 `:312-317`、收拢斜笔 `:318-319`）。 |
+| 3 | L8：按当前 kind 分派；**"爱心文本不进入字母 A 几何检查"**；规则不跨请求继承 | **异议（不同意 L8 前半句）** | A 自身快照代码与该结论矛盾：`:254` 只分流房子，`:275 else:` 兜底会让 `heart_outline_features` kind 穿透进入字母 A 几何检查器；`:199` 爱心特征检查通过后**不提前 return**，继续落到 `:253` 分派。A 探针未回放分派/验收可达性，L8 属未经验证的代码阅读结论。落盘真实运行的字母 A 报错（`:292` require 消息"大写A缺少由两斜笔与横笔围成的上部三角区域"，`observed_triangular_regions=[]`）与该 `else` 兜底行为吻合。"规则不跨请求继承"一句：D 侧落盘证据同样未发现旧标签复用，此项同意。 |
+| 4 | 上下文 / 多轮污染、对象绑定错误、验收规则跨请求继承错误，均被证据排除 | **部分同意** | 同意：D 侧落盘扫描未发现 case_id 进入模型可见正文，143 个唯一请求 ID 无跨案复用（`contamination=[]`）；C10 双对象无尺寸事实、绑定歧义拒绝。保留：A 对"验收规则继承错误被排除"的论证止于选类层与静态阅读，分派层 `else` 兜底（见 #3）未被其回放覆盖。 |
+| 5 | 唯一实测规则层重叠：C19 `心形线（cardioid）` 被爱心子串 `心形` 先命中；是否误验收待验证 | **同意选类层重叠；验收定性补记** | 两套快照回放 C19 均 → `heart_outline_features`。**选类标签重叠真实存在**：落盘 C19 首轮澄清话术按爱心走（"还缺少生成候选方案所需的：爱心轮廓宽度和高度"），有选类层实害表现。**是否造成错误几何验收：`unverified`**。验收流顺序 cardioid `:173` 先于爱心 `:199`；cardioid 判过在 `:196` 提前 return，heart kind 分派不可达；cardioid 判败则抛 cardioid 错误。未跑几何回放前不下定论；当前口径偏"标签近似、验收层被 cardioid 分支先行拦截"。补充风险：pre-fix `else` 兜底下，若 cardioid 未拦截，heart kind 仍会落入字母检查器（与 P0 三例同一机制）。 |
+| 6 | 语料 A9 在 A 仓库内无运行记录；"大写 A 验收错误"标 `unverified` | **范围分歧，并列保留** | A 的"无记录"仅适用于其 A 树仓库快照。D 侧在 persisted 70 例运行目录找到四例完整落盘（请求体/历史/计划标签/验收测量/用量），其中 A1/A9/C10 含字母 A 上部三角区报错签名（`observed_triangular_regions=[]`）。两处证据范围不同，互不覆盖；运行时逐文件哈希在两侧均 `unverified`。 |
+
+### 8.3 两套快照选类回放对照（本地回放，非真实运行）
+
+| case_id | 期望语义 | pre-fix（`423ed2ff…`） | post-fix（`164a7d89…`） | 与期望一致（pre-fix） |
+|---|---|---|---|---|
+| A1 | heart | `heart_outline_features` | `heart_outline_features` | 是 |
+| A9 | heart | `heart_outline_features` | `heart_outline_features` | 是 |
+| C10 | heart + star 双对象 | `heart_outline_features` | `[]` | 选类层未判字母 A；双对象未映射单一 profile |
+| C26 | 大写字母 A | `straight_capital_a` | `straight_capital_a` | 是（正向对照） |
+| C19（重叠对照，非 P0 四例） | cardioid | `heart_outline_features` | `heart_outline_features` | 子串重叠，两套快照均复现 |
+
+混合两轮文本回放（pre-fix / post-fix 一致）：`heart_then_A`、`A_then_heart` 均命中 `heart_outline_features`——爱心正则在顺序上先于字母 A 正则，同段文本含两个形状词面时爱心子串占先。该结果为回放观察，未对应真实运行。
+
+### 8.4 P0 前提的 D 独立判断
+
+1. **选类层**：当前 post-fix 代码与 pre-fix 代码的选类函数上，都复现不出"爱心文本被规则识别为大写字母 A"。**P0 前提（爱心在文本规则层被误判为字母 A）未被当前代码证据支持**。
+2. **分派层**：pre-fix `else` 兜底会把 heart kind 放入字母 A 几何检查器；落盘字母 A 报错签名与该机制吻合。但运行时快照逐字节哈希 `unverified`，"运行时确实走了该 `else` 分支"为与保留副本及报错签名一致的高置信推断，非文件级证实。
+3. **模型侧**：模型计划几何 / 自报标签是否影响门禁，本轮零模型调用无法复核，记 `unverified`，不据最终报错反推中间过程。
+4. **口径结论**：若问题确实存在，可定位到的代码侧嫌疑是 **pre-fix 分派层兜底**（结构有代码证据）；归因到模型侧、另一未留存快照或选类层误识别，目前均 `unverified`。A 报告"后端规则链内未找到爱心→字母 A 的第一次错误分类层"在**选类层**成立；其 L8"爱心不进字母检查器"在分派层与其自身快照代码矛盾，D 不同意该句。
+
+### 8.5 两条 A9 并列（新增：大写 A 误识别证据列）
+
+| 对照项 | 记录① 第四轮独立真实评测 A9 | 记录② 70 例语料 A9 |
+|---|---|---|
+| 输入哈希 | `af12df04393e1da…89707d5b` | 同左（逐字相同） |
+| 代码快照 | 基线组合树 `f89bf41…`；D 工作树 `4ad73eb…`；逐文件哈希 `unverified` | 聚合 digest `08eae81a…`；保留 pre-fix 验收副本 `423ED2FF…`；逐文件哈希 `unverified` |
+| 请求记录 | 2 次真实 `deepseek-flash`，usage/费用有落盘 | 6 条 usage、结构化调用 3 次；费用归第七轮账本 |
+| 运行环境 | 隔离评测进程；Python 版本 `unverified` | harness 经启动器执行；Python 版本 `unverified` |
+| 语义规则版本 | `unverified`（以文件哈希 + 行区间标识） | `unverified` |
+| 失败现象 | 爱心几何：`heart_bilateral_lobes_notch_and_lower_tip`，`lower_tip=false` | attempt 1 参数表达式非法；attempt 2/3 命中字母 A 上部三角区检查 |
+| **是否发现可证明大写 A 误识别的证据** | **无**：失败检查为爱心几何特征，无字母 A 验收报错记录 | **有（落盘验收报错签名）**：`required_relation=triangle_tip_above_horizontal_base`、`observed_triangular_regions=[]`；选类层来源归因与运行时逐文件哈希 `unverified` |
+| 项目读回 ID | `e089c984-…2534c` | `47d6b245-…443f902` |
+| 状态 | `failed`，未持久化候选 | `failed`，`has_candidate=False`，`app=not_run` |
+
+**并列结论**：同一输入文本、相同输入哈希，但代码快照、harness、请求规模、失败现象、失败类别均不同；**不得合成同一根因，不得用一条结论覆盖另一条**。记录①是爱心尖点几何问题，记录②是分派/验收串扰线索，两类独立缺陷。
 
 ## 9. 纪律复核
 

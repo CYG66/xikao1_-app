@@ -127,6 +127,68 @@ def test_gate_rejects_loop_composite_path() -> None:
     assert any(c["kind"] == "self" for c in contacts)
 
 
+def _offset_arches(gap: float) -> list[dict]:
+    """Two convex arches whose hulls overlap but bodies stay separated.
+
+    The vertical gap sits outside the proximity band; with an adequate
+    search budget the pair resolves clear, while a deliberately truncated
+    budget exhausts inside the uncertain band and must report unresolved.
+    """
+    return [
+        _bez([(0, 0), (0, 1), (1, 1), (1, 0)]),
+        _line((1, 0), (1, gap)),
+        _bez([(1, gap), (1, 1 + gap), (0, 1 + gap), (0, gap)]),
+    ]
+
+
+def test_full_budget_resolves_separated_arches_as_clear() -> None:
+    report = safety.analyze_composite_segments(
+        _offset_arches(5e-3), tolerance=1e-6)
+    assert report.contacts == []
+    assert report.unresolved is False
+
+
+def test_budget_exhaustion_flags_unresolved(monkeypatch) -> None:
+    # Deterministic truncation: shrink the per-search node budget so the
+    # search exhausts inside the uncertain band.  This does not depend on
+    # wall-clock timeout.
+    monkeypatch.setattr(safety, "NODE_BUDGET_CAP", 5)
+    report = safety.analyze_composite_segments(
+        _offset_arches(5e-3), tolerance=1e-6)
+    assert report.unresolved is True
+    assert report.contacts == []
+
+
+def test_gate_rejects_unresolved_topology(monkeypatch) -> None:
+    import pytest
+
+    from app.cad_construction import (
+        ConstructionPlanError,
+        execute_construction_plan,
+    )
+
+    monkeypatch.setattr(safety, "NODE_BUDGET_CAP", 5)
+    plan = {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [{
+            "step_id": "b11-unresolved",
+            "op": "add_composite_path",
+            "output_ref": "b11-unresolved.path",
+            "semantic": {"label": "unresolved probe"},
+            "allow_self_intersection": False,
+            "segments": _offset_arches(5e-3),
+        }],
+    }
+    with pytest.raises(ConstructionPlanError) as caught:
+        execute_construction_plan(plan)
+    details = caught.value.details or {}
+    assert caught.value.code == "self_intersecting_composite_path"
+    assert details["failure_scope"] == "unresolved_topology"
+    assert details["escalation"] == "replan_or_human_review"
+    assert details["unresolved_topology"] is True
+
+
 def test_arc_chord_height_bound_monotonic_and_quadratic() -> None:
     radius, angle = 100.0, 90.0
     heights = [safety.arc_chord_height(radius, angle, n) for n in (1, 2, 4, 8)]

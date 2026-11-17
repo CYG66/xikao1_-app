@@ -1,0 +1,84 @@
+{
+  "round": 4,
+  "schema": "cad.d1.round4.budget-ledger.v1",
+  "status": "precheck_blocked_no_request_sent",
+  "baseline_commit": "f89bf41facfb7032cbb9647250cff6bbdcc6bbb7",
+  "baseline_description": "A1.1 ea8323a + B1.2 d7e00bd + C1.2 49d48de combo",
+  "real_model_calls": 0,
+  "history": {
+    "rounds_1_to_3_real_model_calls": 0,
+    "rounds_1_to_3_cost_usd": 0.0,
+    "note": "First three rounds ran deterministic rules and Mock-only service tests; no live model request was issued. This ledger starts spend from zero."
+  },
+  "hard_limits": {
+    "max_cases": 5,
+    "max_requests": 30,
+    "max_input_tokens": 300000,
+    "max_output_tokens": 60000,
+    "max_cost_usd": 1.00
+  },
+  "price_snapshot": {
+    "source_url": "https://api-docs.deepseek.com/quick_start/pricing",
+    "changelog_url": "https://api-docs.deepseek.com/updates/",
+    "fetched_local": "2026-11-17T16:16:43+08:00",
+    "fetched_utc": "2026-11-17T08:16:43Z",
+    "model_version": "DeepSeek-V4.1-Flash-1017",
+    "model_name": "deepseek-flash",
+    "prices_per_1m_tokens": {
+      "input_cache_hit_off_peak_usd": 0.003,
+      "input_cache_hit_peak_usd": 0.006,
+      "input_cache_miss_off_peak_usd": 0.15,
+      "input_cache_miss_peak_usd": 0.30,
+      "output_off_peak_usd": 0.60,
+      "output_peak_usd": 1.20
+    },
+    "peak_hours_utc": "Mon-Fri 01:00-04:00 and 06:00-10:00, excluding Chinese public holidays; all other hours off-peak.",
+    "task_assumed_rates": {
+      "input_cache_miss_usd_per_1m": 0.14,
+      "output_usd_per_1m": 0.28,
+      "match_official": false,
+      "discrepancy": "Official current Flash cache-miss input is 0.15 off-peak / 0.30 peak; output 0.60 off-peak / 1.20 peak. The assumed 0.14 / 0.28 rates cannot be confirmed against the official page."
+    },
+    "alias_status": {
+      "configured_model_in_config_file": "deepseek-chat",
+      "official_current_model_names": ["deepseek-flash", "deepseek-v4-pro"],
+      "accepted_legacy_names_listed": ["deepseek-v4-flash", "deepseek-v4-flash-vision-exp"],
+      "deepseek_chat_retirement_note": "The 2026-04-24 changelog states deepseek-chat / deepseek-reasoner would be retired after 2026-07-24 15:59 UTC; the current pricing and first-call pages do not list deepseek-chat as an accepted name. Routing of deepseek-chat to Flash cannot be confirmed from current docs."
+    }
+  },
+  "worst_case_reserve": {
+    "method": "Per request: max possible input tokens x input price + planned max output tokens x output price; peak prices used as worst case. Cumulative reserve is recomputed against remaining token and cost budgets before every request.",
+    "assumed_max_input_tokens_per_request": 10000,
+    "assumed_max_output_tokens_per_request": 8192,
+    "output_token_budget_binds_first": "At 8192 max output tokens, the 60000 output-token cap allows at most 7 requests before the output guard stops the run.",
+    "per_request_peak_usd": {
+      "input": 0.003000,
+      "output": 0.009830,
+      "total": 0.012830
+    },
+    "per_request_off_peak_usd": {
+      "input": 0.001500,
+      "output": 0.004915,
+      "total": 0.006415
+    },
+    "thirty_request_peak_usd_ceiling": 0.384912,
+    "reserve_caveat": "The 30-request ceiling is arithmetic only; the output-token guard and any real usage always bind earlier. Fees must be settled from real provider usage; missing usage, uncertain pricing, timeout or unknown status stops the run without retry."
+  },
+  "requests": [],
+  "cases": [],
+  "totals": {
+    "requests": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_hit_input_tokens": 0,
+    "cost_usd": 0.0
+  },
+  "stop_conditions": {
+    "max_cost_usd_reached": false,
+    "max_cases_reached": false,
+    "max_requests_reached": false,
+    "token_budget_reached": false,
+    "blocking_reason": "Price/alias precheck failed closed; no first request authorized."
+  },
+  "redaction": "Raw response logs are written only in the isolated round4 directory; Authorization headers and API keys are replaced before serialization. No key fragment is stored in this ledger, reports or git history."
+}

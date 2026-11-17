@@ -1,0 +1,233 @@
+{
+  "fixture_kind": "reconstructed_fixture",
+  "disclaimer": "重建夹具，不是原始响应正文。本文件由第四轮已保存的解析后计划 （plan）与后端验收记录重建，不包含、也不伪装为模型原始响应正文；不得作为原始响应证据使用。",
+  "source_evidence": {
+    "case_id": "A9",
+    "original_input": "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米",
+    "input_sha256": "af12df04393e1da42acd9eae6e590f81fa8c66a4720c546c9d292fef89707d5b",
+    "source_case_record": "round4/A9_case_record.json",
+    "source_raw_responses": "round4/A9_raw_responses.jsonl",
+    "model": "deepseek-flash",
+    "request_count": 2
+  },
+  "raw_responses_permanent_note": {
+    "existing_raw_file": "round4/A9_raw_responses.jsonl",
+    "existing_raw_lines": 2,
+    "existing_raw_bytes": 749,
+    "scope": "现有 raw_responses 仅保存响应侧元数据：request_id、model、finish_reason、usage；未保存请求 payload 与响应正文内容。",
+    "collector_effective": "新隔离采集器只对下一次真实评测生效，不回填本文件。"
+  },
+  "recovery": {
+    "schema": "cad.generation-recovery.v1",
+    "source_sha256": "af12df04393e1da42acd9eae6e590f81fa8c66a4720c546c9d292fef89707d5b",
+    "max_repairs": 2,
+    "repair_count": 1,
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "invalid",
+        "confidence": 0.92,
+        "category": "model_plan_invalid",
+        "error": {
+          "schema": "cad.construction-error.v1",
+          "code": "structure_requirement_failed",
+          "message": "爱心缺少双侧上凸、中央凹口或下方尖点",
+          "details": {
+            "authority": "backend_measured_geometry",
+            "check": "heart_bilateral_lobes_notch_and_lower_tip",
+            "geometry_id": 1,
+            "measured_features": {
+              "center_notch": true,
+              "left_upper_lobe": true,
+              "right_upper_lobe": true,
+              "lower_tip": false
+            },
+            "failed_features": [
+              "lower_tip"
+            ],
+            "normalization": "x/y normalized independently to measured bounds [0,1]",
+            "repair_instruction": "修复失败的上方双峰、中央凹口或下方中心尖点；仅改变曲线参数区间不会改变完整周期的几何形态。保留尺寸与中心布局。",
+            "affected_output_refs": [
+              "heart.outline"
+            ]
+          }
+        },
+        "plan": {
+          "schema_version": "cad.construction-plan.v1",
+          "units": "m",
+          "project_id": null,
+          "source_version": null,
+          "steps": [
+            {
+              "step_id": "heart.outline",
+              "output_ref": "heart.outline",
+              "layer_id": 1,
+              "semantic": {
+                "assembly_id": "heart",
+                "assembly_label": "爱心",
+                "object_id": "heart.outline",
+                "object_type": "closed_outline",
+                "label": "爱心平滑闭合外轮廓",
+                "role": "outer_boundary"
+              },
+              "op": "add_parametric_curve",
+              "x_expression": "2+2*sin(t)",
+              "y_expression": "3+2*cos(t)+2*sqrt(abs(sin(t)))*cos(t)",
+              "t_start": "0",
+              "t_end": "2*pi",
+              "max_sampling_error": 0.001,
+              "closed": true
+            }
+          ],
+          "constraints": [],
+          "constraint_backend": "auto",
+          "assertions": [
+            {
+              "kind": "closed",
+              "assertion_id": "heart.closed",
+              "target_ref": "heart.outline"
+            },
+            {
+              "kind": "bounds_size",
+              "assertion_id": "explicit-outline-size",
+              "target_ref": "heart.outline",
+              "width": 4.0,
+              "height": 4.0,
+              "tolerance": 0.001
+            }
+          ],
+          "budgets": {
+            "max_steps": 100,
+            "max_entities": 500
+          },
+          "free_outline_layout": [
+            {
+              "target_ref": "heart.outline",
+              "width": 4.0,
+              "height": 4.0,
+              "right_of_ref": null,
+              "gap": 0.0,
+              "gap_reference": "edge",
+              "center": {
+                "x": 2.0,
+                "y": 3.0
+              }
+            }
+          ]
+        },
+        "plan_sha256": "7295796f969d935c4e7d96d2246078dc07f7665000e4416f45f56c1699c4d391"
+      },
+      {
+        "attempt": 2,
+        "status": "invalid",
+        "confidence": 0.9,
+        "category": "model_plan_invalid",
+        "error": {
+          "schema": "cad.construction-error.v1",
+          "code": "structure_requirement_failed",
+          "message": "爱心缺少双侧上凸、中央凹口或下方尖点",
+          "details": {
+            "authority": "backend_measured_geometry",
+            "check": "heart_bilateral_lobes_notch_and_lower_tip",
+            "geometry_id": 1,
+            "measured_features": {
+              "center_notch": true,
+              "left_upper_lobe": true,
+              "right_upper_lobe": true,
+              "lower_tip": false
+            },
+            "failed_features": [
+              "lower_tip"
+            ],
+            "normalization": "x/y normalized independently to measured bounds [0,1]",
+            "repair_instruction": "修复失败的上方双峰、中央凹口或下方中心尖点；仅改变曲线参数区间不会改变完整周期的几何形态。保留尺寸与中心布局。",
+            "affected_output_refs": [
+              "heart.outline"
+            ]
+          }
+        },
+        "plan": {
+          "schema_version": "cad.construction-plan.v1",
+          "units": "m",
+          "project_id": null,
+          "source_version": null,
+          "steps": [
+            {
+              "step_id": "heart.outline",
+              "output_ref": "heart.outline",
+              "layer_id": 1,
+              "semantic": {
+                "assembly_id": "heart",
+                "assembly_label": "爱心",
+                "object_id": "heart.outline",
+                "object_type": "closed_outline",
+                "label": "爱心平滑闭合外轮廓",
+                "role": "outer_boundary"
+              },
+              "op": "add_parametric_curve",
+              "x_expression": "2+2*sin(t)",
+              "y_expression": "3+2*cos(t)+2*sqrt(abs(sin(t)))*cos(t)",
+              "t_start": "-pi",
+              "t_end": "pi",
+              "max_sampling_error": 0.001,
+              "closed": true
+            }
+          ],
+          "constraints": [],
+          "constraint_backend": "auto",
+          "assertions": [
+            {
+              "kind": "closed",
+              "assertion_id": "heart.closed",
+              "target_ref": "heart.outline"
+            },
+            {
+              "kind": "bounds_size",
+              "assertion_id": "explicit-outline-size",
+              "target_ref": "heart.outline",
+              "width": 4.0,
+              "height": 4.0,
+              "tolerance": 0.001
+            }
+          ],
+          "budgets": {
+            "max_steps": 100,
+            "max_entities": 500
+          },
+          "free_outline_layout": [
+            {
+              "target_ref": "heart.outline",
+              "width": 4.0,
+              "height": 4.0,
+              "right_of_ref": null,
+              "gap": 0.0,
+              "gap_reference": "edge",
+              "center": {
+                "x": 2.0,
+                "y": 3.0
+              }
+            }
+          ]
+        },
+        "plan_sha256": "ecefd2337942536fcc010518c36f86294f3e6110eb3e47af40f6d06e8dac6cba",
+        "changed_plan_fields": [
+          "steps"
+        ],
+        "step_diff": {
+          "added_refs": [],
+          "removed_refs": [],
+          "modified_refs": [
+            "heart.outline"
+          ],
+          "unchanged_refs": [],
+          "comparison": "exact_plan_steps_not_geometric_equivalence"
+        }
+      }
+    ]
+  },
+  "reconstruction_provenance": {
+    "built_at_utc": "2026-11-17T10:41:38+00:00",
+    "builder": "probes/d1_round5_build_fixture.py",
+    "note": "解析后计划与后端验收特征来自冻结案例记录；重建过程不触网、不调用模型。"
+  }
+}

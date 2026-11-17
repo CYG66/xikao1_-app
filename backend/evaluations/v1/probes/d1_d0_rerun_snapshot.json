@@ -1,0 +1,948 @@
+{
+  "schema": "cad.d1.baseline-snapshot.v1",
+  "generated_at": "2026-11-17T06:05:16.728103+00:00",
+  "round": "D1-1 frozen baseline forensics + failure classification skeleton",
+  "label": "D0-a4f2af7-rerun",
+  "target_backend": "C:\\Users\\29924\\Codes\\xikao1_-app\\backend",
+  "git": {
+    "head_sha": "a4f2af7bbfe86509c7a900adbd6b366e12f598a5",
+    "branch": "v1/d0-baseline",
+    "status_short": "",
+    "claimed_target_ref": "a4f2af7"
+  },
+  "environment": {
+    "python_executable": "C:\\Users\\29924\\Softwares\\miniconda\\envs\\xikao\\python.exe",
+    "versions": {
+      "python": "3.11.18",
+      "pytest": "9.2.0",
+      "httpx": "0.28.1",
+      "fastapi": "0.116.1",
+      "pydantic": "2.11.7",
+      "shapely": "2.2.0",
+      "ezdxf": "1.4.2",
+      "numpy": "2.4.6",
+      "scipy": "1.17.1"
+    },
+    "guard": {
+      "forced_provider": "local",
+      "stripped_keys": {
+        "DEEPSEEK_API_KEY": "absent",
+        "OPENAI_API_KEY": "absent",
+        "ARK_API_KEY": "absent",
+        "MODEL_API_KEY": "absent"
+      },
+      "deepseek_key_present": false,
+      "openai_key_present": false
+    }
+  },
+  "guards": {
+    "live_model_calls": 0,
+    "project_or_candidate_writes": false,
+    "production_code_modified": false,
+    "d0_assets_regenerated": false
+  },
+  "suites": [
+    {
+      "suite_id": "S1-requirement-contract",
+      "d0_ref": "D0 audit report 6.1 / 11.1; H2 requirement contract",
+      "module": "tests/test_cad_requirement_contract.py",
+      "command": "C:\\Users\\29924\\Softwares\\miniconda\\envs\\xikao\\python.exe -m pytest tests/test_cad_requirement_contract.py -q --disable-warnings --junitxml=C:\\Users\\29924\\AppData\\Local\\Temp\\d1_pytest_uwc_9b6a\\d1_suite_1.xml",
+      "exit_code": 0,
+      "wall_elapsed_ms": 4890.9,
+      "stdout_tail": [
+        ".......                                                                  [100%]",
+        "7 passed in 4.10s"
+      ],
+      "stderr_tail": [],
+      "counts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "collection_blocked": 0,
+        "environment_blocked": 0,
+        "not_run": 0,
+        "logic_failure": 0,
+        "error_mapping_failure": 0
+      },
+      "pytest_time_s": 4.029,
+      "classification": {
+        "passed": 7
+      },
+      "cases": [
+        {
+          "node": "tests.test_cad_requirement_contract::test_scoped_updates_preserve_other_part_and_exact_source_evidence",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_requirement_contract::test_unscoped_and_nested_dimensions_never_become_global",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_requirement_contract::test_bounds_conflicts_stop_before_model_and_consistent_bounds_do_not_conflict",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_requirement_contract::test_model_assumptions_cannot_override_user_contract_and_restart_is_stable",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_requirement_contract::test_later_subject_declarations_do_not_change_prior_fact_scope",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_requirement_contract::test_negative_dimensions_and_examples_do_not_become_active_user_values",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_requirement_contract::test_effective_contract_survives_project_store_reload",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "suite_id": "S2-plan-component-repair",
+      "d0_ref": "D0 audit report 6.1 / 11.1; A1 constraint inheritance",
+      "module": "tests/test_cad_plan_component_repair.py",
+      "command": "C:\\Users\\29924\\Softwares\\miniconda\\envs\\xikao\\python.exe -m pytest tests/test_cad_plan_component_repair.py -q --disable-warnings --junitxml=C:\\Users\\29924\\AppData\\Local\\Temp\\d1_pytest_uwc_9b6a\\d1_suite_2.xml",
+      "exit_code": 0,
+      "wall_elapsed_ms": 1196.8,
+      "stdout_tail": [
+        "....                                                                     [100%]",
+        "4 passed in 0.58s"
+      ],
+      "stderr_tail": [],
+      "counts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "collection_blocked": 0,
+        "environment_blocked": 0,
+        "not_run": 0,
+        "logic_failure": 0,
+        "error_mapping_failure": 0
+      },
+      "pytest_time_s": 0.502,
+      "classification": {
+        "passed": 4
+      },
+      "cases": [
+        {
+          "node": "tests.test_cad_plan_component_repair::test_identity_repair_cannot_change_geometry_or_assembly",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_plan_component_repair::test_executor_exposes_only_conflicting_step_refs_for_identity_repair",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_plan_component_repair::test_only_failed_assertion_can_change_with_affected_component",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_plan_component_repair::test_partial_repair_preserves_other_component_and_layout",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "suite_id": "S3-final-source-contract",
+      "d0_ref": "D0 audit report 6.1 / 11.1; H3 final source contract",
+      "module": "tests/test_cad_final_source_contract.py",
+      "command": "C:\\Users\\29924\\Softwares\\miniconda\\envs\\xikao\\python.exe -m pytest tests/test_cad_final_source_contract.py -q --disable-warnings --junitxml=C:\\Users\\29924\\AppData\\Local\\Temp\\d1_pytest_uwc_9b6a\\d1_suite_3.xml",
+      "exit_code": 0,
+      "wall_elapsed_ms": 1122.9,
+      "stdout_tail": [
+        ".....                                                                    [100%]",
+        "5 passed in 0.51s"
+      ],
+      "stderr_tail": [],
+      "counts": {
+        "tests": 5,
+        "passed": 5,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "collection_blocked": 0,
+        "environment_blocked": 0,
+        "not_run": 0,
+        "logic_failure": 0,
+        "error_mapping_failure": 0
+      },
+      "pytest_time_s": 0.435,
+      "classification": {
+        "passed": 5
+      },
+      "cases": [
+        {
+          "node": "tests.test_cad_final_source_contract::test_center_is_measured_not_taken_from_model",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_final_source_contract::test_overall_size_includes_all_printing_parts_but_not_annotations",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_final_source_contract::test_upper_bound_not_equality_and_local_size_not_whole_size",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_final_source_contract::test_spline_degree_never_inferred_from_shape_name",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_final_source_contract::test_named_component_radius_is_bound_only_to_verified_logical_ids",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "suite_id": "S4-construction-interpreter",
+      "d0_ref": "D0 audit report 6.1 / 11.1; construction interpreter rule path",
+      "module": "tests/test_cad_construction_interpreter.py",
+      "command": "C:\\Users\\29924\\Softwares\\miniconda\\envs\\xikao\\python.exe -m pytest tests/test_cad_construction_interpreter.py -q --disable-warnings --junitxml=C:\\Users\\29924\\AppData\\Local\\Temp\\d1_pytest_uwc_9b6a\\d1_suite_4.xml",
+      "exit_code": 0,
+      "wall_elapsed_ms": 18733.4,
+      "stdout_tail": [
+        "........................................................................ [ 97%]",
+        "..                                                                       [100%]",
+        "74 passed in 17.81s"
+      ],
+      "stderr_tail": [],
+      "counts": {
+        "tests": 74,
+        "passed": 74,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "collection_blocked": 0,
+        "environment_blocked": 0,
+        "not_run": 0,
+        "logic_failure": 0,
+        "error_mapping_failure": 0
+      },
+      "pytest_time_s": 17.809,
+      "classification": {
+        "passed": 74
+      },
+      "cases": [
+        {
+          "node": "tests.test_cad_construction_interpreter::test_constrained_arc_branch_is_solved_without_overriding_user_direction",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_center_binding_does_not_reuse_stale_size_from_previous_geometry",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_radial_source_can_correct_model_bounds_without_changing_geometry",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_contract_snapshot_keeps_coordinate_command_parseable",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_circle_radius_before_center_is_parseable_without_model_guessing",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_explicit_control_points_only_need_coordinate_units_before_model",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_spline_diagnostics_preserve_points_and_do_not_override_explicit_degree",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_explicit_star_structure_is_bound_independently_of_model_assertions",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_source_star_contract_rejects_circle_even_if_model_claims_success",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_periodic_outline_without_dimensions_never_calls_model",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_outline_contract_is_grounded_and_cannot_be_overridden_by_model",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_outline_contract_rejects_ambiguous_multi_output_binding",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_misplaced_assertions_are_preserved_without_overwriting_plan_assertions",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_semantic_object_id_alias_is_resolved_before_strict_plan_validation",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_named_component_radial_count_becomes_independent_assertion",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_named_radial_binding_never_reads_serialized_contract_snapshot",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_composition_contract_overrides_invalid_model_helper_bounds_before_validation",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_bad_fixed_radius_component_does_not_cancel_other_component_sizing",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_post_execution_composition_acceptance_resolves_parametric_preflight_review",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_zero_independent_acceptance_checks_can_never_pass",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_free_outline_fits_explicit_size_and_preserves_closed_topology[m-1]",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_free_outline_fits_explicit_size_and_preserves_closed_topology[mm-1000]",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_outline_size_repair_does_not_override_fixed_coordinates",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_free_outline_size_normalization_uses_same_safe_coordinate_evaluator_as_executor",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_free_outline_schema_keeps_existing_parametric_primitive_available",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_mathematical_curve_or_formula_does_not_inherit_polygonal_star_contract",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_scoped_layout_does_not_refit_fixed_coordinate_circle_or_rectangle",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_astroid_rejects_inapplicable_model_smoothness_only_after_independent_proof",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_failed_model_assertion_reports_independent_curve_failure_in_same_attempt",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_astroid_identity_rejects_diamond_circle_and_wrong_radius",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_parametric_free_outline_fits_size_without_replacing_formula_or_source",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_free_layout_is_applied_after_parametric_size_normalization",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_requested_radial_count_is_verified_from_geometry[5-ready]",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_requested_radial_count_is_verified_from_geometry[8-invalid]",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_vague_heart_request_gets_one_cad_specific_question",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_cad_clarification_prioritizes_shape_then_size",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_square_metres_are_a_complete_scale_constraint",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_path3_normalizes_one_closed_output_to_explicit_area",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_explicit_square_metres_are_converted_for_millimetre_plans",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_rules_construct_multiple_explicit_primitives",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_rules_parse_line_polyline_arc_and_ellipse",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_ellipse_and_arc_assertions_use_exact_axis_aligned_bounds",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_trial_failure_keeps_validated_plan_for_diagnostics",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_structured_model_polyline_vertex_count_is_not_treated_as_entity_count",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_incomplete_rule_request_requires_clarification_without_guessing",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_non_construction_text_does_not_create_geometry",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_rule_parser_uses_centered_rectangle_and_rotated_bounds",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_structured_model_plan_must_pass_grounding_and_trial_execution",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_structured_model_hallucinated_evidence_is_rejected",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_structured_model_invalid_plan_is_rejected_before_execution",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_low_confidence_grounded_plan_remains_rejected_after_diagnostic_trial",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_normalization_expands_mixed_units_and_connected_array_facts",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_normalization_expands_open_u_topology_and_symmetric_columns",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_model_receives_normalized_hints_but_evidence_stays_user_grounded",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_dangling_assertion_alias_is_repaired_once",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_group_entity_count_alias_expands_only_when_total_is_proven",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_constraint_aliases_are_normalized_and_self_reference_is_removed",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_group_alias_can_match_hierarchical_output_refs_when_count_is_exact",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_global_entity_count_alias_repairs_only_exact_static_total",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_wrong_single_target_assertions_are_repaired_only_from_exact_trial_facts",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_open_target_closed_assertion_is_removed_and_rotated_bounds_are_normalized",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_global_bounds_use_single_centered_frame_when_children_are_inside",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_named_entity_count_binds_only_the_proven_output_group",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_service_rule_hit_does_not_call_provider",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_forced_structured_model_bypasses_rule_parser_for_path3_benchmark",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_all_cloud_providers_share_construction_interpreter",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_experimental_construction_does_not_retry_provider_failure",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_experimental_construction_retries_unparseable_json_once",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_experimental_construction_stops_after_second_invalid_json",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_local_mode_stays_rule_only_for_complex_request",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_sketch_graph_schema_and_interpreter_return_two_ranked_candidates",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_sketch_graph_rejects_model_that_returns_only_one_candidate",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_sketch_graph_keeps_valid_candidate_when_another_fails_execution",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_cad_construction_interpreter::test_service_experimental_alternatives_uses_sketch_graph_schema",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        }
+      ]
+    },
+    {
+      "suite_id": "S5-candidate-visibility-gate",
+      "d0_ref": "D0 audit report 6.1 / 11.1; candidate visibility gate",
+      "module": "tests/test_candidate_visibility_gate.py",
+      "command": "C:\\Users\\29924\\Softwares\\miniconda\\envs\\xikao\\python.exe -m pytest tests/test_candidate_visibility_gate.py -q --disable-warnings --junitxml=C:\\Users\\29924\\AppData\\Local\\Temp\\d1_pytest_uwc_9b6a\\d1_suite_5.xml",
+      "exit_code": 0,
+      "wall_elapsed_ms": 4185.1,
+      "stdout_tail": [
+        ".......                                                                  [100%]",
+        "7 passed in 2.44s"
+      ],
+      "stderr_tail": [],
+      "counts": {
+        "tests": 7,
+        "passed": 7,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "collection_blocked": 0,
+        "environment_blocked": 0,
+        "not_run": 0,
+        "logic_failure": 0,
+        "error_mapping_failure": 0
+      },
+      "pytest_time_s": 2.35,
+      "classification": {
+        "passed": 7
+      },
+      "cases": [
+        {
+          "node": "tests.test_candidate_visibility_gate::test_reviewable_draft_uses_separate_bound_response",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_candidate_visibility_gate::test_candidate_is_visible_only_when_passed_and_bound_to_current_run",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_candidate_visibility_gate::test_candidate_with_review_required_acceptance_is_hidden",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_candidate_visibility_gate::test_candidate_from_another_project_is_hidden",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_candidate_visibility_gate::test_candidate_with_wrong_parent_variant_is_hidden",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_candidate_visibility_gate::test_candidate_missing_from_current_project_snapshot_is_hidden",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        },
+        {
+          "node": "tests.test_candidate_visibility_gate::test_stream_failure_never_falls_back_to_local_template_cad",
+          "outcome": "passed",
+          "failure_class": "passed",
+          "sub_class": "passed",
+          "message": ""
+        }
+      ]
+    }
+  ],
+  "collect_only": {
+    "command": "C:\\Users\\29924\\Softwares\\miniconda\\envs\\xikao\\python.exe -m pytest --collect-only -q --continue-on-collection-errors",
+    "exit_code": 1,
+    "wall_elapsed_ms": 7621.2,
+    "tests_collected": 1636,
+    "collection_errors": 8,
+    "blocked_modules": [
+      {
+        "failure_class": "collection_blocked",
+        "sub_class": "missing_manual_asset",
+        "exception": "ModuleNotFoundError",
+        "module": "tests/test_cad_acceptance_metrics.py",
+        "detail": "ModuleNotFoundError: No module named 'tests.manual'"
+      },
+      {
+        "failure_class": "collection_blocked",
+        "sub_class": "missing_manual_asset",
+        "exception": "ModuleNotFoundError",
+        "module": "tests/test_cad_corpus_audit.py",
+        "detail": "ModuleNotFoundError: No module named 'tests.manual'"
+      },
+      {
+        "failure_class": "collection_blocked",
+        "sub_class": "missing_manual_asset",
+        "exception": "FileNotFoundError",
+        "module": "tests/test_cad_history_replay.py",
+        "detail": "FileNotFoundError: [Errno 2] No such file or directory: 'C:\\\\Users\\\\29924\\\\Codes\\\\xikao1_-app\\\\backend\\\\tests\\\\manual\\\\replay_cad_history.py'"
+      },
+      {
+        "failure_class": "collection_blocked",
+        "sub_class": "missing_manual_asset",
+        "exception": "ModuleNotFoundError",
+        "module": "tests/test_cad_product_acceptance_runner.py",
+        "detail": "ModuleNotFoundError: No module named 'tests.manual'"
+      },
+      {
+        "failure_class": "collection_blocked",
+        "sub_class": "missing_manual_asset",
+        "exception": "FileNotFoundError",
+        "module": "tests/test_deepseek_flash_budget.py",
+        "detail": "FileNotFoundError: [Errno 2] No such file or directory: 'C:\\\\Users\\\\29924\\\\Codes\\\\xikao1_-app\\\\backend\\\\tests\\\\manual\\\\deepseek_flash_budget.py'"
+      },
+      {
+        "failure_class": "collection_blocked",
+        "sub_class": "missing_manual_asset",
+        "exception": "ModuleNotFoundError",
+        "module": "tests/test_p12_eval_budget.py",
+        "detail": "ModuleNotFoundError: No module named 'tests.manual'"
+      },
+      {
+        "failure_class": "collection_blocked",
+        "sub_class": "missing_manual_asset",
+        "exception": "ModuleNotFoundError",
+        "module": "tests/test_recorded_cad_repair_inputs.py",
+        "detail": "ModuleNotFoundError: No module named 'tests.manual'"
+      },
+      {
+        "failure_class": "collection_blocked",
+        "sub_class": "missing_manual_asset",
+        "exception": "ModuleNotFoundError",
+        "module": "tests/test_user_cad_corpus_runner.py",
+        "detail": "ModuleNotFoundError: No module named 'tests.manual'"
+      }
+    ]
+  },
+  "cases": null,
+  "snapshot_sha256": "5d27e32c48809b5919b34d931ce4da8b4c6ced53f0e22d424b801f921067fa32"
+}

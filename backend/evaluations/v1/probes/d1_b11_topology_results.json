@@ -1,0 +1,495 @@
+{
+  "d0_comparator": {
+    "backend": "C:\\Users\\29924\\Codes\\xikao1_-app\\backend",
+    "gate": {
+      "details": {
+        "affected_segment_indices": [
+          3,
+          28
+        ],
+        "conflicts": [
+          {
+            "edge_indices": [
+              3,
+              28
+            ],
+            "edges": [
+              [
+                {
+                  "x": 219.451904296875,
+                  "y": 254.8828125
+                },
+                {
+                  "x": 267.578125,
+                  "y": 328.125
+                }
+              ],
+              [
+                {
+                  "x": 232.421875,
+                  "y": 328.125
+                },
+                {
+                  "x": 280.548095703125,
+                  "y": 254.8828125
+                }
+              ]
+            ],
+            "expanded_segment_indices": [
+              0,
+              0
+            ]
+          }
+        ],
+        "coordinates": "plan.units",
+        "diagnostic_pair_limit": 16,
+        "failure_scope": "intersecting_segments_only",
+        "repair_instruction": "按conflicts定位相交或重复的原始段，修正端点、圆弧角度或段顺序；保留正确段和用户尺寸。不能增加采样点、关闭检查或重画无关部件来绕过检查。"
+      },
+      "error_code": "self_intersecting_composite_path",
+      "outcome": "rejected"
+    },
+    "head_sha": "a4f2af7bbfe86509c7a900adbd6b366e12f598a5",
+    "topology_module_present": false
+  },
+  "environment": {
+    "candidate_writes": 0,
+    "project_persistence": false,
+    "provider": "local",
+    "python": "C:\\Users\\29924\\Softwares\\miniconda\\envs\\xikao\\python.exe",
+    "real_model_calls": 0,
+    "stripped_keys": [
+      "DEEPSEEK_API_KEY",
+      "OPENAI_API_KEY",
+      "ARK_API_KEY",
+      "MODEL_API_KEY"
+    ]
+  },
+  "generated_at": "2026-11-17T06:21:50.880009+00:00",
+  "safety_judgement": {
+    "basis": "以 source_facts 中拒绝条件源码为准；unresolved 是否进入拒绝条件按源码判定。",
+    "critical_evidence": [
+      "本轮 T1 未在曲线级触发 unresolved；未解析情形由后续窄回环/预算耗尽用例补充。"
+    ],
+    "unresolved_blocks_rejection_in_gate": true
+  },
+  "scenarios": [
+    {
+      "analyzer": {
+        "contact_count": 1,
+        "contacts": [
+          {
+            "distance": 0.0,
+            "kind": "self",
+            "parameter_intervals": [
+              [
+                0.112701,
+                0.112709
+              ],
+              [
+                0.887291,
+                0.887299
+              ]
+            ],
+            "parameters": [
+              0.112705,
+              0.887295
+            ],
+            "points": [
+              {
+                "x": 250.0,
+                "y": 300.000000011
+              },
+              {
+                "x": 250.0,
+                "y": 300.000000011
+              }
+            ],
+            "segment_indices": [
+              0,
+              0
+            ]
+          }
+        ],
+        "kinds": [
+          "self"
+        ],
+        "min_distance": 0.0,
+        "module_present": true,
+        "unresolved": false
+      },
+      "expectation": "曲线级精化可能未收敛；记录 contacts / unresolved / 门控结果。",
+      "gate": {
+        "details": {
+          "affected_segment_indices": [
+            0,
+            3,
+            28
+          ],
+          "conflicts": [
+            {
+              "edge_indices": [
+                3,
+                28
+              ],
+              "edges": [
+                [
+                  {
+                    "x": 219.451904296875,
+                    "y": 254.8828125
+                  },
+                  {
+                    "x": 267.578125,
+                    "y": 328.125
+                  }
+                ],
+                [
+                  {
+                    "x": 232.421875,
+                    "y": 328.125
+                  },
+                  {
+                    "x": 280.548095703125,
+                    "y": 254.8828125
+                  }
+                ]
+              ],
+              "expanded_segment_indices": [
+                0,
+                0
+              ]
+            }
+          ],
+          "coordinates": "plan.units",
+          "curve_contacts": [
+            {
+              "distance": 0.0,
+              "kind": "self",
+              "parameter_intervals": [
+                [
+                  0.112701,
+                  0.112709
+                ],
+                [
+                  0.887291,
+                  0.887299
+                ]
+              ],
+              "parameters": [
+                0.112705,
+                0.887295
+              ],
+              "points": [
+                {
+                  "x": 250.0,
+                  "y": 300.000000011
+                },
+                {
+                  "x": 250.0,
+                  "y": 300.000000011
+                }
+              ],
+              "segment_indices": [
+                0,
+                0
+              ]
+            }
+          ],
+          "diagnostic_pair_limit": 16,
+          "failure_scope": "intersecting_segments_only",
+          "repair_instruction": "按conflicts定位相交或重复的原始段，修正端点、圆弧角度或段顺序；保留正确段和用户尺寸。不能增加采样点、关闭检查或重画无关部件来绕过检查。"
+        },
+        "error_code": "self_intersecting_composite_path",
+        "outcome": "rejected"
+      },
+      "id": "T1-narrow-large-scale-loop",
+      "name": "单段大尺度窄回环（自交 Bezier）"
+    },
+    {
+      "analyzer": {
+        "contact_count": 0,
+        "contacts": [],
+        "kinds": [],
+        "min_distance": null,
+        "module_present": true,
+        "unresolved": false
+      },
+      "expectation": "contacts=0, unresolved=False, 门控放行，不得误报。",
+      "gate": {
+        "outcome": "passed",
+        "quality": {
+          "c0": true,
+          "c1": false,
+          "closed": false,
+          "continuity_required": "C0",
+          "curve_contact_count": 0,
+          "curve_contacts": [],
+          "duplicate_segment_count": 0,
+          "effective_samples_per_curve": 32,
+          "failed_joint_count": 3,
+          "joint_count": 3,
+          "max_sampling_error": null,
+          "maximum_curvature": 0.971498515,
+          "maximum_sampling_error": 0.0,
+          "maximum_tangent_delta_deg": 90.0,
+          "output_ref": "T3-near-touch-negative.path",
+          "requested_samples_per_curve": 32,
+          "sampled_point_count": 5,
+          "schema": "cad.curve-quality.v1",
+          "self_intersection_count": 0,
+          "step_id": "T3-near-touch-negative",
+          "topology_unresolved": false,
+          "units": "per_plan_unit",
+          "verified": true
+        }
+      },
+      "id": "T3-near-touch-negative",
+      "name": "近切触阴性对照（间隙 > 邻近容差）"
+    },
+    {
+      "analyzer": {
+        "contact_count": 0,
+        "contacts": [],
+        "kinds": [],
+        "min_distance": null,
+        "module_present": true,
+        "unresolved": false
+      },
+      "expectation": "相邻对共享端点不计为接触；contacts=0, unresolved=False。",
+      "gate": {
+        "outcome": "passed",
+        "quality": {
+          "c0": true,
+          "c1": false,
+          "closed": false,
+          "continuity_required": "C0",
+          "curve_contact_count": 0,
+          "curve_contacts": [],
+          "duplicate_segment_count": 0,
+          "effective_samples_per_curve": 32,
+          "failed_joint_count": 2,
+          "joint_count": 2,
+          "max_sampling_error": null,
+          "maximum_curvature": 1.414213562,
+          "maximum_sampling_error": 0.0,
+          "maximum_tangent_delta_deg": 90.0,
+          "output_ref": "T4-shared-endpoint-adjacent.path",
+          "requested_samples_per_curve": 32,
+          "sampled_point_count": 4,
+          "schema": "cad.curve-quality.v1",
+          "self_intersection_count": 0,
+          "step_id": "T4-shared-endpoint-adjacent",
+          "topology_unresolved": false,
+          "units": "per_plan_unit",
+          "verified": true
+        }
+      },
+      "id": "T4-shared-endpoint-adjacent",
+      "name": "相邻段共享端点（端点接触不得误报）"
+    },
+    {
+      "analyzer": {
+        "contact_count": 0,
+        "contacts": [],
+        "kinds": [],
+        "min_distance": null,
+        "module_present": true,
+        "unresolved": false
+      },
+      "expectation": "contacts=0, unresolved=False。",
+      "gate": {
+        "outcome": "passed",
+        "quality": {
+          "c0": true,
+          "c1": true,
+          "closed": false,
+          "continuity_required": "C0",
+          "curve_contact_count": 0,
+          "curve_contacts": [],
+          "duplicate_segment_count": 0,
+          "effective_samples_per_curve": 32,
+          "failed_joint_count": 0,
+          "joint_count": 0,
+          "max_sampling_error": null,
+          "maximum_curvature": 6.657986126,
+          "maximum_sampling_error": 0.000292969,
+          "maximum_tangent_delta_deg": 0.0,
+          "output_ref": "T5a-clear-small-scale-cubic.path",
+          "requested_samples_per_curve": 32,
+          "sampled_point_count": 33,
+          "schema": "cad.curve-quality.v1",
+          "self_intersection_count": 0,
+          "step_id": "T5a-clear-small-scale-cubic",
+          "topology_unresolved": false,
+          "units": "per_plan_unit",
+          "verified": true
+        }
+      },
+      "id": "T5a-clear-small-scale-cubic",
+      "name": "小尺度平滑三次 Bezier（clear）"
+    },
+    {
+      "analyzer": {
+        "contact_count": 0,
+        "contacts": [],
+        "kinds": [],
+        "min_distance": null,
+        "module_present": true,
+        "unresolved": false
+      },
+      "expectation": "contacts=0, unresolved=False。",
+      "gate": {
+        "outcome": "passed",
+        "quality": {
+          "c0": true,
+          "c1": true,
+          "closed": false,
+          "continuity_required": "C0",
+          "curve_contact_count": 0,
+          "curve_contacts": [],
+          "duplicate_segment_count": 0,
+          "effective_samples_per_curve": 32,
+          "failed_joint_count": 0,
+          "joint_count": 0,
+          "max_sampling_error": null,
+          "maximum_curvature": 0.665798613,
+          "maximum_sampling_error": 0.002929686,
+          "maximum_tangent_delta_deg": 0.0,
+          "output_ref": "T5b-clear-large-scale-cubic.path",
+          "requested_samples_per_curve": 32,
+          "sampled_point_count": 33,
+          "schema": "cad.curve-quality.v1",
+          "self_intersection_count": 0,
+          "step_id": "T5b-clear-large-scale-cubic",
+          "topology_unresolved": false,
+          "units": "per_plan_unit",
+          "verified": true
+        }
+      },
+      "id": "T5b-clear-large-scale-cubic",
+      "name": "大尺度平滑三次 Bezier（clear，10x 比例）"
+    },
+    {
+      "analyzer": {
+        "contact_count": 1,
+        "contacts": [
+          {
+            "distance": 0.001902928063,
+            "kind": "near_contact",
+            "parameter_intervals": [
+              [
+                0.0,
+                1.0
+              ],
+              [
+                0.673157,
+                0.673172
+              ]
+            ],
+            "parameters": [
+              0.5,
+              0.673164
+            ],
+            "points": [
+              {
+                "x": -0.399726527,
+                "y": 0.463780614
+              },
+              {
+                "x": -0.398994631,
+                "y": 0.462024065
+              }
+            ],
+            "segment_indices": [
+              0,
+              2
+            ]
+          }
+        ],
+        "kinds": [
+          "near_contact"
+        ],
+        "min_distance": 0.001902928063,
+        "module_present": true,
+        "unresolved": true
+      },
+      "expectation": "门控拒绝 self_intersecting_composite_path，受影响段含 {0,2}。",
+      "gate": {
+        "details": {
+          "affected_segment_indices": [
+            0,
+            2
+          ],
+          "conflicts": [],
+          "coordinates": "plan.units",
+          "curve_contacts": [
+            {
+              "distance": 0.001902928063,
+              "kind": "near_contact",
+              "parameter_intervals": [
+                [
+                  0.0,
+                  1.0
+                ],
+                [
+                  0.673157,
+                  0.673172
+                ]
+              ],
+              "parameters": [
+                0.5,
+                0.673164
+              ],
+              "points": [
+                {
+                  "x": -0.399726527,
+                  "y": 0.463780614
+                },
+                {
+                  "x": -0.398994631,
+                  "y": 0.462024065
+                }
+              ],
+              "segment_indices": [
+                0,
+                2
+              ]
+            }
+          ],
+          "diagnostic_pair_limit": 16,
+          "escalation": "replan_or_human_review",
+          "failure_scope": "intersecting_segments_only",
+          "repair_instruction": "按conflicts定位相交或重复的原始段，修正端点、圆弧角度或段顺序；保留正确段和用户尺寸。不能增加采样点、关闭检查或重画无关部件来绕过检查。",
+          "unresolved_topology": true
+        },
+        "error_code": "self_intersecting_composite_path",
+        "outcome": "rejected"
+      },
+      "id": "T5c-analytic-tangent-positive",
+      "name": "通用解析切线接触阳性对照（小尺度）"
+    }
+  ],
+  "schema": "cad.d1.b11-topology.v1",
+  "sha256": "faa1ed6b3e59f0848b2a6c0ddea9924287bc400ab0974b6f23ebc85fdd48ab8f",
+  "source_facts": [
+    {
+      "fact": "拒绝条件把 safety_report.unresolved 纳入阻断（unresolved 单独可拒绝）。",
+      "file": "backend/app/cad_construction.py",
+      "line": "1202",
+      "statement": "if (has_contact or safety_report.unresolved) and not step.allow_self_intersection:"
+    },
+    {
+      "fact": "unresolved 作为质量回传字段 topology_unresolved 上报。",
+      "file": "backend/app/cad_construction.py",
+      "line": "1279",
+      "statement": "\"topology_unresolved\": safety_report.unresolved,"
+    }
+  ],
+  "target": {
+    "backend": "C:\\Users\\29924\\Codes\\worktrees\\B\\backend",
+    "head_sha": "8582f67508a307e900280372b15d99764e3b4e99",
+    "label": "B1.1-8582f67",
+    "target_ref": "8582f67",
+    "variant": "committed-B1.1"
+  }
+}

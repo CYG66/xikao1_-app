@@ -1,0 +1,286 @@
+{
+  "schema": "cad.d1.round5.contract-suite.v1",
+  "generated_at_utc": "2026-11-17T10:46:06+00:00",
+  "adapters_wired": [],
+  "repair_budget_simulator": {
+    "max_repairs": 2,
+    "attempts_allowed": 0,
+    "blocked_requests": [],
+    "avoided_request_count": 0
+  },
+  "offline_stub_demo": {
+    "scope": "offline_stub_only",
+    "note": "桩级决策演示，不代表生产 M3 实现已验证；生产适配器到位后须重跑。",
+    "cases": [
+      {
+        "case_id": "STUB-EQUIV-BLOCK",
+        "attempt": 2,
+        "prev": {
+          "geom_sig": "sig-heart-v1"
+        },
+        "curr": {
+          "geom_sig": "sig-heart-v1",
+          "classification": null
+        },
+        "expect": "block",
+        "decision": {
+          "decision": "block",
+          "reason": "equivalent_parametric_change",
+          "classification": "equivalent"
+        },
+        "matches_expectation": true
+      },
+      {
+        "case_id": "STUB-IMPROVE-ALLOW",
+        "attempt": 2,
+        "prev": {
+          "geom_sig": "sig-heart-v1"
+        },
+        "curr": {
+          "geom_sig": "sig-heart-v2-tip",
+          "classification": null
+        },
+        "expect": "allow",
+        "decision": {
+          "decision": "allow",
+          "reason": "real_improvement",
+          "classification": "different"
+        },
+        "matches_expectation": true
+      },
+      {
+        "case_id": "STUB-FIRST-ALLOW",
+        "attempt": 1,
+        "prev": {
+          "geom_sig": "sig-heart-v1"
+        },
+        "curr": {
+          "geom_sig": "sig-heart-v2-tip",
+          "classification": null
+        },
+        "expect": "allow",
+        "decision": {
+          "decision": "allow",
+          "reason": "first_repair_always_allowed"
+        },
+        "matches_expectation": true
+      },
+      {
+        "case_id": "STUB-UNDETERMINED-ALLOW",
+        "attempt": 2,
+        "prev": {
+          "geom_sig": "sig-heart-v1"
+        },
+        "curr": {
+          "geom_sig": "sig-heart-v1",
+          "classification": "undetermined"
+        },
+        "expect": "allow",
+        "decision": {
+          "decision": "allow",
+          "reason": "safe_pass_through",
+          "classification": "undetermined"
+        },
+        "matches_expectation": true
+      },
+      {
+        "case_id": "STUB-NO-SNAPSHOT-ALLOW",
+        "attempt": 2,
+        "prev": null,
+        "curr": {
+          "geom_sig": "sig-heart-v1",
+          "classification": null
+        },
+        "expect": "allow",
+        "decision": {
+          "decision": "allow",
+          "reason": "safe_pass_through",
+          "classification": "no_snapshot"
+        },
+        "matches_expectation": true
+      }
+    ],
+    "call_counts": {
+      "allowed_requests": 4,
+      "blocked_requests": 1,
+      "avoided_requests": 1,
+      "max_repairs": 2
+    },
+    "all_match": true
+  },
+  "cases": [
+    {
+      "case_id": "M3-EQUIV-PARAM",
+      "title": "参数域变化但几何等价 → 识别并阻止后续无效重试",
+      "scenario": "后一轮仅改参数区间/采样，几何与上一轮等价；等价分类命中后，不发起下一次无效模型请求。",
+      "expected": "block_retry",
+      "assertions": [
+        "等价分类返回 equivalent",
+        "后续重试请求被阻止",
+        "记录被避免的是第几次请求（attempt 索引）"
+      ],
+      "adapter": "m3_equivalence_classifier",
+      "status": "pending_adapter",
+      "verdict": "not_claimed",
+      "note": "生产实现/适配器未到位；本轮不下 PASS/FAIL 结论。",
+      "group": "M3"
+    },
+    {
+      "case_id": "M3-REAL-IMPROVE",
+      "title": "几何真正改善 → 不被阻止",
+      "scenario": "后一轮控制点/表达式改变并改善失败特征；分类不得误判为等价。",
+      "expected": "allow_retry",
+      "assertions": [
+        "改善几何不被等价分类拦截",
+        "修复轮可继续"
+      ],
+      "adapter": "m3_equivalence_classifier",
+      "status": "pending_adapter",
+      "verdict": "not_claimed",
+      "note": "生产实现/适配器未到位；本轮不下 PASS/FAIL 结论。",
+      "group": "M3"
+    },
+    {
+      "case_id": "M3-FIRST-REPAIR",
+      "title": "首轮修复不被阻止",
+      "scenario": "首轮失败后的第一次修复属于正常修复预算，不得被等价/去重逻辑拦截。",
+      "expected": "allow_retry",
+      "assertions": [
+        "attempt 1 修复放行",
+        "不消耗阻止计数"
+      ],
+      "adapter": "m3_repair_budget",
+      "status": "pending_adapter",
+      "verdict": "not_claimed",
+      "note": "生产实现/适配器未到位；本轮不下 PASS/FAIL 结论。",
+      "group": "M3"
+    },
+    {
+      "case_id": "M3-UNDETERMINED",
+      "title": "undetermined / 缺失几何快照 → 安全放行",
+      "scenario": "分类结果为 undetermined 或缺上一轮几何快照时，fail-open 到正常链路，不得误阻止；同时留痕待人工/后续判定。",
+      "expected": "allow_retry_with_trace",
+      "assertions": [
+        "undetermined 不阻止",
+        "缺失快照不阻止",
+        "放行原因留痕"
+      ],
+      "adapter": "m3_equivalence_classifier",
+      "status": "pending_adapter",
+      "verdict": "not_claimed",
+      "note": "生产实现/适配器未到位；本轮不下 PASS/FAIL 结论。",
+      "group": "M3"
+    },
+    {
+      "case_id": "M2-STRUCTURE-FEEDBACK",
+      "title": "结构重规划反馈含预期特征、实测特征、差异、结构标记",
+      "scenario": "结构契约拒绝后，回传给规划侧的反馈必须结构化。",
+      "expected": "feedback_fields_present",
+      "assertions": [
+        "expected_features 存在",
+        "measured_features 存在",
+        "feature_diff（缺失/不符项）存在",
+        "structure_check 标记存在"
+      ],
+      "adapter": "m2_structure_feedback",
+      "status": "pending_adapter",
+      "verdict": "not_claimed",
+      "note": "生产实现/适配器未到位；本轮不下 PASS/FAIL 结论。",
+      "group": "M2"
+    },
+    {
+      "case_id": "M2-PARAM-REPAIR-NO-FALSE-POSITIVE",
+      "title": "不误伤参数修复",
+      "scenario": "参数/尺寸类修复不是结构重规划；结构反馈不得把它判为结构失败。",
+      "expected": "no_misclassification",
+      "assertions": [
+        "参数修复不进入结构拒绝分支"
+      ],
+      "adapter": "m2_structure_feedback",
+      "status": "pending_adapter",
+      "verdict": "not_claimed",
+      "note": "生产实现/适配器未到位；本轮不下 PASS/FAIL 结论。",
+      "group": "M2"
+    },
+    {
+      "case_id": "M2-JUNCTION-REPAIR-NO-FALSE-POSITIVE",
+      "title": "不误伤连接修复",
+      "scenario": "内部连接点/连续性修复不是结构重规划；结构反馈不得误伤。",
+      "expected": "no_misclassification",
+      "assertions": [
+        "连接修复不进入结构拒绝分支"
+      ],
+      "adapter": "m2_structure_feedback",
+      "status": "pending_adapter",
+      "verdict": "not_claimed",
+      "note": "生产实现/适配器未到位；本轮不下 PASS/FAIL 结论。",
+      "group": "M2"
+    },
+    {
+      "case_id": "FC-EXPLICIT-DERIVED-DISTINCT",
+      "title": "user_explicit 与 semantic_derived 可区分",
+      "scenario": "显式用户要求与语义派生约束在约束来源标记上可区分、可统计。",
+      "expected": "source_kind_distinguishable",
+      "assertions": [
+        "两类来源标记取值不同",
+        "每条约束带 source_kind"
+      ],
+      "adapter": "feature_contract_source",
+      "status": "pending_adapter",
+      "verdict": "not_claimed",
+      "note": "生产实现/适配器未到位；本轮不下 PASS/FAIL 结论。",
+      "group": "FEATURE-CONTRACT"
+    },
+    {
+      "case_id": "FC-REFS-TRACEABLE",
+      "title": "source_requirement_refs 可追溯",
+      "scenario": "计划约束可回溯到需求账本中的来源条目。",
+      "expected": "refs_traceable",
+      "assertions": [
+        "refs 指向存在的来源 source_id",
+        "无悬空引用"
+      ],
+      "adapter": "feature_contract_refs",
+      "status": "pending_adapter",
+      "verdict": "not_claimed",
+      "note": "生产实现/适配器未到位；本轮不下 PASS/FAIL 结论。",
+      "group": "FEATURE-CONTRACT"
+    },
+    {
+      "case_id": "FC-ACCEPTANCE-BACKEND-GENERATED",
+      "title": "验收条件由后端生成",
+      "scenario": "验收条件以后端度量为准，模型不能自行声明通过。",
+      "expected": "acceptance_backend_authority",
+      "assertions": [
+        "验收状态由后端检查产出",
+        "模型自评不作为通过依据"
+      ],
+      "adapter": "feature_contract_acceptance",
+      "status": "pending_adapter",
+      "verdict": "not_claimed",
+      "note": "生产实现/适配器未到位；本轮不下 PASS/FAIL 结论。",
+      "group": "FEATURE-CONTRACT"
+    },
+    {
+      "case_id": "FC-NO-CONSTRAINT-DELETION-FORGERY",
+      "title": "模型不能删除/伪造/放宽来源约束",
+      "scenario": "模型输出不得移除既有来源引用、不得伪造来源、不得放宽验收阈值。",
+      "expected": "constraint_integrity_held",
+      "assertions": [
+        "既有 refs 不被删除",
+        "伪造来源被拒",
+        "阈值不被模型放宽"
+      ],
+      "adapter": "feature_contract_integrity",
+      "status": "pending_adapter",
+      "verdict": "not_claimed",
+      "note": "生产实现/适配器未到位；本轮不下 PASS/FAIL 结论。",
+      "group": "FEATURE-CONTRACT"
+    }
+  ],
+  "counts": {
+    "total": 11,
+    "pending_adapter": 11,
+    "evaluated": 0
+  }
+}

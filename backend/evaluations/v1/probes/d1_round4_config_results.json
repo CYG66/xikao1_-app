@@ -1,0 +1,746 @@
+{
+  "backend_dir": "C:\\Users\\29924\\Codes\\worktrees\\tmp\\a11-b12-c12-combo\\backend",
+  "code_anchors": [
+    {
+      "anchor": "ComponentRepairError:6; previous_plan:16; protected fields:23-24",
+      "area": "A1.1 constraint inheritance / rejected plan / affected refs",
+      "detail": "merge_component_repair reads plan/rejected_plan (305), affected_output_refs (307), merges junction_constraints (355), attaches affected refs + previous_plan to error (377,380).",
+      "file": "backend/app/cad_plan_component_repair.py"
+    },
+    {
+      "anchor": "6224 rejected_plan; 6225 affected_output_refs; 6240-6241 merge_component_repair",
+      "area": "A1.1 production call chain",
+      "detail": "Component-repair callback pulls rejected_plan/affected refs from component_repair_context and calls the real merger.",
+      "file": "backend/app/agent_service.py"
+    },
+    {
+      "anchor": "6479-6480 loop max_repairs=2; 6495 rejected_plan; 6496-6500 previous_plan; 6508-6511 routing triple; 6513-6522 local validation; 6523-6529 confidence-only intercept",
+      "area": "A1.1 bounded repair loop / previous plan / routing",
+      "detail": "Loop is bounded; routing chooses repair_context / component_repair_context / none by evidence; local scope and confidence-only repairs are enforced.",
+      "file": "backend/app/agent_service.py"
+    },
+    {
+      "anchor": "ARC_MAX_PIECES:60; SPLINE_MAX_PIECES:62; arc_chord_height:260; arc_chord_count_for_tolerance:283; spline_residual_bound:299; _arc_pieces:333-345; _spline_pieces:351-370",
+      "area": "B1.2 arc/spline piece bounds",
+      "detail": "Sagitta upper bound and piece-count inversion are real functions; over-cap cases fail closed as unresolved instead of assumed clear.",
+      "file": "backend/app/cad_topology_safety.py"
+    },
+    {
+      "anchor": "CONTACT_TANGENT:75; _chord_angle_deg:406; unresolved:559,579,655,672,685; analyze_composite_segments:774; unresolved aggregation:795,805,835-840",
+      "area": "B1.2 tangent / unresolved classification",
+      "detail": "Shallow/missed near-contact stays unresolved; bbox pre-prune at 385/811-816; unresolved is never counted as clear.",
+      "file": "backend/app/cad_topology_safety.py"
+    },
+    {
+      "anchor": "_formal_cad_construction:6357; bounded loop:6479-6480; context routing:6508-6511; real merger:6240-6241; persist_prepared_candidate:3933; persisted_candidate_count:6799,6824,6848",
+      "area": "C1.2 production loop wiring",
+      "detail": "Construction entry, bounded repair loop, context routing, component merge and candidate persistence all exist in production code.",
+      "file": "backend/app/agent_service.py"
+    },
+    {
+      "anchor": "cad_planning_model property:352-355; planning model_override:6157; _structured_review_text:1610,1619; _deepseek_request payload:2073",
+      "area": "CAD planning model resolution",
+      "detail": "CAD planning call passes cad_planning_model as model_override; payload model falls back to agent-mode model only when override absent.",
+      "file": "backend/app/agent_service.py"
+    },
+    {
+      "anchor": "2082-2083",
+      "area": "Non-thinking injection",
+      "detail": "thinking={'type':'disabled'} is injected only when payload['model']=='deepseek-flash'; for any other model the key is absent.",
+      "file": "backend/app/agent_service.py"
+    }
+  ],
+  "corpus": [
+    {
+      "case_id": "A9",
+      "category": "complex_closed_heart",
+      "end_to_end_scoring_eligible": true,
+      "evidence_status": "not_run_exact_replay",
+      "expected_route": "construction_scope",
+      "freeze_status": "frozen",
+      "input_sha256": "af12df04393e1da42acd9eae6e590f81fa8c66a4720c546c9d292fef89707d5b",
+      "sha256_match": true,
+      "source_ref": "evaluations/p1.3e_dual_case_frozen.json"
+    },
+    {
+      "case_id": "S1",
+      "category": "open_three_segment_bezier",
+      "end_to_end_scoring_eligible": true,
+      "evidence_status": "not_run_exact_replay",
+      "expected_route": "construction_scope",
+      "freeze_status": "frozen",
+      "input_sha256": "5a7cc0fb6444bc85291d74e751c134984e85e772c805127b58f9faed83c047bb",
+      "sha256_match": true,
+      "source_ref": "evaluations/p1.3e_dual_case_frozen.json"
+    },
+    {
+      "case_id": "M1",
+      "category": "mechanical_folded_corner",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "not_run",
+      "expected_route": null,
+      "freeze_status": "unfrozen",
+      "input_sha256": null,
+      "sha256_match": false,
+      "source_ref": "backend/evaluations/P1.4 A9-S1-M1真实DeepSeek评测零费用准入报告20261107.md"
+    },
+    {
+      "case_id": "l_shaped_workshop",
+      "category": "freeform_outline",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "59a91fd56e3fc9069bb6f444f2fa378e86124ab1a3a41415bf640c66aa9cc3a7",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "warehouse_with_aisles",
+      "category": "composite_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "226c76e0c47aa50b441269c7d13b99d651e093285239293ef84e674fa2ecc865",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "parking_rows_and_driveway",
+      "category": "repeated_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "8b1371a453d8c5590b852c7a23647c9037b1768758968b17cb4936aa904c5744",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "circular_plaza_radial_paths",
+      "category": "radial_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "5a758ec469c6b13e0b1a09492b3c18a1a59a7a6e4713cc57900f36893c68bbd7",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "stepped_foundation",
+      "category": "nested_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "856b2e664b48d0b291730ad3ef314cd42aeae95711e5f4dd98e6c6d68eed9146",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "irregular_closed_boundary",
+      "category": "coordinate_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "d12ff6dd5b8f4327e547b4ae23fd72790d4b8f63f4c1c06c1c88bd77adb34734",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "u_shaped_open_yard",
+      "category": "freeform_outline",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "3164be8cadd955b4ffc2fa2697ec127895918df3be54b2a9222580da89f0989c",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "pentagon_plot",
+      "category": "freeform_outline",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "79172e2043e2d4f465e7add4cad5dc46a923d0bf60ee0758d74012b8366706db",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "right_triangle_boundary",
+      "category": "freeform_outline",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "88325be840cb539360a4dc8e3655aeca1e381ed3ba98c754509d7d1108e1c777",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "irregular_plot_with_entrance",
+      "category": "freeform_outline",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "89ef9865fe89af092acdb095d4299832736eb9855cc1668001c2e381731ef03c",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "hexagon_pad",
+      "category": "freeform_outline",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "9c15d3932a0b90741f645b9a6c6db1f8d1dde92333c2abd3775be3c9591ac2b1",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "free_polygon_outline",
+      "category": "freeform_outline",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "6b87e42e1501fff4b7dabdc272b60d3a7257b129f0e87b932cc09666cb7b9552",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "workshop_with_machine_pads",
+      "category": "composite_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "aa28fb5c11a72f83690ac43609255525876e004444c8da78e8e931f185fc65a3",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "factory_hall_two_aisles",
+      "category": "composite_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "9fcde3bea7b0b89840c89b21f552f4aec9bb52d7fc4381d909891d41af9129b6",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "office_floor_rooms",
+      "category": "composite_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "23271ccc5df0852ccab69b8a023f46652eff4fd6ee46662b71d6edabc24a5622",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "campus_lawn_with_path",
+      "category": "composite_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "03e6175181ad6523f28fbecff39382a50535f396b79680cd17159b3f61149279",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "factory_zone_grid",
+      "category": "composite_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "133757694970ef37d2482515a21bc4fbbb7f906ba9b05ef11b922b062de26852",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "parking_lot_single_row",
+      "category": "repeated_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "39666c1caa41fef6e1f79ec7032db82858596522aad7ad6a5b26fee76fdb52d6",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "bus_stop_shelter",
+      "category": "composite_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "3cbac445662e1b0c197cb126d4b38655fef736043cbe34d63ba1ab877b51ae76",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "loading_dock",
+      "category": "composite_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "f0b5ea623976d9fac348741ab8b47a723496b74ed509b67eb70cb1e4da6c2226",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "tennis_court_marking",
+      "category": "composite_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "95b8b8c189ed8597c23d68bb9fa2f3953e09ad34d3e7f40e4314b4918ef5d7b8",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "stadium_bleacher_rows",
+      "category": "repeated_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "fb8d0faa97445aa556cbb069f3a9da453f445a5dcb7353dd46ac116cb2d0e491",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "pipe_rack_rows_rules",
+      "category": "repeated_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "17606f7583db456d2551d69b0df91ce1d2085b25026511103f0fa1b5d3d1a658",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "fence_posts_line",
+      "category": "repeated_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "adb236bacab38d3e80b709e0b58d77769b827d1abf55da5f322531982bf55a1d",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "solar_panel_rows",
+      "category": "repeated_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "b673b8dfcc8cc5276ac485f16e5ea1edc5cd4618cbce63e0dab889a32d7258f4",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "cable_trench_segments",
+      "category": "repeated_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "2313beecff2041df2f26179e4134dda2b8065a74bbd2d786895751b5876945b5",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "roundabout_with_arms",
+      "category": "radial_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "2fd43c0140b1102ba1706fadf5adcb4fd607ed3f7f59de9126ce7c73949f2021",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "radar_site_rings",
+      "category": "radial_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "03e3c75cfd52f01e215b4651f3c1f7c54febbf09e74c60f01d1908055bb33cd3",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "fountain_circle_paths",
+      "category": "radial_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "ec614dc93cdbc3b49894b3e5a79687c4faf98edcb9088304efa144a3a68413bd",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "water_tower_footprint",
+      "category": "radial_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "c85ec50deb370a9b94e73e519c5ddd1a49aa57b7c17a4f8729643cc99e26b5cc",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "helipad_circle",
+      "category": "radial_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "38dfc78d87870710e843b5341e955d57b5c7ab5cf17e92feed61711f671bbb2e",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "cul_de_sac",
+      "category": "radial_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "f78d0284aa166013e843327b2d19fa822e9592f2d1b6a0ffccbdb74eccfc1257",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "concentric_square_rings_rules",
+      "category": "nested_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "7b187760444b298f11c1f6740e10740354e9a0aa989384d166cd8146532e763d",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "foundation_pit_layers",
+      "category": "nested_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "9a9fa0aaadc854b2337d681a994a4514dff07c82fd1e5e77eb7606b630f82e2c",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "podium_stages",
+      "category": "nested_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "71cbdd7bd5b66803d10b9575324f9a3e47a496f24e6d09d7e21ceb67ff56a8d8",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "temple_base_tiers",
+      "category": "nested_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "d1054d0575ce958ba3360d58c0fb986a603e91a6c2391f38f8623ea6bd59872a",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "l_shape_beam_path",
+      "category": "coordinate_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "e69789cc2a7d8df23ff35f72be99fcfb920e62e873ce5336bf84d027cd662dac",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "z_axis_route",
+      "category": "coordinate_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "51c4d3534c4cb781e719afc1d562c74bd5e1c2df7862bc0fe4c914dd97bcf4c0",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "offset_rectangle_pair",
+      "category": "coordinate_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "0a12e0a2956b93a56d16b42b1636cf28e5321ed892ea8d58b195f1cc09d58e27",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "diagonal_cross_lines",
+      "category": "coordinate_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "44f302e6590db9dd81e5c8523364423fae143988daa658f9bdb261024b7c1220",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "arc_segment_road",
+      "category": "coordinate_geometry",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "cb111ce1f77edacacfd0562ca771400c9ef8dcbfe0997320b0e961709c9679f8",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "basketball_court",
+      "category": "sports_field",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "c6830915c4f72cb2d1ff6f9d2af76461d2c2234e6bae8cc12e3fffe5bf72d36d",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "basketball_court_rules",
+      "category": "sports_field",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "f99e26ecebe94f2845bbd767a1911e5ca1886da863c34c1032089838193bc372",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "badminton_court",
+      "category": "sports_field",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "d19a8438addfc5e1458f112908544881443f7d13f8e94c0a76795935056b850f",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "running_track_oval",
+      "category": "sports_field",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "8fd95e4afc48a4de4698077b415566dcbde9982243fc04d013deb18431f9c74e",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "football_field",
+      "category": "sports_field",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "e3ee057926f365ffb6dadee58d071ceb328cb8549456006909e27fdd6b324c64",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "volleyball_court",
+      "category": "sports_field",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "09d1fe249339604ee45d17372a3f1d0a7bbd78879a4bd866a4ea10fe038e4439",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "basketball_three_point",
+      "category": "sports_field",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "d3767a7110183b8d57295681c3c18437b6b39c6adf642ce0726693594cd1392a",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "parking_lot_rules",
+      "category": "utility_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "6c753dcceac10039689c3c56a74393a9e41e3762398c94a3bc162d36e52fd1ea",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "driveway_line",
+      "category": "utility_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "03b7b93c0207ddbfcd00fc03ece0e418ce2e04ef41d0c533cfcde7faeda4c854",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "manhole_covers",
+      "category": "utility_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "140fad599a5f80c4edfaabeae0392e7594206cf1f28bab398b9ceb1d85ab0f1b",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "transformer_pad",
+      "category": "utility_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "fdafa483a0aaa156b00f343cc0e045fa3dcecf24650244a513708370e04d9fbe",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "road_intersection",
+      "category": "utility_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "c8531c6dabb519e8942bbc170ca3eaedd8662fe30df7d4371745cabc0eefd90b",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "equipment_zone",
+      "category": "utility_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "5397305861d13e6343ef2220c21c51a09e7e3f198e26dd75b276a5bd9571c048",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    },
+    {
+      "case_id": "greenbelt_strip",
+      "category": "utility_layout",
+      "end_to_end_scoring_eligible": false,
+      "evidence_status": "rule_parser_zero_cost",
+      "expected_route": "construction_scope",
+      "freeze_status": "repository_fixture",
+      "input_sha256": "93052ca1575874b69dd158905c40ccd79a6502aa58772c557ea0e13a9ac98d99",
+      "sha256_match": true,
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json"
+    }
+  ],
+  "guards": {
+    "first_response_model_must_match": "deepseek-flash",
+    "mismatch_action": "stop immediately; do not retry; record response model field.",
+    "payload_model_must_be": "deepseek-flash",
+    "thinking_type_must_be": "disabled"
+  },
+  "live_model_calls": 0,
+  "network_client_instantiated": false,
+  "probe": "d1_round4_config_probe",
+  "production_module_imported": false,
+  "scenarios": {
+    "baseline_configured": {
+      "cad_planning_payload": {
+        "model": "deepseek-chat"
+      },
+      "env": {},
+      "resolved": {
+        "advanced_model": "deepseek-chat",
+        "base_model": "deepseek-chat",
+        "cad_planning_model": "deepseek-chat",
+        "mode": "deepseek",
+        "model": "deepseek-chat",
+        "resolved_advanced": "deepseek-chat",
+        "resolved_base": "deepseek-chat"
+      },
+      "thinking_in_payload": false
+    },
+    "isolated_flash_override": {
+      "cad_planning_payload": {
+        "model": "deepseek-flash",
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "config_model_retained": "deepseek-chat",
+      "env": {
+        "DEEPSEEK_ADVANCED_MODEL": "deepseek-flash",
+        "DEEPSEEK_BASE_MODEL": "deepseek-flash",
+        "DEEPSEEK_CAD_PLANNING_MODEL": "deepseek-flash"
+      },
+      "note": "Env DEEPSEEK_CAD_PLANNING_MODEL present, so _load_config does not apply the config cad_planning_model (agent_service.py:532).",
+      "resolved": {
+        "advanced_model": "deepseek-flash",
+        "base_model": "deepseek-flash",
+        "cad_planning_model": "deepseek-flash",
+        "mode": "deepseek",
+        "model": "deepseek-chat",
+        "resolved_advanced": "deepseek-flash",
+        "resolved_base": "deepseek-flash"
+      },
+      "thinking_in_payload": true
+    }
+  }
+}

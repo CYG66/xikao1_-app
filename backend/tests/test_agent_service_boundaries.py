@@ -109,14 +109,29 @@ def test_drawing_routes_are_registered_once_from_drawings_router() -> None:
 def test_agent_management_routes_are_registered_once() -> None:
     from app.routers.agent import router
 
+    # The route count is deliberately NOT a hard-coded magic number. Commit
+    # 9302a49 shipped 30 agent routes together with a stale `== 26` count;
+    # root-cause evidence: evaluations/v1/D1_第六轮路由计数漂移调查.md.
+    # Derive the agent surface from the router definition and cross-check it
+    # bidirectionally against the production app registry instead.
     expected = {(method, route.path) for route in router.routes
                 for method in getattr(route, "methods", set())}
-    assert len(expected) == 26
+    mounted = {
+        (method, route.path)
+        for route in app.routes
+        for method in getattr(route, "methods", set())
+        if getattr(getattr(route, "endpoint", None), "__module__", "") == "app.routers.agent"
+    }
+    # Router definition and mounted app table must agree: no missing route,
+    # no extra agent-owned route mounted outside the router definition.
+    assert expected == mounted
+    assert len(expected) == len(mounted)
     for method, path in expected:
         matches = [route for route in app.routes if route.path == path
                    and method in getattr(route, "methods", set())]
         assert len(matches) == 1, (method, path)
         assert matches[0].endpoint.__module__ == "app.routers.agent"
+        assert callable(matches[0].endpoint)
 
 
 def test_application_routes_have_unique_owners_outside_main() -> None:

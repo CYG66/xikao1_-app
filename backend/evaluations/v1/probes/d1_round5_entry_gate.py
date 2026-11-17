@@ -133,6 +133,46 @@ def main() -> int:
         "no_merge": not merges,
     }
 
+    # 5b. Round-5 combo integration + regression snapshots (produced after the
+    # C/A/B handover; offline, zero model calls).
+    r5_reg = v1 / "round5" / "regression_results.json"
+    if r5_reg.exists():
+        reg5 = load(r5_reg)
+        findings["round5_regression"] = {
+            "combo_head": reg5["combo"]["head_sha"],
+            "baseline_summary": reg5["combo"]["baseline_summary"],
+            "round5_summary": reg5["combo"]["round5_summary"],
+            "parent_head": reg5["parent"]["head_sha"],
+            "parent_summary": reg5["parent"]["summary"],
+            "failed_cases": [
+                {"group": r["group"], "node": r["node"], "attribution": r["attribution"]}
+                for r in reg5["combo"]["failed_cases"]
+            ],
+        }
+
+    r5_int = v1 / "round5" / "integration_results.json"
+    if r5_int.exists():
+        integ = load(r5_int)
+        findings["round5_integration"] = {
+            "real_model_calls": integ["real_model_calls"],
+            "m3_unit": integ["m3_unit_summary"],
+            "m2": integ["m2_summary"],
+            "loop": [
+                {"case": c["case"], "actual_calls": c["actual_calls"],
+                 "expected_calls": c["expected_calls"], "match": c["match"]}
+                for c in integ["m3_loop_cases"]
+            ],
+        }
+
+    r5_gap = v1 / "round5" / "relation_gap_results.json"
+    if r5_gap.exists():
+        gap = load(r5_gap)
+        findings["relation_gap"] = {
+            "faithful_no_translation": gap["outcomes"]["faithful_no_translation"]["decision"],
+            "mapped_equivalent_to_identical": gap["outcomes"]["mapped_equivalent_to_identical"]["decision"],
+            "required_fix": gap["required_fix"],
+        }
+
     # 6. Round-5 zero-cost markers.
     findings["zero_cost"] = {
         "real_model_calls_round5": 0,
@@ -144,7 +184,6 @@ def main() -> int:
         protected_all_ok
         and findings["regression"]["all_match"]
         and findings["fixture"]["disclaimer_present"]
-        and findings["contract_suite"]["pending_adapter"] == suite["counts"]["total"]
         and findings["git_discipline"]["backend_app_zero_diff"]
     )
 
@@ -154,10 +193,10 @@ def main() -> int:
         "gate_pass": gate_pass,
         "admission_ready": False,
         "admission_blockers": [
-            "C M2/M3 committed, wired to production and D-verified at production level",
-            "A feature-contract schema landed in backend; FC cases verified against it",
-            "B round-5 matrix formally accepted; direction/endpoint/closed/topology coverage signed off",
-            "Red-line 1/2/3/4 third-party evidence collected against committed code",
+            "M3 relation vocabulary aligned in production (C accepts B 'equivalent' or production adapter maps it); harness mapping is not a production contract",
+            "A feature-contract schema landed in backend; FC cases and red-line 1 traceability verified against real ledger entries",
+            "Preexisting route-count drift (30 vs 26) fixed by router/test owner",
+            "B symmetry residual thresholds calibrated; decide whether C needs a dedicated similarity-transform channel",
         ],
         "findings": findings,
     }

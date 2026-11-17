@@ -130,6 +130,18 @@ def _geometry_evidence(result):
 
 _GEOMETRY_EVALUATOR = None
 
+# Equivalence vocabulary accepted from B's ``trajectory_equivalent`` result.
+# Contract source: B probes/b_round5_geometry_contract.py. A proven
+# same-trajectory match may be labelled either ``identical`` or ``equivalent``
+# by the B version in use; both mean determined-equivalent and are the only
+# relations that can feed a stall block.
+EQUIVALENT_RELATIONS = {'identical', 'equivalent'}
+# Non-equivalent relations: these are deliberate geometry changes or a
+# non-progress orientation reversal; they must release, never block.
+_NON_EQUIVALENT_RELATIONS = {
+    'same_trajectory_reversed', 'similar_transform', 'compliant_other', 'different',
+}
+
 
 def set_geometry_evaluator(fn):
     """Inject the B-compatible evaluator. ``fn`` mirrors ``trajectory_equivalent``:
@@ -148,7 +160,8 @@ def _geometry_spec(result, evidence):
 def evaluate_geometry_progress(before, after, tolerance=None):
     """B-aligned geometry verdict. Relations (B contract):
 
-      - ``identical``: same trajectory, all dimensions pass.
+      - ``identical`` / ``equivalent``: same trajectory, all dimensions pass
+        (both are the B equivalence vocabulary; see EQUIVALENT_RELATIONS).
       - ``same_trajectory_reversed``: same point set, direction reversed; this
         is NOT progress and the orientation dimension fails -> release.
       - ``similar_transform`` / ``compliant_other``: compliant rigid/scale/
@@ -180,7 +193,7 @@ def evaluate_geometry_progress(before, after, tolerance=None):
                 'source': 'adapter'}
 
     relation = str(verdict.get('relation') or (
-        'identical' if verdict.get('equivalent') else 'different'))
+        'equivalent' if verdict.get('equivalent') else 'different'))
     undetermined = bool(verdict.get('undetermined'))
     reversed_flag = bool(verdict.get('reversed'))
     checks = verdict.get('checks') or {}
@@ -194,11 +207,27 @@ def evaluate_geometry_progress(before, after, tolerance=None):
         fail_reasons.append('one coverage dimension undetermined')
     if undetermined:
         equivalent = None
-    elif relation == 'identical':
+    elif relation in EQUIVALENT_RELATIONS:
+        # Proven same-trajectory match (B vocabulary: identical | equivalent).
         equivalent = bool(verdict.get('equivalent', True))
-    else:
-        # reversed / similar_transform / compliant_other / different all release.
+    elif relation in _NON_EQUIVALENT_RELATIONS:
+        # Reversal is not progress; similar_transform / compliant_other /
+        # different are geometry changes. All release via geometry_changed.
         equivalent = False
+    else:
+        # Out-of-contract vocabulary: fail safe. Treat as undetermined, release,
+        # and record the unknown relation so a future B vocabulary shift cannot
+        # either silently block a real fix or silently pass a stall.
+        undetermined = True
+        equivalent = None
+        fail_reasons.append(f'unknown geometry relation: {relation}')
+    # Similarity-transform channel: C does NOT call B's ``similarity_transform``
+    # separately. A rigid/scale/reflection or topology-preserving adjustment
+    # moves the sampled points beyond the raw equivalence tolerance, so B
+    # reports ``similar_transform``/``compliant_other`` rather than an
+    # equivalence relation; that non-equivalent verdict is released above and
+    # cannot be mistaken for a stall. Only a verdict inside EQUIVALENT_RELATIONS
+    # is eligible to block.
     return {'equivalent': equivalent, 'undetermined': undetermined,
             'relation': relation, 'reversed': reversed_flag, 'checks': checks,
             'fail_reasons': fail_reasons, 'source': 'b_evaluator'}

@@ -65,18 +65,25 @@
 
 ### 3.1 接口对齐（照抄 B 契约）
 
-注入点：`set_geometry_evaluator(fn)` :134-140；`fn(spec_a, spec_b, tolerance) -> EquivalenceResult`，字段 `equivalent / undetermined / relation / reversed / checks / fail_reasons / hausdorff / topology / counterexample`。
+注入点：`set_geometry_evaluator(fn)` :145-151；`fn(spec_a, spec_b, tolerance) -> EquivalenceResult`，字段 `equivalent / undetermined / relation / reversed / checks / fail_reasons / hausdorff / topology / counterexample`。
 
-`relation` 映射（:182-197）：
+**等价词汇契约（集中一处，不散落字符串比较）**：`EQUIVALENT_RELATIONS = {'identical', 'equivalent'}` :138；`_NON_EQUIVALENT_RELATIONS = {'same_trajectory_reversed', 'similar_transform', 'compliant_other', 'different'}` :141-143。同轨迹匹配在不同 B 版本下可标注 `identical` 或 `equivalent`，二者都属确定等价；非等价集合内的关系一律不构成停滞。
+
+`relation` 映射（:207-226）：
 
 | B relation | C 几何结论 | 处置 | 依据 |
 |---|---|---|---|
-| `identical` | `equivalent=True`（B `equivalent` 为准） | 仅当特征也无改善才可能阻断 | 同轨迹同方向 |
+| `identical` / `equivalent` | `equivalent=True`（B `equivalent` 为准） | 仅当特征也无改善才可能阻断 | 同轨迹同方向，等价词汇集合 |
 | `same_trajectory_reversed` | `equivalent=False`，`reversed=True` | 放行；方向维失败不计入进展 | B 坑 1：反向不是改善 |
 | `similar_transform` | `equivalent=False` | 放行；合规刚性/尺度/反射调整 | B 坑 2：不等价 ≠ 失败 |
 | `compliant_other` | `equivalent=False` | 放行；拓扑保持的形状调整 | B 坑 2 |
 | `different` | `equivalent=False` | 放行 | 几何已变 |
+| 契约外未知字符串 | `undetermined=True`、`equivalent=None` | **fail-safe 放行**，`fail_reasons` 记 `unknown geometry relation: <值>`（:217-224） | 词汇漂移不得误拦或漏拦 |
 | `undetermined=true` | `equivalent=None` | 放行并记录 | B 坑 2：fail-closed |
+
+**相似变换通道决策（已写明，不留模糊状态）**：C 不单独调用 B 的 `similarity_transform`。刚性/尺度/反射或拓扑保持调整会使采样点越出原始等价容差，B 因此标注 `similar_transform`/`compliant_other`（落入非等价集合）而不是等价关系；该判定由适配层放行（`geometry_changed`），不会被误判为停滞。只有落入 `EQUIVALENT_RELATIONS` 的结论才有资格参与阻断。注释见 :226-231。
+
+> 第五轮补丁（D 联调发现）：初版只把 `identical` 当等价，真实 B 返回 `relation="equivalent"` 时停滞用例被误放；已改为集合判定，并补未知值 fail-safe。生产契约内完成词汇对齐，harness 不再做 `equivalent→identical` 映射。
 
 ### 3.2 必填输入与缺项降级
 
@@ -87,6 +94,7 @@
 ### 3.3 待组合树联调声明 [待验证]
 
 - 真实 B 模块在 B 分支（commit `5333826`），C 树不可见；本轮测试使用与 B 语义一致的**测试替身** `_stub_evaluator`，文件内明确标注「非真实 B 判据」。
+- 词汇对齐已在生产契约内完成：D 组合树复验时注入**不做任何映射**的适配器；`identical`/`equivalent` 均由 `EQUIVALENT_RELATIONS` 判定，未知值 fail-safe。
 - 端到端等价判定、`similarity_transform` 标注、对称漏判复核，由 D 在 A+B+C 临时组合树完成；C 侧仅保证适配层可替换、测试不写死依赖。
 
 ## 4. M2 通用修复范围分类与结构重规划接入
@@ -181,18 +189,23 @@
 
 ## 7. 测试与回归原始计数
 
-### 7.1 本轮新增（`test_c13_m2m3_loop_mock.py`，24 例）
+### 7.1 本轮新增（`test_c13_m2m3_loop_mock.py`，27 例）
 
-命令：`pytest tests/test_c13_m2m3_loop_mock.py -q` → **24 passed in 1.16s**。
-覆盖：M2 四类参数化 4 + 降级 1；M2 反馈四要素与通道 4 参数化 + 保留 1；M3 首轮放行 1、阻断 1、白名单参数化 3、B relation 参数化 4、undetermined 1、服务阻断 1、缺快照 1、几何改变 1、回滚 1。
+命令：`pytest tests/test_c13_m2m3_loop_mock.py -q` → **27 passed in 1.22s**。
+覆盖：M2 四类参数化 4 + 降级 1；M2 反馈四要素与通道 4 参数化 + 保留 1；M3 首轮放行 1、等价词汇阻断参数化 2（`identical`/`equivalent`）、白名单参数化 3、B relation 参数化 4（含反向 `reversed` 标记断言）、未知关系 fail-safe 放行 1、undetermined 1、服务阻断 1、缺快照 1、几何改变 1、回滚 1。
+
+第五轮补丁新增用例（真实 B 词汇，harness 不做映射）：
+- `test_m3_equivalence_vocabulary_blocks_stall`：`relation="equivalent"` + 特征向量不变 → `block / stalled_equivalent`。
+- `test_m3_unknown_relation_fails_safe_release`：契约外 `bogus_future_relation` → `allow`、`undetermined=True`、`equivalent=None`，`fail_reasons` 记录 `unknown geometry relation`。
+- `same_trajectory_reversed`：在 B relation 参数化内断言 `reversed=True` 且放行，不计进展。
 
 ### 7.2 既有基线（本轮复跑通过）
 
 | 套件 | 命令 | 结果 |
 |---|---|---|
-| 执行器 | `pytest tests/test_cad_construction.py -q` | **37 passed** in 6.89s |
-| 解释器 | `pytest tests/test_cad_construction_interpreter.py -q` | **74 passed** in 15.95s |
-| 恢复编排 | `pytest tests/test_cad_generation_recovery.py -q` | **14 passed** in 3.09s |
+| 执行器 | `pytest tests/test_cad_construction.py -q` | **37 passed** in 7.09s |
+| 解释器 | `pytest tests/test_cad_construction_interpreter.py -q` | **74 passed** in 16.08s |
+| 恢复编排 | `pytest tests/test_cad_generation_recovery.py -q` | **14 passed** in 3.17s |
 | 恢复 + C1/C1.1/C1.2 Mock | `pytest tests/test_cad_generation_recovery.py tests/test_c1_integration_mock.py tests/test_c11_service_two_round_mock.py tests/test_c12_production_loop_mock.py -q` | **16 passed, 5 failed** |
 
 5 个失败（既有 `failed_dep_pending`，依赖 A1.1 `ea8323a230f1cd53cf80f4fd4398328e836962b2` 未合入 C 基线）：

@@ -46,6 +46,10 @@
     "coverage_dimensions": ["geometry", "orientation", "endpoints", "closed", "topology"],
     "adapter": "cad_generation_recovery.evaluate_geometry_progress",
     "evaluator_injection": "cad_generation_recovery.set_geometry_evaluator",
+    "equivalent_relations": ["identical", "equivalent"],
+    "non_equivalent_relations": ["same_trajectory_reversed", "similar_transform", "compliant_other", "different"],
+    "unknown_relation_policy": "undetermined_release_with_audit_record",
+    "similarity_transform_channel": "not_called_separately; compliant transform reported by B as non-equivalent relation and released via geometry_changed; no false block because transform moves sampled points outside equivalence tolerance",
     "default_evaluator_present": false,
     "default_verdict": "undetermined_release",
     "missing_snapshot_release": true,
@@ -76,7 +80,7 @@
     "state": "adapter_ready_test_double_only",
     "target_module": "probes/b_round5_geometry_contract.py",
     "target_commit": "5333826",
-    "relations": ["identical", "same_trajectory_reversed", "similar_transform", "compliant_other", "different"],
+    "relations": ["identical", "equivalent", "same_trajectory_reversed", "similar_transform", "compliant_other", "different"],
     "notes": [
       "reversed is not progress",
       "compliant transform/topology-preserving change must not block",
@@ -86,7 +90,7 @@
     ]
   },
   "regression": {
-    "new_tests": {"file": "tests/test_c13_m2m3_loop_mock.py", "passed": 24, "failed": 0},
+    "new_tests": {"file": "tests/test_c13_m2m3_loop_mock.py", "passed": 27, "failed": 0},
     "baseline": [
       {"suite": "tests/test_cad_construction.py", "passed": 37, "failed": 0},
       {"suite": "tests/test_cad_construction_interpreter.py", "passed": 74, "failed": 0},

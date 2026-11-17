@@ -271,6 +271,38 @@ def test_m3_blocks_identical_geometry_and_unchanged_failure_vector(monkeypatch):
     assert outcome["geometry"]["relation"] == "identical"
 
 
+@pytest.mark.parametrize("relation", ["identical", "equivalent"])
+def test_m3_equivalence_vocabulary_blocks_stall(monkeypatch, relation):
+    """B may label a proven match either ``identical`` or ``equivalent``; both
+    must block a proven stall. Uses B's real vocabulary, no mapping in harness."""
+    monkeypatch.setattr("app.cad_generation_recovery._GEOMETRY_EVALUATOR",
+                        _stub_evaluator(relation, equivalent=True))
+    a = _invalid({"check": "outline", "failed_features": ["cusp"],
+                  "measured_features": {"cusp": False}}, geom=GEOM)
+    b = _invalid({"check": "outline", "failed_features": ["cusp"],
+                  "measured_features": {"cusp": False}}, plan=_plan(3), geom=GEOM)
+    outcome = evaluate_repair_progress(a, b)
+    assert outcome["decision"] == "block"
+    assert outcome["progress"] == "stalled_equivalent"
+    assert outcome["geometry"]["equivalent"] is True
+    assert outcome["geometry"]["relation"] == relation
+
+
+def test_m3_unknown_relation_fails_safe_release(monkeypatch):
+    """Out-of-contract vocabulary must not block; release as undetermined and
+    record the unknown relation for audit."""
+    monkeypatch.setattr("app.cad_generation_recovery._GEOMETRY_EVALUATOR",
+                        _stub_evaluator("bogus_future_relation", equivalent=True))
+    a = _invalid({"failed_features": ["cusp"], "measured_features": {"cusp": False}}, geom=GEOM)
+    b = _invalid({"failed_features": ["cusp"], "measured_features": {"cusp": False}},
+                 plan=_plan(3), geom=GEOM)
+    outcome = evaluate_repair_progress(a, b)
+    assert outcome["decision"] == "allow"
+    assert outcome["geometry"]["undetermined"] is True
+    assert outcome["geometry"]["equivalent"] is None
+    assert any("unknown geometry relation" in reason for reason in outcome["geometry"]["fail_reasons"])
+
+
 @pytest.mark.parametrize("factory,expected_progress", [
     (lambda: (_feat(["cusp", "side"], {"cusp": True, "side": False}),
               _feat(["side"], {"cusp": True, "side": False})), "feature_improved"),
@@ -300,6 +332,7 @@ def test_m3_b_relation_changes_never_block(monkeypatch, relation, equivalent):
     outcome = evaluate_repair_progress(a, b)
     assert outcome["decision"] == "allow"
     assert outcome["geometry"]["relation"] == relation
+    assert outcome["geometry"]["reversed"] == (relation == "same_trajectory_reversed")
 
 
 def test_m3_undetermined_evaluator_releases(monkeypatch):

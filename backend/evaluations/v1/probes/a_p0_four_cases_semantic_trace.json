@@ -549,5 +549,40 @@
         "regular_polygon"
       ]
     }
+  ],
+  "dispatch_replay": [
+    {
+      "key": "heart_passing_polyline",
+      "source": "生成一个闭合爱心轮廓，宽度4米，高度4米",
+      "outcome": "raised",
+      "status": null,
+      "coverage": null,
+      "raised_check": "大写A缺少由两斜笔与横笔围成的上部三角区域",
+      "measurements": {
+        "observed_triangular_regions": [],
+        "required_relation": "triangle_tip_above_horizontal_base"
+      }
+    },
+    {
+      "key": "rectangle_fails_heart_features",
+      "source": "生成一个闭合爱心轮廓，宽度4米，高度4米",
+      "outcome": "raised",
+      "status": null,
+      "coverage": null,
+      "raised_check": "heart_bilateral_lobes_notch_and_lower_tip",
+      "measurements": {
+        "observed_triangular_regions": null,
+        "required_relation": null
+      }
+    },
+    {
+      "key": "spline_unsupported_type",
+      "source": "生成一个闭合爱心轮廓，宽度4米，高度4米",
+      "outcome": "returned",
+      "status": "unverified",
+      "coverage": "unsupported_profile_representation",
+      "raised_check": null,
+      "measurements": null
+    }
   ]
 }

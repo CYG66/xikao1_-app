@@ -22,6 +22,38 @@ from app.cad_feature_contract import (
     build_feature_contracts,
     real_source_facts,
 )
+from app.cad_semantic_acceptance import verify_semantic_requirements
+from app.cad_structure_contract import StructureContractError
+
+HEART_LIKE_PTS = [(600, 3800), (2000, 2400), (3400, 3800),
+                  (3600, 1600), (2000, 0), (400, 1600)]
+RECT_PTS = [(0, 0), (4000, 0), (4000, 4000), (0, 4000)]
+
+
+def _polyline(pts, gtype="polyline"):
+    return [{"id": 1, "type": gtype, "closed": True,
+             "vertices": [{"x": x, "y": y} for x, y in pts]}]
+
+
+def _dispatch_replay(key, source, geometries):
+    """Full dispatch/acceptance replay on the pre-fix snapshot (no model call)."""
+    try:
+        result = verify_semantic_requirements(source, geometries)
+        return {"key": key, "source": source, "outcome": "returned",
+                "status": result["status"], "coverage": result["coverage"],
+                "raised_check": None, "measurements": None}
+    except StructureContractError as exc:
+        details = getattr(exc, "details", {}) or {}
+        measurements = details.get("measurements")
+        return {"key": key, "source": source, "outcome": "raised",
+                "status": None, "coverage": None,
+                "raised_check": details.get("check"),
+                "measurements": {
+                    "observed_triangular_regions":
+                        (measurements or {}).get("observed_triangular_regions"),
+                    "required_relation":
+                        (measurements or {}).get("required_relation"),
+                }}
 
 CASES = {
     "A1": "生成一个闭合爱心轮廓，宽度4米，高度4米",
@@ -173,6 +205,14 @@ def main():
              "local_creation_objects": local_creation_objects(t),
              "semantic_requirements": [r["kind"] for r in semantic_requirements(t)]}
             for k, t in REPLAY_CASES.items()
+        ],
+        "dispatch_replay": [
+            _dispatch_replay("heart_passing_polyline", CASES["A1"],
+                             _polyline(HEART_LIKE_PTS)),
+            _dispatch_replay("rectangle_fails_heart_features", CASES["A1"],
+                             _polyline(RECT_PTS)),
+            _dispatch_replay("spline_unsupported_type", CASES["A1"],
+                             _polyline(HEART_LIKE_PTS, "spline")),
         ],
     }
     out = Path("evaluations/v1/probes/a_p0_four_cases_semantic_trace.json")

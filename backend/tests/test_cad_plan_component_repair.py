@@ -566,3 +566,97 @@ def test_service_component_repair_chain_returns_explicit_clear_error():
 
     assert result['status'] == 'invalid'
     assert result['construction_error']['code'] == 'junction_constraints_clear_rejected'
+
+
+def _fingerprint(value):
+    import hashlib
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode()
+    ).hexdigest()
+
+
+def test_valid_geometry_edit_is_merged_while_protected_junction_fields_are_kept():
+    """A legal in-place coordinate repair must reach the merged plan.
+
+    The replacement changes only one failing segment's control points, keeps
+    segment count/kind order, and omits local connection constraints. The
+    merged plan must (a) actually carry the new coordinates, (b) retain the
+    original junction constraints, their source refs, continuity and tangent
+    tolerance, and (c) differ from both the original plan and the raw
+    replacement wholesale.
+    """
+    original_segments = [
+        {'kind': 'bezier', 'control_points': [_point(0, 0), _point(0.4, 0.5), _point(0.8, 0.8), _point(1, 0)]},
+        {'kind': 'bezier', 'control_points': [_point(1, 0), _point(1.3, -0.4), _point(1.7, 0.2), _point(2, 1)]},
+        {'kind': 'bezier', 'control_points': [_point(2, 1), _point(2.4, 1.3), _point(2.8, 0.2), _point(3, 0)]},
+    ]
+    original_constraints = _junction_constraints()
+    plan = {
+        'schema_version': 'cad.construction-plan.v1',
+        'units': 'm',
+        'steps': [{
+            'op': 'add_composite_path',
+            'step_id': 'repair-step',
+            'output_ref': 'repair-curve',
+            'layer_id': 1,
+            'semantic': {'object_type': 'drawing_part', 'label': 'generic repair fixture'},
+            'segments': deepcopy(original_segments),
+            'closed': False,
+            'samples_per_curve': 64,
+            'connection_tolerance': 0.000001,
+            'continuity': 'C1',
+            'tangent_tolerance_deg': 0.01,
+            'allow_self_intersection': False,
+            'allow_duplicate_segments': False,
+            'junction_constraints': deepcopy(original_constraints),
+        }],
+        'assertions': [{
+            'kind': 'bounds_size', 'assertion_id': 'bounds', 'target_ref': 'repair-curve',
+            'width': 3.0, 'height': 1.7, 'tolerance': 0.001,
+        }],
+    }
+
+    repaired_segments = deepcopy(original_segments)
+    repaired_segments[1]['control_points'] = [
+        _point(1, 0), _point(1.3, -0.2), _point(1.7, 0.4), _point(2, 1),
+    ]
+    replacement_step = {
+        'op': 'add_composite_path',
+        'step_id': 'repair-step',
+        'output_ref': 'repair-curve',
+        'semantic': {'label': 'generic repair fixture'},
+        'segments': deepcopy(repaired_segments),
+    }
+    # The repair protocol lets the model omit local connection policy; the
+    # merger must inherit them from the original step.
+    for key in ('junction_constraints', 'continuity', 'tangent_tolerance_deg'):
+        replacement_step.pop(key, None)
+    payload = {'plan': {'units': 'm', 'steps': [replacement_step]}}
+    context = {'plan': plan, 'construction_error': {'details': {'affected_output_refs': ['repair-curve']}}}
+
+    merged = merge_component_repair(context, payload)['plan']
+    merged_step = merged['steps'][0]
+
+    # 1. The coordinate edit really landed in the merged plan.
+    assert merged_step['segments'][1]['control_points'] == repaired_segments[1]['control_points']
+    merged_segments_text = json.dumps(merged_step['segments'], ensure_ascii=False)
+    assert json.dumps(_point(1.3, -0.4), ensure_ascii=False) not in merged_segments_text
+    assert json.dumps(_point(1.7, 0.2), ensure_ascii=False) not in merged_segments_text
+
+    # 2. Protected local connection fields are preserved verbatim.
+    assert merged_step['junction_constraints'] == original_constraints
+    for item in merged_step['junction_constraints']:
+        assert item['source_requirement_refs'] == ['user:0']
+    assert merged_step['continuity'] == 'C1'
+    assert merged_step['tangent_tolerance_deg'] == 0.01
+
+    # 3. Assertion inventory is untouched by the component merge.
+    assert merged['assertions'] == plan['assertions']
+
+    # 4. Three-way evidence: merged is neither the original nor the raw
+    #    replacement (which omitted the inherited protected fields).
+    assert _fingerprint(merged_step) != _fingerprint(plan['steps'][0])
+    assert _fingerprint(merged_step) != _fingerprint(replacement_step)
+    assert 'junction_constraints' not in replacement_step
+    assert len(merged_step['junction_constraints']) == len(original_constraints)
+

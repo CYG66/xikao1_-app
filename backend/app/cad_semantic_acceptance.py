@@ -11,6 +11,7 @@ from .cad_semantic_dispatch import (
     DISPATCH_CHANNELS,
     active_geometries,
     classify_profile,
+    collect_applicable_requirement_kinds,
     heart_features,
     validate_target_binding,
 )
@@ -79,7 +80,7 @@ def _corners(points,tolerance=.5):
     return pts
 
 
-def verify_semantic_requirements(source,geometries,logical_objects=None,topology=None):
+def _verify_semantic_requirements_raw(source,geometries,logical_objects=None,topology=None):
     from shapely.geometry import LineString,Polygon
     from shapely.ops import polygonize,unary_union
     requirements=semantic_requirements(source)
@@ -447,3 +448,18 @@ def _verify_capital_a_channel(gs,requirements):
     require(top.bounds[2]-top.bounds[0]<maxx-minx-tolerance,'大写A须具有向上收拢的斜笔结构')
     return {'status':'partial','coverage':'straight_capital_a_structural_relations_only',
             'requirements':requirements,'checks':checks,'review_required':False}
+
+
+def verify_semantic_requirements(source,geometries,logical_objects=None,topology=None):
+    """Public acceptance entry; attaches the applicability marker.
+
+    The raw verifier keeps every inherited terminal status word unchanged.
+    This wrapper only records ``applicable_requirement_kinds`` so the summary
+    layer can distinguish "no mandatory requirement" from "mandatory
+    requirement left unverified / partial", even when the whole report is
+    ``not_checked``.  It never promotes a gap to a PASS.
+    """
+    report = _verify_semantic_requirements_raw(source,geometries,logical_objects,topology)
+    if isinstance(report, dict):
+        report['applicable_requirement_kinds'] = collect_applicable_requirement_kinds(report, source)
+    return report

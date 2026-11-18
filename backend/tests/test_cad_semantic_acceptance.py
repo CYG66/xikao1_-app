@@ -402,3 +402,113 @@ def test_disconnected_members_are_warned_but_not_split():
     assert validation['targets'][0]['target_ref']['geometry_ids']==[1,2]
     member_warnings=[w for w in validation['warnings'] if w['code']=='disconnected_members']
     assert member_warnings and member_warnings[0]['component_count']==2
+
+
+# ---------------------------------------------------------------------------
+# Round9 A-line: semantic coverage completeness contract (zero model)
+# ---------------------------------------------------------------------------
+
+from app.cad_semantic_dispatch import (  # noqa: E402
+    STATE_FULLY_VERIFIED,
+    STATE_NO_APPLICABLE_REQUIREMENT,
+    STATE_UNVERIFIED_OR_PARTIAL,
+    semantic_requirement_state,
+    state_allows_summary_passed,
+)
+import app.cad_semantic_acceptance as acceptance_mod  # noqa: E402
+
+C10_TEXT='生成一个爱心和一个五角星，爱心在左，五角星在右'
+STAR_ONLY_TEXT='生成一个五角星，外接圆半径2米，内外半径比0.381966，尖角朝上'
+
+
+def test_contract_no_applicable_requirement_resolves_to_state_one():
+    report=verify_semantic_requirements('画一个花瓶',[_heart(1)])
+    verdict=semantic_requirement_state(report,'画一个花瓶')
+    assert verdict['state']==STATE_NO_APPLICABLE_REQUIREMENT
+    assert verdict['applicable_requirement_kinds']==[]
+    assert verdict['recognized_unknown_kinds']==[]
+    assert state_allows_summary_passed(verdict) is True
+
+
+def test_contract_fully_verified_passed_report_resolves_to_state_two():
+    text='画一个嵌套正方形，外框边长3米，内框边长2米，内框居中'
+    gs=[poly(1,[(-1500,-1500),(1500,-1500),(1500,1500),(-1500,1500)]),
+        poly(2,[(-1000,-1000),(1000,-1000),(1000,1000),(-1000,1000)])]
+    report=verify_semantic_requirements(text,gs)
+    assert report['status']=='passed'
+    verdict=semantic_requirement_state(report,text)
+    assert verdict['state']==STATE_FULLY_VERIFIED
+    assert state_allows_summary_passed(verdict) is True
+    # Synthetic heart report whose every bound object passed: fully verified.
+    heart_report={
+        'status':'passed','review_required':False,
+        'requirements':[{'kind':'heart_outline_features'}],
+        'object_acceptance':[{'target_ref':{'object_id':'heart-1','geometry_ids':[1]},
+            'status':'passed','reason':'heart_features_measured','profile':'heart_like'}],
+    }
+    v2=semantic_requirement_state(heart_report)
+    assert v2['state']==STATE_FULLY_VERIFIED
+    assert state_allows_summary_passed(v2) is True
+
+
+def test_contract_c10_heart_star_is_unverified_or_partial():
+    geoms=[_heart(1,scale=2000.0),_star(2)]
+    logical=[{'object_id':'heart-1','geometry_refs':[1],'label':'爱心'},
+             {'object_id':'star-1','geometry_refs':[2],'label':'五角星'}]
+    report=verify_semantic_requirements(C10_TEXT,geoms,logical_objects=logical)
+    verdict=semantic_requirement_state(report,C10_TEXT)
+    assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
+    assert 'object_not_checked' in verdict['reasons']
+    assert 'no_verifier' in verdict['reasons']
+    affected={a['geometry_ids'][0]:a for a in verdict['affected']}
+    assert 1 not in affected  # 爱心对象通过，不进入被拖累清单
+    assert affected[2]['reason']=='no_verifier_for_star_profile'
+    assert state_allows_summary_passed(verdict) is False
+
+
+def test_contract_house_and_letter_partial_review_false_stay_state_three():
+    house_report=verify_semantic_requirements(HOUSE,house())
+    vh=semantic_requirement_state(house_report,HOUSE)
+    assert vh['state']==STATE_UNVERIFIED_OR_PARTIAL
+    assert 'partial_overall' in vh['reasons']
+    assert house_report['review_required'] is False
+    assert state_allows_summary_passed(vh) is False
+    letter_triangle=poly(2,[(800,1400),(1200,1400),(1000,2400)])
+    letter_report=verify_semantic_requirements(LETTER,[letter_outer(),letter_triangle])
+    vl=semantic_requirement_state(letter_report,LETTER)
+    assert vl['state']==STATE_UNVERIFIED_OR_PARTIAL
+    assert 'partial_overall' in vl['reasons']
+    assert letter_report['review_required'] is False
+    assert state_allows_summary_passed(vl) is False
+
+
+def test_contract_unknown_kind_resolves_to_state_three():
+    orig=acceptance_mod.semantic_requirements
+    acceptance_mod.semantic_requirements=lambda text:[{'kind':'mystery_contour','instruction':'未知轮廓'}]
+    try:
+        report=verify_semantic_requirements(HEART_TEXT,[_heart(1,4000.0)])
+    finally:
+        acceptance_mod.semantic_requirements=orig
+    verdict=semantic_requirement_state(report,HEART_TEXT)
+    assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
+    assert 'unknown_kind' in verdict['reasons']
+    assert 'no_verifier' in verdict['reasons']
+    assert 'mystery_contour' in verdict['recognized_unknown_kinds']
+    assert state_allows_summary_passed(verdict) is False
+
+
+def test_contract_star_only_not_checked_is_state_three_not_one():
+    report=verify_semantic_requirements(STAR_ONLY_TEXT,[_star(1,ox=0.0)])
+    assert report['status']=='not_checked'
+    assert 'star_profile' in report['applicable_requirement_kinds']
+    verdict=semantic_requirement_state(report,STAR_ONLY_TEXT)
+    assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
+    assert 'report_unchecked_applicable' in verdict['reasons']
+    assert state_allows_summary_passed(verdict) is False
+
+
+def test_contract_missing_report_is_state_three_not_state_one():
+    verdict=semantic_requirement_state(None)
+    assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
+    assert 'report_unavailable' in verdict['reasons']
+    assert state_allows_summary_passed(verdict) is False

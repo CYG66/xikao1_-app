@@ -17,6 +17,7 @@ checker.
 from __future__ import annotations
 
 import math
+import re
 from typing import Any, Iterable
 
 from shapely.geometry import LineString, Polygon
@@ -36,6 +37,53 @@ DISPATCH_CHANNELS: dict[str, str] = {
     "triangle_roof_house": "house_outline",
     "house_outline": "house_outline",
 }
+
+# Recognized requirement kinds backed by a dedicated verifier special-cased
+# outside the channel table.  They are still mandatory: a ``passed`` report
+# means fully verified; any other terminal state must not be promoted to a
+# summary PASS.
+SPECIAL_VERIFIED_KINDS: frozenset[str] = frozenset({
+    "astroid_identity",
+    "nested_square_frames",
+    "regular_polygon",
+    "cardioid_identity",
+})
+
+# Recognized shapes/profiles with no backend verifier.  These are capability
+# gaps: they block PASS and must never be silently treated as "no applicable
+# requirement".  No checker and no generator is registered for them here.
+UNVERIFIABLE_RECOGNIZED_KINDS: frozenset[str] = frozenset({
+    "star_profile",
+})
+
+# All mandatory requirement kinds the acceptance contract recognizes.
+MANDATORY_REQUIREMENT_KINDS: frozenset[str] = (
+    frozenset(DISPATCH_CHANNELS.keys())
+    | SPECIAL_VERIFIED_KINDS
+    | UNVERIFIABLE_RECOGNIZED_KINDS
+)
+
+# Coverage value -> special verified kind.  Branches that return before the
+# ``requirements`` list still expose their recognized kind through coverage.
+SPECIAL_VERIFIED_COVERAGE_KINDS: dict[str, str] = {
+    "astroid_identity_radius_and_four_cusps": "astroid_identity",
+    "explicit_nested_square_frames": "nested_square_frames",
+    "explicit_regular_polygon_and_concentric_hole": "regular_polygon",
+    "cardioid_shape_and_declared_direction": "cardioid_identity",
+}
+
+# Generic source-text vocabulary for recognized-but-no-verifier shapes.
+# Used ONLY to populate the applicability marker; no verifier, no generator
+# is registered.  ``星形线`` (astroid) is a special verified kind and must
+# never match the star profile pattern.
+UNVERIFIABLE_SHAPE_PATTERNS: dict[str, str] = {
+    "star_profile": r"五角星|五芒星|星形轮廓",
+}
+
+# Contract state vocabulary (terminal report status words are unchanged).
+STATE_NO_APPLICABLE_REQUIREMENT = "no_applicable_requirement"
+STATE_FULLY_VERIFIED = "fully_verified"
+STATE_UNVERIFIED_OR_PARTIAL = "unverified_or_partial"
 
 # Profile gate thresholds (calibrated against synthetic fixtures; see the
 # round8 report and machine-readable JSON for per-fixture measurements).
@@ -577,3 +625,219 @@ def heart_features(geoms: list[dict[str, Any]]) -> dict[str, Any]:
         "points": normalized,
         "bounds_mm": {"min_x": min(xs), "max_x": max(xs), "min_y": min(ys), "max_y": max(ys)},
     }
+
+
+# ---------------------------------------------------------------------------
+# Semantic coverage completeness contract (single source of truth)
+# ---------------------------------------------------------------------------
+#
+# This section is measurement-only.  It does not generate geometry, does not
+# edit a plan, and does not change any existing terminal report status word
+# (``partial`` / ``not_checked`` / ``unverified`` /
+# ``coverage=unsupported_semantic_kind`` keep their inherited meaning).
+#
+# The summary layer must classify a semantic report through
+# :func:`semantic_requirement_state` only; it must not re-derive applicability
+# from ``coverage`` or ``review_required``.
+
+
+def classify_requirement_kind(kind: Any) -> str | None:
+    """Return the registry category of a requirement kind.
+
+    ``dispatch_channel``  -> registered in ``DISPATCH_CHANNELS``;
+    ``special_verified``   -> dedicated verifier outside the channel table;
+    ``unverifiable_recognized`` -> recognized, no backend verifier;
+    ``None`` -> unknown / not a recognized mandatory kind.
+    """
+    if not isinstance(kind, str) or not kind:
+        return None
+    if kind in DISPATCH_CHANNELS:
+        return "dispatch_channel"
+    if kind in SPECIAL_VERIFIED_KINDS:
+        return "special_verified"
+    if kind in UNVERIFIABLE_RECOGNIZED_KINDS:
+        return "unverifiable_recognized"
+    return None
+
+
+def recognized_unverifiable_kinds_from_text(source: str | None) -> list[str]:
+    """Generic text scan for recognized-but-no-verifier shape vocabulary.
+
+    Returns only kinds registered in ``UNVERIFIABLE_RECOGNIZED_KINDS``; this
+    is an applicability annotation, never a recognition verdict for acceptance.
+    """
+    if not source:
+        return []
+    found: list[str] = []
+    for kind, pattern in UNVERIFIABLE_SHAPE_PATTERNS.items():
+        if kind in UNVERIFIABLE_RECOGNIZED_KINDS and re.search(pattern, source, re.I):
+            found.append(kind)
+    return found
+
+
+def collect_applicable_requirement_kinds(
+    report: dict[str, Any] | None,
+    source: str | None = None,
+) -> list[str]:
+    """Collect mandatory requirement kinds recognized from a semantic report.
+
+    Evidence sources, in order:
+      1. top-level ``requirements`` entries (``kind``);
+      2. top-level ``unsupported_kind``;
+      3. special verified branches identified by their ``coverage`` value;
+      4. object-level entries whose generic classifier profile has no verifier;
+      5. the report's own ``applicable_requirement_kinds`` marker;
+      6. optional source-text backstop for recognized unverifiable shapes.
+
+    The list is de-duplicated, stable-ordered.  Unknown parsed kinds are kept
+    here too: they are flagged separately as ``recognized_unknown_kinds`` by
+    :func:`semantic_requirement_state`, so the caller can report the gap.
+    """
+    kinds: list[str] = []
+
+    def add(kind: Any) -> None:
+        if isinstance(kind, str) and kind and kind not in kinds:
+            kinds.append(kind)
+
+    if isinstance(report, dict):
+        for entry in report.get("requirements") or []:
+            if isinstance(entry, dict):
+                add(entry.get("kind"))
+        add(report.get("unsupported_kind"))
+        coverage = report.get("coverage")
+        if isinstance(coverage, str) and coverage in SPECIAL_VERIFIED_COVERAGE_KINDS:
+            add(SPECIAL_VERIFIED_COVERAGE_KINDS[coverage])
+        for entry in report.get("object_acceptance") or []:
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("profile") == "star" or entry.get("reason") == "no_verifier_for_star_profile":
+                add("star_profile")
+        for kind in report.get("applicable_requirement_kinds") or []:
+            add(kind)
+    for kind in recognized_unverifiable_kinds_from_text(source):
+        add(kind)
+    return kinds
+
+
+def semantic_requirement_state(
+    report: dict[str, Any] | None,
+    source: str | None = None,
+) -> dict[str, Any]:
+    """Classify one semantic acceptance report into the three contract states.
+
+    States
+    ------
+    ``no_applicable_requirement``
+        The request carries no recognized mandatory semantic requirement.
+        Object-level ``not_checked`` must not be judged a failure here, and
+        no review may be forced on this account.
+    ``fully_verified``
+        A mandatory requirement exists and every object-level check passed;
+        the report itself is ``passed`` with no outstanding gap.
+    ``unverified_or_partial``
+        A mandatory requirement exists but it is unverified, partial, any
+        object is ``not_checked`` / unresolved, an unknown kind appeared, or
+        an applicable report is still ``not_checked``.  The summary layer must
+        not record this report as a complete acceptance PASS.
+
+    Sub-reason codes
+    ----------------
+    ``partial_overall``        top-level status is ``partial`` (never upgraded
+                              by ``review_required=False``);
+    ``partial_objects``       at least one object-level entry did not pass;
+    ``object_not_checked``     an object entry is ``not_checked``;
+    ``no_verifier``            recognized kind/profile with no backend verifier;
+    ``unknown_kind``           parsed/unsupported kind not in the mandatory
+                              registry;
+    ``report_unverified``      top-level status in unverified/unresolved/failed;
+    ``report_unchecked_applicable``  report is ``not_checked`` but carries a
+                              recognized mandatory kind;
+    ``object_unresolved``      object entry is unresolved/unverified;
+    ``report_unavailable``    the report itself is missing or not a dict.
+    """
+    if not isinstance(report, dict):
+        return {
+            "state": STATE_UNVERIFIED_OR_PARTIAL,
+            "applicable_requirement_kinds": [],
+            "recognized_unknown_kinds": [],
+            "review_required": True,
+            "reasons": ["report_unavailable"],
+            "affected": [],
+        }
+
+    applicable = collect_applicable_requirement_kinds(report, source)
+    registry = {kind: classify_requirement_kind(kind) for kind in applicable}
+    unknown_kinds = [kind for kind, category in registry.items() if category is None]
+
+    object_entries = [entry for entry in (report.get("object_acceptance") or [])
+                      if isinstance(entry, dict)]
+    reasons: set[str] = set()
+    affected: list[dict[str, Any]] = []
+
+    status = report.get("status")
+    review_required = report.get("review_required") is True
+
+    for entry in object_entries:
+        ref = entry.get("target_ref") or {}
+        object_id = ref.get("object_id")
+        geometry_ids = ref.get("geometry_ids") or entry.get("geometry_ids") or []
+        entry_status = entry.get("status")
+        entry_reason = entry.get("reason")
+        if entry_status == "passed":
+            continue
+        reasons.add("partial_objects")
+        affected.append({
+            "object_id": object_id,
+            "geometry_ids": geometry_ids,
+            "status": entry_status,
+            "reason": entry_reason,
+            "profile": entry.get("profile"),
+        })
+        if entry_status == "not_checked":
+            reasons.add("object_not_checked")
+        if entry_reason == "no_verifier_for_star_profile":
+            reasons.add("no_verifier")
+        if entry_status in ("unresolved", "unverified"):
+            reasons.add("object_unresolved")
+
+    if report.get("unsupported_kind"):
+        reasons.add("no_verifier")
+    if report.get("reason") == "no_verifier_for_kind":
+        reasons.add("no_verifier")
+    if unknown_kinds:
+        reasons.add("unknown_kind")
+    if status == "partial":
+        reasons.add("partial_overall")
+    if status in ("unverified", "unresolved", "failed", "review_required"):
+        reasons.add("report_unverified")
+    if status == "not_checked" and applicable:
+        reasons.add("report_unchecked_applicable")
+
+    has_applicable = bool(applicable)
+    if not has_applicable and not unknown_kinds and not reasons:
+        state = STATE_NO_APPLICABLE_REQUIREMENT
+    elif status == "passed" and not reasons:
+        state = STATE_FULLY_VERIFIED
+    else:
+        state = STATE_UNVERIFIED_OR_PARTIAL
+
+    return {
+        "state": state,
+        "applicable_requirement_kinds": applicable,
+        "recognized_unknown_kinds": unknown_kinds,
+        "review_required": review_required or state == STATE_UNVERIFIED_OR_PARTIAL,
+        "reasons": sorted(reasons),
+        "affected": affected,
+    }
+
+
+def state_allows_summary_passed(verdict: dict[str, Any] | None) -> bool:
+    """Whether the summary layer may treat this semantic verdict as complete.
+
+    Only ``fully_verified`` and ``no_applicable_requirement`` allow a PASS;
+    ``unverified_or_partial`` never does, regardless of ``review_required``.
+    """
+    return isinstance(verdict, dict) and verdict.get("state") in (
+        STATE_FULLY_VERIFIED,
+        STATE_NO_APPLICABLE_REQUIREMENT,
+    )

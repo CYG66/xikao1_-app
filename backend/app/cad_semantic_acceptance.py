@@ -14,6 +14,7 @@ from .cad_semantic_dispatch import (
     classify_profile,
     collect_ambiguous_requirement_kinds,
     collect_applicable_requirement_kinds,
+    derive_applicability_decision,
     heart_features,
     recognized_unverifiable_kinds_from_text,
     validate_target_binding,
@@ -106,6 +107,7 @@ def _verify_no_recognized_requirement(source,geometries,logical_objects=None,top
     """
     explicit=recognized_unverifiable_kinds_from_text(source)
     ambiguous=ambiguous_requirement_kinds_from_text(source)
+    signal=bool(explicit or ambiguous)
     active=active_geometries(geometries)
     targets=_generic_profile_targets(geometries,logical_objects,topology)
     profile_entries=[]
@@ -117,7 +119,10 @@ def _verify_no_recognized_requirement(source,geometries,logical_objects=None,top
             "profile_measurements":profile["measurements"],
             "profile_votes":profile["votes"],
         })
-    star_entries=[e for e in profile_entries if e["profile"]=="star"]
+    # Authorization boundary: a star profile entry is recorded only when the
+    # wording itself carries an explicit or ambiguous star signal.  A standalone
+    # star-like outline never fabricates a star requirement.
+    star_entries=[e for e in profile_entries if e["profile"]=="star"] if signal else []
     object_acceptance=[{**e,"status":"not_checked",
         "reason":"no_verifier_for_star_profile",
         "note":"星型轮廓无对应语义验收器；作为适用但未验证对象记录，不得计为通过"}
@@ -142,6 +147,7 @@ def _verify_no_recognized_requirement(source,geometries,logical_objects=None,top
         report["ambiguity_resolution"]=ambiguity_resolution
     if ambiguous:
         report["ambiguous_requirement_kinds"]=ambiguous
+    report["applicability_decision"]=derive_applicability_decision(report, source)
     return report
 
 
@@ -527,4 +533,5 @@ def verify_semantic_requirements(source,geometries,logical_objects=None,topology
     if isinstance(report, dict):
         report['applicable_requirement_kinds'] = collect_applicable_requirement_kinds(report, source)
         report['ambiguous_requirement_kinds'] = collect_ambiguous_requirement_kinds(report, source)
+        report['applicability_decision'] = derive_applicability_decision(report, source)
     return report

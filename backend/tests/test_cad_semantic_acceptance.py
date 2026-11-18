@@ -409,6 +409,10 @@ def test_disconnected_members_are_warned_but_not_split():
 # ---------------------------------------------------------------------------
 
 from app.cad_semantic_dispatch import (  # noqa: E402
+    DECISION_AMBIGUOUS_UNRESOLVED,
+    DECISION_APPLICABLE,
+    DECISION_NO_SIGNAL,
+    DECISION_RESOLVED_NON_STAR,
     STATE_FULLY_VERIFIED,
     STATE_NO_APPLICABLE_REQUIREMENT,
     STATE_UNVERIFIED_OR_PARTIAL,
@@ -617,5 +621,100 @@ def test_r04_c10_heart_passes_star_not_checked_partial():
     assert by_id['heart-1']['status']=='passed'
     assert by_id['star-1']['status']=='not_checked'
     assert by_id['star-1']['reason']=='no_verifier_for_star_profile'
+    assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
+    assert state_allows_summary_passed(verdict) is False
+
+
+# ---------------------------------------------------------------------------
+# Round11 R-04 second round: authorization boundary + explicit decision field
+# ---------------------------------------------------------------------------
+
+def test_r04_round2_w1_star_like_geometry_without_source_signal_is_released():
+    # W1: wording carries no star / ambiguous signal; a star-like backend
+    # profile must NOT fabricate an applicable star requirement.
+    text='画一个圆和一个矩形'
+    report=verify_semantic_requirements(text, [_star(1, ox=0.0)])
+    assert report['applicable_requirement_kinds']==[]
+    assert report['ambiguous_requirement_kinds']==[]
+    assert report.get('applicability_decision')==DECISION_NO_SIGNAL
+    assert all(o['reason']!='no_verifier_for_star_profile'
+               for o in report.get('object_acceptance') or [])
+    verdict=semantic_requirement_state(report, text)
+    assert verdict['applicability_decision']==DECISION_NO_SIGNAL
+    assert verdict['state']==STATE_NO_APPLICABLE_REQUIREMENT
+    assert state_allows_summary_passed(verdict) is True
+
+
+def test_r04_round2_m1_ambiguous_pentagon_carries_resolved_non_star_decision():
+    # M1: ambiguous wording resolved against a convex pentagon must survive
+    # the gate as an explicit resolved_non_star decision and release.
+    text='生成一个五角形'
+    report=verify_semantic_requirements(text, [_regular_poly(1, 5)])
+    assert report.get('ambiguity_resolution')=='resolved_non_star'
+    assert report.get('applicability_decision')==DECISION_RESOLVED_NON_STAR
+    verdict=semantic_requirement_state(report, text)
+    assert verdict['applicability_decision']==DECISION_RESOLVED_NON_STAR
+    assert verdict['applicable_requirement_kinds']==[]
+    assert verdict['state']==STATE_NO_APPLICABLE_REQUIREMENT
+    assert state_allows_summary_passed(verdict) is True
+
+
+def test_r04_round2_m1b_ambiguous_word_with_star_geometry_still_blocked():
+    # The original defect must stay closed: ambiguous wording + star outline.
+    text='画一个五角形'
+    report=verify_semantic_requirements(text, [_star(1, ox=0.0)])
+    assert report.get('applicability_decision')==DECISION_APPLICABLE
+    verdict=semantic_requirement_state(report, text)
+    assert verdict['applicability_decision']==DECISION_APPLICABLE
+    assert 'star_profile' in verdict['applicable_requirement_kinds']
+    assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
+    assert state_allows_summary_passed(verdict) is False
+
+
+def test_r04_round2_unresolved_ambiguity_carries_ambiguous_unresolved_decision():
+    for text in ('画一个星星', '画一个星形'):
+        report=verify_semantic_requirements(text, [])
+        assert report.get('applicability_decision')==DECISION_AMBIGUOUS_UNRESOLVED
+        verdict=semantic_requirement_state(report, text)
+        assert verdict['applicability_decision']==DECISION_AMBIGUOUS_UNRESOLVED
+        assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
+        assert 'ambiguous_requirement' in verdict['reasons']
+        assert state_allows_summary_passed(verdict) is False
+
+
+def test_r04_round2_explicit_star_words_carry_applicable_decision():
+    for word in ('五角星', '五芒星', '星形轮廓'):
+        text=f'画一个{word}'
+        report=verify_semantic_requirements(text, [])
+        assert report.get('applicability_decision')==DECISION_APPLICABLE
+        verdict=semantic_requirement_state(report, text)
+        assert verdict['applicability_decision']==DECISION_APPLICABLE
+        assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
+        assert state_allows_summary_passed(verdict) is False
+
+
+@pytest.mark.parametrize('label,text,geometry', [
+    ('hexagon', '画一个六边形', _regular_poly(1, 6)),
+    ('circle', '画一个圆', _circle(1)),
+    ('rectangle', '画一个矩形', _rect(1)),
+    ('plain_pentagon', '画一个五边形', _regular_poly(1, 5)),
+])
+def test_r04_round2_ordinary_shapes_carry_no_signal_decision(label, text, geometry):
+    report=verify_semantic_requirements(text, [geometry])
+    assert report.get('applicability_decision')==DECISION_NO_SIGNAL
+    verdict=semantic_requirement_state(report, text)
+    assert verdict['applicability_decision']==DECISION_NO_SIGNAL
+    assert verdict['state']==STATE_NO_APPLICABLE_REQUIREMENT
+    assert state_allows_summary_passed(verdict) is True
+
+
+def test_r04_round2_c10_decision_is_applicable():
+    geoms=[_heart(1, scale=2000.0), _star(2)]
+    logical=[{'object_id':'heart-1','geometry_refs':[1],'label':'爱心'},
+             {'object_id':'star-1','geometry_refs':[2],'label':'五角星'}]
+    report=verify_semantic_requirements(C10_TEXT, geoms, logical_objects=logical)
+    assert report.get('applicability_decision')==DECISION_APPLICABLE
+    verdict=semantic_requirement_state(report, C10_TEXT)
+    assert verdict['applicability_decision']==DECISION_APPLICABLE
     assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
     assert state_allows_summary_passed(verdict) is False

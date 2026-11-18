@@ -99,6 +99,25 @@ STATE_NO_APPLICABLE_REQUIREMENT = "no_applicable_requirement"
 STATE_FULLY_VERIFIED = "fully_verified"
 STATE_UNVERIFIED_OR_PARTIAL = "unverified_or_partial"
 
+# Explicit applicability decision carried on the report so the caller gate can
+# retain the resolution evidence without re-deriving it from an empty list.
+#   ``applicable``              : an established applicable requirement exists;
+#   ``resolved_non_star``      : ambiguous wording was resolved against a
+#                                 non-star outline; released, first state;
+#   ``no_signal``               : no star / ambiguous signal at all; released;
+#   ``ambiguous_unresolved``    : ambiguous wording, neither corroborated nor
+#                                 excluded; blocked, third state.
+DECISION_APPLICABLE = "applicable"
+DECISION_RESOLVED_NON_STAR = "resolved_non_star"
+DECISION_NO_SIGNAL = "no_signal"
+DECISION_AMBIGUOUS_UNRESOLVED = "ambiguous_unresolved"
+DECISION_TERMS = frozenset({
+    DECISION_APPLICABLE,
+    DECISION_RESOLVED_NON_STAR,
+    DECISION_NO_SIGNAL,
+    DECISION_AMBIGUOUS_UNRESOLVED,
+})
+
 # Profile gate thresholds (calibrated against synthetic fixtures; see the
 # round8 report and machine-readable JSON for per-fixture measurements).
 STAR_VALLEY_MIN = 4
@@ -711,6 +730,53 @@ def ambiguous_requirement_kinds_from_text(source: str | None) -> list[str]:
     return found
 
 
+def source_has_star_signal(source: str | None) -> bool:
+    """Whether the wording itself carries an explicit or ambiguous star signal.
+
+    This is the authorization gate for a star applicable item: the source
+    wording is the only authorization source.  A star-like backend profile
+    alone must never fabricate a star requirement.
+    """
+    return bool(recognized_unverifiable_kinds_from_text(source)
+                or ambiguous_requirement_kinds_from_text(source))
+
+
+def derive_applicability_decision(
+    report: dict[str, Any] | None,
+    source: str | None = None,
+) -> str:
+    """Derive the explicit four-way applicability decision for a report.
+
+    The decision must be visible to the caller gate; it is not reconstructed
+    from an empty applicable list.  An explicit match, a special verified
+    channel, or an already-confirmed ambiguous match is ``applicable``; an
+    ambiguity excluded by the non-star outline is ``resolved_non_star``; an
+    unresolved ambiguity stays ``ambiguous_unresolved``; everything else is
+    ``no_signal``.
+    """
+    if isinstance(report, dict) and report.get("applicability_decision") in DECISION_TERMS:
+        return report["applicability_decision"]
+    explicit = recognized_unverifiable_kinds_from_text(source)
+    ambiguous = ambiguous_requirement_kinds_from_text(source)
+    report_applicable = False
+    if isinstance(report, dict):
+        if report.get("requirements") or report.get("unsupported_kind"):
+            report_applicable = True
+        coverage = report.get("coverage")
+        if isinstance(coverage, str) and coverage in SPECIAL_VERIFIED_COVERAGE_KINDS:
+            report_applicable = True
+    if explicit or report_applicable:
+        return DECISION_APPLICABLE
+    if ambiguous:
+        resolution = report.get("ambiguity_resolution") if isinstance(report, dict) else None
+        if resolution == "confirmed_by_geometry":
+            return DECISION_APPLICABLE
+        if resolution == "resolved_non_star":
+            return DECISION_RESOLVED_NON_STAR
+        return DECISION_AMBIGUOUS_UNRESOLVED
+    return DECISION_NO_SIGNAL
+
+
 def collect_applicable_requirement_kinds(
     report: dict[str, Any] | None,
     source: str | None = None,
@@ -743,10 +809,15 @@ def collect_applicable_requirement_kinds(
         coverage = report.get("coverage")
         if isinstance(coverage, str) and coverage in SPECIAL_VERIFIED_COVERAGE_KINDS:
             add(SPECIAL_VERIFIED_COVERAGE_KINDS[coverage])
+        # Object-level star profile entries backfill a star requirement only
+        # when the wording itself carries a star signal; a standalone star-like
+        # outline must not inject an applicable item (authorization boundary).
+        signal = source_has_star_signal(source)
         for entry in report.get("object_acceptance") or []:
             if not isinstance(entry, dict):
                 continue
-            if entry.get("profile") == "star" or entry.get("reason") == "no_verifier_for_star_profile":
+            if signal and (entry.get("profile") == "star"
+                           or entry.get("reason") == "no_verifier_for_star_profile"):
                 add("star_profile")
         for kind in report.get("applicable_requirement_kinds") or []:
             add(kind)
@@ -822,21 +893,24 @@ def semantic_requirement_state(
         return {
             "state": STATE_UNVERIFIED_OR_PARTIAL,
             "applicable_requirement_kinds": [],
+            "ambiguous_requirement_kinds": collect_ambiguous_requirement_kinds(None, source),
             "recognized_unknown_kinds": [],
             "review_required": True,
             "reasons": ["report_unavailable"],
             "affected": [],
+            "applicability_decision": derive_applicability_decision(None, source),
         }
 
     applicable = collect_applicable_requirement_kinds(report, source)
     ambiguous = collect_ambiguous_requirement_kinds(report, source)
     registry = {kind: classify_requirement_kind(kind) for kind in applicable}
     unknown_kinds = [kind for kind, category in registry.items() if category is None]
-    # An ambiguity resolved by the backend profile against a non-star outline
-    # must not keep blocking; an unresolved ambiguity can never fall into the
-    # "no applicable requirement" state.
-    resolved_non_star = isinstance(report, dict) and \
-        report.get("ambiguity_resolution") == "resolved_non_star"
+    # Explicit four-way decision: an ambiguity resolved against a non-star
+    # outline must not keep blocking; an unresolved ambiguity can never fall
+    # into the "no applicable requirement" state.
+    decision = derive_applicability_decision(report, source)
+    resolved_non_star = decision == DECISION_RESOLVED_NON_STAR
+    ambiguous_unresolved = decision == DECISION_AMBIGUOUS_UNRESOLVED
 
     object_entries = [entry for entry in (report.get("object_acceptance") or [])
                       if isinstance(entry, dict)]
@@ -881,7 +955,7 @@ def semantic_requirement_state(
         reasons.add("report_unverified")
     if status == "not_checked" and applicable:
         reasons.add("report_unchecked_applicable")
-    if ambiguous and not resolved_non_star:
+    if ambiguous_unresolved:
         reasons.add("ambiguous_requirement")
 
     has_applicable = bool(applicable)
@@ -900,6 +974,7 @@ def semantic_requirement_state(
         "review_required": review_required or state == STATE_UNVERIFIED_OR_PARTIAL,
         "reasons": sorted(reasons),
         "affected": affected,
+        "applicability_decision": decision,
     }
 
 

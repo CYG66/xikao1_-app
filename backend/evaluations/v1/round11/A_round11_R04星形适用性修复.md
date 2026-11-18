@@ -111,3 +111,72 @@ C10 对象级状态：爱心对象 `passed / heart_features_measured`；五角�
 - 报告字段：`applicable_requirement_kinds`（既有，适用强制要求）、`ambiguous_requirement_kinds`（新增，未解决歧义信号）、`ambiguity_resolution`（新增，`confirmed_by_geometry` / `resolved_non_star`）。
 - 调度模块新增：`AMBIGUOUS_SHAPE_PATTERNS`、`ambiguous_requirement_kinds_from_text`、`collect_ambiguous_requirement_kinds`；三态判据返回 `ambiguous_requirement_kinds` 与子原因 `ambiguous_requirement`。
 - 验收模块新增：空要求分支辅助扫描 `_generic_profile_targets` / `_verify_no_recognized_requirement`；包装层同步标注歧义清单。
+
+---
+
+# 第二轮修复（D 独立复验后闭环 W1 / M1）
+
+- 父提交：`c8c6820…`（C 的缺失报告兜底接线）；本轮在其上**新提交**，不 amend / rebase / push / merge。
+- 改动范围不变：仅两个语义模块 + 语义单测 + 本轮评估产物；解释器、门禁谓词文件 blob 哈希前后一致。
+
+## 9. D 复验发现的两处未闭环
+
+### 9.1 W1：几何-only 注入星形适用项（违反授权边界，误伤放行场景）
+
+- **实测现象**：来源为"画一个圆和一个矩形"（显式 / 歧义扫描均为空），但后端 profile 投票命中 `star`；修复后报告被阻断，`applicable_requirement_kinds` 出现 `star_profile`。
+- **根因**：空要求分支对所有活动几何做 profile 扫描后，collector 在对象条目 `profile=="star"` 或 `reason=="no_verifier_for_star_profile"` 时**无条件回填** `star_profile`；来源信号闸门缺失，几何外观反向补造了用户没有提出的强制要求。
+- **修法**：
+  - 空要求分支只在来源存在显式或歧义星形信号时才生成 star 对象条目；无信号时 profile 测量结果不进入对象级验收记录；
+  - collector 对象级 star 回填分支加 `source_has_star_signal(source)` 闸门：仅当 `recognized_unverifiable_kinds_from_text(source)` 或 `ambiguous_requirement_kinds_from_text(source)` 非空时才回填 `star_profile`；报告自带的 `applicable_requirement_kinds` 标记分支保持无条件保留。
+- **口径**：来源措辞是强制要求的唯一授权来源；后端几何 profile 只能在来源已有信号时作辅助确认，**单独的几何星形不得新建适用项**，终态第一态放行。
+
+### 9.2 M1：`resolved_non_star` 跨不过存储门（合法五边形被过度阻断）
+
+- **实测现象**：`五角形` + 凸五边形，报告层判 `resolved_non_star`（第一态，本应放行），但报告 `not_checked` 且适用清单为空，被解释器存储门丢弃；调用端兜底仅凭文本含歧义词再次判第三态，端到端 `accepted=false`。
+- **根因**："已明确裁定为非星形"与"完全无信号"在报告里没有显式区分；调用端只能从空清单猜测，裁定证据无法跨门存活。
+- **修法**：报告新增显式裁定字段 `applicability_decision`，四取值：
+
+| 取值 | 产生条件 | 三态归属 | 可否汇总 PASS |
+|---|---|---|---|
+| `applicable` | 显式词命中；或报告已登记通道 / 专用验收通道；或歧义被几何 `confirmed_by_geometry` 确认 | `unverified_or_partial` | 否 |
+| `resolved_non_star` | 歧义命中，活动几何存在且 profile 排除为非星形 | `no_applicable_requirement` | 是 |
+| `no_signal` | 来源无任何星形 / 歧义信号 | `no_applicable_requirement` | 是 |
+| `ambiguous_unresolved` | 歧义命中，无活动几何可佐证 / 排除 | `unverified_or_partial`（子原因 `ambiguous_requirement`） | 否 |
+
+- 字段产生位置：
+  - 调度模块 `derive_applicability_decision(report, source)` 为唯一真值推导函数；决策常量 `DECISION_APPLICABLE` / `DECISION_RESOLVED_NON_STAR` / `DECISION_NO_SIGNAL` / `DECISION_AMBIGUOUS_UNRESOLVED`；
+  - 验收模块空要求分支 `_verify_no_recognized_requirement` 在报告上挂 `applicability_decision`；包装层 `verify_semantic_requirements` 对所有报告统一重算并挂载；
+  - 三态判据 `semantic_requirement_state` 回传 `applicability_decision`；`resolved_non_star` 与 `ambiguous_unresolved` 由该字段区分，`ambiguous_requirement` 子原因仅在 `ambiguous_unresolved` 时加入。
+- 边界：A 只负责产出明确裁定；存储门保留与兜底谓词如何消费该字段由 C 侧配合，A 不改解释器与门禁文件。
+
+## 10. 第二轮实测矩阵（离线探针，零模型）
+
+探针：`A_round11_R04_round2_probe.py`；证据快照：`A_round11_R04_round2_probe.json`。
+
+| 场景 | 来源 | 几何 | `applicability_decision` | 合同状态 | 汇总 PASS |
+|---|---|---|---|---|---|
+| W1 | 画一个圆和一个矩形 | 星形轮廓（profile 投票 star） | `no_signal` | `no_applicable_requirement` | 是 |
+| M1 | 生成一个五角形 | 凸五边形 | `resolved_non_star` | `no_applicable_requirement` | 是 |
+| M1b | 画一个五角形 | 星形轮廓 | `applicable` | `unverified_or_partial` | 否 |
+| M2 | 画一个星星 | 无 | `ambiguous_unresolved` | `unverified_or_partial` | 否 |
+| M2 | 画一个星形 | 无 | `ambiguous_unresolved` | `unverified_or_partial` | 否 |
+| 显式 | 画一个五角星 / 五芒星 / 星形轮廓 | 无 | `applicable` | `unverified_or_partial` | 否 |
+| 普通 | 六边形 / 圆 / 矩形 / 五边形 | 对应凸形 | `no_signal` | `no_applicable_requirement` | 是 |
+| astroid | 星形线 astroid 四尖点 | — | 既有专用通道，不进 star 适用清单 | 原行为保持 | — |
+| C10 | 爱心 + 五角星 | 爱心 + 星形 | `applicable` | `unverified_or_partial` | 否 |
+
+C10 对象级状态保持：爱心 `passed / heart_features_measured`；五角星 `not_checked / no_verifier_for_star_profile`；整体 `partial + review_required=True`。
+
+## 11. 第二轮测试计数与回归
+
+- 语义单测文件：**65 passed / 2 failed**；两项失败为基线既有失败（与第一轮同名同因，非本轮引入）。
+- 定向回归（语义 / 解释器 / 结构契约 / 需求契约 / 源验收 / 拓扑 / P0 边界 / round8 接线 / round9 G1、G1b、G2 路径 / round11 保留接线）：**267 passed / 2 failed**，失败项同上；C 侧保留接线 5 例全部通过。
+- 本轮第二轮新增单测：W1 无信号星形几何放行、M1 裁定字段 `resolved_non_star` 放行、M1b 歧义+星形仍阻断、未解决歧义裁定 `ambiguous_unresolved`、显式词裁定 `applicable`、普通形状裁定 `no_signal`、C10 裁定 `applicable`。
+
+## 12. 第二轮边界核对
+
+- 未把"五角形"无条件映射为五角星；歧义在几何排除前保持不确定；
+- 未新增五角星专用生成器 / 验收器；未缩小既有检查范围、未删除断言、未放宽阈值；
+- 未改动 `cad_construction_interpreter.py`、`cad_candidate_state.py`（以 `git diff --name-only` 与 blob 哈希为准）；
+- 三态词表与既有终态口径不变；"未识别"不直接归入"无适用要求"；
+- 星形仍是已识别但无完整验收器的能力缺口，本轮不构成星形验收能力已解决。

@@ -1,0 +1,319 @@
+{
+  "probe": "A_round11_R04_round2_probe",
+  "model_requests": 0,
+  "network": false,
+  "states": {
+    "no_applicable": "no_applicable_requirement",
+    "unverified_or_partial": "unverified_or_partial"
+  },
+  "cases": [
+    {
+      "label": "W1_no_signal_star_like_geometry",
+      "text": "画一个圆和一个矩形",
+      "report_status": "not_checked",
+      "report_review_required": true,
+      "ambiguity_resolution": null,
+      "report_applicable": [],
+      "report_ambiguous": [],
+      "report_decision": "no_signal",
+      "verdict_state": "no_applicable_requirement",
+      "verdict_decision": "no_signal",
+      "verdict_reasons": [],
+      "verdict_applicable": [],
+      "verdict_ambiguous": [],
+      "allows_summary_passed": true,
+      "object_acceptance": []
+    },
+    {
+      "label": "M1_ambiguous_pentagon_resolved_non_star",
+      "text": "生成一个五角形",
+      "report_status": "not_checked",
+      "report_review_required": true,
+      "ambiguity_resolution": "resolved_non_star",
+      "report_applicable": [],
+      "report_ambiguous": [
+        "star_profile"
+      ],
+      "report_decision": "resolved_non_star",
+      "verdict_state": "no_applicable_requirement",
+      "verdict_decision": "resolved_non_star",
+      "verdict_reasons": [],
+      "verdict_applicable": [],
+      "verdict_ambiguous": [
+        "star_profile"
+      ],
+      "allows_summary_passed": true,
+      "object_acceptance": []
+    },
+    {
+      "label": "M1b_ambiguous_star_geometry_blocked",
+      "text": "画一个五角形",
+      "report_status": "not_checked",
+      "report_review_required": true,
+      "ambiguity_resolution": "confirmed_by_geometry",
+      "report_applicable": [
+        "star_profile"
+      ],
+      "report_ambiguous": [
+        "star_profile"
+      ],
+      "report_decision": "applicable",
+      "verdict_state": "unverified_or_partial",
+      "verdict_decision": "applicable",
+      "verdict_reasons": [
+        "no_verifier",
+        "object_not_checked",
+        "partial_objects",
+        "report_unchecked_applicable"
+      ],
+      "verdict_applicable": [
+        "star_profile"
+      ],
+      "verdict_ambiguous": [
+        "star_profile"
+      ],
+      "allows_summary_passed": false,
+      "object_acceptance": [
+        {
+          "object_id": "geom:1",
+          "geometry_ids": [
+            1
+          ],
+          "profile": "star",
+          "status": "not_checked",
+          "reason": "no_verifier_for_star_profile"
+        }
+      ]
+    },
+    {
+      "label": "M2_unresolved_画一个星星",
+      "text": "画一个星星",
+      "report_status": "not_checked",
+      "report_review_required": true,
+      "ambiguity_resolution": null,
+      "report_applicable": [],
+      "report_ambiguous": [
+        "star_profile"
+      ],
+      "report_decision": "ambiguous_unresolved",
+      "verdict_state": "unverified_or_partial",
+      "verdict_decision": "ambiguous_unresolved",
+      "verdict_reasons": [
+        "ambiguous_requirement"
+      ],
+      "verdict_applicable": [],
+      "verdict_ambiguous": [
+        "star_profile"
+      ],
+      "allows_summary_passed": false,
+      "object_acceptance": []
+    },
+    {
+      "label": "M2_unresolved_画一个星形",
+      "text": "画一个星形",
+      "report_status": "not_checked",
+      "report_review_required": true,
+      "ambiguity_resolution": null,
+      "report_applicable": [],
+      "report_ambiguous": [
+        "star_profile"
+      ],
+      "report_decision": "ambiguous_unresolved",
+      "verdict_state": "unverified_or_partial",
+      "verdict_decision": "ambiguous_unresolved",
+      "verdict_reasons": [
+        "ambiguous_requirement"
+      ],
+      "verdict_applicable": [],
+      "verdict_ambiguous": [
+        "star_profile"
+      ],
+      "allows_summary_passed": false,
+      "object_acceptance": []
+    },
+    {
+      "label": "EXPLICIT_五角星",
+      "text": "画一个五角星",
+      "report_status": "not_checked",
+      "report_review_required": true,
+      "ambiguity_resolution": null,
+      "report_applicable": [
+        "star_profile"
+      ],
+      "report_ambiguous": [],
+      "report_decision": "applicable",
+      "verdict_state": "unverified_or_partial",
+      "verdict_decision": "applicable",
+      "verdict_reasons": [
+        "report_unchecked_applicable"
+      ],
+      "verdict_applicable": [
+        "star_profile"
+      ],
+      "verdict_ambiguous": [],
+      "allows_summary_passed": false,
+      "object_acceptance": []
+    },
+    {
+      "label": "EXPLICIT_五芒星",
+      "text": "画一个五芒星",
+      "report_status": "not_checked",
+      "report_review_required": true,
+      "ambiguity_resolution": null,
+      "report_applicable": [
+        "star_profile"
+      ],
+      "report_ambiguous": [],
+      "report_decision": "applicable",
+      "verdict_state": "unverified_or_partial",
+      "verdict_decision": "applicable",
+      "verdict_reasons": [
+        "report_unchecked_applicable"
+      ],
+      "verdict_applicable": [
+        "star_profile"
+      ],
+      "verdict_ambiguous": [],
+      "allows_summary_passed": false,
+      "object_acceptance": []
+    },
+    {
+      "label": "EXPLICIT_星形轮廓",
+      "text": "画一个星形轮廓",
+      "report_status": "not_checked",
+      "report_review_required": true,
+      "ambiguity_resolution": null,
+      "report_applicable": [
+        "star_profile"
+      ],
+      "report_ambiguous": [],
+      "report_decision": "applicable",
+      "verdict_state": "unverified_or_partial",
+      "verdict_decision": "applicable",
+      "verdict_reasons": [
+        "report_unchecked_applicable"
+      ],
+      "verdict_applicable": [
+        "star_profile"
+      ],
+      "verdict_ambiguous": [],
+      "allows_summary_passed": false,
+      "object_acceptance": []
+    },
+    {
+      "label": "ORDINARY_hexagon",
+      "text": "画一个六边形",
+      "report_status": "not_checked",
+      "report_review_required": true,
+      "ambiguity_resolution": null,
+      "report_applicable": [],
+      "report_ambiguous": [],
+      "report_decision": "no_signal",
+      "verdict_state": "no_applicable_requirement",
+      "verdict_decision": "no_signal",
+      "verdict_reasons": [],
+      "verdict_applicable": [],
+      "verdict_ambiguous": [],
+      "allows_summary_passed": true,
+      "object_acceptance": []
+    },
+    {
+      "label": "ORDINARY_circle",
+      "text": "画一个圆",
+      "report_status": "not_checked",
+      "report_review_required": true,
+      "ambiguity_resolution": null,
+      "report_applicable": [],
+      "report_ambiguous": [],
+      "report_decision": "no_signal",
+      "verdict_state": "no_applicable_requirement",
+      "verdict_decision": "no_signal",
+      "verdict_reasons": [],
+      "verdict_applicable": [],
+      "verdict_ambiguous": [],
+      "allows_summary_passed": true,
+      "object_acceptance": []
+    },
+    {
+      "label": "ORDINARY_rectangle",
+      "text": "画一个矩形",
+      "report_status": "not_checked",
+      "report_review_required": true,
+      "ambiguity_resolution": null,
+      "report_applicable": [],
+      "report_ambiguous": [],
+      "report_decision": "no_signal",
+      "verdict_state": "no_applicable_requirement",
+      "verdict_decision": "no_signal",
+      "verdict_reasons": [],
+      "verdict_applicable": [],
+      "verdict_ambiguous": [],
+      "allows_summary_passed": true,
+      "object_acceptance": []
+    },
+    {
+      "label": "ORDINARY_plain_pentagon",
+      "text": "画一个五边形",
+      "report_status": "not_checked",
+      "report_review_required": true,
+      "ambiguity_resolution": null,
+      "report_applicable": [],
+      "report_ambiguous": [],
+      "report_decision": "no_signal",
+      "verdict_state": "no_applicable_requirement",
+      "verdict_decision": "no_signal",
+      "verdict_reasons": [],
+      "verdict_applicable": [],
+      "verdict_ambiguous": [],
+      "allows_summary_passed": true,
+      "object_acceptance": []
+    },
+    {
+      "label": "C10_heart_star_partial",
+      "text": "生成一个爱心和一个五角星，爱心在左，五角星在右",
+      "report_status": "partial",
+      "report_review_required": true,
+      "ambiguity_resolution": null,
+      "report_applicable": [
+        "heart_outline_features",
+        "star_profile"
+      ],
+      "report_ambiguous": [],
+      "report_decision": "applicable",
+      "verdict_state": "unverified_or_partial",
+      "verdict_decision": "applicable",
+      "verdict_reasons": [
+        "no_verifier",
+        "object_not_checked",
+        "partial_objects",
+        "partial_overall"
+      ],
+      "verdict_applicable": [
+        "heart_outline_features",
+        "star_profile"
+      ],
+      "verdict_ambiguous": [],
+      "allows_summary_passed": false,
+      "object_acceptance": [
+        {
+          "object_id": "heart-1",
+          "geometry_ids": [
+            1
+          ],
+          "profile": "other",
+          "status": "passed",
+          "reason": "heart_features_measured"
+        },
+        {
+          "object_id": "star-1",
+          "geometry_ids": [
+            2
+          ],
+          "profile": "star",
+          "status": "not_checked",
+          "reason": "no_verifier_for_star_profile"
+        }
+      ]
+    }
+  ]
+}

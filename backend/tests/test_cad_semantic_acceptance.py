@@ -417,6 +417,7 @@ from app.cad_semantic_dispatch import (  # noqa: E402
     STATE_NO_APPLICABLE_REQUIREMENT,
     STATE_UNVERIFIED_OR_PARTIAL,
     ambiguous_requirement_kinds_from_text,
+    recognized_star_family_unsupported_kinds_from_text,
     recognized_unverifiable_kinds_from_text,
     semantic_requirement_state,
     state_allows_summary_passed,
@@ -716,5 +717,89 @@ def test_r04_round2_c10_decision_is_applicable():
     assert report.get('applicability_decision')==DECISION_APPLICABLE
     verdict=semantic_requirement_state(report, C10_TEXT)
     assert verdict['applicability_decision']==DECISION_APPLICABLE
+    assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
+    assert state_allows_summary_passed(verdict) is False
+
+
+# ---------------------------------------------------------------------------
+# Round11 R-04 third round: recognized-but-unverifiable star-family intent
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize('text,kind', [
+    ('画一个四角星', 'four_pointed_star'),
+    ('画一个六角星', 'six_pointed_star'),
+    ('画一个六芒星', 'six_pointed_star'),
+    ('画一个星号', 'asterisk'),
+    ('draw a star', 'star_family_generic'),
+    ('a five-pointed star', 'star_family_generic'),
+    ('一个star', 'star_family_generic'),
+])
+def test_r04_round3_star_family_intent_recorded_and_blocked(text, kind):
+    assert recognized_star_family_unsupported_kinds_from_text(text)==[kind]
+    report=verify_semantic_requirements(text, [])
+    assert report['status']=='unverified'
+    assert report['coverage']=='unsupported_semantic_kind'
+    assert report['review_required'] is True
+    assert report['unsupported_kind']==kind
+    assert kind in report['applicable_requirement_kinds']
+    assert 'star_profile' not in report['applicable_requirement_kinds']
+    verdict=semantic_requirement_state(report, text)
+    assert verdict['applicability_decision']==DECISION_APPLICABLE
+    assert verdict['recognized_unknown_kinds']==[]
+    assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
+    assert 'no_verifier' in verdict['reasons']
+    assert state_allows_summary_passed(verdict) is False
+
+
+def test_r04_round3_english_word_start_is_not_star_family():
+    text='start here'
+    assert recognized_star_family_unsupported_kinds_from_text(text)==[]
+    report=verify_semantic_requirements(text, [])
+    verdict=semantic_requirement_state(report, text)
+    assert verdict['state']==STATE_NO_APPLICABLE_REQUIREMENT
+    assert state_allows_summary_passed(verdict) is True
+
+
+def test_r04_round3_ordinary_shapes_and_w1_boundary_still_released():
+    controls=[
+        ('画一个圆和一个矩形', _star(1, ox=0.0)),
+        ('画一个六边形', _regular_poly(1, 6)),
+        ('画一个圆', _circle(1)),
+        ('画一个矩形', _rect(1)),
+        ('画一个五边形', _regular_poly(1, 5)),
+    ]
+    for text, geometry in controls:
+        report=verify_semantic_requirements(text, [geometry])
+        verdict=semantic_requirement_state(report, text)
+        assert verdict['applicability_decision']==DECISION_NO_SIGNAL, text
+        assert verdict['state']==STATE_NO_APPLICABLE_REQUIREMENT, text
+        assert state_allows_summary_passed(verdict) is True, text
+
+
+def test_r04_round3_ambiguous_pentagon_still_resolved_non_star():
+    report=verify_semantic_requirements('生成一个五角形', [_regular_poly(1, 5)])
+    verdict=semantic_requirement_state(report, '生成一个五角形')
+    assert verdict['applicability_decision']==DECISION_RESOLVED_NON_STAR
+    assert verdict['state']==STATE_NO_APPLICABLE_REQUIREMENT
+    assert state_allows_summary_passed(verdict) is True
+
+
+def test_r04_round3_ambiguous_star_geometry_still_blocked():
+    report=verify_semantic_requirements('画一个五角形', [_star(1, ox=0.0)])
+    verdict=semantic_requirement_state(report, '画一个五角形')
+    assert verdict['applicability_decision']==DECISION_APPLICABLE
+    assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
+    assert state_allows_summary_passed(verdict) is False
+
+
+def test_r04_round3_c10_still_partial_rejected():
+    geoms=[_heart(1, scale=2000.0), _star(2)]
+    logical=[{'object_id':'heart-1','geometry_refs':[1],'label':'爱心'},
+             {'object_id':'star-1','geometry_refs':[2],'label':'五角星'}]
+    report=verify_semantic_requirements(C10_TEXT, geoms, logical_objects=logical)
+    by_id={o['target_ref']['object_id']: o for o in report['object_acceptance']}
+    assert by_id['heart-1']['status']=='passed'
+    assert by_id['star-1']['status']=='not_checked'
+    verdict=semantic_requirement_state(report, C10_TEXT)
     assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
     assert state_allows_summary_passed(verdict) is False

@@ -56,11 +56,23 @@ UNVERIFIABLE_RECOGNIZED_KINDS: frozenset[str] = frozenset({
     "star_profile",
 })
 
+# Other recognized star-family shapes with no backend verifier.  Each keeps a
+# distinct kind, separate from the five-pointed ``star_profile``: a future
+# four-/six-pointed verifier can be registered without colliding with the
+# five-pointed profile.  These are also capability gaps, not unknown wording.
+UNVERIFIABLE_STAR_FAMILY_KINDS: frozenset[str] = frozenset({
+    "four_pointed_star",
+    "six_pointed_star",
+    "asterisk",
+    "star_family_generic",
+})
+
 # All mandatory requirement kinds the acceptance contract recognizes.
 MANDATORY_REQUIREMENT_KINDS: frozenset[str] = (
     frozenset(DISPATCH_CHANNELS.keys())
     | SPECIAL_VERIFIED_KINDS
     | UNVERIFIABLE_RECOGNIZED_KINDS
+    | UNVERIFIABLE_STAR_FAMILY_KINDS
 )
 
 # Coverage value -> special verified kind.  Branches that return before the
@@ -88,6 +100,17 @@ UNVERIFIABLE_SHAPE_PATTERNS: dict[str, str] = {
 # must be released normally.  Astroid wording is excluded here as well.
 AMBIGUOUS_SHAPE_PATTERNS: dict[str, str] = {
     "star_profile": r"五角形|星形|星星|星型",
+}
+
+# Recognized star-family wording that is NOT the five-pointed star profile and
+# has no backend verifier yet.  Each maps to its own distinct kind; this is a
+# source-side recognition record (intent exists, acceptance capability is
+# missing), never a geometry-inferred requirement.
+UNSUPPORTED_STAR_FAMILY_PATTERNS: dict[str, str] = {
+    "four_pointed_star": r"四角星|四角星形",
+    "six_pointed_star": r"六角星|六角星形|六芒星",
+    "asterisk": r"星号|asterisk",
+    "star_family_generic": r"draw a star|five-pointed star|(?<![a-z])star(?![a-z])",
 }
 
 # Wording that denotes the verified astroid channel; ambiguous / star gates
@@ -690,6 +713,8 @@ def classify_requirement_kind(kind: Any) -> str | None:
         return "special_verified"
     if kind in UNVERIFIABLE_RECOGNIZED_KINDS:
         return "unverifiable_recognized"
+    if kind in UNVERIFIABLE_STAR_FAMILY_KINDS:
+        return "unverifiable_recognized"
     return None
 
 
@@ -704,6 +729,28 @@ def recognized_unverifiable_kinds_from_text(source: str | None) -> list[str]:
     found: list[str] = []
     for kind, pattern in UNVERIFIABLE_SHAPE_PATTERNS.items():
         if kind in UNVERIFIABLE_RECOGNIZED_KINDS and re.search(pattern, source, re.I):
+            found.append(kind)
+    return found
+
+
+def recognized_star_family_unsupported_kinds_from_text(source: str | None) -> list[str]:
+    """Scan recognized-but-unverifiable star-family wording (not five-pointed).
+
+    Returns distinct kinds from ``UNVERIFIABLE_STAR_FAMILY_KINDS``.  Astroid
+    wording and already-explicit five-pointed star wording are excluded.  This
+    is a source-side intent record: the wording itself expresses a star-family
+    requirement that currently has no verifier; it must not be inferred from
+    geometry.
+    """
+    if not source:
+        return []
+    if re.search(_ASTROID_TEXT_PATTERN, source, re.I):
+        return []
+    explicit = set(recognized_unverifiable_kinds_from_text(source))
+    found: list[str] = []
+    for kind, pattern in UNSUPPORTED_STAR_FAMILY_PATTERNS.items():
+        if kind in UNVERIFIABLE_STAR_FAMILY_KINDS and kind not in explicit \
+                and re.search(pattern, source, re.I):
             found.append(kind)
     return found
 

@@ -16,6 +16,7 @@ from .cad_semantic_dispatch import (
     collect_applicable_requirement_kinds,
     derive_applicability_decision,
     heart_features,
+    recognized_star_family_unsupported_kinds_from_text,
     recognized_unverifiable_kinds_from_text,
     validate_target_binding,
 )
@@ -107,7 +108,30 @@ def _verify_no_recognized_requirement(source,geometries,logical_objects=None,top
     """
     explicit=recognized_unverifiable_kinds_from_text(source)
     ambiguous=ambiguous_requirement_kinds_from_text(source)
+    family=recognized_star_family_unsupported_kinds_from_text(source)
     signal=bool(explicit or ambiguous)
+    # Recognized star-family intent (four-/six-pointed, asterisk, generic
+    # English star) with no verifier yet: record it as an identified but
+    # unverifiable requirement under its own kind.  It must not be bound to
+    # ``star_profile`` and must not be released as "no applicable requirement".
+    if family:
+        family_requirements=[
+            {"kind":k,"instruction":"来源表达了星形语族意图，当前无对应语义验收器；已识别为不可验收，不得计为通过。"}
+            for k in family
+        ]
+        family_report={
+            "status":"unverified",
+            "coverage":"unsupported_semantic_kind",
+            "requirements":family_requirements,
+            "checks":[],
+            "review_required":True,
+            "unsupported_kind":family[0],
+            "recognized_unverifiable_kinds":family,
+            "reason":"no_verifier_for_kind",
+            "reason_detail":"来源表达了星形语族意图（非五角星轮廓），当前无对应验收器；已识别、不可验收，未绑定 star_profile。",
+        }
+        family_report["applicability_decision"]=derive_applicability_decision(family_report, source)
+        return family_report
     active=active_geometries(geometries)
     targets=_generic_profile_targets(geometries,logical_objects,topology)
     profile_entries=[]

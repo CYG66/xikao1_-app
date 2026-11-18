@@ -246,13 +246,13 @@ def test_house_entry_summary_keeps_review_required_and_not_accepted():
     assert candidate_is_accepted({"acceptance_summary": summary}) is False
 
 
-def test_gate_residual_condition_partial_review_false_with_complete_coverage_is_defect():
-    # Known production gate observation (not fixed this round): the summary's
-    # report review filter does not list ``partial`` as a reviewable status. If a
-    # future source-acceptance producer ever emits coverage=complete with no
-    # unknown requirements while the semantic report is partial/review_required=False,
-    # the candidate predicate would accept it. Current producers never emit
-    # coverage=complete for house/letter-A channels, so this is a latent defect.
+def test_gate_residual_condition_partial_review_false_with_complete_coverage_is_closed_by_g1_guard():
+    # Round8 recorded this as a latent defect: the summary's generic report
+    # filter did not list ``partial`` as a reviewable status, so a
+    # coverage=complete / no-unknown source with a partial/review_required=False
+    # semantic report would have been accepted. The Round9 G1 guard delegates the
+    # semantic report to A's three-state verdict, under which ``partial`` is
+    # always ``unverified_or_partial`` regardless of the review_required flag.
     partial_false = {"status": "partial", "review_required": False,
                      "coverage": "straight_capital_a_structural_relations_only",
                      "checks": [{"status": "passed"}]}
@@ -262,7 +262,9 @@ def test_gate_residual_condition_partial_review_false_with_complete_coverage_is_
         source_acceptance={"coverage": "complete", "unknown_requirements": [],
                            "semantic_acceptance": partial_false, "checks": []},
     )
-    assert summary["status"] == "passed"
-    assert summary["review_required"] is False
-    assert candidate_is_accepted({"acceptance_summary": summary}) is True
+    assert summary["status"] == "review_required"
+    assert summary["review_required"] is True
+    assert summary["semantic_requirement_state"] == "unverified_or_partial"
+    assert "partial_overall" in summary["semantic_incomplete_reasons"]
+    assert candidate_is_accepted({"acceptance_summary": summary}) is False
     assert candidate_is_reviewable_draft({"acceptance_summary": summary}) is False

@@ -971,7 +971,13 @@ def interpret_construction_request(
             if stroke_acceptance['status']!='not_checked':
                 source_acceptance['stroke_acceptance']=stroke_acceptance
             semantic_acceptance=_verify_semantic_requirements_bound(original_requirement,result)
-            if semantic_acceptance['status']!='not_checked':
+            # Keep an applicable mandatory requirement visible to the summary
+            # even when the whole report is still ``not_checked`` (capability
+            # gap, e.g. star profile).  A report with an empty applicability
+            # marker means "no applicable requirement" and may be dropped,
+            # matching the legacy no-op path.
+            semantic_applicable = semantic_acceptance.get('applicable_requirement_kinds') or []
+            if semantic_acceptance['status']!='not_checked' or semantic_applicable:
                 source_acceptance['semantic_acceptance']=semantic_acceptance
             from .cad_projection_acceptance import verify_projection_requirements
             projection_acceptance = verify_projection_requirements(original_requirement,result['geometries'])
@@ -1209,6 +1215,7 @@ def interpret_construction_request(
         composition_validation=composition_validation,
         source_acceptance=source_acceptance,
         trial_result=result,
+        source=original_requirement,
     )
     return {
         "schema": "cad.construction-interpretation-result.v1",
@@ -1238,10 +1245,48 @@ def interpret_construction_request(
     }
 
 
+def _source_recognizes_mandatory_kind(source_text: str | None) -> bool:
+    """Whether the source text itself recognizes a registered mandatory kind.
+
+    Used only to decide how to treat a missing semantic report: a source with
+    no recognized mandatory requirement keeps the prior non-blocking behavior
+    when no report is attached; a source that does recognize one but leaves
+    the report unavailable is conservatively blocked.
+    """
+    if not source_text:
+        return False
+    try:
+        from .cad_semantic_acceptance import semantic_requirements
+        from .cad_semantic_dispatch import MANDATORY_REQUIREMENT_KINDS
+        return any((req or {}).get("kind") in MANDATORY_REQUIREMENT_KINDS
+                   for req in semantic_requirements(source_text) or [])
+    except Exception:
+        return False
+
+
+def _semantic_summary_verdict(report: dict[str, Any] | None, source: str | None) -> dict[str, Any]:
+    """Three-state semantic verdict consumed by the summary layer.
+
+    The verdict is delegated entirely to A's ``semantic_requirement_state``;
+    the summary layer never infers applicability from ``coverage`` or the
+    ``review_required`` flag.
+    """
+    from .cad_semantic_dispatch import semantic_requirement_state
+    if isinstance(report, dict):
+        return semantic_requirement_state(report, source)
+    if source and _source_recognizes_mandatory_kind(source):
+        return {"state": "unverified_or_partial", "applicable_requirement_kinds": [],
+                "recognized_unknown_kinds": [], "review_required": True,
+                "reasons": ["report_unavailable"], "affected": []}
+    return {"state": "no_applicable_requirement", "applicable_requirement_kinds": [],
+            "recognized_unknown_kinds": [], "review_required": False,
+            "reasons": [], "affected": []}
+
+
 def construction_acceptance_summary(
     *, preflight_structure, structure_contract, structure_validation,
     composition_contract, composition_validation, source_acceptance,
-    trial_result=None,
+    trial_result=None, source: str | None = None,
 ):
     """Converge preflight uncertainty with post-execution geometry evidence."""
     # Preflight may legitimately be unable to expand a parametric/composite
@@ -1259,17 +1304,25 @@ def construction_acceptance_summary(
         )
     )
     source_acceptance = source_acceptance or {}
+    # The semantic report is judged exclusively by A's three-state verdict and
+    # is kept out of the generic report loop; otherwise a legacy no-applicable
+    # report carrying a stray review_required flag would false-fail the
+    # "no mandatory requirement" positive case.
+    semantic_report = source_acceptance.get("semantic_acceptance")
     reports = [source_acceptance]
     reports.extend(
         value for key, value in source_acceptance.items()
-        if key.endswith("_acceptance") and isinstance(value, dict)
+        if key != "semantic_acceptance" and key.endswith("_acceptance") and isinstance(value, dict)
     )
+    from .cad_semantic_dispatch import state_allows_summary_passed
+    semantic_verdict = _semantic_summary_verdict(semantic_report, source)
+    semantic_blocks = not state_allows_summary_passed(semantic_verdict)
     report_requires_review = any(
         report.get("review_required") is True
         or report.get("status") in {"failed", "unverified", "review_required"}
         for report in reports
     )
-    review_required = (preflight_review_required or report_requires_review
+    review_required = (preflight_review_required or report_requires_review or semantic_blocks
         or any((report or {}).get('review_required') is True for report in
                (preflight_structure,structure_validation,composition_validation)))
     verified_checks = sum(
@@ -1290,7 +1343,10 @@ def construction_acceptance_summary(
     # missing coverage remains reviewable even when every known check passes.
     coverage_complete = source_acceptance.get('coverage') in {'complete', 'full'}
     unknown_requirements = source_acceptance.get('unknown_requirements', [])
-    coverage_complete = coverage_complete and not unknown_requirements
+    # Coverage strings are never sole evidence: an applicable semantic
+    # requirement left unverified/partial blocks a complete verdict even when
+    # the producer emitted coverage=complete with no unknown requirements.
+    coverage_complete = coverage_complete and not unknown_requirements and not semantic_blocks
     review_required = review_required or not coverage_complete
     return {
         "status": "review_required" if review_required else "passed",
@@ -1305,6 +1361,10 @@ def construction_acceptance_summary(
         "assertion_status": ('passed' if (trial_result or {}).get('assertions',{}).get('ok') is True
                              and (trial_result or {}).get('assertions',{}).get('count',0)>0 else 'not_checked'),
         "unverified_geometry_ids": source_acceptance.get("unverified_geometry_ids", []),
+        "semantic_requirement_state": semantic_verdict.get("state"),
+        "semantic_applicable_requirement_kinds": deepcopy(semantic_verdict.get("applicable_requirement_kinds") or []),
+        "semantic_incomplete_objects": deepcopy(semantic_verdict.get("affected") or []),
+        "semantic_incomplete_reasons": deepcopy(semantic_verdict.get("reasons") or []),
     }
 
 

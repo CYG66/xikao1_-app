@@ -18,7 +18,7 @@
 | 既有 P0 补丁（未改动） | `e7831921ef904deaa893573da8cc793056a9cf41` |
 | 分支 | `v1/a-p0-semantic-dispatch`（评审工作树，未推送、未合并） |
 | 本提交父节点 | `e7831921ef904deaa893573da8cc793056a9cf41` |
-| 本提交 SHA | 提交后由 `git rev-parse HEAD` 回填（见交付回复） |
+| 本提交 SHA | `ccd8c1cb53b311f94fbb611f30e502d51ce1f4a4`（父节点 `e7831921ef904deaa893573da8cc793056a9cf41`） |
 
 ### 2.1 改动文件（`git diff --numstat`，相对 `e7831921`）
 

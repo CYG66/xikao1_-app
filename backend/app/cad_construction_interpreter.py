@@ -1262,20 +1262,32 @@ def _report_blocks_review(report: dict[str, Any] | None) -> bool:
 
 
 def _source_recognizes_mandatory_kind(source_text: str | None) -> bool:
-    """Whether the source text itself recognizes a registered mandatory kind.
+    """Whether the source text itself signals a recognized or ambiguous kind.
 
     Used only to decide how to treat a missing semantic report: a source with
-    no recognized mandatory requirement keeps the prior non-blocking behavior
-    when no report is attached; a source that does recognize one but leaves
-    the report unavailable is conservatively blocked.
+    no recognized signal keeps the prior non-blocking behavior when no report
+    is attached; a source that recognizes a mandatory kind, or leaves an
+    unresolved ambiguity, is conservatively blocked.
+
+    The text scans are A's exported functions; this caller never builds a
+    second vocabulary here and never inspects geometry profile.  An ambiguous
+    wording alone does not establish a requirement, but with no report to
+    resolve it the case cannot be released as "no applicable requirement".
     """
     if not source_text:
         return False
     try:
         from .cad_semantic_acceptance import semantic_requirements
-        from .cad_semantic_dispatch import MANDATORY_REQUIREMENT_KINDS
-        return any((req or {}).get("kind") in MANDATORY_REQUIREMENT_KINDS
-                   for req in semantic_requirements(source_text) or [])
+        from .cad_semantic_dispatch import (
+            MANDATORY_REQUIREMENT_KINDS,
+            ambiguous_requirement_kinds_from_text,
+            recognized_unverifiable_kinds_from_text,
+        )
+        structured = any((req or {}).get("kind") in MANDATORY_REQUIREMENT_KINDS
+                         for req in semantic_requirements(source_text) or [])
+        explicit = bool(recognized_unverifiable_kinds_from_text(source_text))
+        ambiguous = bool(ambiguous_requirement_kinds_from_text(source_text))
+        return structured or explicit or ambiguous
     except Exception:
         return False
 
@@ -1291,10 +1303,22 @@ def _semantic_summary_verdict(report: dict[str, Any] | None, source: str | None)
     if isinstance(report, dict):
         return semantic_requirement_state(report, source)
     if source and _source_recognizes_mandatory_kind(source):
-        return {"state": "unverified_or_partial", "applicable_requirement_kinds": [],
+        from .cad_semantic_dispatch import (
+            ambiguous_requirement_kinds_from_text,
+            recognized_unverifiable_kinds_from_text,
+        )
+        explicit_kinds = recognized_unverifiable_kinds_from_text(source)
+        ambiguous_kinds = ambiguous_requirement_kinds_from_text(source)
+        fallback_reasons = ["report_unavailable"]
+        if ambiguous_kinds:
+            fallback_reasons.append("ambiguous_requirement")
+        return {"state": "unverified_or_partial",
+                "applicable_requirement_kinds": explicit_kinds,
+                "ambiguous_requirement_kinds": ambiguous_kinds,
                 "recognized_unknown_kinds": [], "review_required": True,
-                "reasons": ["report_unavailable"], "affected": []}
+                "reasons": fallback_reasons, "affected": []}
     return {"state": "no_applicable_requirement", "applicable_requirement_kinds": [],
+            "ambiguous_requirement_kinds": [],
             "recognized_unknown_kinds": [], "review_required": False,
             "reasons": [], "affected": []}
 

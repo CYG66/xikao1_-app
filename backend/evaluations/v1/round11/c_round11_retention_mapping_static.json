@@ -1,0 +1,124 @@
+{
+  "survey": "c_round11_retention_mapping_static",
+  "code_version_base": "38b2437269b95445d48b40c524c93cf7743cb304",
+  "code_version_after_A": "238a84e44bd4ea01a8c580df6d4b2cdfc411722d",
+  "wiring_status": "wired",
+  "wiring_owner": "Agent C",
+  "model_requests": 0,
+  "network": false,
+  "changed_files": [
+    "backend/app/cad_construction_interpreter.py",
+    "backend/tests/test_c_round11_r04_retention.py",
+    "backend/evaluations/v1/round11/C_round11_R04保留接线.md",
+    "backend/evaluations/v1/round11/c_round11_retention_mapping_static.json",
+    "backend/evaluations/v1/round11/c_round11_r04_wiring_probe.py",
+    "backend/evaluations/v1/round11/c_round11_r04_wiring_probe.json"
+  ],
+  "discard_points": [
+    {
+      "id": "D1",
+      "channel": "semantic",
+      "file": "app/cad_construction_interpreter.py",
+      "function": "interpret_construction_request (inline acceptance assembly)",
+      "lines": "973, 979-981",
+      "action": "Storage gate retained unchanged: report is written into source_acceptance['semantic_acceptance'] only when status != 'not_checked' OR applicable_requirement_kinds is non-empty. Verified by test_r04_not_checked_applicable_report_is_retained_and_blocks.",
+      "note": "An unresolved ambiguous report carries ambiguous_requirement_kinds but an empty applicable list; its body is not kept by D1, but the missing-report fallback re-derives the ambiguity from A's text scan and blocks. No evidence body survives, the verdict does."
+    },
+    {
+      "id": "D2",
+      "channel": "semantic",
+      "file": "app/cad_construction_interpreter.py",
+      "function": "_verify_semantic_requirements_bound",
+      "lines": "422-469",
+      "action": "Degraded-binding caller proof has no applicable marker; retained because status is unverified. Untouched by this wiring."
+    },
+    {
+      "id": "D3",
+      "channel": "semantic",
+      "file": "app/cad_construction_interpreter.py",
+      "function": "radial bounds repair trial",
+      "lines": "1118-1131",
+      "action": "Trial proof is deterministic-repair evidence only; interpretation re-enters fresh. Untouched."
+    },
+    {
+      "id": "D5",
+      "channel": "semantic",
+      "file": "app/cad_construction_interpreter.py",
+      "function": "construction_acceptance_summary reports assembly",
+      "lines": "1327-1332",
+      "action": "Semantic report stays out of the generic report loop. Untouched."
+    },
+    {
+      "id": "D6",
+      "channel": "semantic",
+      "file": "app/cad_construction_interpreter.py",
+      "function": "construction_acceptance_summary verdict/output",
+      "lines": "1334-1335, 1401-1403",
+      "action": "Verdict delegated to A's semantic_requirement_state; caller copies state/kinds/affected/reasons. Untouched."
+    },
+    {
+      "id": "D7",
+      "channel": "semantic",
+      "file": "app/cad_construction_commit.py",
+      "function": "commit_candidate / record assembly",
+      "lines": "87, 241",
+      "action": "source_acceptance deep-copied wholesale; no stripping. Untouched."
+    },
+    {
+      "id": "D8",
+      "channel": "semantic",
+      "file": "app/agent_response_builder.py",
+      "function": "response diff",
+      "lines": "28-41",
+      "action": "Read-only consumption. Untouched."
+    }
+  ],
+  "wired_fallback": {
+    "file": "app/cad_construction_interpreter.py",
+    "functions": [
+      "_source_recognizes_mandatory_kind (1264-1291)",
+      "_semantic_summary_verdict missing-report fallback (1295-1318)"
+    ],
+    "change": "Recognition predicate now reuses A's exported scans: recognized_unverifiable_kinds_from_text (explicit) and ambiguous_requirement_kinds_from_text (ambiguous), in addition to the structured semantic_requirements entries. Missing-report fallback returns unverified_or_partial with report_unavailable; ambiguous cases also carry ambiguous_requirement. Ordinary shapes still resolve to no_applicable_requirement.",
+    "second_vocabulary": false,
+    "geometry_profile_inference": false,
+    "reused_A_exports": [
+      "recognized_unverifiable_kinds_from_text",
+      "ambiguous_requirement_kinds_from_text"
+    ]
+  },
+  "empty_marker_writes_after_wiring": {
+    "producer_A_owned": [
+      "cad_semantic_dispatch.py: report non-dict fallback kinds [] (still blocked)",
+      "cad_semantic_dispatch.py: collector six evidence sources all empty",
+      "cad_semantic_acceptance.py: wrapper back-fills collector result"
+    ],
+    "caller_C_owned": [
+      "_semantic_summary_verdict 1303-1312: missing report, signal present -> blocked fallback, explicit/ambiguous kinds copied from A scans",
+      "_semantic_summary_verdict 1313-1316: missing report, no signal -> no_applicable_requirement",
+      "construction_acceptance_summary 1401: output deepcopy of verdict kinds"
+    ]
+  },
+  "residual_silent_release_paths": [
+    {
+      "path": "Source wording matches neither the explicit star vocabulary nor the ambiguous patterns, and no registered channel parsed; geometry happens to be star-like.",
+      "status": "Accepted residual by contract: source wording is the sole authorization; standalone geometry profile must not fabricate a requirement. Closing requires A-side vocabulary/channel work, not caller inference.",
+      "blocks_integration_note": "Tracked as known R-04 residual; caller-side wiring cannot close it without violating the red line."
+    },
+    {
+      "path": "A producer branch returns a dict report with a recognized mandatory signal absent from every collector evidence source and no reason.",
+      "status": "UNVERIFIED at producer level; existing A collector scans requirements/unsupported_kind/coverage/object entries/marker/text backstop. No caller-side re-derivation added (R-01/R-03 isolation)."
+    }
+  ],
+  "isolation": {
+    "r01": "No per-check revalidation or empty-check gate change.",
+    "r02": "path/stroke/projection/repetition gates untouched.",
+    "r03": "Candidate persistence authorization, summary recomputation boundary and hash binding untouched.",
+    "scope": "Semantic report retention + missing-report fallback recognition only."
+  },
+  "evidence": {
+    "probe": "c_round11_r04_wiring_probe.json",
+    "tests": "backend/tests/test_c_round11_r04_retention.py (5 passed)",
+    "regression": "G1 guard + semantic acceptance + interpreter + edit interpreter: 142 passed, 2 pre-existing A-side baseline failures; full suite 1749 passed / 47 failed / 4 skipped, failures match Round10 baseline pollution set."
+  }
+}

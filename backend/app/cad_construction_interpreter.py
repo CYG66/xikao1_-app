@@ -973,11 +973,17 @@ def interpret_construction_request(
             semantic_acceptance=_verify_semantic_requirements_bound(original_requirement,result)
             # Keep an applicable mandatory requirement visible to the summary
             # even when the whole report is still ``not_checked`` (capability
-            # gap, e.g. star profile).  A report with an empty applicability
-            # marker means "no applicable requirement" and may be dropped,
-            # matching the legacy no-op path.
+            # gap, e.g. star profile).  A report carrying A's explicit
+            # applicability decision is retained as well: a resolved_non_star /
+            # no_signal resolution must survive to the summary so the missing-
+            # report fallback cannot second-guess it; only a report with no
+            # retained signal and no usable decision may be dropped.
+            from .cad_semantic_dispatch import DECISION_TERMS
             semantic_applicable = semantic_acceptance.get('applicable_requirement_kinds') or []
-            if semantic_acceptance['status']!='not_checked' or semantic_applicable:
+            semantic_decision = semantic_acceptance.get('applicability_decision')
+            decision_retained = isinstance(semantic_decision, str) and semantic_decision in DECISION_TERMS
+            if (semantic_acceptance['status']!='not_checked' or semantic_applicable
+                    or decision_retained):
                 source_acceptance['semantic_acceptance']=semantic_acceptance
             from .cad_projection_acceptance import verify_projection_requirements
             projection_acceptance = verify_projection_requirements(original_requirement,result['geometries'])

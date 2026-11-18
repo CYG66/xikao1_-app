@@ -2,7 +2,8 @@
   "survey": "c_round11_retention_mapping_static",
   "code_version_base": "38b2437269b95445d48b40c524c93cf7743cb304",
   "code_version_after_A": "238a84e44bd4ea01a8c580df6d4b2cdfc411722d",
-  "wiring_status": "wired",
+  "code_version_A_round2": "1fc2ad5843109195a8a0c14c1be55405288dd32c",
+  "wiring_status": "wired_round2",
   "wiring_owner": "Agent C",
   "model_requests": 0,
   "network": false,
@@ -20,9 +21,9 @@
       "channel": "semantic",
       "file": "app/cad_construction_interpreter.py",
       "function": "interpret_construction_request (inline acceptance assembly)",
-      "lines": "973, 979-981",
-      "action": "Storage gate retained unchanged: report is written into source_acceptance['semantic_acceptance'] only when status != 'not_checked' OR applicable_requirement_kinds is non-empty. Verified by test_r04_not_checked_applicable_report_is_retained_and_blocks.",
-      "note": "An unresolved ambiguous report carries ambiguous_requirement_kinds but an empty applicable list; its body is not kept by D1, but the missing-report fallback re-derives the ambiguity from A's text scan and blocks. No evidence body survives, the verdict does."
+      "lines": "973, 979-987",
+      "action": "Round-2 aligned gate: report is retained when status != 'not_checked' OR applicable_requirement_kinds is non-empty OR applicability_decision is one of A's DECISION_TERMS (applicable / ambiguous_unresolved / resolved_non_star / no_signal). A resolved_non_star or no_signal resolution survives to the summary so the missing-report fallback cannot second-guess it.",
+      "note": "Pre-round-2 condition retained status/applicable only; resolved_non_star and no_signal reports with an empty applicable list were dropped and the text fallback re-blocked them (M1 over-block). Fixed by the decision clause."
     },
     {
       "id": "D2",
@@ -79,13 +80,24 @@
       "_source_recognizes_mandatory_kind (1264-1291)",
       "_semantic_summary_verdict missing-report fallback (1295-1318)"
     ],
-    "change": "Recognition predicate now reuses A's exported scans: recognized_unverifiable_kinds_from_text (explicit) and ambiguous_requirement_kinds_from_text (ambiguous), in addition to the structured semantic_requirements entries. Missing-report fallback returns unverified_or_partial with report_unavailable; ambiguous cases also carry ambiguous_requirement. Ordinary shapes still resolve to no_applicable_requirement.",
+    "change": "Recognition predicate reuses A's exported scans: recognized_unverifiable_kinds_from_text (explicit) and ambiguous_requirement_kinds_from_text (ambiguous), in addition to the structured semantic_requirements entries. Missing-report fallback returns unverified_or_partial with report_unavailable; ambiguous cases also carry ambiguous_requirement. Ordinary shapes still resolve to no_applicable_requirement.",
+    "explicit_decision_precedence": "A dict report is delegated to A's semantic_requirement_state before any fallback runs; a report with applicability_decision resolved_non_star / no_signal is judged by A's verdict and must not be re-blocked by the caller text-ambiguity scan. The text fallback fires only when the report is missing or not a dict.",
     "second_vocabulary": false,
     "geometry_profile_inference": false,
     "reused_A_exports": [
       "recognized_unverifiable_kinds_from_text",
-      "ambiguous_requirement_kinds_from_text"
+      "ambiguous_requirement_kinds_from_text",
+      "DECISION_TERMS",
+      "derive_applicability_decision (consumed via A state; not re-derived in caller)"
     ]
+  },
+  "round2_alignment": {
+    "parent_commit": "1fc2ad5843109195a8a0c14c1be55405288dd32c",
+    "gate_condition_old": "status != 'not_checked' OR applicable_requirement_kinds non-empty",
+    "gate_condition_new": "status != 'not_checked' OR applicable_requirement_kinds non-empty OR applicability_decision in DECISION_TERMS",
+    "decision_terms": ["applicable", "ambiguous_unresolved", "resolved_non_star", "no_signal"],
+    "m1_fix": "resolved_non_star report retained; summary sees A's no_applicable_requirement verdict; missing-report fallback does not second-guess it.",
+    "w1_behavior": "no_signal star-like standalone geometry releases; no star applicable item injected without a source signal."
   },
   "empty_marker_writes_after_wiring": {
     "producer_A_owned": [
@@ -118,7 +130,7 @@
   },
   "evidence": {
     "probe": "c_round11_r04_wiring_probe.json",
-    "tests": "backend/tests/test_c_round11_r04_retention.py (5 passed)",
-    "regression": "G1 guard + semantic acceptance + interpreter + edit interpreter: 142 passed, 2 pre-existing A-side baseline failures; full suite 1749 passed / 47 failed / 4 skipped, failures match Round10 baseline pollution set."
+    "tests": "backend/tests/test_c_round11_r04_retention.py (13 passed)",
+    "regression": "Adjacent modules (C retention + G1 guard + semantic acceptance + interpreter): 164 passed, 2 pre-existing A-side baseline failures. Full suite excluding 8 collection-gap files: 1749 passed / 47 failed / 4 skipped, same counts and pollution set as the round-1 wiring run; no new semantic/summary failure."
   }
 }

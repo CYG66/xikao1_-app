@@ -87,8 +87,54 @@ A 口径（已随 A 测试固化）：显式词表 → 适用、第三态阻断�
 
 ## 6. 交付清单
 
-- `backend/app/cad_construction_interpreter.py`（兜底判据两处）
-- `backend/tests/test_c_round11_r04_retention.py`（5 用例）
+- `backend/app/cad_construction_interpreter.py`（兜底判据两处 + 第二轮存储门裁定字段条件）
+- `backend/tests/test_c_round11_r04_retention.py`（13 用例）
 - `backend/evaluations/v1/round11/C_round11_R04保留接线.md`（本报告）
 - `backend/evaluations/v1/round11/c_round11_retention_mapping_static.json`（测绘 JSON，标"已接线"）
 - `backend/evaluations/v1/round11/c_round11_r04_wiring_probe.py` / `.json`（零费用探针与证据）
+
+## 7. 第二轮对齐（父 `1fc2ad5`）
+
+### 7.1 病灶（D 实测）
+
+M1：歧义词（`五角形`）+ 凸五边形，A 报告层已是 `resolved_non_star`；但报告 `not_checked` 且适用清单为空，被旧存储门丢弃。报告缺失后，第一轮接线的兜底只看文本歧义，又阻断一次 → 合法五边形被过度拦。
+
+### 7.2 存储门条件（新旧对比）
+
+- **旧**：`status != 'not_checked'` 或 `applicable_requirement_kinds` 非空，才写入 `source_acceptance.semantic_acceptance`。
+- **新**：`status != 'not_checked'` 或适用清单非空，**或** `applicability_decision` 属于 A 导出的 `DECISION_TERMS`（`applicable` / `ambiguous_unresolved` / `resolved_non_star` / `no_signal`）。
+
+`resolved_non_star` 与 `no_signal` 都必须保留：汇总需要看到这份"已明确裁定"的证据，缺失报告兜底才不会二次猜测。
+
+### 7.3 显式裁定不被兜底覆盖
+
+- dict 报告在 `_semantic_summary_verdict` 中**先委托** A 的 `semantic_requirement_state`；文本兜底只在报告缺失/非 dict 时触发。
+- 报告裁定为 `resolved_non_star` / `no_signal` 时，调用端不得再用文本歧义扫描把它拦回第三态。
+- 缺失报告路径维持第一轮口径：复用 A 导出的 `recognized_unverifiable_kinds_from_text`、`ambiguous_requirement_kinds_from_text`；显式 → 阻断，歧义 → 阻断，无信号（圆/矩形等）→ 放行。
+- 调用端不重新推导裁定字段、不读几何 profile、不新建词表；裁定推导完全归 A 的 `derive_applicability_decision`。
+
+### 7.4 (a)–(g) 零费用实测
+
+探针 `c_round11_r04_wiring_probe.json`（attached_report_cases / fallback_missing_report_cases）：
+
+| 编号 | 场景 | 裁定 | 三态 | accepted |
+|---|---|---|---|---|
+| (a) M1 | `五角形` + 凸五边形 | `resolved_non_star` | `no_applicable_requirement` | **true** |
+| (b) M1b | `五角形` + 星形几何 | `applicable` | `unverified_or_partial` | **false** |
+| (c) W1 | `圆和矩形` + 星形几何（无文本信号） | `no_signal` | `no_applicable_requirement` | **true** |
+| (d) | `五角星`（显式词表，无几何） | `applicable` | `unverified_or_partial` | **false** |
+| (e) | 圆 / 矩形 / 正五边形 / 正六边形 | `no_signal` | `no_applicable_requirement` | **true**（4/4） |
+| (f) C10 | 爱心 passed + 五角星 `not_checked` | `applicable` | `unverified_or_partial`，整体 `partial`/`review_required=True` | **false** |
+| (g) | 报告缺失：`五角星` / `五角形` | — | `unverified_or_partial` | **false**（2/2）；报告缺失：圆 → `no_applicable_requirement`，**true** |
+
+### 7.5 回归计数
+
+- 相邻模块（C 保留测试 + G1 护栏 + 语义验收 + 解释器）：164 passed；2 项失败为 A 侧既有基线（改动前同两项）。
+- 全量（剔 8 个收集期环境缺口文件）：**1749 passed / 47 failed / 4 skipped**，与第一轮接线后全量计数一致；失败类别为会话记忆、创意项目、跟进参数、增量编辑、镜像约束、陈旧守卫等 DB 状态/套件顺序污染，无语义/汇总新增失败。
+
+### 7.6 残留判定
+
+- **合法非星被过度阻断**：M1 路径已关闭；`resolved_non_star` / `no_signal` 裁定随报告保留并被汇总采信。
+- **适用要求被静默丢弃**：除 §4 既有两类残留外无新增：
+  1. 文本既不命中显式词表也不命中歧义模式、且无已登记通道解析，即便几何像星形，按"措辞唯一授权"合同放行——只能由 A 侧扩词表/补通道关闭；
+  2. A 生产者分支在所有收集证据与 reason 上全空的情形仍为 UNVERIFIED（既有范围，未做形式化穷举）。

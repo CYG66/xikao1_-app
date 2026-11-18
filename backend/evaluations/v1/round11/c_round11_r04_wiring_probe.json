@@ -1,15 +1,71 @@
 {
   "probe": "c_round11_r04_wiring_probe",
-  "generated_at": "2026-11-18T15:50:30",
+  "generated_at": "2026-11-18T16:47:00",
   "model_requests": 0,
   "network": false,
-  "code_version": "238a84e44bd4ea01a8c580df6d4b2cdfc411722d",
-  "real_reports": [
+  "code_version": "1fc2ad5843109195a8a0c14c1be55405288dd32c",
+  "attached_report_cases": [
     {
+      "label": "W1_no_signal_star_like_geometry",
+      "text": "画一个圆和一个矩形",
+      "report_status": "not_checked",
+      "report_decision": "no_signal",
+      "report_applicable": [],
+      "report_ambiguous": [],
+      "verdict_state": "no_applicable_requirement",
+      "verdict_reasons": [],
+      "gate_retained": true,
+      "summary_status": "passed",
+      "review_required": false,
+      "accepted": true,
+      "allows_summary_passed": true
+    },
+    {
+      "label": "M1_ambiguous_pentagon_resolved_non_star",
+      "text": "生成一个五角形",
+      "report_status": "not_checked",
+      "report_decision": "resolved_non_star",
+      "report_applicable": [],
+      "report_ambiguous": [
+        "star_profile"
+      ],
+      "verdict_state": "no_applicable_requirement",
+      "verdict_reasons": [],
+      "gate_retained": true,
+      "summary_status": "passed",
+      "review_required": false,
+      "accepted": true,
+      "allows_summary_passed": true
+    },
+    {
+      "label": "M1b_ambiguous_star_geometry_blocked",
+      "text": "画一个五角形",
+      "report_status": "not_checked",
+      "report_decision": "applicable",
+      "report_applicable": [
+        "star_profile"
+      ],
+      "report_ambiguous": [
+        "star_profile"
+      ],
+      "verdict_state": "unverified_or_partial",
+      "verdict_reasons": [
+        "no_verifier",
+        "object_not_checked",
+        "partial_objects",
+        "report_unchecked_applicable"
+      ],
+      "gate_retained": true,
+      "summary_status": "review_required",
+      "review_required": true,
+      "accepted": false,
+      "allows_summary_passed": false
+    },
+    {
+      "label": "EXPLICIT_五角星",
       "text": "画一个五角星",
       "report_status": "not_checked",
-      "report_reason": "no_semantic_requirement_matched",
-      "ambiguity_resolution": null,
+      "report_decision": "applicable",
       "report_applicable": [
         "star_profile"
       ],
@@ -18,137 +74,128 @@
       "verdict_reasons": [
         "report_unchecked_applicable"
       ],
-      "verdict_applicable": [
-        "star_profile"
-      ],
-      "verdict_ambiguous": [],
-      "allows_summary_passed": false,
-      "storage_gate_retained": true
+      "gate_retained": true,
+      "summary_status": "review_required",
+      "review_required": true,
+      "accepted": false,
+      "allows_summary_passed": false
     },
     {
-      "text": "画一个五角形",
-      "report_status": "not_checked",
-      "report_reason": "no_semantic_requirement_matched",
-      "ambiguity_resolution": null,
-      "report_applicable": [],
-      "report_ambiguous": [
-        "star_profile"
-      ],
-      "verdict_state": "unverified_or_partial",
-      "verdict_reasons": [
-        "ambiguous_requirement"
-      ],
-      "verdict_applicable": [],
-      "verdict_ambiguous": [
-        "star_profile"
-      ],
-      "allows_summary_passed": false,
-      "storage_gate_retained": false
-    },
-    {
-      "text": "画一个星星",
-      "report_status": "not_checked",
-      "report_reason": "no_semantic_requirement_matched",
-      "ambiguity_resolution": null,
-      "report_applicable": [],
-      "report_ambiguous": [
-        "star_profile"
-      ],
-      "verdict_state": "unverified_or_partial",
-      "verdict_reasons": [
-        "ambiguous_requirement"
-      ],
-      "verdict_applicable": [],
-      "verdict_ambiguous": [
-        "star_profile"
-      ],
-      "allows_summary_passed": false,
-      "storage_gate_retained": false
-    },
-    {
+      "label": "ORDINARY_circle",
       "text": "画一个圆",
       "report_status": "not_checked",
-      "report_reason": "no_semantic_requirement_matched",
-      "ambiguity_resolution": null,
+      "report_decision": "no_signal",
       "report_applicable": [],
       "report_ambiguous": [],
       "verdict_state": "no_applicable_requirement",
       "verdict_reasons": [],
-      "verdict_applicable": [],
-      "verdict_ambiguous": [],
-      "allows_summary_passed": true,
-      "storage_gate_retained": false
+      "gate_retained": true,
+      "summary_status": "passed",
+      "review_required": false,
+      "accepted": true,
+      "allows_summary_passed": true
     },
     {
+      "label": "ORDINARY_rectangle",
       "text": "画一个矩形",
       "report_status": "not_checked",
-      "report_reason": "no_semantic_requirement_matched",
-      "ambiguity_resolution": null,
+      "report_decision": "no_signal",
       "report_applicable": [],
       "report_ambiguous": [],
       "verdict_state": "no_applicable_requirement",
       "verdict_reasons": [],
-      "verdict_applicable": [],
-      "verdict_ambiguous": [],
-      "allows_summary_passed": true,
-      "storage_gate_retained": false
+      "gate_retained": true,
+      "summary_status": "passed",
+      "review_required": false,
+      "accepted": true,
+      "allows_summary_passed": true
+    },
+    {
+      "label": "ORDINARY_plain_pentagon",
+      "text": "画一个五边形",
+      "report_status": "not_checked",
+      "report_decision": "no_signal",
+      "report_applicable": [],
+      "report_ambiguous": [],
+      "verdict_state": "no_applicable_requirement",
+      "verdict_reasons": [],
+      "gate_retained": true,
+      "summary_status": "passed",
+      "review_required": false,
+      "accepted": true,
+      "allows_summary_passed": true
+    },
+    {
+      "label": "ORDINARY_hexagon",
+      "text": "画一个六边形",
+      "report_status": "not_checked",
+      "report_decision": "no_signal",
+      "report_applicable": [],
+      "report_ambiguous": [],
+      "verdict_state": "no_applicable_requirement",
+      "verdict_reasons": [],
+      "gate_retained": true,
+      "summary_status": "passed",
+      "review_required": false,
+      "accepted": true,
+      "allows_summary_passed": true
+    },
+    {
+      "label": "C10_heart_star_partial",
+      "text": "生成一个爱心和一个五角星，爱心在左，五角星在右",
+      "report_status": "partial",
+      "report_decision": "applicable",
+      "report_applicable": [
+        "heart_outline_features",
+        "star_profile"
+      ],
+      "report_ambiguous": [],
+      "verdict_state": "unverified_or_partial",
+      "verdict_reasons": [
+        "no_verifier",
+        "object_not_checked",
+        "partial_objects",
+        "partial_overall"
+      ],
+      "gate_retained": true,
+      "summary_status": "review_required",
+      "review_required": true,
+      "accepted": false,
+      "allows_summary_passed": false
     }
   ],
-  "fallback_missing_report": [
+  "fallback_missing_report_cases": [
     {
+      "label": "MISSING_explicit_五角星",
       "text": "画一个五角星",
       "summary_status": "review_required",
       "semantic_state": "unverified_or_partial",
-      "semantic_applicable": [
-        "star_profile"
-      ],
       "semantic_reasons": [
         "report_unavailable"
       ],
       "review_required": true,
-      "allows_summary_passed": false
+      "accepted": false
     },
     {
+      "label": "MISSING_ambiguous_五角形",
       "text": "画一个五角形",
       "summary_status": "review_required",
       "semantic_state": "unverified_or_partial",
-      "semantic_applicable": [],
       "semantic_reasons": [
         "report_unavailable",
         "ambiguous_requirement"
       ],
       "review_required": true,
-      "allows_summary_passed": false
+      "accepted": false
     },
     {
-      "text": "画一个星星",
-      "summary_status": "review_required",
-      "semantic_state": "unverified_or_partial",
-      "semantic_applicable": [],
-      "semantic_reasons": [
-        "report_unavailable",
-        "ambiguous_requirement"
-      ],
-      "review_required": true,
-      "allows_summary_passed": false
-    },
-    {
+      "label": "MISSING_ordinary_圆",
       "text": "画一个圆",
       "summary_status": "passed",
       "semantic_state": "no_applicable_requirement",
-      "semantic_applicable": [],
       "semantic_reasons": [],
       "review_required": false,
-      "allows_summary_passed": true
-    },
-    {
-      "text": "画一个矩形",
-      "summary_status": "passed",
-      "semantic_state": "no_applicable_requirement",
-      "semantic_applicable": [],
-      "semantic_reasons": [],
-      "review_required": false,
-      "allows_summary_passed": true
+      "accepted": true
     }
   ]
 }

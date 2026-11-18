@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Round11 R-04 wiring evidence probe (Agent C), zero model, offline.
+"""Round11 R-04 wiring evidence probe, round 2 (Agent C), zero model, offline.
 
-Drives the local verifier / summary chain with empty geometry; no real model
-request, no network. Records the caller-side retention gate and the
-missing-report fallback after A's 238a84e scope fix.
+Drives the local verifier / summary chain with synthetic geometry; no real
+model request, no network. Records the caller-side retention gate after the
+alignment with A's explicit ``applicability_decision``:
+
+* attached-report cases: W1 / M1 / M1b / explicit star / ordinary shapes / C10;
+* missing-report fallback: explicit / ambiguous wording blocked, ordinary released.
 
 Usage (from ``backend/``)::
 
@@ -15,6 +18,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import math
 import os
 import pathlib
 import sys
@@ -28,10 +32,55 @@ os.environ.pop("DEEPSEEK_API_KEY", None)
 
 from app.cad_semantic_acceptance import verify_semantic_requirements  # noqa: E402
 from app.cad_semantic_dispatch import (  # noqa: E402
+    DECISION_TERMS,
     semantic_requirement_state,
     state_allows_summary_passed,
 )
 from app.cad_construction_interpreter import construction_acceptance_summary  # noqa: E402
+from app.cad_candidate_state import candidate_is_accepted  # noqa: E402
+
+
+def _star_geom(i=2, ox=3000.0, ro=1000.0, ri=400.0, cy=1000.0):
+    pts = []
+    for k in range(10):
+        r = ro if k % 2 == 0 else ri
+        ang = math.pi / 2 + k * math.pi / 5
+        pts.append({"x": round(r * math.cos(ang) + ox, 3),
+                    "y": round(r * math.sin(ang) + cy, 3)})
+    return {"id": i, "type": "polyline", "closed": True, "selected": True, "vertices": pts}
+
+
+def _poly_geom(i, n, r=1000.0, cy=1000.0):
+    pts = [{"x": round(r * math.cos(k * math.tau / n), 3),
+            "y": round(cy + r * math.sin(k * math.tau / n), 3)} for k in range(n)]
+    return {"id": i, "type": "polyline", "closed": True, "selected": True, "vertices": pts}
+
+
+def _circle_geom(i):
+    return {"id": i, "type": "circle", "center": {"x": 0, "y": 1000}, "radius": 1000}
+
+
+def _rect_geom(i):
+    return {"id": i, "type": "polyline", "closed": True, "selected": True,
+            "vertices": [{"x": -1000, "y": 0}, {"x": 1000, "y": 0},
+                         {"x": 1000, "y": 2000}, {"x": -1000, "y": 2000}]}
+
+
+_HEART_NORM = [(0.20, 0.90), (0.50, 0.62), (0.80, 0.90), (0.95, 0.50),
+               (0.75, 0.20), (0.50, 0.00), (0.25, 0.20), (0.05, 0.50)]
+
+
+def _heart_geom(i=1, scale=2000.0):
+    return {"id": i, "type": "polyline", "closed": True, "selected": True,
+            "vertices": [{"x": round(x * scale, 3), "y": round(y * scale, 3)}
+                         for x, y in _HEART_NORM]}
+
+
+def _gate_retained(report: dict) -> bool:
+    applicable = report.get("applicable_requirement_kinds") or []
+    decision = report.get("applicability_decision")
+    decision_ok = isinstance(decision, str) and decision in DECISION_TERMS
+    return report["status"] != "not_checked" or bool(applicable) or decision_ok
 
 
 def _summary(source_acceptance, source):
@@ -41,43 +90,43 @@ def _summary(source_acceptance, source):
         source_acceptance=source_acceptance, source=source)
 
 
-def _gate_retained(report: dict) -> bool:
-    applicable = report.get("applicable_requirement_kinds") or []
-    return report["status"] != "not_checked" or bool(applicable)
-
-
-def real_case(text: str) -> dict:
-    report = verify_semantic_requirements(text, [], None, None)
+def attached_case(label, text, geometries, logical=None, coverage="complete"):
+    report = verify_semantic_requirements(text, geometries, logical_objects=logical)
     verdict = semantic_requirement_state(report, text)
+    source = {"coverage": coverage, "unknown_requirements": [],
+              "checks": [{"status": "passed", "field": "primitive_dimension"}],
+              "semantic_acceptance": report}
+    summary = _summary(source, text)
+    candidate = {"acceptance_summary": summary}
     return {
+        "label": label,
         "text": text,
         "report_status": report.get("status"),
-        "report_reason": report.get("reason"),
-        "ambiguity_resolution": report.get("ambiguity_resolution"),
+        "report_decision": report.get("applicability_decision"),
         "report_applicable": report.get("applicable_requirement_kinds") or [],
         "report_ambiguous": report.get("ambiguous_requirement_kinds") or [],
         "verdict_state": verdict.get("state"),
         "verdict_reasons": verdict.get("reasons"),
-        "verdict_applicable": verdict.get("applicable_requirement_kinds"),
-        "verdict_ambiguous": verdict.get("ambiguous_requirement_kinds"),
+        "gate_retained": _gate_retained(report),
+        "summary_status": summary.get("status"),
+        "review_required": summary.get("review_required"),
+        "accepted": candidate_is_accepted(candidate),
         "allows_summary_passed": state_allows_summary_passed(verdict),
-        "storage_gate_retained": _gate_retained(report),
     }
 
 
-def fallback_case(text: str) -> dict:
+def fallback_case(label, text):
     summary = _summary({"coverage": "complete", "unknown_requirements": [],
                         "checks": [{"status": "passed", "field": "primitive_dimension"}]},
                        source=text)
     return {
+        "label": label,
         "text": text,
         "summary_status": summary.get("status"),
         "semantic_state": summary.get("semantic_requirement_state"),
-        "semantic_applicable": summary.get("semantic_applicable_requirement_kinds"),
         "semantic_reasons": summary.get("semantic_incomplete_reasons"),
         "review_required": summary.get("review_required"),
-        "allows_summary_passed": state_allows_summary_passed(
-            {"state": summary.get("semantic_requirement_state")}),
+        "accepted": candidate_is_accepted({"acceptance_summary": summary}),
     }
 
 
@@ -86,15 +135,39 @@ def main() -> None:
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
 
-    texts = ["画一个五角星", "画一个五角形", "画一个星星", "画一个圆", "画一个矩形"]
+    c10_logical = [{"object_id": "heart-1", "geometry_refs": [1], "label": "爱心"},
+                   {"object_id": "star-1", "geometry_refs": [2], "label": "五角星"}]
+
+    attached = [
+        attached_case("W1_no_signal_star_like_geometry", "画一个圆和一个矩形",
+                      [_star_geom(1, ox=0.0)]),
+        attached_case("M1_ambiguous_pentagon_resolved_non_star", "生成一个五角形",
+                      [_poly_geom(1, 5)]),
+        attached_case("M1b_ambiguous_star_geometry_blocked", "画一个五角形",
+                      [_star_geom(1, ox=0.0)]),
+        attached_case("EXPLICIT_五角星", "画一个五角星", []),
+        attached_case("ORDINARY_circle", "画一个圆", [_circle_geom(1)]),
+        attached_case("ORDINARY_rectangle", "画一个矩形", [_rect_geom(1)]),
+        attached_case("ORDINARY_plain_pentagon", "画一个五边形", [_poly_geom(1, 5)]),
+        attached_case("ORDINARY_hexagon", "画一个六边形", [_poly_geom(1, 6)]),
+        attached_case("C10_heart_star_partial",
+                      "生成一个爱心和一个五角星，爱心在左，五角星在右",
+                      [_heart_geom(1), _star_geom(2)], c10_logical, coverage="partial"),
+    ]
+    fallback = [
+        fallback_case("MISSING_explicit_五角星", "画一个五角星"),
+        fallback_case("MISSING_ambiguous_五角形", "画一个五角形"),
+        fallback_case("MISSING_ordinary_圆", "画一个圆"),
+    ]
+
     result = {
         "probe": "c_round11_r04_wiring_probe",
         "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
         "model_requests": 0,
         "network": False,
-        "code_version": "238a84e44bd4ea01a8c580df6d4b2cdfc411722d",
-        "real_reports": [real_case(t) for t in texts],
-        "fallback_missing_report": [fallback_case(t) for t in texts],
+        "code_version": "1fc2ad5843109195a8a0c14c1be55405288dd32c",
+        "attached_report_cases": attached,
+        "fallback_missing_report_cases": fallback,
     }
 
     out = pathlib.Path(args.out)

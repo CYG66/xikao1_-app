@@ -20,6 +20,8 @@ No star-specific verifier or generator is added, and H2/H3/H4 gates,
 
 import math
 
+import pytest
+
 from app.cad_construction import execute_construction_plan
 from app.cad_candidate_state import candidate_is_accepted
 from app.cad_construction_interpreter import (
@@ -27,7 +29,7 @@ from app.cad_construction_interpreter import (
     construction_acceptance_summary,
 )
 from app.cad_semantic_acceptance import verify_semantic_requirements
-from app.cad_semantic_dispatch import state_allows_summary_passed
+from app.cad_semantic_dispatch import DECISION_TERMS, state_allows_summary_passed
 
 STAR_TEXT = "生成一个五角星，外接圆半径2米"
 EXPLICIT_TEXTS = ["画一个五角星", STAR_TEXT]
@@ -56,6 +58,40 @@ def _star(ox=3000, cy=1000, ro=1000, ri=400):
         points.append((round(r * math.cos(ang) + ox, 3),
                        round(r * math.sin(ang) + cy, 3)))
     return points
+
+
+def _star_geom(i=2, ox=3000.0, ro=1000.0, ri=400.0, cy=1000.0):
+    pts = []
+    for k in range(10):
+        r = ro if k % 2 == 0 else ri
+        ang = math.pi / 2 + k * math.pi / 5
+        pts.append({"x": round(r * math.cos(ang) + ox, 3),
+                    "y": round(r * math.sin(ang) + cy, 3)})
+    return {"id": i, "type": "polyline", "closed": True, "selected": True, "vertices": pts}
+
+
+def _poly_geom(i, n, r=1000.0, cy=1000.0):
+    pts = [{"x": round(r * math.cos(k * math.tau / n), 3),
+            "y": round(cy + r * math.sin(k * math.tau / n), 3)} for k in range(n)]
+    return {"id": i, "type": "polyline", "closed": True, "selected": True, "vertices": pts}
+
+
+def _circle_geom(i):
+    return {"id": i, "type": "circle", "center": {"x": 0, "y": 1000}, "radius": 1000}
+
+
+def _rect_geom(i):
+    return {"id": i, "type": "polyline", "closed": True, "selected": True,
+            "vertices": [{"x": -1000, "y": 0}, {"x": 1000, "y": 0},
+                         {"x": 1000, "y": 2000}, {"x": -1000, "y": 2000}]}
+
+
+def _gate_retained(report: dict) -> bool:
+    """Mirror the interpreter storage gate after the round-2 decision alignment."""
+    applicable = report.get("applicable_requirement_kinds") or []
+    decision = report.get("applicability_decision")
+    decision_ok = isinstance(decision, str) and decision in DECISION_TERMS
+    return report["status"] != "not_checked" or bool(applicable) or decision_ok
 
 
 def _exec(steps):
@@ -145,6 +181,7 @@ def test_r04_c10_heart_passed_star_not_checked_still_rejected():
     proof = _verify_semantic_requirements_bound(C10_TEXT, result)
     assert proof["status"] == "partial"
     assert proof["review_required"] is True
+    assert proof["applicability_decision"] == "applicable"
     assert [t["status"] for t in proof["object_acceptance"]] == ["passed", "not_checked"]
     summary = _summary({"coverage": "partial", "unknown_requirements": [],
                         "semantic_acceptance": proof, "checks": []}, source=C10_TEXT)
@@ -156,3 +193,69 @@ def test_r04_c10_heart_passed_star_not_checked_still_rejected():
     affected = summary["semantic_incomplete_objects"]
     assert any(entry.get("geometry_ids") == [2] for entry in affected)
     assert candidate_is_accepted({"acceptance_summary": summary}) is False
+
+
+# --- Round 2: explicit applicability_decision survives the gate ------------
+
+def _attached_summary(text, geometries, logical=None, coverage="complete"):
+    report = verify_semantic_requirements(text, geometries, logical_objects=logical)
+    # The round-2 gate retains any report carrying a valid decision, so the
+    # summary sees the explicit resolution instead of falling back to text.
+    assert _gate_retained(report) is True
+    summary = _summary(_base_source(report, coverage=coverage), source=text)
+    return report, summary
+
+
+def test_r04_round2_m1_ambiguous_pentagon_resolved_non_star_released():
+    # (a) ambiguous wording resolved against a convex pentagon: released.
+    report, summary = _attached_summary("生成一个五角形", [_poly_geom(1, 5)])
+    assert report["applicability_decision"] == "resolved_non_star"
+    assert summary["semantic_requirement_state"] == "no_applicable_requirement"
+    assert summary["semantic_incomplete_reasons"] == []
+    assert summary["review_required"] is False
+    assert candidate_is_accepted({"acceptance_summary": summary}) is True
+
+
+def test_r04_round2_m1b_ambiguous_star_geometry_blocked():
+    # (b) ambiguous wording corroborated by a star outline: stays blocked.
+    report, summary = _attached_summary("画一个五角形", [_star_geom(1, ox=0.0)])
+    assert report["applicability_decision"] == "applicable"
+    assert summary["semantic_requirement_state"] == "unverified_or_partial"
+    assert "report_unchecked_applicable" in summary["semantic_incomplete_reasons"]
+    assert summary["review_required"] is True
+    assert candidate_is_accepted({"acceptance_summary": summary}) is False
+
+
+def test_r04_round2_w1_no_signal_star_like_geometry_released():
+    # (c) no source signal; a standalone star-like outline must not fabricate
+    # a star requirement and must not block.
+    report, summary = _attached_summary("画一个圆和一个矩形", [_star_geom(1, ox=0.0)])
+    assert report["applicability_decision"] == "no_signal"
+    assert report["applicable_requirement_kinds"] == []
+    assert summary["semantic_requirement_state"] == "no_applicable_requirement"
+    assert summary["review_required"] is False
+    assert candidate_is_accepted({"acceptance_summary": summary}) is True
+
+
+def test_r04_round2_explicit_star_blocked():
+    # (d) explicit vocabulary: applicable, blocked.
+    report, summary = _attached_summary("画一个五角星", [])
+    assert report["applicability_decision"] == "applicable"
+    assert summary["semantic_requirement_state"] == "unverified_or_partial"
+    assert summary["review_required"] is True
+    assert candidate_is_accepted({"acceptance_summary": summary}) is False
+
+
+@pytest.mark.parametrize("text,geometry", [
+    ("画一个圆", _circle_geom(1)),
+    ("画一个矩形", _rect_geom(1)),
+    ("画一个五边形", _poly_geom(1, 5)),
+    ("画一个六边形", _poly_geom(1, 6)),
+])
+def test_r04_round2_ordinary_shapes_with_geometry_released(text, geometry):
+    # (e) ordinary shapes: no_signal, released, no false star item.
+    report, summary = _attached_summary(text, [geometry])
+    assert report["applicability_decision"] == "no_signal"
+    assert report["applicable_requirement_kinds"] == []
+    assert summary["semantic_requirement_state"] == "no_applicable_requirement"
+    assert candidate_is_accepted({"acceptance_summary": summary}) is True

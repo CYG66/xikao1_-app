@@ -142,62 +142,291 @@ def _connected_components(geoms: list[dict[str, Any]],
     return list(groups.values())
 
 
-def _refs_of(logical_object: dict[str, Any]) -> list[Any]:
+def _refs_of(logical_object: dict[str, Any]) -> Any:
     refs = logical_object.get("geometry_refs")
     if refs is None:
-        refs = logical_object.get("geometry_ids") or []
-    return list(refs or [])
+        refs = logical_object.get("geometry_ids")
+    return refs
+
+
+def _positive_int_ref(value: Any) -> int | None:
+    try:
+        result = int(value)
+    except (TypeError, ValueError):
+        return None
+    return result if result > 0 else None
+
+
+def _declared_shared_map(topology: dict[str, Any] | None) -> dict[int, set[str]]:
+    value = topology if isinstance(topology, dict) else {}
+    raw = value.get("shared_geometries") or []
+    declared: dict[int, set[str]] = {}
+    if isinstance(raw, list):
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            gid = _positive_int_ref(item.get("geometry_id"))
+            owners = item.get("object_ids")
+            if gid is not None and isinstance(owners, list):
+                declared[gid] = {str(owner) for owner in owners}
+    return declared
+
+
+def _spatial_contact(a: list[dict[str, Any]], b: list[dict[str, Any]],
+                     tolerance: float = CONTACT_TOLERANCE_MM) -> str | None:
+    """Diagnostic-only contact/overlap note between two distinct bound objects.
+
+    This never merges or splits objects; it only records how the two backend
+    groups relate spatially.
+    """
+    lines_a = [line for line in (_line_string(g) for g in a) if line is not None]
+    lines_b = [line for line in (_line_string(g) for g in b) if line is not None]
+    for left in lines_a:
+        for right in lines_b:
+            if left.intersects(right):
+                return "intersects"
+            if left.distance(right) <= tolerance:
+                return "touching"
+    bounds_a, bounds_b = bounds_of(a), bounds_of(b)
+    if bounds_a and bounds_b:
+        overlap_x = min(bounds_a["max_x"], bounds_b["max_x"]) - max(bounds_a["min_x"], bounds_b["min_x"])
+        overlap_y = min(bounds_a["max_y"], bounds_b["max_y"]) - max(bounds_a["min_y"], bounds_b["min_y"])
+        if overlap_x >= -tolerance and overlap_y >= -tolerance:
+            return "bounds_overlap"
+    return None
+
+
+def validate_target_binding(geometries: list[dict[str, Any]],
+                            logical_objects: list[dict[str, Any]] | None = None,
+                            topology: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Strictly validate the backend-resolved target binding payload.
+
+    Identity basis: only ``geometry_refs`` resolved against the active geometry
+    list are trusted.  A model-declared ``object_id`` / ``label`` is recorded
+    as a declaration only and is never promoted to identity.
+
+    Returns a dict with:
+      ``status``: ``bound`` | ``unresolved``
+      ``binding_source``: ``logical_objects.geometry_refs`` | ``connected_components``
+      ``auxiliary``: True when identity rests on connected components only
+      ``targets``: resolved target groups (empty when unresolved)
+      ``errors``: machine-readable binding errors
+      ``warnings``: non-fatal diagnostics
+      ``unowned_geometry_ids``: active geometries not referenced by any object
+      ``shared_geometry_owners``: geometry id -> owner object ids
+    """
+    active = active_geometries(geometries)
+    active_ids = {g.get("id") for g in active}
+    by_id_all: dict[Any, dict[str, Any]] = {g.get("id"): g for g in geometries}
+    excluded = [{"id": g.get("id"), "role": g.get("role"),
+                 "selected": g.get("selected", True)}
+                for g in geometries if g.get("id") not in active_ids]
+    base: dict[str, Any] = {
+        "status": "unresolved",
+        "binding_source": None,
+        "auxiliary": False,
+        "targets": [],
+        "errors": [],
+        "warnings": [],
+        "unowned_geometry_ids": [],
+        "shared_geometry_owners": {},
+        "excluded_geometry_ids": [item["id"] for item in excluded],
+        "excluded_geometries": excluded,
+    }
+    if not active:
+        base["errors"].append({"code": "no_active_geometry",
+                               "message": "无活动几何可绑定",
+                               "excluded_geometries": excluded})
+        return base
+
+    by_id: dict[Any, dict[str, Any]] = {g.get("id"): g for g in active}
+
+    # Fallback: payload missing -> connected components as finite auxiliary
+    # evidence only; it must never be the sole identity basis for arbitrary
+    # multi-object designs.
+    if logical_objects is None or logical_objects == []:
+        components = _connected_components(active)
+        targets: list[dict[str, Any]] = []
+        for index, members in enumerate(components):
+            targets.append({
+                "target_ref": {
+                    "object_id": f"component:{index + 1}",
+                    "geometry_ids": [g.get("id") for g in members],
+                    "binding_source": "connected_components",
+                    "binding_auxiliary": True,
+                    "identity_basis": "backend_connected_components_auxiliary",
+                    "status": "bound",
+                },
+                "geometries": members,
+            })
+        base.update({
+            "status": "bound",
+            "binding_source": "connected_components",
+            "auxiliary": True,
+            "targets": targets,
+            "warnings": [{
+                "code": "binding_fallback_components",
+                "message": "未提供 logical_objects；身份仅由后端连通分量辅助推断，不得作为任意多对象的唯一身份依据",
+            }],
+            "unowned_geometry_ids": [g.get("id") for g in active],
+        })
+        for target in targets:
+            target["target_ref"]["bounds"] = bounds_of(target["geometries"])
+        return base
+
+    if not isinstance(logical_objects, list):
+        base["errors"].append({"code": "invalid_logical_objects_payload",
+                               "message": "logical_objects 必须为列表"})
+        return base
+
+    errors: list[dict[str, Any]] = []
+    seen_object_ids: set[str] = set()
+    owners: dict[Any, list[str]] = {}
+    bound_entries: list[dict[str, Any]] = []
+    declared_shared = _declared_shared_map(topology)
+
+    for index, obj in enumerate(logical_objects):
+        prefix = f"logical_objects[{index}]"
+        if not isinstance(obj, dict):
+            errors.append({"code": "invalid_logical_object_entry",
+                           "message": f"{prefix} 不是字典", "object_index": index})
+            continue
+        object_id = str(obj.get("object_id") or "").strip()
+        if not object_id:
+            errors.append({"code": "invalid_object_id",
+                           "message": f"{prefix} 缺少 object_id", "object_index": index})
+        elif object_id in seen_object_ids:
+            errors.append({"code": "duplicate_object_id",
+                           "message": f"object_id 重复: {object_id}", "object_id": object_id})
+        seen_object_ids.add(object_id)
+
+        raw_refs = _refs_of(obj)
+        if raw_refs is None or not isinstance(raw_refs, list):
+            errors.append({"code": "missing_geometry_refs",
+                           "message": f"{prefix} 缺少 geometry_refs 列表",
+                           "object_id": object_id})
+            continue
+        if len(raw_refs) == 0:
+            errors.append({"code": "missing_geometry_refs",
+                           "message": f"{prefix} geometry_refs 为空",
+                           "object_id": object_id})
+            continue
+        normalized = [_positive_int_ref(ref) for ref in raw_refs]
+        if any(ref is None for ref in normalized):
+            errors.append({"code": "invalid_geometry_refs",
+                           "message": f"{prefix} 含非正整数几何引用", "object_id": object_id,
+                           "geometry_refs": list(raw_refs)})
+            continue
+        if len(set(normalized)) != len(normalized):
+            errors.append({"code": "duplicate_geometry_refs",
+                           "message": f"{prefix} 引用重复几何 id", "object_id": object_id,
+                           "geometry_refs": list(raw_refs)})
+            continue
+        missing = [ref for ref in normalized if ref not in by_id]
+        excluded_refs = sorted(ref for ref in missing if ref in by_id_all)
+        dangling = sorted(ref for ref in missing if ref not in by_id_all)
+        if excluded_refs:
+            errors.append({"code": "excluded_geometry_ref",
+                           "message": f"{prefix} 引用的几何被角色/选中状态排除在活动几何之外",
+                           "object_id": object_id, "geometry_ids": excluded_refs,
+                           "excluded_roles": [by_id_all[ref].get("role") for ref in excluded_refs]})
+        if dangling:
+            errors.append({"code": "dangling_geometry_refs",
+                           "message": f"{prefix} 引用了不存在的几何 id", "object_id": object_id,
+                           "geometry_ids": dangling})
+        if missing:
+            continue
+        members = [by_id[ref] for ref in normalized]
+        for ref in normalized:
+            owners.setdefault(ref, []).append(object_id)
+        bound_entries.append({"obj": obj, "object_id": object_id,
+                              "members": members, "refs": normalized})
+
+    # Shared-geometry reconciliation against topology declarations.
+    for gid, owner_ids in owners.items():
+        if len(set(owner_ids)) > 1:
+            declared = declared_shared.get(gid)
+            if declared is None:
+                errors.append({"code": "undeclared_shared_geometry",
+                               "message": "多对象共用几何但拓扑未声明共享",
+                               "geometry_ids": [gid], "object_ids": sorted(set(owner_ids))})
+            elif declared != set(owner_ids):
+                errors.append({"code": "shared_ownership_mismatch",
+                               "message": "共享几何的声明归属与对象引用不一致",
+                               "geometry_ids": [gid],
+                               "object_ids": sorted(declared ^ set(owner_ids))})
+
+    if errors:
+        base["errors"] = errors
+        base["binding_source"] = "logical_objects.geometry_refs"
+        base["reason"] = "invalid_target_binding"
+        return base
+
+    targets = []
+    for entry in bound_entries:
+        members = entry["members"]
+        target_ref = {
+            "object_id": entry["object_id"],
+            "assembly_id": entry["obj"].get("assembly_id"),
+            "label": entry["obj"].get("label"),
+            "geometry_ids": [g.get("id") for g in members],
+            "binding_source": "logical_objects.geometry_refs",
+            "binding_auxiliary": False,
+            "identity_basis": "backend_resolved_geometry_refs",
+            "model_declared_object_id_trusted_as_identity": False,
+            "confidence": entry["obj"].get("confidence", 1.0),
+            "status": "bound",
+        }
+        targets.append({"target_ref": target_ref, "geometries": members})
+
+    # A single logical object may group several disconnected pieces; it stays
+    # one acceptance target and is never split by connectivity.  The component
+    # split is recorded only as a diagnostic.
+    for target in targets:
+        components = _connected_components(target["geometries"])
+        if len(components) > 1:
+            base["warnings"].append({
+                "code": "disconnected_members",
+                "message": "同一逻辑对象含多段不连通几何；保持为一个对象验收，未按连通性拆分",
+                "geometry_ids": target["target_ref"]["geometry_ids"],
+                "component_count": len(components),
+            })
+
+    # Contact / overlap between distinct bound objects is diagnostic only;
+    # shared vertices or touching outlines must NOT merge two objects.
+    for i, left in enumerate(targets):
+        for right in targets[i + 1:]:
+            relation = _spatial_contact(left["geometries"], right["geometries"])
+            if relation:
+                base["warnings"].append({
+                    "code": "contact_or_overlap_between_distinct_objects",
+                    "message": "两个已绑定对象几何接触/重叠/共享结点；保持为独立对象，未合并",
+                    "geometry_ids": [left["target_ref"]["geometry_ids"],
+                                     right["target_ref"]["geometry_ids"]],
+                    "relation": relation,
+                })
+
+    owned_ids = {g.get("id") for entry in bound_entries for g in entry["members"]}
+    base.update({
+        "status": "bound",
+        "binding_source": "logical_objects.geometry_refs",
+        "auxiliary": False,
+        "targets": targets,
+        "unowned_geometry_ids": [g.get("id") for g in active if g.get("id") not in owned_ids],
+        "shared_geometry_owners": {
+            str(gid): owners[gid] for gid in owners if len(set(owners[gid])) > 1
+        },
+    })
+    for target in targets:
+        target["target_ref"]["bounds"] = bounds_of(target["geometries"])
+    return base
 
 
 def bind_targets(geometries: list[dict[str, Any]],
                  logical_objects: list[dict[str, Any]] | None = None,
                  topology: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-    """Resolve backend-trusted target objects from active linework.
-
-    Returns a list of target groups.  Each group carries a ``target_ref`` whose
-    ``geometry_ids`` are backend-resolved; a model-declared label/object id on
-    an individual geometry is never promoted to identity.
-    """
-    active = active_geometries(geometries)
-    if not active:
-        return []
-
-    by_id: dict[Any, dict[str, Any]] = {g.get("id"): g for g in active}
-    targets: list[dict[str, Any]] = []
-
-    if logical_objects:
-        for obj in logical_objects:
-            refs = _refs_of(obj)
-            members = [by_id[ref] for ref in refs if ref in by_id]
-            if not members:
-                continue
-            target_ref = {
-                "object_id": obj.get("object_id"),
-                "assembly_id": obj.get("assembly_id"),
-                "label": obj.get("label"),
-                "geometry_ids": [g.get("id") for g in members],
-                "binding_source": "logical_objects.geometry_refs",
-                "confidence": obj.get("confidence", 1.0),
-                "status": "bound",
-            }
-            targets.append({"target_ref": target_ref, "geometries": members})
-
-    if not targets:
-        components = _connected_components(active)
-        for index, members in enumerate(components):
-            target_ref = {
-                "object_id": f"component:{index + 1}",
-                "geometry_ids": [g.get("id") for g in members],
-                "binding_source": "connected_components",
-                "confidence": 1.0,
-                "status": "bound",
-            }
-            targets.append({"target_ref": target_ref, "geometries": members})
-
-    # Diagnostic bbox overlap note; bbox is never the identity criterion.
-    for target in targets:
-        target["target_ref"]["bounds"] = bounds_of(target["geometries"])
-    return targets
+    """Backward-compatible target list; see :func:`validate_target_binding`."""
+    return validate_target_binding(geometries, logical_objects, topology)["targets"]
 
 
 # ---------------------------------------------------------------------------

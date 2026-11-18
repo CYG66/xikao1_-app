@@ -1,6 +1,8 @@
+import math
 import pytest
 
 from app.cad_semantic_acceptance import verify_semantic_requirements,semantic_requirements
+from app.cad_semantic_dispatch import validate_target_binding
 from app.cad_structure_contract import StructureContractError
 
 HOUSE='生成一个房子轮廓，宽4米高3米，屋顶是三角形，下面加一个门'
@@ -187,3 +189,216 @@ def test_unsized_profile_cannot_let_a_confident_model_invent_actual_dimensions()
     assert result['error']['code']=='missing_dimensions'
     assert result['status']=='clarification_required'
     assert result['clarification']['recognized_shape']=='大写字母A的轮廓'
+
+
+# ---------------------------------------------------------------------------
+# Round8 A-line: binding interface contract and payload validation (zero model)
+# ---------------------------------------------------------------------------
+
+HEART_TEXT='生成一个闭合爱心轮廓，宽度4米，高度4米'
+
+_HEART_NORM=[(0.20,0.90),(0.50,0.62),(0.80,0.90),(0.95,0.50),
+    (0.75,0.20),(0.50,0.00),(0.25,0.20),(0.05,0.50)]
+
+
+def _heart(i=1,scale=2000.0,ox=0.0):
+    return {'id':i,'type':'polyline','closed':True,'selected':True,
+        'vertices':[{'x':round(x*scale+ox,3),'y':round(y*scale,3)} for x,y in _HEART_NORM]}
+
+
+def _star(i=2,ox=3000.0,ro=1000.0,ri=400.0,cy=1000.0):
+    pts=[]
+    for k in range(10):
+        r=ro if k%2==0 else ri
+        ang=math.pi/2+k*math.pi/5
+        pts.append({'x':round(r*math.cos(ang)+ox,3),'y':round(r*math.sin(ang)+cy,3)})
+    return {'id':i,'type':'polyline','closed':True,'selected':True,'vertices':pts}
+
+
+def _codes(validation):
+    return [e['code'] for e in validation['errors']]
+
+
+def test_bound_single_object_uses_backend_resolved_refs():
+    geoms=[_heart(1)]
+    logical=[{'object_id':'heart-1','geometry_refs':[1],'label':'爱心','confidence':1.0}]
+    res=verify_semantic_requirements(HEART_TEXT,geoms,logical_objects=logical)
+    assert res['review_required'] is True
+    assert res['status']!='passed'
+    assert res['binding_source']=='logical_objects.geometry_refs'
+    assert res['binding_auxiliary'] is False
+    entry=res['object_acceptance'][0]
+    assert entry['target_ref']['geometry_ids']==[1]
+    assert entry['target_ref']['identity_basis']=='backend_resolved_geometry_refs'
+    assert entry['target_ref']['model_declared_object_id_trusted_as_identity'] is False
+
+
+def test_bound_two_objects_are_kept_separate():
+    geoms=[_heart(1,scale=2000.0),_star(2)]
+    logical=[{'object_id':'heart-1','geometry_refs':[1],'label':'爱心'},
+             {'object_id':'star-1','geometry_refs':[2],'label':'五角星'}]
+    res=verify_semantic_requirements(HEART_TEXT,geoms,logical_objects=logical)
+    assert res['status']=='partial'
+    assert res['review_required'] is True
+    refs=[o['target_ref']['geometry_ids'] for o in res['object_acceptance']]
+    assert refs==[[1],[2]]
+    statuses=[o['status'] for o in res['object_acceptance']]
+    assert statuses==['passed','not_checked']
+
+
+def test_dangling_geometry_ref_rejected_without_fuzzy_match():
+    geoms=[_heart(1)]
+    logical=[{'object_id':'heart-1','geometry_refs':[999]}]
+    res=verify_semantic_requirements(HEART_TEXT,geoms,logical_objects=logical)
+    assert res['status']=='unresolved'
+    assert res['coverage']=='target_unresolved'
+    assert res['review_required'] is True
+    assert res['reason']=='invalid_target_binding'
+    assert 'dangling_geometry_refs' in _codes(res['binding_validation'])
+    assert res['status']!='passed'
+
+
+def test_duplicate_refs_within_one_object_rejected():
+    geoms=[_heart(1)]
+    validation=validate_target_binding(geoms,[{'object_id':'o-1','geometry_refs':[1,1]}])
+    assert validation['status']=='unresolved'
+    assert 'duplicate_geometry_refs' in _codes(validation)
+    assert validation['targets']==[]
+
+
+def test_empty_ref_list_rejected():
+    geoms=[_heart(1)]
+    validation=validate_target_binding(geoms,[{'object_id':'o-1','geometry_refs':[]}])
+    assert validation['status']=='unresolved'
+    assert 'missing_geometry_refs' in _codes(validation)
+
+
+def test_non_list_logical_objects_payload_rejected():
+    res=verify_semantic_requirements(HEART_TEXT,[_heart(1)],logical_objects='heart-1')
+    assert res['status']=='unresolved'
+    assert res['review_required'] is True
+    assert 'invalid_logical_objects_payload' in _codes(res['binding_validation'])
+
+
+def test_duplicate_object_id_rejected():
+    geoms=[_heart(1),_star(2)]
+    logical=[{'object_id':'same','geometry_refs':[1]},
+             {'object_id':'same','geometry_refs':[2]}]
+    validation=validate_target_binding(geoms,logical)
+    assert validation['status']=='unresolved'
+    assert 'duplicate_object_id' in _codes(validation)
+
+
+def test_one_object_with_multiple_disconnected_geometries_stays_one_target():
+    g1=_heart(1,scale=1000.0,ox=0.0)
+    g2=_heart(2,scale=1000.0,ox=4000.0)
+    logical=[{'object_id':'composite-1','geometry_refs':[1,2]}]
+    validation=validate_target_binding([g1,g2],logical)
+    assert validation['status']=='bound'
+    assert len(validation['targets'])==1
+    assert validation['targets'][0]['target_ref']['geometry_ids']==[1,2]
+
+
+def test_touching_distinct_objects_are_not_merged():
+    # Heart 2's left vertex coincides with heart 1's right vertex (950,500).
+    g1=_heart(1,scale=1000.0,ox=0.0)
+    g2=_heart(2,scale=1000.0,ox=900.0)
+    logical=[{'object_id':'h-1','geometry_refs':[1]},
+             {'object_id':'h-2','geometry_refs':[2]}]
+    validation=validate_target_binding([g1,g2],logical)
+    assert validation['status']=='bound'
+    assert len(validation['targets'])==2
+    assert [t['target_ref']['geometry_ids'] for t in validation['targets']]==[[1],[2]]
+    assert any(w['code']=='contact_or_overlap_between_distinct_objects'
+               for w in validation['warnings'])
+
+
+def test_overlapping_distinct_objects_are_not_merged():
+    g1=_heart(1,scale=1000.0,ox=0.0)
+    g2=_heart(2,scale=1000.0,ox=500.0)
+    logical=[{'object_id':'h-1','geometry_refs':[1]},
+             {'object_id':'h-2','geometry_refs':[2]}]
+    validation=validate_target_binding([g1,g2],logical)
+    assert validation['status']=='bound'
+    assert len(validation['targets'])==2
+    relations=[w.get('relation') for w in validation['warnings']
+               if w['code']=='contact_or_overlap_between_distinct_objects']
+    assert relations and relations[0] in {'intersects','touching','bounds_overlap'}
+
+
+def test_missing_logical_objects_falls_back_to_auxiliary_components_only():
+    res=verify_semantic_requirements(HEART_TEXT,[_heart(1)])
+    assert res['binding_source']=='connected_components'
+    assert res['binding_auxiliary'] is True
+    assert res['review_required'] is True
+    assert res['status']!='passed'
+    validation=validate_target_binding([_heart(1)])
+    assert validation['auxiliary'] is True
+    assert validation['targets'][0]['target_ref']['binding_source']=='connected_components'
+
+
+def test_unowned_active_geometry_is_reported_not_silently_bound():
+    g1=_heart(1,scale=1000.0,ox=0.0)
+    g2=_star(2,ox=3000.0)
+    logical=[{'object_id':'h-1','geometry_refs':[1]}]
+    validation=validate_target_binding([g1,g2],logical)
+    assert validation['status']=='bound'
+    assert validation['unowned_geometry_ids']==[2]
+    assert len(validation['targets'])==1
+
+
+def test_model_declared_label_does_not_promote_to_identity():
+    geoms=[_heart(1)]
+    logical=[{'object_id':'declared-by-model','assembly_id':'asm-1',
+              'geometry_refs':[1],'label':'模型自报的爱心'}]
+    validation=validate_target_binding(geoms,logical)
+    ref=validation['targets'][0]['target_ref']
+    assert ref['geometry_ids']==[1]
+    assert ref['object_id']=='declared-by-model'
+    assert ref['identity_basis']=='backend_resolved_geometry_refs'
+    assert ref['model_declared_object_id_trusted_as_identity'] is False
+
+
+def test_ref_to_role_excluded_geometry_is_rejected_and_diagnosed():
+    active=_heart(1,scale=1000.0,ox=0.0)
+    excluded=_heart(2,scale=1000.0,ox=4000.0);excluded['role']='annotation'
+    res=verify_semantic_requirements(HEART_TEXT,[active,excluded],
+        logical_objects=[{'object_id':'h-2','geometry_refs':[2]}])
+    assert res['status']=='unresolved'
+    assert res['review_required'] is True
+    codes=_codes(res['binding_validation'])
+    assert 'excluded_geometry_ref' in codes
+    assert res['binding_validation']['excluded_geometry_ids']==[2]
+    assert res['binding_validation']['excluded_geometries'][0]['role']=='annotation'
+
+
+def test_shared_geometry_without_topology_declaration_rejected():
+    g1=_heart(1,scale=1000.0,ox=0.0)
+    logical=[{'object_id':'a','geometry_refs':[1]},
+             {'object_id':'b','geometry_refs':[1]}]
+    validation=validate_target_binding([g1],logical)
+    assert validation['status']=='unresolved'
+    assert 'undeclared_shared_geometry' in _codes(validation)
+
+
+def test_shared_geometry_matching_topology_declaration_is_bound():
+    g1=_heart(1,scale=1000.0,ox=0.0)
+    logical=[{'object_id':'a','geometry_refs':[1]},
+             {'object_id':'b','geometry_refs':[1]}]
+    topology={'shared_geometries':[{'geometry_id':1,'object_ids':['a','b']}]}
+    validation=validate_target_binding([g1],logical,topology=topology)
+    assert validation['status']=='bound'
+    assert len(validation['targets'])==2
+    assert validation['shared_geometry_owners']=={'1':['a','b']}
+
+
+def test_disconnected_members_are_warned_but_not_split():
+    g1=_heart(1,scale=1000.0,ox=0.0)
+    g2=_heart(2,scale=1000.0,ox=4000.0)
+    logical=[{'object_id':'composite-1','geometry_refs':[1,2]}]
+    validation=validate_target_binding([g1,g2],logical)
+    assert validation['status']=='bound'
+    assert len(validation['targets'])==1
+    assert validation['targets'][0]['target_ref']['geometry_ids']==[1,2]
+    member_warnings=[w for w in validation['warnings'] if w['code']=='disconnected_members']
+    assert member_warnings and member_warnings[0]['component_count']==2

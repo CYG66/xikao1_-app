@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
-"""Round11 R-04 wiring evidence probe, round 2 (Agent C), zero model, offline.
+"""Round11 R-04 wiring evidence probe, round 3 (Agent C), zero model, offline.
 
 Drives the local verifier / summary chain with synthetic geometry; no real
 model request, no network. Records the caller-side retention gate after the
-alignment with A's explicit ``applicability_decision``:
+alignment with A's explicit ``applicability_decision`` and the recognized-but-
+unverifiable star-family kinds:
 
-* attached-report cases: W1 / M1 / M1b / explicit star / ordinary shapes / C10;
-* missing-report fallback: explicit / ambiguous wording blocked, ordinary released.
+* attached-report cases: W1 / M1 / M1b / explicit star / family wording /
+  ordinary shapes / C10;
+* missing-report fallback: explicit / ambiguous / family wording blocked,
+  ordinary shapes released; astroid wording keeps its own channel.
 
 Usage (from ``backend/``)::
 
@@ -30,9 +33,10 @@ if str(BACKEND) not in sys.path:
 os.environ.setdefault("XLINE_AGENT_PROVIDER", "local")
 os.environ.pop("DEEPSEEK_API_KEY", None)
 
-from app.cad_semantic_acceptance import verify_semantic_requirements  # noqa: E402
+from app.cad_semantic_acceptance import semantic_requirements, verify_semantic_requirements  # noqa: E402
 from app.cad_semantic_dispatch import (  # noqa: E402
     DECISION_TERMS,
+    recognized_star_family_unsupported_kinds_from_text,
     semantic_requirement_state,
     state_allows_summary_passed,
 )
@@ -102,6 +106,8 @@ def attached_case(label, text, geometries, logical=None, coverage="complete"):
         "label": label,
         "text": text,
         "report_status": report.get("status"),
+        "report_coverage": report.get("coverage"),
+        "report_unsupported_kind": report.get("unsupported_kind"),
         "report_decision": report.get("applicability_decision"),
         "report_applicable": report.get("applicable_requirement_kinds") or [],
         "report_ambiguous": report.get("ambiguous_requirement_kinds") or [],
@@ -146,6 +152,10 @@ def main() -> None:
         attached_case("M1b_ambiguous_star_geometry_blocked", "画一个五角形",
                       [_star_geom(1, ox=0.0)]),
         attached_case("EXPLICIT_五角星", "画一个五角星", []),
+        attached_case("FAMILY_four_pointed_star", "画一个四角星", []),
+        attached_case("FAMILY_six_pointed_star", "画一个六角星", []),
+        attached_case("FAMILY_asterisk", "画一个星号", []),
+        attached_case("FAMILY_generic_english", "draw a star", []),
         attached_case("ORDINARY_circle", "画一个圆", [_circle_geom(1)]),
         attached_case("ORDINARY_rectangle", "画一个矩形", [_rect_geom(1)]),
         attached_case("ORDINARY_plain_pentagon", "画一个五边形", [_poly_geom(1, 5)]),
@@ -157,17 +167,33 @@ def main() -> None:
     fallback = [
         fallback_case("MISSING_explicit_五角星", "画一个五角星"),
         fallback_case("MISSING_ambiguous_五角形", "画一个五角形"),
+        fallback_case("MISSING_family_四角星", "画一个四角星"),
+        fallback_case("MISSING_family_六角星", "画一个六角星"),
+        fallback_case("MISSING_family_星号", "画一个星号"),
+        fallback_case("MISSING_family_generic_english", "draw a star"),
         fallback_case("MISSING_ordinary_圆", "画一个圆"),
+        fallback_case("MISSING_ordinary_矩形", "画一个矩形"),
+        fallback_case("MISSING_ordinary_五边形", "画一个五边形"),
+        fallback_case("MISSING_ordinary_六边形", "画一个六边形"),
     ]
+
+    astroid_text = "星形线 astroid 具有四个内禀尖点"
+    astroid_scan = {
+        "text": astroid_text,
+        "family_kinds": recognized_star_family_unsupported_kinds_from_text(astroid_text),
+        "structured_kinds": [(req or {}).get("kind")
+                             for req in semantic_requirements(astroid_text) or []],
+    }
 
     result = {
         "probe": "c_round11_r04_wiring_probe",
         "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
         "model_requests": 0,
         "network": False,
-        "code_version": "1fc2ad5843109195a8a0c14c1be55405288dd32c",
+        "code_version": "e2f343775af15466d612a974006c51a404aa552a",
         "attached_report_cases": attached,
         "fallback_missing_report_cases": fallback,
+        "astroid_scan": astroid_scan,
     }
 
     out = pathlib.Path(args.out)

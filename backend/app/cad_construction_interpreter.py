@@ -1287,13 +1287,15 @@ def _source_recognizes_mandatory_kind(source_text: str | None) -> bool:
         from .cad_semantic_dispatch import (
             MANDATORY_REQUIREMENT_KINDS,
             ambiguous_requirement_kinds_from_text,
+            recognized_star_family_unsupported_kinds_from_text,
             recognized_unverifiable_kinds_from_text,
         )
         structured = any((req or {}).get("kind") in MANDATORY_REQUIREMENT_KINDS
                          for req in semantic_requirements(source_text) or [])
         explicit = bool(recognized_unverifiable_kinds_from_text(source_text))
         ambiguous = bool(ambiguous_requirement_kinds_from_text(source_text))
-        return structured or explicit or ambiguous
+        family = bool(recognized_star_family_unsupported_kinds_from_text(source_text))
+        return structured or explicit or ambiguous or family
     except Exception:
         return False
 
@@ -1311,15 +1313,20 @@ def _semantic_summary_verdict(report: dict[str, Any] | None, source: str | None)
     if source and _source_recognizes_mandatory_kind(source):
         from .cad_semantic_dispatch import (
             ambiguous_requirement_kinds_from_text,
+            recognized_star_family_unsupported_kinds_from_text,
             recognized_unverifiable_kinds_from_text,
         )
         explicit_kinds = recognized_unverifiable_kinds_from_text(source)
         ambiguous_kinds = ambiguous_requirement_kinds_from_text(source)
+        family_kinds = recognized_star_family_unsupported_kinds_from_text(source)
+        applicable_kinds = explicit_kinds + [k for k in family_kinds if k not in explicit_kinds]
         fallback_reasons = ["report_unavailable"]
         if ambiguous_kinds:
             fallback_reasons.append("ambiguous_requirement")
+        if family_kinds:
+            fallback_reasons.append("unsupported_semantic_kind")
         return {"state": "unverified_or_partial",
-                "applicable_requirement_kinds": explicit_kinds,
+                "applicable_requirement_kinds": applicable_kinds,
                 "ambiguous_requirement_kinds": ambiguous_kinds,
                 "recognized_unknown_kinds": [], "review_required": True,
                 "reasons": fallback_reasons, "affected": []}

@@ -138,3 +138,7 @@ M1：歧义词（`五角形`）+ 凸五边形，A 报告层已是 `resolved_non_
 - **适用要求被静默丢弃**：除 §4 既有两类残留外无新增：
   1. 文本既不命中显式词表也不命中歧义模式、且无已登记通道解析，即便几何像星形，按"措辞唯一授权"合同放行——只能由 A 侧扩词表/补通道关闭；
   2. A 生产者分支在所有收集证据与 reason 上全空的情形仍为 UNVERIFIED（既有范围，未做形式化穷举）。
+
+## 8. 第三轮：语族来源边界保留（父 `e2f3437`）
+
+详见同目录 `C_round11_来源边界保留接线.md`。要点：A 新增 `four_pointed_star` / `six_pointed_star` / `asterisk` / `star_family_generic` 四类语族 kind；调用端兜底复用 A 的 `recognized_star_family_unsupported_kinds_from_text`，报告缺失时语族措辞落第三态阻断（`report_unavailable` + `unsupported_semantic_kind`），不退化为 `no_signal` 放行；正常报告路径 `unverified` 经既有 status 子句保留；astroid 回归不受影响。R-01/R-02/R-03 边界未触碰。

@@ -36,6 +36,9 @@ EXPLICIT_TEXTS = ["画一个五角星", STAR_TEXT]
 AMBIGUOUS_TEXTS = ["画一个五角形", "画一个星星", "画一个星形"]
 ORDINARY_TEXTS = ["画一个圆", "画一个矩形"]
 C10_TEXT = "生成一个爱心和一个五角星，爱心在左，五角星在右"
+FAMILY_TEXTS = ["画一个四角星", "画一个六角星", "画一个星号", "draw a star"]
+ORDINARY_MISSING_TEXTS = ["画一个圆", "画一个矩形", "画一个五边形", "画一个六边形"]
+ASTROID_TEXT = "星形线 astroid 具有四个内禀尖点"
 
 
 def _step(step_id, ref, label, points, closed=True):
@@ -259,3 +262,51 @@ def test_r04_round2_ordinary_shapes_with_geometry_released(text, geometry):
     assert report["applicable_requirement_kinds"] == []
     assert summary["semantic_requirement_state"] == "no_applicable_requirement"
     assert candidate_is_accepted({"acceptance_summary": summary}) is True
+
+
+# --- Round 3: recognized-but-unverifiable star-family wording --------------
+
+@pytest.mark.parametrize("text", FAMILY_TEXTS)
+def test_r04_round3_family_report_retained_and_blocked(text):
+    # (a) normal report path: family report retained, third state, rejected.
+    report, summary = _attached_summary(text, [])
+    assert report["status"] == "unverified"
+    assert report["coverage"] == "unsupported_semantic_kind"
+    assert report["review_required"] is True
+    assert report["applicability_decision"] == "applicable"
+    assert summary["semantic_requirement_state"] == "unverified_or_partial"
+    assert summary["review_required"] is True
+    assert candidate_is_accepted({"acceptance_summary": summary}) is False
+
+
+@pytest.mark.parametrize("text", FAMILY_TEXTS)
+def test_r04_round3_missing_report_family_wording_blocks(text):
+    # (b) missing report: family wording must not degrade to no_signal/release.
+    summary = _summary(_base_source(None), source=text)
+    assert summary["semantic_requirement_state"] == "unverified_or_partial"
+    reasons = summary["semantic_incomplete_reasons"]
+    assert "report_unavailable" in reasons
+    assert "unsupported_semantic_kind" in reasons
+    assert summary["review_required"] is True
+    assert candidate_is_accepted({"acceptance_summary": summary}) is False
+
+
+@pytest.mark.parametrize("text", ORDINARY_MISSING_TEXTS)
+def test_r04_round3_missing_report_ordinary_shapes_released(text):
+    # (c) ordinary shapes with no report still release; no over-blocking.
+    summary = _summary(_base_source(None), source=text)
+    assert summary["semantic_requirement_state"] == "no_applicable_requirement"
+    assert summary["semantic_incomplete_reasons"] == []
+    assert summary["review_required"] is False
+    assert candidate_is_accepted({"acceptance_summary": summary}) is True
+
+
+def test_r04_round3_astroid_not_classified_as_family():
+    # (f) astroid wording keeps its own dedicated channel; family scan stays empty.
+    from app.cad_semantic_acceptance import semantic_requirements
+    from app.cad_semantic_dispatch import (
+        recognized_star_family_unsupported_kinds_from_text,
+    )
+    assert recognized_star_family_unsupported_kinds_from_text(ASTROID_TEXT) == []
+    kinds = [(req or {}).get("kind") for req in semantic_requirements(ASTROID_TEXT) or []]
+    assert "astroid_identity" in kinds

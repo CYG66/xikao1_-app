@@ -1,14 +1,16 @@
 {
   "probe": "c_round11_r04_wiring_probe",
-  "generated_at": "2026-11-18T16:47:00",
+  "generated_at": "2026-11-18T18:25:48",
   "model_requests": 0,
   "network": false,
-  "code_version": "1fc2ad5843109195a8a0c14c1be55405288dd32c",
+  "code_version": "e2f343775af15466d612a974006c51a404aa552a",
   "attached_report_cases": [
     {
       "label": "W1_no_signal_star_like_geometry",
       "text": "画一个圆和一个矩形",
       "report_status": "not_checked",
+      "report_coverage": "partial",
+      "report_unsupported_kind": null,
       "report_decision": "no_signal",
       "report_applicable": [],
       "report_ambiguous": [],
@@ -24,6 +26,8 @@
       "label": "M1_ambiguous_pentagon_resolved_non_star",
       "text": "生成一个五角形",
       "report_status": "not_checked",
+      "report_coverage": "partial",
+      "report_unsupported_kind": null,
       "report_decision": "resolved_non_star",
       "report_applicable": [],
       "report_ambiguous": [
@@ -41,6 +45,8 @@
       "label": "M1b_ambiguous_star_geometry_blocked",
       "text": "画一个五角形",
       "report_status": "not_checked",
+      "report_coverage": "partial",
+      "report_unsupported_kind": null,
       "report_decision": "applicable",
       "report_applicable": [
         "star_profile"
@@ -65,6 +71,8 @@
       "label": "EXPLICIT_五角星",
       "text": "画一个五角星",
       "report_status": "not_checked",
+      "report_coverage": "partial",
+      "report_unsupported_kind": null,
       "report_decision": "applicable",
       "report_applicable": [
         "star_profile"
@@ -81,9 +89,99 @@
       "allows_summary_passed": false
     },
     {
+      "label": "FAMILY_four_pointed_star",
+      "text": "画一个四角星",
+      "report_status": "unverified",
+      "report_coverage": "unsupported_semantic_kind",
+      "report_unsupported_kind": "four_pointed_star",
+      "report_decision": "applicable",
+      "report_applicable": [
+        "four_pointed_star"
+      ],
+      "report_ambiguous": [],
+      "verdict_state": "unverified_or_partial",
+      "verdict_reasons": [
+        "no_verifier",
+        "report_unverified"
+      ],
+      "gate_retained": true,
+      "summary_status": "review_required",
+      "review_required": true,
+      "accepted": false,
+      "allows_summary_passed": false
+    },
+    {
+      "label": "FAMILY_six_pointed_star",
+      "text": "画一个六角星",
+      "report_status": "unverified",
+      "report_coverage": "unsupported_semantic_kind",
+      "report_unsupported_kind": "six_pointed_star",
+      "report_decision": "applicable",
+      "report_applicable": [
+        "six_pointed_star"
+      ],
+      "report_ambiguous": [],
+      "verdict_state": "unverified_or_partial",
+      "verdict_reasons": [
+        "no_verifier",
+        "report_unverified"
+      ],
+      "gate_retained": true,
+      "summary_status": "review_required",
+      "review_required": true,
+      "accepted": false,
+      "allows_summary_passed": false
+    },
+    {
+      "label": "FAMILY_asterisk",
+      "text": "画一个星号",
+      "report_status": "unverified",
+      "report_coverage": "unsupported_semantic_kind",
+      "report_unsupported_kind": "asterisk",
+      "report_decision": "applicable",
+      "report_applicable": [
+        "asterisk"
+      ],
+      "report_ambiguous": [],
+      "verdict_state": "unverified_or_partial",
+      "verdict_reasons": [
+        "no_verifier",
+        "report_unverified"
+      ],
+      "gate_retained": true,
+      "summary_status": "review_required",
+      "review_required": true,
+      "accepted": false,
+      "allows_summary_passed": false
+    },
+    {
+      "label": "FAMILY_generic_english",
+      "text": "draw a star",
+      "report_status": "unverified",
+      "report_coverage": "unsupported_semantic_kind",
+      "report_unsupported_kind": "star_family_generic",
+      "report_decision": "applicable",
+      "report_applicable": [
+        "star_family_generic"
+      ],
+      "report_ambiguous": [],
+      "verdict_state": "unverified_or_partial",
+      "verdict_reasons": [
+        "no_verifier",
+        "report_unverified"
+      ],
+      "gate_retained": true,
+      "summary_status": "review_required",
+      "review_required": true,
+      "accepted": false,
+      "allows_summary_passed": false
+    },
+    {
       "label": "ORDINARY_circle",
       "text": "画一个圆",
       "report_status": "not_checked",
+      "report_coverage": "partial",
+      "report_unsupported_kind": null,
       "report_decision": "no_signal",
       "report_applicable": [],
       "report_ambiguous": [],
@@ -99,6 +197,8 @@
       "label": "ORDINARY_rectangle",
       "text": "画一个矩形",
       "report_status": "not_checked",
+      "report_coverage": "partial",
+      "report_unsupported_kind": null,
       "report_decision": "no_signal",
       "report_applicable": [],
       "report_ambiguous": [],
@@ -114,6 +214,8 @@
       "label": "ORDINARY_plain_pentagon",
       "text": "画一个五边形",
       "report_status": "not_checked",
+      "report_coverage": "partial",
+      "report_unsupported_kind": null,
       "report_decision": "no_signal",
       "report_applicable": [],
       "report_ambiguous": [],
@@ -129,6 +231,8 @@
       "label": "ORDINARY_hexagon",
       "text": "画一个六边形",
       "report_status": "not_checked",
+      "report_coverage": "partial",
+      "report_unsupported_kind": null,
       "report_decision": "no_signal",
       "report_applicable": [],
       "report_ambiguous": [],
@@ -144,6 +248,8 @@
       "label": "C10_heart_star_partial",
       "text": "生成一个爱心和一个五角星，爱心在左，五角星在右",
       "report_status": "partial",
+      "report_coverage": "heart_outline_measured_features",
+      "report_unsupported_kind": null,
       "report_decision": "applicable",
       "report_applicable": [
         "heart_outline_features",
@@ -189,6 +295,54 @@
       "accepted": false
     },
     {
+      "label": "MISSING_family_四角星",
+      "text": "画一个四角星",
+      "summary_status": "review_required",
+      "semantic_state": "unverified_or_partial",
+      "semantic_reasons": [
+        "report_unavailable",
+        "unsupported_semantic_kind"
+      ],
+      "review_required": true,
+      "accepted": false
+    },
+    {
+      "label": "MISSING_family_六角星",
+      "text": "画一个六角星",
+      "summary_status": "review_required",
+      "semantic_state": "unverified_or_partial",
+      "semantic_reasons": [
+        "report_unavailable",
+        "unsupported_semantic_kind"
+      ],
+      "review_required": true,
+      "accepted": false
+    },
+    {
+      "label": "MISSING_family_星号",
+      "text": "画一个星号",
+      "summary_status": "review_required",
+      "semantic_state": "unverified_or_partial",
+      "semantic_reasons": [
+        "report_unavailable",
+        "unsupported_semantic_kind"
+      ],
+      "review_required": true,
+      "accepted": false
+    },
+    {
+      "label": "MISSING_family_generic_english",
+      "text": "draw a star",
+      "summary_status": "review_required",
+      "semantic_state": "unverified_or_partial",
+      "semantic_reasons": [
+        "report_unavailable",
+        "unsupported_semantic_kind"
+      ],
+      "review_required": true,
+      "accepted": false
+    },
+    {
       "label": "MISSING_ordinary_圆",
       "text": "画一个圆",
       "summary_status": "passed",
@@ -196,6 +350,40 @@
       "semantic_reasons": [],
       "review_required": false,
       "accepted": true
+    },
+    {
+      "label": "MISSING_ordinary_矩形",
+      "text": "画一个矩形",
+      "summary_status": "passed",
+      "semantic_state": "no_applicable_requirement",
+      "semantic_reasons": [],
+      "review_required": false,
+      "accepted": true
+    },
+    {
+      "label": "MISSING_ordinary_五边形",
+      "text": "画一个五边形",
+      "summary_status": "passed",
+      "semantic_state": "no_applicable_requirement",
+      "semantic_reasons": [],
+      "review_required": false,
+      "accepted": true
+    },
+    {
+      "label": "MISSING_ordinary_六边形",
+      "text": "画一个六边形",
+      "summary_status": "passed",
+      "semantic_state": "no_applicable_requirement",
+      "semantic_reasons": [],
+      "review_required": false,
+      "accepted": true
     }
-  ]
+  ],
+  "astroid_scan": {
+    "text": "星形线 astroid 具有四个内禀尖点",
+    "family_kinds": [],
+    "structured_kinds": [
+      "astroid_identity"
+    ]
+  }
 }

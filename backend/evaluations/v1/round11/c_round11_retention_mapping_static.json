@@ -3,7 +3,8 @@
   "code_version_base": "38b2437269b95445d48b40c524c93cf7743cb304",
   "code_version_after_A": "238a84e44bd4ea01a8c580df6d4b2cdfc411722d",
   "code_version_A_round2": "1fc2ad5843109195a8a0c14c1be55405288dd32c",
-  "wiring_status": "wired_round2",
+  "code_version_A_round3": "e2f343775af15466d612a974006c51a404aa552a",
+  "wiring_status": "wired_round3",
   "wiring_owner": "Agent C",
   "model_requests": 0,
   "network": false,
@@ -80,13 +81,14 @@
       "_source_recognizes_mandatory_kind (1264-1291)",
       "_semantic_summary_verdict missing-report fallback (1295-1318)"
     ],
-    "change": "Recognition predicate reuses A's exported scans: recognized_unverifiable_kinds_from_text (explicit) and ambiguous_requirement_kinds_from_text (ambiguous), in addition to the structured semantic_requirements entries. Missing-report fallback returns unverified_or_partial with report_unavailable; ambiguous cases also carry ambiguous_requirement. Ordinary shapes still resolve to no_applicable_requirement.",
+    "change": "Recognition predicate reuses A's exported scans: recognized_unverifiable_kinds_from_text (explicit), ambiguous_requirement_kinds_from_text (ambiguous), and recognized_star_family_unsupported_kinds_from_text (round-3 family kinds), in addition to the structured semantic_requirements entries. Missing-report fallback returns unverified_or_partial with report_unavailable; ambiguous cases also carry ambiguous_requirement, family cases carry unsupported_semantic_kind. Ordinary shapes still resolve to no_applicable_requirement.",
     "explicit_decision_precedence": "A dict report is delegated to A's semantic_requirement_state before any fallback runs; a report with applicability_decision resolved_non_star / no_signal is judged by A's verdict and must not be re-blocked by the caller text-ambiguity scan. The text fallback fires only when the report is missing or not a dict.",
     "second_vocabulary": false,
     "geometry_profile_inference": false,
     "reused_A_exports": [
       "recognized_unverifiable_kinds_from_text",
       "ambiguous_requirement_kinds_from_text",
+      "recognized_star_family_unsupported_kinds_from_text",
       "DECISION_TERMS",
       "derive_applicability_decision (consumed via A state; not re-derived in caller)"
     ]
@@ -98,6 +100,15 @@
     "decision_terms": ["applicable", "ambiguous_unresolved", "resolved_non_star", "no_signal"],
     "m1_fix": "resolved_non_star report retained; summary sees A's no_applicable_requirement verdict; missing-report fallback does not second-guess it.",
     "w1_behavior": "no_signal star-like standalone geometry releases; no star applicable item injected without a source signal."
+  },
+  "round3_alignment": {
+    "parent_commit": "e2f343775af15466d612a974006c51a404aa552a",
+    "family_kinds": ["four_pointed_star", "six_pointed_star", "asterisk", "star_family_generic"],
+    "family_report_shape": "status=unverified, coverage=unsupported_semantic_kind, review_required=True, decision=applicable, not bound to star_profile.",
+    "gate_coverage": "Family report status=unverified passes the existing status clause of the D1 gate; retained to source_acceptance and visible to the summary (asserted in tests, not inferred).",
+    "fallback_extension": "Missing/non-dict report fallback additionally reuses A's recognized_star_family_unsupported_kinds_from_text; family wording blocks with report_unavailable + unsupported_semantic_kind, never degrades to no_signal/release.",
+    "summary_pass_through": "Semantic verdict still delegated to A's semantic_requirement_state; review_required and unverified_or_partial flow into construction_acceptance_summary unchanged; no third-state logic modified.",
+    "astroid_regression": "Astroid wording (astroid/星形线) keeps the dedicated astroid_identity channel; family scan returns []."
   },
   "empty_marker_writes_after_wiring": {
     "producer_A_owned": [
@@ -130,7 +141,7 @@
   },
   "evidence": {
     "probe": "c_round11_r04_wiring_probe.json",
-    "tests": "backend/tests/test_c_round11_r04_retention.py (13 passed)",
-    "regression": "Adjacent modules (C retention + G1 guard + semantic acceptance + interpreter): 164 passed, 2 pre-existing A-side baseline failures. Full suite excluding 8 collection-gap files: 1749 passed / 47 failed / 4 skipped, same counts and pollution set as the round-1 wiring run; no new semantic/summary failure."
+    "tests": "backend/tests/test_c_round11_r04_retention.py (26 passed)",
+    "regression": "Adjacent modules (C retention + semantic acceptance + interpreter + edit interpreter): 190 passed, 2 pre-existing A-side baseline failures. Full suite excluding 8 collection-gap files: 1809 passed / 47 failed / 4 skipped (second clean run; first run 1808/48/4 had one suite-order flake). The 47 failures are DB-state / suite-order pollution in agent_drawings, agent_run_api, clarification_grounding, copy_http_identity, counterfactual_guard, template_plan, write_receipt, composite_templates, conversation_memory, creative_projects, design_followup, geometry_catalog, incremental_cad, mirror_offset, stale_project_guard; the only semantic failures are the two pre-existing A-side baseline cases. No new semantic/summary failure."
   }
 }

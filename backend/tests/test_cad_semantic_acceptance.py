@@ -412,6 +412,8 @@ from app.cad_semantic_dispatch import (  # noqa: E402
     STATE_FULLY_VERIFIED,
     STATE_NO_APPLICABLE_REQUIREMENT,
     STATE_UNVERIFIED_OR_PARTIAL,
+    ambiguous_requirement_kinds_from_text,
+    recognized_unverifiable_kinds_from_text,
     semantic_requirement_state,
     state_allows_summary_passed,
 )
@@ -511,4 +513,109 @@ def test_contract_missing_report_is_state_three_not_state_one():
     verdict=semantic_requirement_state(None)
     assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
     assert 'report_unavailable' in verdict['reasons']
+    assert state_allows_summary_passed(verdict) is False
+
+
+# ---------------------------------------------------------------------------
+# Round11 R-04: explicit / ambiguous / not-applicable star scope (zero model)
+# ---------------------------------------------------------------------------
+
+def _regular_poly(i, n, r=1000.0, cy=1000.0):
+    pts=[{'x':round(r*math.cos(k*math.tau/n),3),
+          'y':round(cy+r*math.sin(k*math.tau/n),3)} for k in range(n)]
+    return {'id':i,'type':'polyline','closed':True,'selected':True,'vertices':pts}
+
+
+def _rect(i):
+    return {'id':i,'type':'polyline','closed':True,'selected':True,
+            'vertices':[{'x':-1000,'y':0},{'x':1000,'y':0},
+                        {'x':1000,'y':2000},{'x':-1000,'y':2000}]}
+
+
+def _circle(i):
+    return {'id':i,'type':'circle','center':{'x':0,'y':1000},'radius':1000}
+
+
+@pytest.mark.parametrize('word', ['五角星', '五芒星', '星形轮廓'])
+def test_r04_explicit_star_vocabulary_applicable_not_checked(word):
+    text=f'画一个{word}'
+    report=verify_semantic_requirements(text, [])
+    assert report['status']=='not_checked'
+    assert report['review_required'] is True
+    assert 'star_profile' in report['applicable_requirement_kinds']
+    verdict=semantic_requirement_state(report, text)
+    assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
+    assert state_allows_summary_passed(verdict) is False
+
+
+def test_r04_ambiguous_word_with_star_geometry_is_applicable_unverified():
+    text='画一个五角形'
+    report=verify_semantic_requirements(text, [_star(1, ox=0.0)])
+    verdict=semantic_requirement_state(report, text)
+    assert 'star_profile' in verdict['applicable_requirement_kinds']
+    assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
+    assert 'no_verifier' in verdict['reasons']
+    assert 'object_not_checked' in verdict['reasons']
+    assert state_allows_summary_passed(verdict) is False
+    star_entry=[o for o in report['object_acceptance'] if o['profile']=='star']
+    assert star_entry and star_entry[0]['reason']=='no_verifier_for_star_profile'
+
+
+def test_r04_ambiguous_word_with_convex_pentagon_is_released():
+    text='画一个五角形'
+    report=verify_semantic_requirements(text, [_regular_poly(1, 5)])
+    verdict=semantic_requirement_state(report, text)
+    assert verdict['applicable_requirement_kinds']==[]
+    assert verdict['state']==STATE_NO_APPLICABLE_REQUIREMENT
+    assert state_allows_summary_passed(verdict) is True
+    assert report.get('ambiguity_resolution')=='resolved_non_star'
+
+
+def test_r04_ambiguous_word_without_geometry_stays_unresolved():
+    for text in ('画一个星星', '画一个星形'):
+        report=verify_semantic_requirements(text, [])
+        verdict=semantic_requirement_state(report, text)
+        assert verdict['applicable_requirement_kinds']==[]
+        assert verdict['ambiguous_requirement_kinds']==['star_profile']
+        assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
+        assert 'ambiguous_requirement' in verdict['reasons']
+        assert verdict['review_required'] is True
+        assert state_allows_summary_passed(verdict) is False
+
+
+@pytest.mark.parametrize('label,text,geometry', [
+    ('hexagon', '画一个六边形', _regular_poly(1, 6)),
+    ('circle', '画一个圆', _circle(1)),
+    ('rectangle', '画一个矩形', _rect(1)),
+    ('plain_pentagon', '画一个五边形', _regular_poly(1, 5)),
+])
+def test_r04_ordinary_shapes_are_not_intercepted(label, text, geometry):
+    report=verify_semantic_requirements(text, [geometry])
+    verdict=semantic_requirement_state(report, text)
+    assert verdict['applicable_requirement_kinds']==[]
+    assert verdict['ambiguous_requirement_kinds']==[]
+    assert verdict['state']==STATE_NO_APPLICABLE_REQUIREMENT
+    assert state_allows_summary_passed(verdict) is True
+
+
+def test_r04_astroid_is_not_treated_as_star():
+    text='星形线 astroid 具有四个内禀尖点'
+    assert semantic_requirements(text)[0]['kind']=='astroid_identity'
+    assert recognized_unverifiable_kinds_from_text(text)==[]
+    assert ambiguous_requirement_kinds_from_text(text)==[]
+
+
+def test_r04_c10_heart_passes_star_not_checked_partial():
+    geoms=[_heart(1, scale=2000.0), _star(2)]
+    logical=[{'object_id':'heart-1','geometry_refs':[1],'label':'爱心'},
+             {'object_id':'star-1','geometry_refs':[2],'label':'五角星'}]
+    report=verify_semantic_requirements(C10_TEXT, geoms, logical_objects=logical)
+    verdict=semantic_requirement_state(report, C10_TEXT)
+    assert report['status']=='partial'
+    assert report['review_required'] is True
+    by_id={o['target_ref']['object_id']: o for o in report['object_acceptance']}
+    assert by_id['heart-1']['status']=='passed'
+    assert by_id['star-1']['status']=='not_checked'
+    assert by_id['star-1']['reason']=='no_verifier_for_star_profile'
+    assert verdict['state']==STATE_UNVERIFIED_OR_PARTIAL
     assert state_allows_summary_passed(verdict) is False

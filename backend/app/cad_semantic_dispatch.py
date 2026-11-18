@@ -80,6 +80,20 @@ UNVERIFIABLE_SHAPE_PATTERNS: dict[str, str] = {
     "star_profile": r"五角星|五芒星|星形轮廓",
 }
 
+# Ambiguous source wording that could denote a star but could also denote a
+# plain convex polygon / a non-geometric mention.  This is NOT a recognized
+# mandatory requirement: the wording alone must never establish a star
+# requirement.  It only keeps the case unresolved until the backend profile
+# can corroborate it; an ambiguous source that resolves to a non-star outline
+# must be released normally.  Astroid wording is excluded here as well.
+AMBIGUOUS_SHAPE_PATTERNS: dict[str, str] = {
+    "star_profile": r"五角形|星形|星星|星型",
+}
+
+# Wording that denotes the verified astroid channel; ambiguous / star gates
+# must yield to it.
+_ASTROID_TEXT_PATTERN = r"astroid|星形线"
+
 # Contract state vocabulary (terminal report status words are unchanged).
 STATE_NO_APPLICABLE_REQUIREMENT = "no_applicable_requirement"
 STATE_FULLY_VERIFIED = "fully_verified"
@@ -675,6 +689,28 @@ def recognized_unverifiable_kinds_from_text(source: str | None) -> list[str]:
     return found
 
 
+def ambiguous_requirement_kinds_from_text(source: str | None) -> list[str]:
+    """Scan wording that may denote a recognized shape but is ambiguous.
+
+    An ambiguous match does NOT establish a mandatory requirement.  It marks
+    the case as unresolved: the summary layer must keep it out of PASS until
+    the backend profile corroborates a star outline, or the ambiguity is
+    resolved against a non-star outline.  Astroid wording and already-explicit
+    star wording are excluded.
+    """
+    if not source:
+        return []
+    if re.search(_ASTROID_TEXT_PATTERN, source, re.I):
+        return []
+    explicit = set(recognized_unverifiable_kinds_from_text(source))
+    found: list[str] = []
+    for kind, pattern in AMBIGUOUS_SHAPE_PATTERNS.items():
+        if kind in UNVERIFIABLE_RECOGNIZED_KINDS and kind not in explicit \
+                and re.search(pattern, source, re.I):
+            found.append(kind)
+    return found
+
+
 def collect_applicable_requirement_kinds(
     report: dict[str, Any] | None,
     source: str | None = None,
@@ -719,6 +755,30 @@ def collect_applicable_requirement_kinds(
     return kinds
 
 
+def collect_ambiguous_requirement_kinds(
+    report: dict[str, Any] | None,
+    source: str | None = None,
+) -> list[str]:
+    """Collect unresolved ambiguous requirement kinds from report and source.
+
+    These are NOT established applicable requirements; they are signals that
+    the wording could denote a recognized shape but cannot be resolved from
+    text alone.  The list is de-duplicated, stable-ordered.
+    """
+    kinds: list[str] = []
+
+    def add(kind: Any) -> None:
+        if isinstance(kind, str) and kind and kind not in kinds:
+            kinds.append(kind)
+
+    if isinstance(report, dict):
+        for kind in report.get("ambiguous_requirement_kinds") or []:
+            add(kind)
+    for kind in ambiguous_requirement_kinds_from_text(source):
+        add(kind)
+    return kinds
+
+
 def semantic_requirement_state(
     report: dict[str, Any] | None,
     source: str | None = None,
@@ -752,6 +812,9 @@ def semantic_requirement_state(
     ``report_unverified``      top-level status in unverified/unresolved/failed;
     ``report_unchecked_applicable``  report is ``not_checked`` but carries a
                               recognized mandatory kind;
+    ``ambiguous_requirement``  wording may denote a recognized shape but the
+                              requirement is unresolved; never classified as
+                              "no applicable requirement";
     ``object_unresolved``      object entry is unresolved/unverified;
     ``report_unavailable``    the report itself is missing or not a dict.
     """
@@ -766,8 +829,14 @@ def semantic_requirement_state(
         }
 
     applicable = collect_applicable_requirement_kinds(report, source)
+    ambiguous = collect_ambiguous_requirement_kinds(report, source)
     registry = {kind: classify_requirement_kind(kind) for kind in applicable}
     unknown_kinds = [kind for kind, category in registry.items() if category is None]
+    # An ambiguity resolved by the backend profile against a non-star outline
+    # must not keep blocking; an unresolved ambiguity can never fall into the
+    # "no applicable requirement" state.
+    resolved_non_star = isinstance(report, dict) and \
+        report.get("ambiguity_resolution") == "resolved_non_star"
 
     object_entries = [entry for entry in (report.get("object_acceptance") or [])
                       if isinstance(entry, dict)]
@@ -812,6 +881,8 @@ def semantic_requirement_state(
         reasons.add("report_unverified")
     if status == "not_checked" and applicable:
         reasons.add("report_unchecked_applicable")
+    if ambiguous and not resolved_non_star:
+        reasons.add("ambiguous_requirement")
 
     has_applicable = bool(applicable)
     if not has_applicable and not unknown_kinds and not reasons:
@@ -824,6 +895,7 @@ def semantic_requirement_state(
     return {
         "state": state,
         "applicable_requirement_kinds": applicable,
+        "ambiguous_requirement_kinds": ambiguous,
         "recognized_unknown_kinds": unknown_kinds,
         "review_required": review_required or state == STATE_UNVERIFIED_OR_PARTIAL,
         "reasons": sorted(reasons),

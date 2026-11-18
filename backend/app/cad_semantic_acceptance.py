@@ -10,9 +10,12 @@ from .cad_structure_contract import StructureContractError
 from .cad_semantic_dispatch import (
     DISPATCH_CHANNELS,
     active_geometries,
+    ambiguous_requirement_kinds_from_text,
     classify_profile,
+    collect_ambiguous_requirement_kinds,
     collect_applicable_requirement_kinds,
     heart_features,
+    recognized_unverifiable_kinds_from_text,
     validate_target_binding,
 )
 
@@ -78,6 +81,68 @@ def _corners(points,tolerance=.5):
                 pts.pop(i);break
         else:break
     return pts
+
+
+def _generic_profile_targets(geometries,logical_objects=None,topology=None):
+    """Group active geometries into backend-resolved targets for a profile scan."""
+    active=active_geometries(geometries)
+    if logical_objects is not None:
+        binding=validate_target_binding(geometries,logical_objects,topology)
+        if binding["status"]=="bound":
+            return binding["targets"]
+        return []
+    return [{"target_ref":{"object_id":f"geom:{g.get('id')}","geometry_ids":[g.get("id")]},
+             "geometries":[g]} for g in active]
+
+
+def _verify_no_recognized_requirement(source,geometries,logical_objects=None,topology=None):
+    """No registered channel requirement matched the source.
+
+    Source wording is the only authorization for a mandatory requirement.
+    The backend profile is auxiliary evidence: it corroborates an explicit
+    or ambiguous star signal, but a standalone star-like geometry must never
+    fabricate a star requirement.  An ambiguity that cannot be resolved stays
+    unverified; an ambiguity resolved against a non-star outline is released.
+    """
+    explicit=recognized_unverifiable_kinds_from_text(source)
+    ambiguous=ambiguous_requirement_kinds_from_text(source)
+    active=active_geometries(geometries)
+    targets=_generic_profile_targets(geometries,logical_objects,topology)
+    profile_entries=[]
+    for target in targets:
+        profile=classify_profile(target["geometries"])
+        profile_entries.append({
+            "target_ref":target["target_ref"],
+            "profile":profile["profile"],
+            "profile_measurements":profile["measurements"],
+            "profile_votes":profile["votes"],
+        })
+    star_entries=[e for e in profile_entries if e["profile"]=="star"]
+    object_acceptance=[{**e,"status":"not_checked",
+        "reason":"no_verifier_for_star_profile",
+        "note":"星型轮廓无对应语义验收器；作为适用但未验证对象记录，不得计为通过"}
+        for e in star_entries]
+
+    ambiguity_resolution=None
+    if ambiguous and not explicit:
+        if star_entries:
+            ambiguity_resolution="confirmed_by_geometry"
+        elif active:
+            ambiguity_resolution="resolved_non_star"
+        # 无活动几何可佐证/排除：歧义保持未解决，不落“无适用要求”。
+
+    report={
+        "status":"not_checked","coverage":"partial","checks":[],
+        "review_required":True,"reason":"no_semantic_requirement_matched",
+        "object_acceptance":object_acceptance,
+    }
+    if object_acceptance:
+        report["unsupported_objects"]=[e["target_ref"]["geometry_ids"] for e in object_acceptance]
+    if ambiguity_resolution:
+        report["ambiguity_resolution"]=ambiguity_resolution
+    if ambiguous:
+        report["ambiguous_requirement_kinds"]=ambiguous
+    return report
 
 
 def _verify_semantic_requirements_raw(source,geometries,logical_objects=None,topology=None):
@@ -221,8 +286,7 @@ def _verify_semantic_requirements_raw(source,geometries,logical_objects=None,top
                 'checks':[{'name':'cardioid_polar_identity','status':'passed','measurements':measured}],
                 'review_required':False}
     if not requirements:
-        return {'status':'not_checked','coverage':'partial','checks':[],
-                'review_required':True,'reason':'no_semantic_requirement_matched'}
+        return _verify_no_recognized_requirement(original, geometries, logical_objects, topology)
     gs=active_geometries(geometries)
     if not gs or any(g.get('type') not in {'line','polyline'} for g in gs):
         return {'status':'unverified','coverage':'unsupported_profile_representation','requirements':requirements,'checks':[], 'review_required':True,'reason':'unsupported_profile_representation'}
@@ -462,4 +526,5 @@ def verify_semantic_requirements(source,geometries,logical_objects=None,topology
     report = _verify_semantic_requirements_raw(source,geometries,logical_objects,topology)
     if isinstance(report, dict):
         report['applicable_requirement_kinds'] = collect_applicable_requirement_kinds(report, source)
+        report['ambiguous_requirement_kinds'] = collect_ambiguous_requirement_kinds(report, source)
     return report

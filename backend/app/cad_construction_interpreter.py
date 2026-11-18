@@ -1245,6 +1245,22 @@ def interpret_construction_request(
     }
 
 
+# Sub-report statuses that never constitute a complete acceptance, even when
+# the producer omitted ``review_required``. This is the single shared gate for
+# every generic ``*_acceptance`` report entering the summary loop.
+# ``not_checked`` is deliberately excluded: a channel with no applicable
+# requirement stays non-blocking; the semantic report's applicability is
+# judged exclusively by A's three-state verdict rather than this set.
+REVIEW_BLOCKING_REPORT_STATUSES = frozenset({"failed", "unverified", "review_required", "partial"})
+
+
+def _report_blocks_review(report: dict[str, Any] | None) -> bool:
+    """Shared gate for generic non-semantic sub-reports in the summary loop."""
+    report = report or {}
+    return (report.get("review_required") is True
+            or report.get("status") in REVIEW_BLOCKING_REPORT_STATUSES)
+
+
 def _source_recognizes_mandatory_kind(source_text: str | None) -> bool:
     """Whether the source text itself recognizes a registered mandatory kind.
 
@@ -1317,11 +1333,7 @@ def construction_acceptance_summary(
     from .cad_semantic_dispatch import state_allows_summary_passed
     semantic_verdict = _semantic_summary_verdict(semantic_report, source)
     semantic_blocks = not state_allows_summary_passed(semantic_verdict)
-    report_requires_review = any(
-        report.get("review_required") is True
-        or report.get("status") in {"failed", "unverified", "review_required"}
-        for report in reports
-    )
+    report_requires_review = any(_report_blocks_review(report) for report in reports)
     review_required = (preflight_review_required or report_requires_review or semantic_blocks
         or any((report or {}).get('review_required') is True for report in
                (preflight_structure,structure_validation,composition_validation)))

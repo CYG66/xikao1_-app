@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-11-18T10:40:52",
+  "generated_at": "2026-11-18T11:09:35",
   "zero_model": true,
   "git": {
-    "head_sha": "2989e8c42fff3fed73720d2b2e399046ef966645",
-    "parent_sha": "07bd888f8c888a543d1983d8246f35d5939351e8",
+    "head_sha": "fe63db32249205abcdb8d0677067dd597ddcbc26",
+    "parent_sha": "2989e8c42fff3fed73720d2b2e399046ef966645",
     "expected_parent": "2989e8c42fff3fed73720d2b2e399046ef966645",
     "baseline_sha": "07bd888f8c888a543d1983d8246f35d5939351e8",
     "branch": "tmp/g1-guard"

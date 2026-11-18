@@ -217,5 +217,5 @@ python -m pytest tests/test_cad_requirement_contract.py tests/test_cad_plan_comp
 
 ## 12. 遗留事项
 
-- 同步清单偏好路径在本机环境不存在（`D:\xikao\xikao1_-app\xikao1_-app\后端最终同步清单.md` 未找到），本轮无法写入；待路径可用后补登本次接线范围。
+- 既定的《后端最终同步清单.md》在本机环境未找到对应文件，本轮无法写入同步范围；待路径可用后补登本次接线范围。
 - §6.3 门禁缺陷按要求仅上报，未修复。

@@ -10,9 +10,9 @@ from .cad_structure_contract import StructureContractError
 from .cad_semantic_dispatch import (
     DISPATCH_CHANNELS,
     active_geometries,
-    bind_targets,
     classify_profile,
     heart_features,
+    validate_target_binding,
 )
 
 
@@ -104,6 +104,23 @@ def verify_semantic_requirements(source,geometries,logical_objects=None,topology
                     'measured_center_mm':list(measured_center),'expected_center_mm':list(expected),
                     'error_mm':error,'tolerance_mm':.5,
                     'repair_instruction':'保持部件形状和尺寸，仅修正整体平移，使实际外接框中心回到用户指定中心。'})
+    # Binding payload guard: when the caller explicitly supplies
+    # ``logical_objects``, a malformed payload / dangling or duplicate refs /
+    # non-unique ownership must terminate here as unresolved.  It must never be
+    # silently swallowed and must never reach a PASS.  A missing payload
+    # (None) falls back to connected-component auxiliary evidence downstream.
+    if logical_objects is not None:
+        binding = validate_target_binding(geometries, logical_objects, topology)
+        if binding["status"] == "unresolved":
+            return {'status':'unresolved','coverage':'target_unresolved',
+                'requirements':requirements,'checks':[],'review_required':True,
+                'reason':'invalid_target_binding',
+                'binding_validation':{
+                    'binding_source':binding['binding_source'],
+                    'errors':binding['errors'],'warnings':binding['warnings'],
+                    'unowned_geometry_ids':binding['unowned_geometry_ids'],
+                    'excluded_geometry_ids':binding['excluded_geometry_ids'],
+                    'excluded_geometries':binding['excluded_geometries']}}
     if re.search(r'astroid|星形线',original,re.I):
         from .cad_curve_fit_acceptance import verify_astroid
         size=re.search(r'最大半径\s*(\d+(?:\.\d+)?)\s*(毫米|厘米|米|mm|cm|m)',original,re.I)
@@ -249,10 +266,27 @@ def _verify_heart_channel(geometries,requirements,logical_objects=None,topology=
     pass.  Objects without a matching semantic checker are recorded
     ``not_checked`` / ``unresolved`` rather than fabricated into a pass.
     """
-    targets=bind_targets(geometries,logical_objects,topology)
+    binding=validate_target_binding(geometries,logical_objects,topology)
+    if binding["status"]=="unresolved":
+        return {'status':'unresolved','coverage':'target_unresolved','requirements':requirements,
+                'checks':[],'review_required':True,'reason':'invalid_target_binding',
+                'binding_validation':{
+                    'binding_source':binding['binding_source'],
+                    'errors':binding['errors'],'warnings':binding['warnings'],
+                    'unowned_geometry_ids':binding['unowned_geometry_ids'],
+                    'excluded_geometry_ids':binding['excluded_geometry_ids'],
+                    'excluded_geometries':binding['excluded_geometries']}}
+    targets=binding["targets"]
+    binding_meta={'binding_source':binding['binding_source'],
+        'binding_auxiliary':binding['auxiliary'],
+        'unowned_geometry_ids':binding['unowned_geometry_ids'],
+        'excluded_geometry_ids':binding['excluded_geometry_ids'],
+        'excluded_geometries':binding['excluded_geometries'],
+        'binding_warnings':binding['warnings']}
     if not targets:
         return {'status':'unresolved','coverage':'target_unresolved','requirements':requirements,
-                'checks':[],'review_required':True,'reason':'target_unresolved_no_active_geometry'}
+                'checks':[],'review_required':True,'reason':'target_unresolved_no_active_geometry',
+                **binding_meta}
     evaluated=[];heart_candidates=[];star_entries=[]
     for target in targets:
         profile=classify_profile(target['geometries'])
@@ -293,7 +327,8 @@ def _verify_heart_channel(geometries,requirements,logical_objects=None,topology=
                 'reason':'partial_feature_coverage' if not review else 'partial_with_unverified_objects',
                 'object_acceptance':object_acceptance,
                 'unsupported_objects':[o['target_ref']['geometry_ids']
-                                       for o in object_acceptance if o['status']=='not_checked']}
+                                       for o in object_acceptance if o['status']=='not_checked'],
+                **binding_meta}
     if len(targets)==1 and star_entries and not heart_candidates:
         entry=star_entries[0]
         raise StructureContractError('星型轮廓被爱心负向闸门拒绝，不得作为爱心验收',{
@@ -314,11 +349,13 @@ def _verify_heart_channel(geometries,requirements,logical_objects=None,topology=
         return {'status':'unresolved','coverage':'target_unresolved','requirements':requirements,
                 'checks':[],'review_required':True,'object_acceptance':evaluated,
                 'reason':'target_binding_ambiguous_multiple_candidates',
-                'reason_detail':'存在多个爱心轮廓候选，归属不唯一，未猜测绑定'}
+                'reason_detail':'存在多个爱心轮廓候选，归属不唯一，未猜测绑定',
+                **binding_meta}
     return {'status':'unresolved','coverage':'target_unresolved','requirements':requirements,
             'checks':[],'review_required':True,'object_acceptance':evaluated,
             'reason':'target_binding_ambiguous',
-            'reason_detail':'无法将爱心要求唯一绑定到一个可靠对象'}
+            'reason_detail':'无法将爱心要求唯一绑定到一个可靠对象',
+            **binding_meta}
 
 
 def _verify_house_channel(gs,requirements):

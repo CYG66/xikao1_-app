@@ -1,0 +1,355 @@
+{
+  "generated_at": "2026-11-18T10:55:05",
+  "zero_model": true,
+  "git": {
+    "base_commit": "fe63db32249205abcdb8d0677067dd597ddcbc26",
+    "base_parent": "2989e8c42fff3fed73720d2b2e399046ef966645",
+    "expected_commit_parent": "fe63db32249205abcdb8d0677067dd597ddcbc26",
+    "expected_base_sha": "fe63db32249205abcdb8d0677067dd597ddcbc26",
+    "branch": "tmp/g2-dynamic"
+  },
+  "paths": [
+    {
+      "input_fixture_id": "A-diagnostic-replay",
+      "path_entry": "cad_construction_interpreter.py:1028 (diagnostic_trial semantic verify); record :1041-1047",
+      "trigger_kind": "natural",
+      "source": "画一个半径1米的圆",
+      "actual_params": {
+        "plan": {
+          "units": "m",
+          "steps": [
+            {
+              "op": "add_circle",
+              "step_id": "circle-1",
+              "output_ref": "circle-1",
+              "semantic": {
+                "object_type": "circle",
+                "label": "圆"
+              },
+              "center": {
+                "x": 0,
+                "y": 0
+              },
+              "radius": 1
+            }
+          ],
+          "assertions": [
+            {
+              "kind": "entity_count",
+              "assertion_id": "wrong-count",
+              "target_ref": "circle-1",
+              "equals": 2
+            }
+          ]
+        },
+        "mock_model_calls": 1
+      },
+      "repair": {
+        "deterministic_repair_count": 0,
+        "repair_kinds": [],
+        "max_repairs_budget": 2,
+        "within_budget": true,
+        "bounded_repair_available_default": [
+          2
+        ]
+      },
+      "interpreter_status": "invalid",
+      "error_code": "assertion_failed",
+      "acceptance_output": {
+        "diagnostic_record": {
+          "status": "not_checked",
+          "review_required": true,
+          "reason": "no_semantic_requirement_matched",
+          "coverage": "partial",
+          "binding": {
+            "binding_source": "execute_construction_plan.logical_objects",
+            "binding_trust": "trusted",
+            "issues": [],
+            "model_declared_object_id_trusted": false,
+            "identity_anchor": "backend_resolved_geometry_refs"
+          },
+          "diagnostic_only": true,
+          "candidate_accepted": false
+        },
+        "binding_evidence": {
+          "binding_source": "execute_construction_plan.logical_objects",
+          "binding_trust": "trusted",
+          "issues": [],
+          "model_declared_object_id_trusted": false,
+          "identity_anchor": "backend_resolved_geometry_refs",
+          "trusted_with_empty_issues": true
+        },
+        "attribution_fields_present": true,
+        "diagnostic_only": true,
+        "candidate_accepted_flag": false
+      },
+      "summary_output": {
+        "note": "invalid 诊断结果不挂正式汇总；以下为诊断报告离线重建的审计汇总。",
+        "summary": {
+          "status": "review_required",
+          "review_required": true,
+          "authority": "backend_measured_geometry",
+          "verified_checks": 0,
+          "requirement_coverage": "unknown",
+          "unknown_requirements": [
+            {
+              "source": "source_acceptance",
+              "reason": "需求清单或完整覆盖证据缺失"
+            }
+          ],
+          "geometry_validity": "not_checked",
+          "constraint_satisfaction": "not_checked",
+          "assertion_status": "not_checked",
+          "unverified_geometry_ids": [],
+          "semantic_requirement_state": "no_applicable_requirement",
+          "semantic_applicable_requirement_kinds": [],
+          "semantic_incomplete_objects": [],
+          "semantic_incomplete_reasons": []
+        }
+      },
+      "candidate_state": {
+        "candidate_is_accepted": false,
+        "authoritative_acceptance_summary": null
+      },
+      "evidence_checks": {
+        "binding_passed_to_verifier": true,
+        "attribution_not_dropped": true,
+        "review_required_reaches_summary": true,
+        "not_accepted": true,
+        "repair_budget_unchanged": true,
+        "zero_real_model_requests": true
+      }
+    },
+    {
+      "input_fixture_id": "B-astroid-repair",
+      "path_entry": "cad_construction_interpreter.py:1085 (repair trial semantic verify); record :1093-1097",
+      "trigger_kind": "natural",
+      "source": "生成星形线，最大半径2米",
+      "actual_params": {
+        "plan": {
+          "units": "m",
+          "steps": [
+            {
+              "op": "add_parametric_curve",
+              "step_id": "outline",
+              "output_ref": "outline",
+              "semantic": {
+                "label": "星形线"
+              },
+              "x_expression": "2*cos(t)**3",
+              "y_expression": "2*sin(t)**3",
+              "t_start": "0",
+              "t_end": "2*pi",
+              "max_sampling_error": 0.001,
+              "closed": true
+            }
+          ],
+          "assertions": [
+            {
+              "kind": "radial_pattern",
+              "assertion_id": "smooth",
+              "target_ref": "outline",
+              "lobes": 4,
+              "profile": "smooth"
+            }
+          ]
+        },
+        "mock_model_calls": 1
+      },
+      "repair": {
+        "deterministic_repair_count": 1,
+        "repair_kinds": [
+          "source_curve_identity_replaces_inapplicable_smoothness"
+        ],
+        "max_repairs_budget": 2,
+        "within_budget": true,
+        "bounded_repair_available_default": [
+          2
+        ]
+      },
+      "interpreter_status": "ready",
+      "acceptance_output": {
+        "proof": {
+          "status": "passed",
+          "review_required": false,
+          "reason": null,
+          "coverage": "astroid_identity_radius_and_four_cusps",
+          "object_acceptance": null
+        },
+        "binding_evidence": {
+          "binding_source": "execute_construction_plan.logical_objects",
+          "binding_trust": "trusted",
+          "issues": [],
+          "model_declared_object_id_trusted": false,
+          "identity_anchor": "backend_resolved_geometry_refs",
+          "trusted_with_empty_issues": true
+        },
+        "geometry_unchanged": true,
+        "attribution_fields_present": true
+      },
+      "summary_output": {
+        "summary": {
+          "status": "review_required",
+          "review_required": true,
+          "authority": "backend_measured_geometry",
+          "verified_checks": 0,
+          "requirement_coverage": "unknown",
+          "unknown_requirements": [
+            {
+              "source": "source_acceptance",
+              "reason": "需求清单或完整覆盖证据缺失"
+            }
+          ],
+          "geometry_validity": "passed",
+          "constraint_satisfaction": "not_checked",
+          "assertion_status": "not_checked",
+          "unverified_geometry_ids": [],
+          "semantic_requirement_state": "fully_verified",
+          "semantic_applicable_requirement_kinds": [
+            "astroid_identity"
+          ],
+          "semantic_incomplete_objects": [],
+          "semantic_incomplete_reasons": []
+        }
+      },
+      "candidate_state": {
+        "candidate_is_accepted": false,
+        "authoritative_acceptance_summary": null
+      },
+      "evidence_checks": {
+        "binding_passed_to_verifier": true,
+        "attribution_not_dropped": true,
+        "review_required_reaches_summary": true,
+        "not_accepted": true,
+        "repair_budget_unchanged": true,
+        "zero_real_model_requests": true
+      }
+    },
+    {
+      "input_fixture_id": "C-polygon-boundary-repair",
+      "path_entry": "cad_construction_interpreter.py:1118 (repair trial semantic verify); record :1127-1131",
+      "trigger_kind": "natural",
+      "source": "生成一个正六边形，外接圆半径1米",
+      "actual_params": {
+        "plan": {
+          "units": "m",
+          "steps": [
+            {
+              "op": "add_polyline",
+              "step_id": "hex",
+              "output_ref": "hex",
+              "semantic": {
+                "label": "正六边形"
+              },
+              "closed": true,
+              "vertices": [
+                {
+                  "x": 1.0,
+                  "y": 0.0
+                },
+                {
+                  "x": 0.5000000000000001,
+                  "y": 0.8660254037844386
+                },
+                {
+                  "x": -0.4999999999999998,
+                  "y": 0.8660254037844387
+                },
+                {
+                  "x": -1.0,
+                  "y": 1.2246467991473532e-16
+                },
+                {
+                  "x": -0.5000000000000004,
+                  "y": -0.8660254037844385
+                },
+                {
+                  "x": 0.5000000000000001,
+                  "y": -0.8660254037844386
+                }
+              ]
+            }
+          ],
+          "assertions": [
+            {
+              "kind": "bounds_size",
+              "assertion_id": "wrong_bbox",
+              "target_ref": "hex",
+              "width": 2,
+              "height": 2
+            }
+          ]
+        },
+        "mock_model_calls": 1
+      },
+      "repair": {
+        "deterministic_repair_count": 1,
+        "repair_kinds": [
+          "source_radial_acceptance_replaces_unrequested_bounds"
+        ],
+        "max_repairs_budget": 2,
+        "within_budget": true,
+        "bounded_repair_available_default": [
+          2
+        ]
+      },
+      "interpreter_status": "ready",
+      "acceptance_output": {
+        "proof": {
+          "status": "passed",
+          "review_required": null,
+          "reason": null,
+          "coverage": "explicit_regular_polygon_and_concentric_hole",
+          "object_acceptance": null
+        },
+        "binding_evidence": {
+          "binding_source": "execute_construction_plan.logical_objects",
+          "binding_trust": "trusted",
+          "issues": [],
+          "model_declared_object_id_trusted": false,
+          "identity_anchor": "backend_resolved_geometry_refs",
+          "trusted_with_empty_issues": true
+        },
+        "geometry_unchanged": true,
+        "attribution_fields_present": true
+      },
+      "summary_output": {
+        "summary": {
+          "status": "review_required",
+          "review_required": true,
+          "authority": "backend_measured_geometry",
+          "verified_checks": 0,
+          "requirement_coverage": "unknown",
+          "unknown_requirements": [
+            {
+              "source": "source_acceptance",
+              "reason": "需求清单或完整覆盖证据缺失"
+            }
+          ],
+          "geometry_validity": "passed",
+          "constraint_satisfaction": "not_checked",
+          "assertion_status": "not_checked",
+          "unverified_geometry_ids": [],
+          "semantic_requirement_state": "fully_verified",
+          "semantic_applicable_requirement_kinds": [
+            "regular_polygon"
+          ],
+          "semantic_incomplete_objects": [],
+          "semantic_incomplete_reasons": []
+        }
+      },
+      "candidate_state": {
+        "candidate_is_accepted": false,
+        "authoritative_acceptance_summary": null
+      },
+      "evidence_checks": {
+        "binding_passed_to_verifier": true,
+        "attribution_not_dropped": true,
+        "review_required_reaches_summary": true,
+        "not_accepted": true,
+        "repair_budget_unchanged": true,
+        "zero_real_model_requests": true
+      }
+    }
+  ]
+}

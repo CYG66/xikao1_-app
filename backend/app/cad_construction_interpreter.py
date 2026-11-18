@@ -341,6 +341,134 @@ def interpret_sketch_graph_candidates(
     }
 
 
+def _semantic_backend_binding(result: dict[str, Any] | None) -> dict[str, Any]:
+    """Resolve a backend-trusted logical-object binding for semantic acceptance.
+
+    Trust anchor is the construction result produced by ``execute_construction_plan``:
+    its ``logical_objects[*].geometry_refs`` were resolved against the executor's
+    current geometry ids and the object graph was validated backend-side.  A
+    model-declared ``object_id``/label on an individual geometry is never promoted
+    to identity; the identity anchor is the backend-resolved geometry reference
+    list.  Connected components remain a limited fallback inside the verifier and
+    are never treated as the sole identity for arbitrary multi-object drawings.
+
+    Returns a binding descriptor with ``trust`` in ``trusted`` / ``degraded``.
+    A degraded descriptor carries no trusted mapping: the caller must not pretend
+    the binding was verified.
+    """
+    from .logical_topology import validate_logical_object_graph
+    from .cad_semantic_dispatch import active_geometries
+
+    issues: list[dict[str, Any]] = []
+    geometries = result.get("geometries") if isinstance(result, dict) else None
+    objects = result.get("logical_objects") if isinstance(result, dict) else None
+    topology = result.get("topology") if isinstance(result, dict) else None
+
+    if not isinstance(geometries, list) or not geometries:
+        issues.append({"code": "geometry_list_missing",
+                        "detail": "执行结果没有可验收几何。"})
+        return {"trust": "degraded", "logical_objects": None, "topology": None,
+                "issues": issues, "source": None, "graph_validation": None}
+    if not isinstance(objects, list) or not objects:
+        issues.append({"code": "logical_objects_missing",
+                        "detail": "后端执行结果未提供逻辑对象清单；不得把模型自报身份当作可信绑定。"})
+        return {"trust": "degraded", "logical_objects": None, "topology": None,
+                "issues": issues, "source": None, "graph_validation": None}
+
+    validation = validate_logical_object_graph(geometries, objects, topology)
+    if not validation.get("verified"):
+        for error in validation.get("errors", []):
+            issues.append({
+                "code": error.get("code", "logical_graph_invalid"),
+                "detail": error.get("message", ""),
+                "object_id": error.get("object_id"),
+                "geometry_ids": error.get("geometry_ids"),
+            })
+        return {"trust": "degraded", "logical_objects": None, "topology": None,
+                "issues": issues,
+                "source": "execute_construction_plan.logical_objects",
+                "graph_validation": validation}
+
+    active = active_geometries(geometries)
+    active_ids = {geometry.get("id") for geometry in active}
+    owned_ids: set[Any] = set()
+    for obj in objects:
+        if not isinstance(obj, dict):
+            issues.append({"code": "logical_object_not_object",
+                           "detail": "逻辑对象条目结构非法。"})
+            continue
+        refs = obj.get("geometry_refs")
+        if refs is None:
+            refs = obj.get("geometry_ids") or []
+        owned_ids.update(refs)
+    unowned = sorted(active_ids - owned_ids)
+    if unowned:
+        issues.append({"code": "incomplete_membership",
+                       "detail": "存在未归属到任何逻辑对象的活动几何；对象清单不完整。",
+                       "geometry_ids": unowned})
+
+    if issues:
+        return {"trust": "degraded", "logical_objects": None, "topology": None,
+                "issues": issues,
+                "source": "execute_construction_plan.logical_objects",
+                "graph_validation": validation}
+
+    return {"trust": "trusted", "logical_objects": deepcopy(objects),
+            "topology": deepcopy(topology) if isinstance(topology, dict) else None,
+            "issues": [], "source": "execute_construction_plan.logical_objects",
+            "graph_validation": validation}
+
+
+def _verify_semantic_requirements_bound(original_requirement: str, result: dict[str, Any]) -> dict[str, Any]:
+    """Run semantic acceptance with a backend-resolved object binding.
+
+    The mapping is validated before the verifier reads it.  When the binding is
+    missing or unverifiable the verifier falls back to its two-argument form and
+    the result is explicitly marked degraded; a degraded result can never be
+    promoted to an overall PASS.
+    """
+    from .cad_semantic_acceptance import verify_semantic_requirements
+    from .cad_structure_contract import StructureContractError
+
+    binding = _semantic_backend_binding(result)
+    geometries = result.get("geometries") or []
+    kwargs: dict[str, Any] = {}
+    if binding["trust"] == "trusted":
+        kwargs = {"logical_objects": binding["logical_objects"],
+                  "topology": binding["topology"]}
+    try:
+        proof = dict(verify_semantic_requirements(original_requirement, geometries, **kwargs))
+    except StructureContractError as source_error:
+        if binding["trust"] != "degraded":
+            raise
+        # Degraded binding: do not let an exception-derived source verdict be
+        # treated as a clean pass; record an unverified caller-side verdict.
+        proof = {
+            "status": "unverified",
+            "review_required": True,
+            "reason": "caller_binding_unverified",
+            "reason_detail": ("逻辑对象映射缺失、过期或未通过后端图校验；绑定不确定，"
+                              "不得整体验收为通过。"),
+            "checks": [],
+            "source_error": {"message": str(source_error), "details": source_error.details},
+        }
+    proof["binding"] = {
+        "binding_source": binding["source"] if binding["trust"] == "trusted" else "none_unverified_mapping",
+        "binding_trust": binding["trust"],
+        "issues": binding["issues"],
+        "model_declared_object_id_trusted": False,
+        "identity_anchor": "backend_resolved_geometry_refs",
+    }
+    if binding["trust"] == "degraded":
+        proof["review_required"] = True
+        if proof.get("status") == "passed":
+            proof["status"] = "unverified"
+            proof["reason"] = "caller_binding_unverified"
+            proof["reason_detail"] = ("逻辑对象映射缺失、过期或未通过后端图校验；绑定不确定，"
+                                      "不得整体验收为通过。")
+    return proof
+
+
 def interpret_construction_request(
     source_text: str,
     model_callback: ConstructionModelCallback | None = None,
@@ -842,8 +970,7 @@ def interpret_construction_request(
             stroke_acceptance=verify_stroke_requirements(original_requirement,result['geometries'])
             if stroke_acceptance['status']!='not_checked':
                 source_acceptance['stroke_acceptance']=stroke_acceptance
-            from .cad_semantic_acceptance import verify_semantic_requirements
-            semantic_acceptance=verify_semantic_requirements(original_requirement,result['geometries'])
+            semantic_acceptance=_verify_semantic_requirements_bound(original_requirement,result)
             if semantic_acceptance['status']!='not_checked':
                 source_acceptance['semantic_acceptance']=semantic_acceptance
             from .cad_projection_acceptance import verify_projection_requirements
@@ -891,15 +1018,27 @@ def interpret_construction_request(
             diagnostic_plan['assertions']=[]
             try:
                 diagnostic_trial=execute_construction_plan(diagnostic_plan)
-                from .cad_semantic_acceptance import verify_semantic_requirements
                 try:
-                    verify_semantic_requirements(original_requirement,diagnostic_trial['geometries'])
+                    diagnostic_semantic=_verify_semantic_requirements_bound(original_requirement,diagnostic_trial)
                 except StructureContractError as source_error:
                     details['independent_source_failure']={
                         'message':str(source_error),'details':source_error.details,
+                        'status':'failed','review_required':True,
                         'diagnostic_only':True,'candidate_accepted':False}
                     details['repair_instruction']=(details.get('repair_instruction','')+
                         ' 同时修复independent_source_failure中的用户需求偏差；仅更改模型断言不能解决实际几何错误。')
+                    exc.details=details
+                else:
+                    # Diagnostic replay only: record status/review_required/reason
+                    # with the backend binding. This trial can never be persisted
+                    # or promoted to a candidate.
+                    details['independent_source_failure']={
+                        'status':diagnostic_semantic.get('status'),
+                        'review_required':diagnostic_semantic.get('review_required'),
+                        'reason':diagnostic_semantic.get('reason'),
+                        'coverage':diagnostic_semantic.get('coverage'),
+                        'binding':diagnostic_semantic.get('binding'),
+                        'diagnostic_only':True,'candidate_accepted':False}
                     exc.details=details
             except (ConstructionPlanError,ValueError):
                 pass
@@ -937,8 +1076,7 @@ def interpret_construction_request(
                 corrected['assertions']=[a for a in corrected['assertions'] if a['assertion_id']!=failed.assertion_id]
                 try:
                     trial=execute_construction_plan(corrected)
-                    from .cad_semantic_acceptance import verify_semantic_requirements
-                    proof=verify_semantic_requirements(original_requirement,trial['geometries'])
+                    proof=_verify_semantic_requirements_bound(original_requirement,trial)
                     if proof.get('coverage')=='astroid_identity_radius_and_four_cusps':
                         verified=interpret_construction_request(source_text,lambda *_:{
                             'schema_version':'cad.construction-interpretation.v1','is_construction_request':True,
@@ -971,8 +1109,7 @@ def interpret_construction_request(
                         proof=verify_repetition_requirements(original_requirement,trial['geometries'])
                         radial_ok=any(c['name']=='齿形旋转重复关系' for c in proof.get('checks',[]))
                     else:
-                        from .cad_semantic_acceptance import verify_semantic_requirements
-                        proof=verify_semantic_requirements(original_requirement,trial['geometries'])
+                        proof=_verify_semantic_requirements_bound(original_requirement,trial)
                         radial_ok=proof['status']=='passed'
                     if radial_ok:
                         verified=interpret_construction_request(source_text,lambda *_:{

@@ -1213,6 +1213,18 @@ def interpret_construction_request(
             'rejected_plan':plan.model_dump(mode='json'),'diagnostic_trial_passed':True,
             'normalization_facts':normalization_facts,'persisted':False}
 
+    object_count_report = _logical_object_count_consistency(
+        trial_result=result,
+        composition_contract=composition_contract,
+        structure_contract=structure_contract,
+        scalar_contract=scalar_contract,
+        source=original_requirement,
+    )
+    source_acceptance['object_count_consistency_acceptance'] = object_count_report
+    if object_count_report.get('unknown_requirements'):
+        source_acceptance.setdefault('unknown_requirements', []).extend(
+            deepcopy(object_count_report['unknown_requirements']))
+
     acceptance_summary = construction_acceptance_summary(
         preflight_structure=preflight_structure,
         structure_contract=structure_contract,
@@ -1265,6 +1277,197 @@ def _report_blocks_review(report: dict[str, Any] | None) -> bool:
     report = report or {}
     return (report.get("review_required") is True
             or report.get("status") in REVIEW_BLOCKING_REPORT_STATUSES)
+
+
+def _logical_object_count_consistency(*, trial_result: dict[str, Any] | None,
+                                      composition_contract: dict[str, Any] | None,
+                                      structure_contract: dict[str, Any] | None,
+                                      scalar_contract: dict[str, Any] | None,
+                                      source: str | None) -> dict[str, Any]:
+    """Reconcile traceable T1 object-count baselines against backend-owned objects.
+
+    The actual side is grouped by backend ownership (``logical_objects`` /
+    ``geometry_refs`` / topology shared declarations); flat geometry counts are
+    never used.  The baseline side only reads conservative source contracts:
+    explicit composition, vetted reference structure, single-outline requirement.
+    Attribute counts (edges, teeth, segments, lobes, strip/grid cells) are owned
+    by their producers and are deliberately not read here.
+
+    Decision order:
+    1. T1 baseline present and identity verifiable -> compare ownership-grouped
+       object count; mismatch yields ``failed``.
+    2. No T1 baseline but the existing requirement contract already exposes
+       multiple declared creation subjects -> weak signal, ``unverified`` only;
+       no inferred numeric conclusion is recorded.
+    3. No T1 baseline and no multi-subject signal -> ``not_checked``, non-blocking.
+    4. Identity missing/ambiguous/dangling/shared-declaration inconsistent ->
+       ``unverified``; no count verdict is fabricated.
+    """
+    from .cad_semantic_dispatch import active_geometries
+
+    trial_result = trial_result or {}
+    geometries = trial_result.get("geometries") or []
+    objects = trial_result.get("logical_objects") or []
+    graph_validation = trial_result.get("graph_validation") or {}
+
+    active_ids = {
+        geometry.get("id") for geometry in active_geometries(geometries)
+        if geometry.get("id") is not None
+    }
+
+    def _active_refs(obj: dict[str, Any]) -> list[int]:
+        refs = obj.get("geometry_refs")
+        if not isinstance(refs, list):
+            refs = obj.get("geometry_ids") or []
+        normalized = []
+        for ref in refs:
+            try:
+                value = int(ref)
+            except (TypeError, ValueError):
+                continue
+            if value in active_ids:
+                normalized.append(value)
+        return normalized
+
+    # --- T1 baseline extraction: no model self-report, no raw text counting. ---
+    baseline: dict[str, Any] | None = None
+    if composition_contract:
+        counts = composition_contract.get("counts") or {}
+        if composition_contract.get("kind") == "named_components":
+            names = composition_contract.get("names") or []
+            expected = len(names)
+        else:
+            expected = sum(int(value) for value in counts.values())
+        if expected > 0:
+            baseline = {
+                "source": "explicit_composition",
+                "contract_kind": composition_contract.get("kind"),
+                "expected_object_count": expected,
+                "evidence": composition_contract.get("evidence"),
+            }
+    if baseline is None and isinstance(structure_contract, dict):
+        components = structure_contract.get("components")
+        if isinstance(components, list) and components:
+            baseline = {
+                "source": "reference_structure",
+                "contract_kind": "reference",
+                "expected_object_count": len(components),
+                "evidence": structure_contract.get("reference_sha256"),
+            }
+    if baseline is None:
+        outline = outline_requirements(source)
+        if outline and outline.get("entity_count") is not None:
+            baseline = {
+                "source": "outline_requirement",
+                "contract_kind": "outline",
+                "expected_object_count": int(outline["entity_count"]),
+                "evidence": outline.get("evidence_text"),
+            }
+
+    # --- Ownership-grouped actual object count and identity assessment. ---
+    identity_issues: list[dict[str, Any]] = []
+    owned_active: dict[str, set[int]] = {}
+    if not objects:
+        identity_issues.append({"code": "logical_objects_missing",
+                                "reason": "缺少后端逻辑对象台账，对象身份不可判定"})
+    for obj in objects:
+        object_id = str(obj.get("object_id") or "")
+        if not object_id:
+            identity_issues.append({"code": "invalid_object_id",
+                                    "reason": "存在缺少对象 ID 的逻辑对象"})
+            continue
+        refs = set(_active_refs(obj))
+        owned_active[object_id] = refs
+        if not refs:
+            identity_issues.append({"code": "inactive_object",
+                                    "reason": f"逻辑对象 {object_id} 没有归属活动几何",
+                                    "object_id": object_id})
+    if graph_validation and graph_validation.get("verified") is False:
+        for error in graph_validation.get("errors") or []:
+            identity_issues.append({
+                "code": error.get("code") or "graph_validation_failed",
+                "reason": error.get("message") or "逻辑图校验未通过",
+                "object_id": error.get("object_id"),
+            })
+    owned_ids = set().union(*owned_active.values()) if owned_active else set()
+    unowned_active = sorted(active_ids - owned_ids)
+    if unowned_active:
+        identity_issues.append({"code": "unowned_active_geometry",
+                                "reason": "存在未归属到逻辑对象的活动几何",
+                                "geometry_ids": unowned_active})
+
+    actual_object_count = sum(1 for refs in owned_active.values() if refs)
+
+    def _report(status: str, *, checks: list[dict[str, Any]] | None = None,
+                unknown: list[dict[str, Any]] | None = None, note: str | None = None,
+                actual: int | None = None) -> dict[str, Any]:
+        return {
+            "schema": "cad.object-count-consistency.v1",
+            "status": status,
+            "review_required": status in {"failed", "unverified"},
+            "checks": checks or [],
+            "unknown_requirements": unknown or [],
+            "authority": "backend_ownership_and_source_contract",
+            "baseline": baseline,
+            "actual_object_count": actual if actual is not None else (
+                actual_object_count if objects else None),
+            "note": note,
+        }
+
+    # Case 3: no traceable T1 object-count requirement.
+    if baseline is None:
+        subjects = list((scalar_contract or {}).get("subjects") or [])
+        if len(subjects) >= 2:
+            unknown = [{
+                "source": "requirement_contract",
+                "reason": "数量要求未被结构化契约捕获，仅存在多个已声明创建主体，对象数量待人工复核",
+                "subjects": subjects,
+            }]
+            return _report("unverified", unknown=unknown,
+                           note="T1 数量契约缺失；subjects 为既有解析器输出的弱信号，未推断具体数量。")
+        return _report("not_checked", note="无可追溯的对象数量契约要求，保持原行为。")
+
+    # Case 4: identity undeterminable -> unverified, never fabricate a verdict.
+    if identity_issues:
+        unknown = [{
+            "source": baseline["source"],
+            "reason": "对象身份不可判定，数量对账保留不确定性",
+            "issues": identity_issues,
+        }]
+        return _report("unverified", unknown=unknown,
+                       note="归属台账存在缺失、歧义、悬挂或共享声明不一致，未形成数量结论。")
+
+    # Case 1: reconcile T1 baseline against ownership-grouped N_obj.
+    expected = baseline["expected_object_count"]
+    if expected == actual_object_count:
+        checks = [{
+            "check_id": "object-count-ownership",
+            "status": "passed",
+            "authority": "backend_ownership_and_source_contract",
+            "expected_object_count": expected,
+            "actual_object_count": actual_object_count,
+            "baseline_source": baseline["source"],
+        }]
+        return _report("passed", checks=checks)
+
+    mismatch_kind = "missing_object" if actual_object_count < expected else "extra_object"
+    unknown = [{
+        "source": baseline["source"],
+        "reason": f"来源契约要求 {expected} 个对象，后端归属台账为 {actual_object_count} 个对象（{mismatch_kind}）",
+        "expected_object_count": expected,
+        "actual_object_count": actual_object_count,
+        "mismatch": mismatch_kind,
+        "baseline": baseline,
+    }]
+    checks = [{
+        "check_id": "object-count-ownership",
+        "status": "failed",
+        "authority": "backend_ownership_and_source_contract",
+        "expected_object_count": expected,
+        "actual_object_count": actual_object_count,
+        "baseline_source": baseline["source"],
+    }]
+    return _report("failed", checks=checks, unknown=unknown)
 
 
 def _source_recognizes_mandatory_kind(source_text: str | None) -> bool:

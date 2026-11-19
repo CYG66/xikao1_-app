@@ -131,6 +131,26 @@ def test_tiling_reports_all_conflicts_in_one_bounded_repair():
     assert geometries==before
 
 
+def test_recognized_multi_object_repetition_is_unverified_not_dropped():
+    text='生成一个圆形和一个齿轮轮廓，圆形在齿轮上方。圆半径1米，圆心(0,3)；齿轮轮廓宽2米高2米，8个齿，外径2米，齿根圆直径1.5米，齿顶角宽15度；坐标单位米'
+    report=verify_repetition_requirements(text,[])
+    assert report['status']=='unverified'
+    assert report['review_required'] is True
+    assert report['coverage']=='unscoped_multiple_objects'
+    assert report['checks']==[]
+    unknown=report['unknown_requirements']
+    assert any(u['source_requirement_id']=='repetition_tooth_boundary' for u in unknown)
+    assert all(u['reason']=='unscoped_multiple_objects' and u['evidence'] for u in unknown)
+    assert unknown[0]['object_count']==2
+
+
+def test_no_match_multi_object_repetition_stays_not_checked():
+    report=verify_repetition_requirements('生成一个圆形和一个矩形，宽2米高2米',[])
+    assert report['status']=='not_checked'
+    assert report.get('review_required') is not True
+    assert not report.get('unknown_requirements')
+
+
 def test_wrong_local_dimensions_are_rejected_by_production_interpreter():
     from app.cad_construction_interpreter import interpret_construction_request
     source='生成一段楼梯轮廓，5级台阶，每级宽0.4米高0.3米'

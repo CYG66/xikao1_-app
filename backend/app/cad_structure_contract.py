@@ -124,6 +124,134 @@ def explicit_dimensions(text):
     return width,height
 
 
+# --- Source-side logical-object count inventory -----------------------------
+# The object-noun space below reuses vocabulary already classified by existing
+# channels (projection box nouns, primitive kinds, repetition/feature nouns).
+# No general NLP vocabulary and no dedicated object parser are introduced.
+_BOX_OBJECT_NOUNS = ("立方体", "正方体")
+_PRIMITIVE_OWNED_NOUNS = ("矩形", "长方形", "正方形", "圆形", "圆", "线段", "直线",
+    "圆弧", "三角形", "多边形", "五角星", "六边形", "五边形", "四边形", "椭圆",
+    "圆孔", "圆点", "孔")
+_ATTRIBUTE_FEATURE_NOUNS = ("棱", "边", "面", "顶点", "齿", "花瓣", "凸瓣", "波瓣", "瓣",
+    "段", "单元", "分支", "支臂", "臂", "横线", "条带", "网格", "齿顶", "齿根", "角")
+_NOUN_MODIFIERS = ("相交", "相同", "等大", "竖直", "水平", "大", "小", "红", "蓝", "内", "外", "长", "短")
+_NOUN_STOP_TAILS = ("并排", "组成", "轮廓", "图案", "形状", "的", "等", "大", "小")
+_DIGIT_WORDS = {"零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5,
+                "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
+_OBJECT_QTY_RE = re.compile(
+    r"(?P<qty>\d+|[一二两三四五六七八九十])\s*(?P<measure>个|块|张|朵|颗|幅|组)"
+    r"\s*(?P<noun>[^\s和与及，,。；;\n]{1,6})")
+_CREATION_VERB = re.compile(r"生成|创建|新建|绘制|画出|画|设计")
+
+
+def _normalize_object_noun(raw):
+    """Strip existing-channel modifiers, conjunction tails and relation tails."""
+    noun = re.split(r"[和与及]", raw)[0]
+    changed = True
+    while changed:
+        changed = False
+        for mod in _NOUN_MODIFIERS:
+            if noun.startswith(mod):
+                noun = noun[len(mod):]
+                changed = True
+    for tail in _NOUN_STOP_TAILS:
+        if noun.endswith(tail):
+            noun = noun[:-len(tail)]
+    return noun
+
+
+def _classify_object_noun(noun):
+    if any(noun.startswith(attr) for attr in _ATTRIBUTE_FEATURE_NOUNS):
+        return "attribute_feature"
+    if any(noun == box or noun.startswith(box) for box in _BOX_OBJECT_NOUNS):
+        return "object"
+    if any(noun == prim or noun.startswith(prim) for prim in _PRIMITIVE_OWNED_NOUNS):
+        return "primitive_owned"
+    return "ambiguous"
+
+
+def _object_requirement_inventory(source):
+    """Extract source-bound logical-object count requirements.
+
+    State semantics (auditable via ``object_requirements_audit``):
+    - ``none``: no object quantity requirement; numbers/measure words only
+      modify attributes or repetition features, or belong to owned primitives.
+    - ``complete``: every detectable object quantity phrase was captured with
+      a recognized object noun; ``logical_object_count`` is the summed quantity.
+    - ``incomplete``: at least one quantity phrase could not be bound to a
+      recognized object noun; full-or-nothing, ``logical_object_count`` is None.
+
+    The baseline comes only from source text. Plan step counts, plan semantic
+    identities, array rows/columns, template quantity, entity-count assertions
+    and flat geometry instances are never read here.
+    """
+    audit = []
+    entries = []
+    ambiguous = []
+    clauses = re.split(r"[，,。；;\n]", source)
+    verb_idx = {i for i, clause in enumerate(clauses) if _CREATION_VERB.search(clause)}
+    allowed = set(verb_idx)
+    for index in list(verb_idx):
+        allowed.update({index - 1, index + 1})
+
+    offset = 0
+    for clause_index, clause in enumerate(clauses):
+        for match in _OBJECT_QTY_RE.finditer(clause):
+            qty_token = match.group("qty")
+            measure = match.group("measure")
+            noun = _normalize_object_noun(match.group("noun"))
+            disposition = _classify_object_noun(noun) if noun else "ambiguous"
+            if clause_index not in allowed:
+                disposition = "out_of_creation_slot"
+            span = [offset + match.start(), offset + match.end()]
+            record = {
+                "evidence": match.group(0),
+                "qty": qty_token,
+                "measure_word": measure,
+                "object_noun": noun,
+                "disposition": disposition,
+                "span": span,
+            }
+            audit.append(record)
+
+            quantity = (int(qty_token) if qty_token.isdigit()
+                         else _DIGIT_WORDS.get(qty_token))
+            if quantity is not None and quantity < 2:
+                # A single-object phrase is not an object-count requirement;
+                # an ambiguous single noun must not force an incomplete state.
+                record["disposition"] = "single_object"
+                continue
+            if disposition == "ambiguous" or quantity is None:
+                record["disposition"] = "ambiguous"
+                ambiguous.append(record)
+                continue
+            if disposition != "object":
+                continue
+            entries.append({
+                "object_noun": noun,
+                "quantity": quantity,
+                "measure_word": measure,
+                "evidence": match.group(0),
+                "evidence_span": span,
+                "source_id": "request-0",
+            })
+        offset += len(clause) + 1
+
+    if ambiguous:
+        state = "incomplete"
+    elif entries:
+        state = "complete"
+    else:
+        state = "none"
+    logical_count = sum(entry["quantity"] for entry in entries) if state == "complete" else None
+    return {
+        "object_requirements": entries,
+        "object_requirements_state": state,
+        "logical_object_count": logical_count,
+        "object_requirements_audit": audit,
+    }
+
+
 def explicit_composition(text):
     """Bind explicit primitive counts/placements independently of a plan.
 
@@ -131,6 +259,20 @@ def explicit_composition(text):
     it is not a catalog of objects and does not manufacture geometry.
     """
     source=text.split("\n后端试算反馈：",1)[0]
+    inventory = _object_requirement_inventory(source)
+    inventory_fields = ("object_requirements", "object_requirements_state",
+                         "logical_object_count", "object_requirements_audit")
+    def _merge(contract):
+        # State "none" leaves the existing contract (and its None fallback)
+        # untouched; "complete"/"incomplete" ride on the existing contract or
+        # form a minimal object_inventory contract without a counts dict.
+        if inventory["object_requirements_state"] == "none":
+            return contract
+        payload = {key: inventory[key] for key in inventory_fields}
+        if isinstance(contract, dict):
+            contract.update(payload)
+            return contract
+        return {"kind": "object_inventory", "counts": {}, **payload}
     number=r"(\d+|[一二两三四五六七八九十])"
     def count(token):
         return int(token) if token.isdigit() else 2 if token=="两" else "零一二三四五六七八九十".index(token)
@@ -153,10 +295,10 @@ def explicit_composition(text):
     if array and "矩形" in source:
         rows,cols=map(count,array.groups())
         if min(rows,cols)>0 and rows*cols<=500:
-            return {"kind":"rectangular_array","counts":{"rectangle":rows*cols},"rows":rows,"columns":cols,
-                    "evidence":array.group(0),"dimensions":dimensions}
+            return _merge({"kind":"rectangular_array","counts":{"rectangle":rows*cols},"rows":rows,"columns":cols,
+                    "evidence":array.group(0),"dimensions":dimensions})
     if "矩形" in source and re.search(r"(?:四|4)\s*个?角.*(?:圆|circle)",source):
-        return {"kind":"corner_placement","counts":{"rectangle":1,"circle":4},"evidence":source,"dimensions":dimensions}
+        return _merge({"kind":"corner_placement","counts":{"rectangle":1,"circle":4},"evidence":source,"dimensions":dimensions})
     circles=re.search(number+r"\s*个\s*(?:相交的?|相同的?|等大的?)?圆",source)
     if circles and count(circles[1])>=2:
         # A noun-modified count (e.g. circles serving as eyes) describes a
@@ -165,19 +307,19 @@ def explicit_composition(text):
         # of inventing an exact whole-drawing count or sharing its radius.
         suffix=source[circles.end():]
         if re.match(r"点|形|作为|用作|的?(?:眼|孔|窗|灯|轮)",suffix) or "圆弧" in source:
-            return None
+            return _merge(None)
         counts={"circle":count(circles[1])}
         if re.search(r"矩形|长方形|正方形",source):
             rectangle=re.search(number+r"\s*个\s*(?:竖直|水平|相同|等大|的)*\s*(?:矩形|长方形|正方形)",source)
             if not rectangle:
                 # A circle-only inventory is not authoritative for a mixed
                 # drawing. Decline rather than reject legitimate extra parts.
-                return None
+                return _merge(None)
             counts["rectangle"]=count(rectangle[1])
         if re.search(r"三角形|线段|刻度线|五角星",source):
-            return None
-        return {"kind":"component_count","counts":counts,"evidence":circles.group(0),
-                "dimensions":dimensions,"intersecting":"相交" in source}
+            return _merge(None)
+        return _merge({"kind":"component_count","counts":counts,"evidence":circles.group(0),
+                "dimensions":dimensions,"intersecting":"相交" in source})
     # A plainly enumerated line inventory is independently measurable.  Keep
     # this grammar narrow: a line count in a mixed drawing is only a subset,
     # not authority to reject the other required primitives.
@@ -187,8 +329,8 @@ def explicit_composition(text):
     )
     if lines and count(lines[1]) >= 2:
         if re.search(r"矩形|长方形|正方形|圆(?:形|弧)?|三角形|多边形|五角星", source):
-            return None
-        return {
+            return _merge(None)
+        return _merge({
             "kind": "line_inventory",
             "counts": {"line": count(lines[1])},
             "evidence": lines.group(0),
@@ -199,7 +341,7 @@ def explicit_composition(text):
                 else "horizontal" if lines[2] == "水平"
                 else None
             ),
-        }
+        })
     names=local_creation_objects(source)
     if len(names)>=2:
         from .cad_source_acceptance import source_texts
@@ -233,12 +375,12 @@ def explicit_composition(text):
         gap_m=float(spacing[1])*{'毫米':.001,'厘米':.01,'米':1,'mm':.001,'cm':.01,'m':1}[spacing[2]] if spacing else None
         if center_spacing:
             value,unit=center_spacing[-1];gap_m=float(value)*{'毫米':.001,'厘米':.01,'米':1,'mm':.001,'cm':.01,'m':1}[unit]
-        return {"kind":"named_components","counts":{"closed_path":len(names)},"names":names,
+        return _merge({"kind":"named_components","counts":{"closed_path":len(names)},"names":names,
                 "dimensions":shared,"component_dimensions":scoped,"evidence":user_source,
                 "gap_m":gap_m,
                 "gap_reference":"center" if center_spacing or re.search(r"中心(?:间)?距",user_source) else "edge",
-                "left_to_right":bool(re.search(re.escape(names[0])+r"在左",source) and re.search(re.escape(names[1])+r"在右",source))}
-    return None
+                "left_to_right":bool(re.search(re.escape(names[0])+r"在左",source) and re.search(re.escape(names[1])+r"在右",source))})
+    return _merge(None)
 
 
 def validate_explicit_composition(contract, geometries):
@@ -271,6 +413,11 @@ def validate_explicit_composition(contract, geometries):
     lines=[g for g in geometries if g.get("type")=="line"]
     observed={"rectangle":len(rectangles),"circle":len(circles),"line":len(lines),
               "closed_path":sum(bool(_points(g)) or g.get("type") in {"circle","ellipse"} for g in geometries)}
+    # Object-inventory contracts carry logical-object count requirements only;
+    # the type-count gate owns primitive inventory, and the execution-side
+    # ownership reconciliation is the final object-count verdict.
+    if contract.get("kind") == "object_inventory":
+        return {"status": "passed", "object_inventory": True, "observed_counts": observed}
     if len(geometries)!=sum(contract["counts"].values()) or any(observed[k]!=n for k,n in contract["counts"].items()):
         raise StructureContractError("实际组成数量或类型不符合原文要求",
                                      {"expected_counts":contract["counts"],"observed_counts":observed})

@@ -1289,18 +1289,29 @@ def _logical_object_count_consistency(*, trial_result: dict[str, Any] | None,
     The actual side is grouped by backend ownership (``logical_objects`` /
     ``geometry_refs`` / topology shared declarations); flat geometry counts are
     never used.  The baseline side only reads conservative source contracts:
-    explicit composition, vetted reference structure, single-outline requirement.
-    Attribute counts (edges, teeth, segments, lobes, strip/grid cells) are owned
-    by their producers and are deliberately not read here.
+    the source-side object inventory, explicit composition, vetted reference
+    structure, single-outline requirement.  Attribute counts (edges, teeth,
+    segments, lobes, strip/grid cells) are owned by their producers and are
+    deliberately not read here.
+
+    Inventory state handling:
+    - ``none``: no object-count requirement; fall through to the legacy
+      composition/reference/outline baselines and finally ``not_checked``.
+    - ``incomplete``: unresolved object phrase -> ``unverified`` + review;
+      no failed/missing/extra verdict is fabricated.
+    - ``complete``: reconcile ``logical_object_count`` against the
+      ownership-expanded N_obj; a provable mismatch yields ``failed``.
 
     Decision order:
-    1. T1 baseline present and identity verifiable -> compare ownership-grouped
-       object count; mismatch yields ``failed``.
-    2. No T1 baseline but the existing requirement contract already exposes
-       multiple declared creation subjects -> weak signal, ``unverified`` only;
-       no inferred numeric conclusion is recorded.
-    3. No T1 baseline and no multi-subject signal -> ``not_checked``, non-blocking.
-    4. Identity missing/ambiguous/dangling/shared-declaration inconsistent ->
+    1. Inventory baseline present and identity verifiable -> compare
+       ownership-grouped object count; mismatch yields ``failed``.
+    2. No inventory baseline but a legacy T1 baseline exists -> same
+       ownership-grouped reconciliation.
+    3. No T1 baseline but the requirement contract exposes multiple declared
+       creation subjects -> weak signal, ``unverified`` only; no inferred
+       numeric conclusion is recorded.
+    4. No T1 baseline and no multi-subject signal -> ``not_checked``, non-blocking.
+    5. Identity missing/ambiguous/dangling/shared-declaration inconsistent ->
        ``unverified``; no count verdict is fabricated.
     """
     from .cad_semantic_dispatch import active_geometries
@@ -1309,6 +1320,7 @@ def _logical_object_count_consistency(*, trial_result: dict[str, Any] | None,
     geometries = trial_result.get("geometries") or []
     objects = trial_result.get("logical_objects") or []
     graph_validation = trial_result.get("graph_validation") or {}
+    topology = trial_result.get("topology") or {}
 
     active_ids = {
         geometry.get("id") for geometry in active_geometries(geometries)
@@ -1329,9 +1341,68 @@ def _logical_object_count_consistency(*, trial_result: dict[str, Any] | None,
                 normalized.append(value)
         return normalized
 
-    # --- T1 baseline extraction: no model self-report, no raw text counting. ---
+    # --- Source-side object inventory: three-state contract. ---
+    inventory_state = None
+    inventory_entries: list[dict[str, Any]] = []
+    inventory_count: Any = None
+    if isinstance(composition_contract, dict):
+        inventory_state = composition_contract.get("object_requirements_state")
+        inventory_entries = composition_contract.get("object_requirements") or []
+        inventory_count = composition_contract.get("logical_object_count")
+
+    def _inventory_grouping(entries: list[dict[str, Any]]) -> str:
+        for entry in entries or []:
+            noun = str(entry.get("object_noun") or "")
+            measure = str(entry.get("measure_word") or "")
+            if measure == "组" or "装配" in noun or "组件" in noun:
+                return "assembly"
+        return "object"
+
+    def _unverified_inventory(state: str, reason: str) -> dict[str, Any]:
+        return {
+            "schema": "cad.object-count-consistency.v1",
+            "status": "unverified",
+            "review_required": True,
+            "checks": [],
+            "unknown_requirements": [{
+                "source": "object_inventory",
+                "reason": reason,
+                "entries": deepcopy(inventory_entries),
+            }],
+            "authority": "backend_ownership_and_source_contract",
+            "baseline": {
+                "source": "object_inventory",
+                "contract_kind": "object_inventory",
+                "state": state,
+                "entries": deepcopy(inventory_entries),
+            },
+            "actual_object_count": None,
+            "note": "来源对象数量契约未形成可对账的数量结论，保留不确定性。",
+        }
+
     baseline: dict[str, Any] | None = None
-    if composition_contract:
+    if inventory_state == "incomplete":
+        # Full-or-nothing: an unresolved object phrase stays unverified; no
+        # failed/missing_object/extra_object verdict is fabricated here.
+        return _unverified_inventory(
+            "incomplete",
+            "对象数量要求解析不完整：存在未绑定到已识别对象名词的数量短语，对象数量待人工复核")
+    if inventory_state == "complete":
+        if isinstance(inventory_count, int) and inventory_count >= 1:
+            baseline = {
+                "source": "object_inventory",
+                "contract_kind": "object_inventory",
+                "expected_object_count": inventory_count,
+                "evidence": [entry.get("evidence") for entry in inventory_entries],
+                "entries": deepcopy(inventory_entries),
+                "grouping": _inventory_grouping(inventory_entries),
+            }
+        else:
+            return _unverified_inventory(
+                "complete", "对象数量契约标记为完整，但派生对象数量缺失或不可用，保留不确定性。")
+
+    # --- T1 baseline extraction: no model self-report, no raw text counting. ---
+    if baseline is None and composition_contract:
         counts = composition_contract.get("counts") or {}
         if composition_contract.get("kind") == "named_components":
             names = composition_contract.get("names") or []
@@ -1396,7 +1467,50 @@ def _logical_object_count_consistency(*, trial_result: dict[str, Any] | None,
                                 "reason": "存在未归属到逻辑对象的活动几何",
                                 "geometry_ids": unowned_active})
 
-    actual_object_count = sum(1 for refs in owned_active.values() if refs)
+    # Declared shared geometries are reconciled by their verified owners;
+    # geometry count and shape similarity never drive the object count.
+    shared_owners: dict[str, list[str]] = {}
+    declared_shared = topology.get("shared_geometries")
+    if not isinstance(declared_shared, list):
+        declared_shared = []
+    known_ids = set(owned_active)
+    for entry in declared_shared:
+        if not isinstance(entry, dict):
+            continue
+        geometry_id = entry.get("geometry_id")
+        owners = [str(value) for value in (entry.get("object_ids") or [])]
+        unknown_owners = sorted(set(owners) - known_ids)
+        if unknown_owners:
+            identity_issues.append({
+                "code": "unknown_shared_owner",
+                "reason": "共享拓扑声明的归属对象不在后端对象台账中",
+                "geometry_ids": [geometry_id],
+                "object_ids": unknown_owners,
+            })
+        shared_owners[str(geometry_id)] = owners
+
+    grouping = (baseline or {}).get("grouping") or "object"
+    obj_by_id = {str(obj.get("object_id") or ""): obj for obj in objects}
+    if grouping == "assembly":
+        assembly_members: dict[str, set[str]] = {}
+        missing_assembly: list[str] = []
+        for object_id, refs in owned_active.items():
+            if not refs:
+                continue
+            assembly_id = str((obj_by_id.get(object_id) or {}).get("assembly_id") or "")
+            if not assembly_id:
+                missing_assembly.append(object_id)
+                continue
+            assembly_members.setdefault(assembly_id, set()).add(object_id)
+        if missing_assembly:
+            identity_issues.append({
+                "code": "missing_assembly_id",
+                "reason": "装配体数量对账要求对象归属 assembly_id，但存在缺少装配体标识的对象",
+                "object_ids": missing_assembly,
+            })
+        actual_object_count = len(assembly_members)
+    else:
+        actual_object_count = sum(1 for refs in owned_active.values() if refs)
 
     def _report(status: str, *, checks: list[dict[str, Any]] | None = None,
                 unknown: list[dict[str, Any]] | None = None, note: str | None = None,
@@ -1409,6 +1523,8 @@ def _logical_object_count_consistency(*, trial_result: dict[str, Any] | None,
             "unknown_requirements": unknown or [],
             "authority": "backend_ownership_and_source_contract",
             "baseline": baseline,
+            "grouping": grouping,
+            "shared_geometry_owners": shared_owners,
             "actual_object_count": actual if actual is not None else (
                 actual_object_count if objects else None),
             "note": note,
@@ -1439,6 +1555,10 @@ def _logical_object_count_consistency(*, trial_result: dict[str, Any] | None,
 
     # Case 1: reconcile T1 baseline against ownership-grouped N_obj.
     expected = baseline["expected_object_count"]
+    check_metadata = {
+        "grouping": grouping,
+        "shared_geometry_owners": shared_owners,
+    }
     if expected == actual_object_count:
         checks = [{
             "check_id": "object-count-ownership",
@@ -1447,6 +1567,7 @@ def _logical_object_count_consistency(*, trial_result: dict[str, Any] | None,
             "expected_object_count": expected,
             "actual_object_count": actual_object_count,
             "baseline_source": baseline["source"],
+            **check_metadata,
         }]
         return _report("passed", checks=checks)
 
@@ -1458,6 +1579,7 @@ def _logical_object_count_consistency(*, trial_result: dict[str, Any] | None,
         "actual_object_count": actual_object_count,
         "mismatch": mismatch_kind,
         "baseline": baseline,
+        **check_metadata,
     }]
     checks = [{
         "check_id": "object-count-ownership",
@@ -1466,6 +1588,7 @@ def _logical_object_count_consistency(*, trial_result: dict[str, Any] | None,
         "expected_object_count": expected,
         "actual_object_count": actual_object_count,
         "baseline_source": baseline["source"],
+        **check_metadata,
     }]
     return _report("failed", checks=checks, unknown=unknown)
 

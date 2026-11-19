@@ -1236,6 +1236,19 @@ def interpret_construction_request(
         source_acceptance.setdefault('unknown_requirements', []).extend(
             deepcopy(object_count_report['unknown_requirements']))
 
+    object_identity_report = _object_identity_consistency(
+        trial_result=result,
+        composition_contract=composition_contract,
+        structure_contract=structure_contract,
+        scalar_contract=scalar_contract,
+        source=original_requirement,
+        source_acceptance=source_acceptance,
+    )
+    source_acceptance['object_identity_acceptance'] = object_identity_report
+    if object_identity_report.get('unknown_requirements'):
+        source_acceptance.setdefault('unknown_requirements', []).extend(
+            deepcopy(object_identity_report['unknown_requirements']))
+
     acceptance_summary = construction_acceptance_summary(
         preflight_structure=preflight_structure,
         structure_contract=structure_contract,
@@ -1602,6 +1615,480 @@ def _logical_object_count_consistency(*, trial_result: dict[str, Any] | None,
         **check_metadata,
     }]
     return _report("failed", checks=checks, unknown=unknown)
+
+
+# --- R-IDENTITY-1: object identity acceptance (bounded reconciliation) ------
+# The count report owns the "how many" verdict and is intentionally untouched.
+# This sub-report only decides whether each traceable source object requirement
+# can be bound to a backend object whose measured geometry/topology satisfies
+# it. Model-declared ``object_type``/``label`` are auxiliary hints only and
+# never establish identity; the trust anchor is the backend-resolved geometry
+# reference list behind a validated logical-object graph.
+
+_IDENTITY_CATEGORY_WORDS = {
+    "circle": ("圆", "圆形", "圆孔", "圆点"),
+    "rectangle": ("矩形", "长方形", "正方形", "四边形"),
+    "line": ("线段", "直线"),
+}
+
+_MEASURED_CATEGORIES = {"circle", "rectangle", "line"}
+
+
+def _identity_category_for_noun(noun: str) -> str:
+    noun = str(noun or "").strip()
+    for category, words in _IDENTITY_CATEGORY_WORDS.items():
+        if any(noun == word or noun.startswith(word) for word in words):
+            return category
+    if any(noun == box or noun.startswith(box) for box in ("立方体", "正方体")):
+        return "box_projection"
+    return "named_subject"
+
+
+def _closed_loop_rectangle_frame(lines: list[dict[str, Any]]):
+    """Measure whether line items form one closed orthogonal quadrilateral.
+
+    Reuses the endpoint-incidence reasoning already exercised by the projection
+    channel: a measured geometric property, never a model label. Returns an
+    ``(x, y, width, height)`` frame or ``None``.
+    """
+    if len(lines) < 3:
+        return None
+    adjacency: dict[tuple[float, float], list[tuple[float, float]]] = {}
+
+    def _point(point: dict[str, Any]) -> tuple[float, float]:
+        return (round(float(point["x"]), 6), round(float(point["y"]), 6))
+
+    for line in lines:
+        start, end = line.get("start"), line.get("end")
+        if not isinstance(start, dict) or not isinstance(end, dict):
+            return None
+        a, b = _point(start), _point(end)
+        if a == b:
+            return None
+        adjacency.setdefault(a, []).append(b)
+        adjacency.setdefault(b, []).append(a)
+    if any(len(neighbors) != 2 for neighbors in adjacency.values()):
+        return None
+    origin = next(iter(adjacency))
+    previous = origin
+    current = adjacency[origin][0]
+    visited = [origin]
+    steps = 0
+    while current != origin:
+        visited.append(current)
+        options = [point for point in adjacency[current] if point != previous]
+        if len(options) != 1:
+            return None
+        previous, current = current, options[0]
+        steps += 1
+        if steps > len(lines):
+            return None
+    if len(visited) != len(lines) or len(visited) != 4:
+        return None
+    vectors = []
+    for index, corner in enumerate(visited):
+        nxt = visited[(index + 1) % 4]
+        vectors.append((nxt[0] - corner[0], nxt[1] - corner[1]))
+    for index, vector in enumerate(vectors):
+        other = vectors[(index + 1) % 4]
+        if abs(vector[0] * other[0] + vector[1] * other[1]) > 1e-5:
+            return None
+    xs = [point[0] for point in visited]
+    ys = [point[1] for point in visited]
+    x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+    if x1 - x0 <= 0 or y1 - y0 <= 0:
+        return None
+    return x0, y0, x1 - x0, y1 - y0
+
+
+def _measured_object_descriptor(obj: dict[str, Any], geometries: list[dict[str, Any]],
+                                active_ids: set[int]) -> dict[str, Any]:
+    refs = {int(ref) for ref in (obj.get("geometry_refs") or obj.get("geometry_ids") or [])}
+    owned = [g for g in geometries
+             if g.get("id") is not None and int(g.get("id")) in refs and int(g.get("id")) in active_ids]
+    circle_geoms = [g for g in owned if g.get("type") == "circle"]
+    if circle_geoms:
+        return {"category": "circle", "evidence_grade": "measured_geometry",
+                "geometry_ids": [g["id"] for g in owned],
+                "detail": "测量到圆几何（圆心/半径由执行器产出）"}
+    from .cad_structure_contract import _frame
+    for geom in owned:
+        if _frame(geom):
+            return {"category": "rectangle", "evidence_grade": "measured_geometry",
+                    "geometry_ids": [g["id"] for g in owned],
+                    "detail": "测量到闭合矩形框"}
+    line_frame = _closed_loop_rectangle_frame([g for g in owned if g.get("type") == "line"])
+    if line_frame:
+        return {"category": "rectangle", "evidence_grade": "measured_geometry",
+                "geometry_ids": [g["id"] for g in owned],
+                "detail": "线段闭合正交四边形（四条线段表达），测量类别为矩形"}
+    if owned and all(g.get("type") == "line" for g in owned):
+        return {"category": "line", "evidence_grade": "measured_geometry",
+                "geometry_ids": [g["id"] for g in owned],
+                "detail": "测量到线段几何"}
+    return {"category": "unclassified", "evidence_grade": "insufficient",
+            "geometry_ids": [g["id"] for g in owned],
+            "detail": "现有测量通道不能判定该对象类别"}
+
+
+def _identity_baseline_entries(*, composition_contract, structure_contract,
+                               scalar_contract) -> tuple[Any, list[dict[str, Any]], list[str]]:
+    """Collect traceable source object requirements for identity reconciliation.
+
+    Only existing structured channels are read: the source-side inventory,
+    legacy explicit composition counts/names and reference-structure components.
+    Model self-report, plan step order and flat geometry counts are never a
+    baseline here.
+    """
+    entries: list[dict[str, Any]] = []
+    inventory_state: Any = None
+    count_key_category = {"circle": "circle", "rectangle": "rectangle",
+                         "line": "line", "closed_path": "named_subject"}
+    count_key_noun = {"circle": "圆", "rectangle": "矩形", "line": "线段", "closed_path": "轮廓"}
+    if isinstance(composition_contract, dict):
+        inventory_state = composition_contract.get("object_requirements_state")
+        for item in composition_contract.get("object_requirements") or []:
+            noun = str(item.get("object_noun") or "")
+            try:
+                quantity = int(item.get("quantity") or 1)
+            except (TypeError, ValueError):
+                quantity = 1
+            entries.append({
+                "requirement_id": item.get("requirement_id"),
+                "noun": noun,
+                "quantity": quantity,
+                "category": _identity_category_for_noun(noun),
+                "evidence": item.get("evidence"),
+                "evidence_span": item.get("evidence_span"),
+                "source_id": item.get("source_id"),
+                "baseline_channel": "object_inventory",
+            })
+        counts = composition_contract.get("counts") or {}
+        is_named_components = composition_contract.get("kind") == "named_components"
+        for key, value in counts.items():
+            try:
+                quantity = int(value)
+            except (TypeError, ValueError):
+                continue
+            if quantity <= 0:
+                continue
+            # Named components are already carried by the ``names`` entries;
+            # the generic closed_path count must not duplicate them.
+            if is_named_components and key == "closed_path":
+                continue
+            entries.append({
+                "requirement_id": f"legacy-count:{key}:{quantity}",
+                "noun": count_key_noun.get(key, str(key)),
+                "quantity": quantity,
+                "category": count_key_category.get(key, "named_subject"),
+                "evidence": composition_contract.get("evidence"),
+                "evidence_span": None,
+                "source_id": "legacy_composition",
+                "baseline_channel": "explicit_composition",
+            })
+        for name in composition_contract.get("names") or []:
+            entries.append({
+                "requirement_id": f"legacy-name:{name}",
+                "noun": str(name),
+                "quantity": 1,
+                "category": _identity_category_for_noun(name),
+                "evidence": composition_contract.get("evidence"),
+                "evidence_span": None,
+                "source_id": "legacy_composition",
+                "baseline_channel": "named_components",
+            })
+    if isinstance(structure_contract, dict):
+        for component in structure_contract.get("components") or []:
+            label = str(component.get("name") or component.get("label") or "参考组件")
+            entries.append({
+                "requirement_id": f"reference-component:{label}",
+                "noun": label,
+                "quantity": 1,
+                "category": "named_subject",
+                "evidence": structure_contract.get("reference_sha256"),
+                "evidence_span": None,
+                "source_id": "reference_structure",
+                "baseline_channel": "reference_structure",
+            })
+    subjects = list((scalar_contract or {}).get("subjects") or [])
+    return inventory_state, entries, subjects
+
+
+def _object_identity_consistency(*, trial_result: dict[str, Any] | None,
+                                 composition_contract: dict[str, Any] | None,
+                                 structure_contract: dict[str, Any] | None,
+                                 scalar_contract: dict[str, Any] | None,
+                                 source: str | None,
+                                 source_acceptance: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Bind traceable source object requirements to validated backend objects.
+
+    Verdict tiers:
+    - ``passed``: every applicable entry is bound through measured geometry, a
+      validated template result or an existing applicable source channel.
+    - ``failed``: a credible measured/channel proof shows the actual category
+      violates the requirement.
+    - ``unverified``: only model self-report, missing evidence or an unresolved
+      correspondence; no fabricated category verdict.
+    - ``not_checked``: no applicable identity requirement in any structured
+      channel; non-blocking.
+
+    The 2D projection scope is respected: a 3D solid requirement stays
+    unverified until a 3D channel exists; projection appearance is never used to
+    infer a 3D entity type.
+    """
+    from .cad_semantic_dispatch import active_geometries
+
+    trial_result = trial_result or {}
+    geometries = trial_result.get("geometries") or []
+    source = source or ""
+    source_acceptance = source_acceptance or {}
+
+    binding = _semantic_backend_binding(trial_result)
+    degraded_issues = binding.get("issues") or []
+
+    inventory_state, entries, subjects = _identity_baseline_entries(
+        composition_contract=composition_contract,
+        structure_contract=structure_contract,
+        scalar_contract=scalar_contract)
+
+    solid_entity_request = bool(re.search(r"三维|实体|可操作", source))
+    for entry in entries:
+        if solid_entity_request and entry["category"] not in _MEASURED_CATEGORIES:
+            entry["category"] = "solid_entity"
+
+    report: dict[str, Any] = {
+        "schema": "cad.object-identity-acceptance.v1",
+        "status": "not_checked",
+        "review_required": False,
+        "identity_state": "not_applicable",
+        "evidence_grade": "none",
+        "matched_entries": [],
+        "unmatched_entries": [],
+        "unmatched_objects": [],
+        "ambiguous_bindings": [],
+        "checks": [],
+        "unknown_requirements": [],
+        "baseline": {
+            "inventory_state": inventory_state,
+            "entries": deepcopy(entries),
+            "binding_trust": binding.get("trust"),
+        },
+        "note": "",
+    }
+
+    def _finalize(status: str, *, identity_state: str, grade: str, note: str) -> dict[str, Any]:
+        report["status"] = status
+        report["identity_state"] = identity_state
+        report["evidence_grade"] = grade
+        report["review_required"] = status in {"failed", "unverified"}
+        report["note"] = note
+        return report
+
+    if inventory_state == "incomplete":
+        report["unknown_requirements"].append({
+            "source": "object_inventory",
+            "reason": "对象身份要求解析不完整：存在未绑定到已识别对象名词的数量短语，类别绑定待人工复核",
+            "entries": deepcopy(entries),
+        })
+        return _finalize("unverified", identity_state="unbound", grade="insufficient",
+                         note="对象身份契约未形成可对账结论，保留不确定性，未产生类别失败结论。")
+
+    if not entries:
+        if len(subjects) >= 2:
+            report["unknown_requirements"].append({
+                "source": "requirement_contract",
+                "reason": "身份要求未被结构化契约捕获，仅存在多个已声明创建主体，对象对应待人工复核",
+                "subjects": subjects,
+            })
+            return _finalize("unverified", identity_state="unbound", grade="insufficient",
+                             note="T1 身份契约缺失；subjects 为既有解析器弱信号，未推断类别结论。")
+        return _finalize("not_checked", identity_state="not_applicable", grade="none",
+                         note="无可追溯的对象身份要求，保持原行为。")
+
+    if degraded_issues:
+        report["unknown_requirements"].append({
+            "source": "backend_binding",
+            "reason": "对象身份不可判定：归属台账缺失、歧义、悬挂或图校验未通过",
+            "issues": degraded_issues,
+        })
+        return _finalize("unverified", identity_state="unbound", grade="insufficient",
+                         note="后端归属绑定未通过核验，身份对应保留不确定性；未采用模型自报身份补齐。")
+
+    objects = binding["logical_objects"] or []
+    active_ids = {int(g.get("id")) for g in active_geometries(geometries) if g.get("id") is not None}
+    descriptors = {
+        str(obj.get("object_id") or ""): _measured_object_descriptor(obj, geometries, active_ids)
+        for obj in objects if str(obj.get("object_id") or "")
+    }
+
+    projection_report = source_acceptance.get("projection_acceptance") or {}
+    semantic_report = source_acceptance.get("semantic_acceptance") or {}
+
+    def _channel_verdict(category: str) -> tuple[str | None, str]:
+        """Return an existing applicable-channel verdict without re-running it."""
+        if category == "box_projection":
+            if projection_report.get("status") == "passed":
+                return "passed", "verified_projection_channel"
+            if projection_report.get("status") == "failed":
+                return "failed", "verified_projection_channel"
+        if semantic_report.get("applicable_requirement_kinds"):
+            if semantic_report.get("status") == "passed":
+                return "passed", "verified_semantic_channel"
+            if semantic_report.get("status") == "failed":
+                return "failed", "verified_semantic_channel"
+        return None, "insufficient"
+
+    used_object_ids: set[str] = set()
+    matched_entries: list[dict[str, Any]] = []
+    unmatched_entries: list[dict[str, Any]] = []
+    ambiguous_bindings: list[dict[str, Any]] = []
+    pool_categories = {desc["category"] for desc in descriptors.values()}
+    classified_pool = {category for category in pool_categories if category != "unclassified"}
+    any_failed = False
+    any_unverified = False
+
+    for entry in entries:
+        requirement_id = entry["requirement_id"]
+        noun = entry["noun"]
+        quantity = entry["quantity"]
+        category = entry["category"]
+        eligible = [
+            object_id for object_id, desc in descriptors.items()
+            if object_id not in used_object_ids and desc["category"] == category
+        ]
+
+        if category in _MEASURED_CATEGORIES:
+            if len(eligible) >= quantity:
+                assigned = eligible[:quantity]
+                used_object_ids.update(assigned)
+                justification = (
+                    f"条目「{noun}」要求 {quantity} 个测量类别为{category}的对象；"
+                    f"对象 {', '.join(assigned)} 归属活动几何并通过后端图校验，"
+                    f"测量类别与条目一致；依据为执行器产出几何与归属图，未采用模型标签。"
+                )
+                if quantity > 1:
+                    justification += " 同规格同类对象集合匹配成立，个体配对顺序不唯一。"
+                matched_entries.append({
+                    "requirement_id": requirement_id,
+                    "noun": noun,
+                    "quantity": quantity,
+                    "category": category,
+                    "object_ids": assigned,
+                    "evidence": entry["evidence"],
+                    "evidence_grade": "measured_geometry",
+                    "justification": justification,
+                })
+                if len(eligible) > quantity:
+                    ambiguous_bindings.append({
+                        "requirement_id": requirement_id,
+                        "candidate_object_ids": eligible,
+                        "reason": "集合匹配成立，个体配对存在多种合法对应，保留歧义不强行确定映射。",
+                    })
+            else:
+                # A measured, classified category that differs from the
+                # requirement is a provable mismatch. An unclassified object
+                # means evidence is missing, never a proven wrong type.
+                provable_mismatch = bool(classified_pool) and category not in classified_pool
+                if provable_mismatch:
+                    any_failed = True
+                    unmatched_entries.append({
+                        "requirement_id": requirement_id,
+                        "noun": noun,
+                        "quantity": quantity,
+                        "category": category,
+                        "reason": "category_mismatch",
+                        "detail": f"测量证据证明已分类对象类别为 {sorted(classified_pool)}，与来源要求的 {category} 不一致。",
+                        "evidence": entry["evidence"],
+                    })
+                else:
+                    any_unverified = True
+                    unmatched_entries.append({
+                        "requirement_id": requirement_id,
+                        "noun": noun,
+                        "quantity": quantity,
+                        "category": category,
+                        "reason": "insufficient_evidence",
+                        "detail": "现有测量通道未能为该条目凑齐足够的可信对象；缺少可信几何证据，未按模型标签补齐。",
+                        "evidence": entry["evidence"],
+                    })
+            continue
+
+        # Non-measurable scope: defer to an already-verified applicable channel.
+        channel_verdict, channel_grade = _channel_verdict(category)
+        if category == "solid_entity":
+            any_unverified = True
+            unmatched_entries.append({
+                "requirement_id": requirement_id,
+                "noun": noun,
+                "quantity": quantity,
+                "category": category,
+                "reason": "missing_3d_channel",
+                "detail": "当前仅有二维投影/轮廓测量，缺少三维实体可操作性证据；不得由投影外观反推实体类型。",
+                "evidence": entry["evidence"],
+            })
+            continue
+        if channel_verdict == "passed":
+            object_ids = [object_id for object_id in descriptors if object_id not in used_object_ids]
+            used_object_ids.update(object_ids)
+            matched_entries.append({
+                "requirement_id": requirement_id,
+                "noun": noun,
+                "quantity": quantity,
+                "category": category,
+                "object_ids": object_ids,
+                "evidence": entry["evidence"],
+                "evidence_grade": channel_grade,
+                "justification": f"既有适用通道已核验条目「{noun}」；绑定对象来自后端归属台账。",
+            })
+        elif channel_verdict == "failed":
+            any_failed = True
+            unmatched_entries.append({
+                "requirement_id": requirement_id,
+                "noun": noun,
+                "quantity": quantity,
+                "category": category,
+                "reason": "channel_category_mismatch",
+                "detail": "既有适用验收通道的核验结论证明实际结果违反该条目要求。",
+                "evidence": entry["evidence"],
+            })
+        else:
+            any_unverified = True
+            unmatched_entries.append({
+                "requirement_id": requirement_id,
+                "noun": noun,
+                "quantity": quantity,
+                "category": category,
+                "reason": "insufficient_evidence",
+                "detail": "当前通道缺少可作用于该条目的可信类别证据；身份对应保留不确定性。",
+                "evidence": entry["evidence"],
+            })
+
+    unmatched_objects = [
+        {"object_id": object_id,
+         "measured_category": descriptors[object_id]["category"],
+         "evidence_grade": descriptors[object_id]["evidence_grade"]}
+        for object_id in descriptors if object_id not in used_object_ids
+    ]
+
+    report["matched_entries"] = matched_entries
+    report["unmatched_entries"] = unmatched_entries
+    report["unmatched_objects"] = unmatched_objects
+    report["ambiguous_bindings"] = ambiguous_bindings
+    report["checks"] = [
+        {"check_id": "object-identity-binding", "status": "passed" if matched_entries else "failed",
+         "authority": "backend_measured_geometry_and_validated_binding",
+         "matched_entries": len(matched_entries), "unmatched_entries": len(unmatched_entries)}
+    ]
+
+    if any_failed:
+        return _finalize("failed", identity_state="partial", grade="insufficient",
+                         note="存在经可信证据证明违反来源类别要求的对象；数量对账结论不在本报告内。")
+    if any_unverified or unmatched_entries:
+        return _finalize("unverified", identity_state="partial" if matched_entries else "unbound",
+                         grade="insufficient",
+                         note="部分条目缺少可信类别证据或对应未定；未产生伪造的通过或失败结论。")
+    return _finalize("passed", identity_state="bound", grade="measured_geometry",
+                     note="全部适用条目已通过测量几何/既有适用通道绑定到后端对象。")
 
 
 def _source_recognizes_mandatory_kind(source_text: str | None) -> bool:

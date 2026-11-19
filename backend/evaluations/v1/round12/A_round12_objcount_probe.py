@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from app.cad_structure_contract import explicit_composition
+from app.cad_structure_contract import explicit_composition, object_inventory_sidecar
 
 GENERATE = [
     ("两个立方体并排，画等轴投影", "立方体", 2),
@@ -36,9 +36,11 @@ EXISTING_PRIMITIVE_CASES = [
 
 
 def summarize(text):
-    contract = explicit_composition(text)
-    if contract is None:
+    legacy = explicit_composition(text)
+    sidecar = object_inventory_sidecar(text)
+    if legacy is None and sidecar is None:
         return {"contract": None, "state": "none", "entries": [], "count": None}
+    contract = {**(legacy or {}), **(sidecar or {})}
     return {
         "kind": contract.get("kind"),
         "state": contract.get("object_requirements_state") or "none",

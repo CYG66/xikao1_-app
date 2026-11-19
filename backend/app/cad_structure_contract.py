@@ -257,22 +257,16 @@ def explicit_composition(text):
 
     This conservative grammar declines expressions it cannot fully scope;
     it is not a catalog of objects and does not manufacture geometry.
+    Unresolved object nouns are kept out of this legacy contract; they are
+    exposed through :func:`object_inventory_sidecar` for ownership
+    reconciliation only.
     """
     source=text.split("\n后端试算反馈：",1)[0]
-    inventory = _object_requirement_inventory(source)
-    inventory_fields = ("object_requirements", "object_requirements_state",
-                         "logical_object_count", "object_requirements_audit")
     def _merge(contract):
-        # State "none" leaves the existing contract (and its None fallback)
-        # untouched; "complete"/"incomplete" ride on the existing contract or
-        # form a minimal object_inventory contract without a counts dict.
-        if inventory["object_requirements_state"] == "none":
-            return contract
-        payload = {key: inventory[key] for key in inventory_fields}
-        if isinstance(contract, dict):
-            contract.update(payload)
-            return contract
-        return {"kind": "object_inventory", "counts": {}, **payload}
+        # Legacy grammar contract only. The inventory side-car rides on a
+        # separate channel so legacy boolean guards keep their baseline
+        # semantics when the object noun could not be resolved.
+        return contract
     number=r"(\d+|[一二两三四五六七八九十])"
     def count(token):
         return int(token) if token.isdigit() else 2 if token=="两" else "零一二三四五六七八九十".index(token)
@@ -381,6 +375,44 @@ def explicit_composition(text):
                 "gap_reference":"center" if center_spacing or re.search(r"中心(?:间)?距",user_source) else "edge",
                 "left_to_right":bool(re.search(re.escape(names[0])+r"在左",source) and re.search(re.escape(names[1])+r"在右",source))})
     return _merge(None)
+
+
+def object_inventory_sidecar(text):
+    """Source-side logical-object requirement for ownership reconciliation.
+
+    Returns ``None`` when the source carries no object-count requirement.
+    The side-car is consumed only by the backend ownership reconciliation;
+    legacy routing, plan compilation, preflight and ledger binding must not
+    treat it as an explicit composition contract.
+    """
+    source = text.split("\n后端试算反馈：", 1)[0]
+    inventory = _object_requirement_inventory(source)
+    if inventory["object_requirements_state"] == "none":
+        return None
+    return dict(inventory)
+
+
+def legacy_composition_contract(contract):
+    """Return the contract only when it carries a legacy explicit composition.
+
+    The ``object_inventory`` side-car records a source-side logical-object
+    requirement for the backend ownership reconciliation. Legacy routing
+    guards, plan compilation, preflight and ledger binding must treat it as
+    absent; the reconciliation path still reads the raw inventory fields from
+    the original contract itself.
+    """
+    if not isinstance(contract, dict):
+        return None
+    if contract.get("kind") == "object_inventory":
+        return None
+    if not (contract.get("counts") or contract.get("names")
+            or contract.get("rows") or contract.get("columns")
+            or contract.get("kind")):
+        return None
+    inventory_fields = ("object_requirements", "object_requirements_state",
+                         "logical_object_count", "object_requirements_audit")
+    return {key: value for key, value in contract.items()
+            if key not in inventory_fields}
 
 
 def validate_explicit_composition(contract, geometries):

@@ -64,6 +64,7 @@ from .cad_source_acceptance import verify_scoped_primitives, extract_scoped_prim
 from .cad_structure_contract import (
     StructureContractError, reference_contract, explicit_dimensions, validate_structure,
     explicit_composition, validate_explicit_composition, validate_plan_structure,
+    legacy_composition_contract, object_inventory_sidecar,
 )
 
 
@@ -555,7 +556,17 @@ def interpret_construction_request(
             'clarification':{'status':'clarification_required','question_key':'size','question':question,
                 'recognized_shape':name,'recognized_size':False,'suggested_prompt':question},'provider_attempted':False}
     structure_contract = reference_contract(original_requirement)
-    composition_contract = explicit_composition(original_requirement)
+    legacy_contract = explicit_composition(original_requirement)
+    inventory_sidecar = object_inventory_sidecar(original_requirement)
+    if isinstance(legacy_contract, dict) and isinstance(inventory_sidecar, dict):
+        composition_contract: dict[str, Any] | None = {**legacy_contract, **inventory_sidecar}
+    elif isinstance(legacy_contract, dict):
+        composition_contract = legacy_contract
+    else:
+        composition_contract = inventory_sidecar
+    # Inventory side-cars feed only the ownership reconciliation below; legacy
+    # composition guards must not treat them as an explicit component contract.
+    legacy_composition = legacy_composition_contract(composition_contract)
     width_m, height_m = explicit_dimensions(original_requirement)
     if composition_contract and composition_contract.get("kind") == "named_components":
         shared = composition_contract.get("dimensions") or {}
@@ -640,13 +651,13 @@ def interpret_construction_request(
     from .cad_template_plan import template_plan_from_text
     from .agent_skills import recognize_drawing_template, recognize_drawing_template_set
     try:
-        template_plan = None if force_structured_model or structure_contract or composition_contract else template_plan_from_text(original_requirement)
+        template_plan = None if force_structured_model or structure_contract or legacy_composition else template_plan_from_text(original_requirement)
     except ValueError as exc:
         return _failure("invalid_template_parameters", str(exc), "parameterized_template")
     # A partially covered template request must never fall back to a primitive
     # parser that would silently construct just the remaining circle/rectangle.
     partial_template = template_plan is None and bool(recognize_drawing_template(original_requirement) or recognize_drawing_template_set(original_requirement))
-    plan = template_plan or (None if force_structured_model or partial_template or structure_contract or composition_contract or compound_model_request else parse_rule_construction_plan(original_requirement))
+    plan = template_plan or (None if force_structured_model or partial_template or structure_contract or legacy_composition or compound_model_request else parse_rule_construction_plan(original_requirement))
     parser = "parameterized_template" if template_plan else "deterministic_rules"
     evidence: list[str] = []
     confidence = 1.0
@@ -708,8 +719,8 @@ def interpret_construction_request(
         if structure_contract:
             model_text += "\n[独立结构契约：来自已核验来源，不得删减组成或改写规则]\n" + json.dumps(structure_contract, ensure_ascii=False)
             model_text += "\n根据最新确认宽高将归一化关系转换为构造计划。基准框可平移，坐标y向上。每个组成是独立闭合路径。已有来源已明确星位、星径和朝向，不得再次索要这些信息，不得用仅外框代替完整对象。"
-        if composition_contract:
-            model_text += "\n[原文明确组成契约，不得省略或替换组成]\n"+json.dumps(composition_contract,ensure_ascii=False)
+        if legacy_composition:
+            model_text += "\n[原文明确组成契约，不得省略或替换组成]\n"+json.dumps(legacy_composition,ensure_ascii=False)
         from .cad_requirement_contract import build_requirement_source_index, requirement_contract
         from .cad_source_acceptance import source_texts
         planning_sources = build_requirement_source_index(
@@ -730,7 +741,7 @@ def interpret_construction_request(
             payload, winding_repairs = bind_sector_winding(payload, original_requirement)
             deterministic_repairs.extend(winding_repairs)
             payload, layout_repairs = compile_composition_plan(
-                payload, composition_contract, original_requirement
+                payload, legacy_composition, original_requirement
             )
             payload, chain_repairs = normalize_composite_path_connections_once(
                 payload, original_requirement
@@ -902,8 +913,8 @@ def interpret_construction_request(
         # Geometry validation below remains authoritative for dimensions and
         # topology; this phase only validates the model's declared inventory.
         preflight_structure = validate_plan_structure(structure_contract, plan)
-        if composition_contract:
-            preflight_structure = validate_plan_structure(composition_contract, plan) or preflight_structure
+        if legacy_composition:
+            preflight_structure = validate_plan_structure(legacy_composition, plan) or preflight_structure
         from .cad_repetition_acceptance import validate_repetition_plan
         repetition_preflight = validate_repetition_plan(original_requirement, plan)
         if repetition_preflight:
@@ -938,7 +949,7 @@ def interpret_construction_request(
             raise ConstructionPlanError("source_requirement_mismatch", str(exc)) from exc
         try:
             structure_validation = validate_structure(structure_contract, result["geometries"], width_m, height_m)
-            composition_validation = validate_explicit_composition(composition_contract, result["geometries"])
+            composition_validation = validate_explicit_composition(legacy_composition, result["geometries"])
             source_acceptance = verify_scoped_primitives(original_requirement, result["geometries"],result["logical_objects"])
             from .cad_source_acceptance import verify_final_source_contract
             source_acceptance['final_source_acceptance']=verify_final_source_contract(original_requirement,result['geometries'],result['logical_objects'])
@@ -1229,7 +1240,7 @@ def interpret_construction_request(
         preflight_structure=preflight_structure,
         structure_contract=structure_contract,
         structure_validation=structure_validation,
-        composition_contract=composition_contract,
+        composition_contract=legacy_composition,
         composition_validation=composition_validation,
         source_acceptance=source_acceptance,
         trial_result=result,
@@ -1241,8 +1252,8 @@ def interpret_construction_request(
         "parser": parser,
         "requirement_ledger": bind_geometry_acceptance(
             requirement_ledger(original_requirement, assumptions=assumptions,
-                structure_contract=structure_contract, composition_contract=composition_contract),
-            composition_contract, result["geometries"]),
+                structure_contract=structure_contract, composition_contract=legacy_composition),
+            legacy_composition, result["geometries"]),
         "confidence": confidence,
         "evidence_text": evidence,
         "assumptions": assumptions,

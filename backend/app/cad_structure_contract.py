@@ -204,13 +204,21 @@ def _object_requirement_inventory(source):
             if clause_index not in allowed:
                 disposition = "out_of_creation_slot"
             span = [offset + match.start(), offset + match.end()]
+            evidence = match.group(0)
+            # Provenance check: the source slice at the recorded span must
+            # equal the captured phrase. A mismatch means the span anchor is
+            # not trustworthy; keep the phrase unresolved instead of building
+            # a binding basis on a drifted position.
+            evidence_valid = source[span[0]:span[1]] == evidence
             record = {
-                "evidence": match.group(0),
+                "evidence": evidence,
                 "qty": qty_token,
                 "measure_word": measure,
                 "object_noun": noun,
                 "disposition": disposition,
                 "span": span,
+                "source_clause_index": clause_index,
+                "evidence_valid": evidence_valid,
             }
             audit.append(record)
 
@@ -221,21 +229,39 @@ def _object_requirement_inventory(source):
                 # an ambiguous single noun must not force an incomplete state.
                 record["disposition"] = "single_object"
                 continue
+            if not evidence_valid:
+                record["disposition"] = "evidence_mismatch"
+                ambiguous.append(record)
+                continue
             if disposition == "ambiguous" or quantity is None:
                 record["disposition"] = "ambiguous"
                 ambiguous.append(record)
                 continue
             if disposition != "object":
                 continue
+            entry_index = len(entries) + 1
             entries.append({
+                "requirement_id": f"request-0:object-{entry_index}:{disposition}",
                 "object_noun": noun,
                 "quantity": quantity,
                 "measure_word": measure,
-                "evidence": match.group(0),
+                "expected_category": disposition,
+                "evidence": evidence,
                 "evidence_span": span,
+                "source_clause_index": clause_index,
                 "source_id": "request-0",
             })
         offset += len(clause) + 1
+
+    # All occurrence positions of the same captured phrase, for repeated-phrase
+    # disambiguation. The entry identity is anchored by its evidence span; the
+    # category suffix in the local id is a readable hint, not a stable source
+    # identity.
+    occurrences_by_evidence: dict[str, list[list[int]]] = {}
+    for record in audit:
+        occurrences_by_evidence.setdefault(record["evidence"], []).append(record["span"])
+    for entry in entries:
+        entry["evidence_occurrences"] = occurrences_by_evidence.get(entry["evidence"], [entry["evidence_span"]])
 
     if ambiguous:
         state = "incomplete"

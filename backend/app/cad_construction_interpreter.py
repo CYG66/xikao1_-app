@@ -952,7 +952,18 @@ def interpret_construction_request(
             composition_validation = validate_explicit_composition(legacy_composition, result["geometries"])
             source_acceptance = verify_scoped_primitives(original_requirement, result["geometries"],result["logical_objects"])
             from .cad_source_acceptance import verify_final_source_contract
-            source_acceptance['final_source_acceptance']=verify_final_source_contract(original_requirement,result['geometries'],result['logical_objects'])
+            final_source_acceptance=verify_final_source_contract(original_requirement,result['geometries'],result['logical_objects'])
+            source_acceptance['final_source_acceptance']=final_source_acceptance
+            # The final contract is a second view of the same source, not a
+            # parallel requirement system.  Keep its checks nested for audit
+            # and merge only unresolved facts into the one summary gate; the
+            # base report's checks retain the ``source_requirement`` shape
+            # consumed by the candidate requirement ledger.
+            final_unknown=final_source_acceptance.get('unknown_requirements') or []
+            if final_unknown:
+                source_acceptance.setdefault('unknown_requirements',[]).extend(deepcopy(final_unknown))
+                source_acceptance['coverage']='partial'
+                source_acceptance['review_required']=True
             # Generic explicit Bezier-chain requirements are verified from the
             # measured curve-quality record, rather than left as unknown just
             # because source_acceptance only handles primitive dimensions.
@@ -1230,6 +1241,7 @@ def interpret_construction_request(
         structure_contract=structure_contract,
         scalar_contract=scalar_contract,
         source=original_requirement,
+        source_acceptance=source_acceptance,
     )
     source_acceptance['object_count_consistency_acceptance'] = object_count_report
     if object_count_report.get('unknown_requirements'):
@@ -1374,7 +1386,8 @@ def _logical_object_count_consistency(*, trial_result: dict[str, Any] | None,
                                       composition_contract: dict[str, Any] | None,
                                       structure_contract: dict[str, Any] | None,
                                       scalar_contract: dict[str, Any] | None,
-                                      source: str | None) -> dict[str, Any]:
+                                      source: str | None,
+                                      source_acceptance: dict[str, Any] | None = None) -> dict[str, Any]:
     """Reconcile traceable T1 object-count baselines against backend-owned objects.
 
     The actual side is grouped by backend ownership (``logical_objects`` /
@@ -1491,6 +1504,25 @@ def _logical_object_count_consistency(*, trial_result: dict[str, Any] | None,
         else:
             return _unverified_inventory(
                 "complete", "对象数量契约标记为完整，但派生对象数量缺失或不可用，保留不确定性。")
+
+    # A secretly complete scoped-primitive inventory is already measured and
+    # object-bound by ``cad_source_acceptance``.  Consume that evidence instead
+    # of treating the same source as an unknown multi-subject phrase.  It is
+    # used only when no stronger source contract supplied a baseline and its
+    # producer explicitly marked the scope complete.
+    if baseline is None and inventory_state in (None, "none"):
+        scope = (source_acceptance or {}).get("scope_evidence") or {}
+        count_baseline = scope.get("count_baseline") or {}
+        expected = count_baseline.get("expected_object_count")
+        if scope.get("state") == "complete" and isinstance(expected, int) and expected >= 1:
+            baseline = {
+                "source": "source_scoped_primitives",
+                "contract_kind": "measured_source_inventory",
+                "expected_object_count": expected,
+                "evidence": [entry.get("evidence") for entry in scope.get("entries") or []],
+                "entries": deepcopy(scope.get("entries") or []),
+                "grouping": count_baseline.get("grouping") or "object",
+            }
 
     # --- T1 baseline extraction: no model self-report, no raw text counting. ---
     if baseline is None and composition_contract:
@@ -1799,13 +1831,15 @@ def _measured_object_descriptor(obj: dict[str, Any], geometries: list[dict[str, 
 
 
 def _identity_baseline_entries(*, composition_contract, structure_contract,
-                               scalar_contract) -> tuple[Any, list[dict[str, Any]], list[str]]:
+                               scalar_contract,
+                               source_acceptance=None) -> tuple[Any, list[dict[str, Any]], list[str]]:
     """Collect traceable source object requirements for identity reconciliation.
 
     Only existing structured channels are read: the source-side inventory,
-    legacy explicit composition counts/names and reference-structure components.
-    Model self-report, plan step order and flat geometry counts are never a
-    baseline here.
+    legacy explicit composition counts/names, reference-structure components,
+    and the scoped-primitive evidence that has already measured and bound the
+    source's exact objects. Model self-report, plan step order and flat
+    geometry counts are never a baseline here.
     """
     entries: list[dict[str, Any]] = []
     inventory_state: Any = None
@@ -1877,6 +1911,23 @@ def _identity_baseline_entries(*, composition_contract, structure_contract,
                 "source_id": "reference_structure",
                 "baseline_channel": "reference_structure",
             })
+    scope = (source_acceptance or {}).get("scope_evidence") or {}
+    if not entries and scope.get("state") == "complete":
+        inventory_state = "complete"
+        for item in scope.get("entries") or []:
+            entries.append({
+                "requirement_id": item.get("requirement_id"),
+                "noun": item.get("subject"),
+                "quantity": int(item.get("quantity") or 1),
+                "category": item.get("category") or "named_subject",
+                "evidence": item.get("evidence"),
+                "evidence_span": None,
+                "source_id": "source_scoped_primitives",
+                "baseline_channel": "source_scoped_primitives",
+                "scope_object_ids": deepcopy(item.get("object_ids") or []),
+                "scope_geometry_ids": deepcopy(item.get("geometry_ids") or []),
+                "scope_assembly_ids": deepcopy(item.get("assembly_ids") or []),
+            })
     subjects = list((scalar_contract or {}).get("subjects") or [])
     return inventory_state, entries, subjects
 
@@ -1916,7 +1967,8 @@ def _object_identity_consistency(*, trial_result: dict[str, Any] | None,
     inventory_state, entries, subjects = _identity_baseline_entries(
         composition_contract=composition_contract,
         structure_contract=structure_contract,
-        scalar_contract=scalar_contract)
+        scalar_contract=scalar_contract,
+        source_acceptance=source_acceptance)
 
     solid_entity_request = bool(re.search(r"三维|实体|可操作", source))
     for entry in entries:
@@ -2039,7 +2091,65 @@ def _object_identity_consistency(*, trial_result: dict[str, Any] | None,
         quantity = entry["quantity"]
         category = entry["category"]
 
-        if category in _MEASURED_CATEGORIES:
+        if category in _MEASURED_CATEGORIES or entry.get("scope_object_ids"):
+            prebound = list(entry.get("scope_object_ids") or [])
+            if prebound:
+                invalid = [oid for oid in prebound
+                           if oid not in descriptors or oid in used_object_ids]
+                if invalid or len(prebound) != quantity:
+                    any_unverified = True
+                    unmatched_entries.append({
+                        "requirement_id": requirement_id,
+                        "noun": noun,
+                        "quantity": quantity,
+                        "category": category,
+                        "reason": "source_scope_binding_incomplete",
+                        "detail": "来源逐件测量证据中的对象绑定缺失、重复或已用于其他条目；"
+                                  "未按模型标签补齐。",
+                        "evidence": entry["evidence"],
+                        "invalid_object_ids": invalid,
+                    })
+                    continue
+                measured = [descriptors[oid]["category"] for oid in prebound]
+                if any(value != category for value in measured):
+                    proven = [value for value in measured if value != "unclassified"]
+                    if proven:
+                        any_failed = True
+                        reason = "category_mismatch"
+                        detail = (f"来源逐件测量绑定对象 {', '.join(prebound)}，"
+                                  f"但后端对象类别为 {sorted(set(measured))}，与来源要求 {category} 不一致。")
+                    else:
+                        any_unverified = True
+                        reason = "insufficient_evidence"
+                        detail = "来源逐件测量已绑定对象，但现有类别通道无法判定该对象类型。"
+                    unmatched_entries.append({
+                        "requirement_id": requirement_id,
+                        "noun": noun,
+                        "quantity": quantity,
+                        "category": category,
+                        "reason": reason,
+                        "detail": detail,
+                        "evidence": entry["evidence"],
+                        "matched_object_ids": prebound,
+                    })
+                    continue
+                used_object_ids.update(prebound)
+                matched_entries.append({
+                    "requirement_id": requirement_id,
+                    "noun": noun,
+                    "quantity": quantity,
+                    "category": category,
+                    "object_ids": prebound,
+                    "geometry_ids": [descriptors[oid]["geometry_ids"] for oid in prebound],
+                    "bindings": _bindings(prebound),
+                    "evidence": entry["evidence"],
+                    "evidence_grade": "measured_geometry",
+                    "justification": (
+                        f"来源条目「{noun}」已由逐件几何测量绑定到对象 "
+                        f"{', '.join(prebound)}；对象归属来自执行器台账，"
+                        "类别来自测量几何，未采用模型标签。"),
+                })
+                continue
             matches = [
                 object_id for object_id, desc in descriptors.items()
                 if object_id not in used_object_ids and desc["category"] == category

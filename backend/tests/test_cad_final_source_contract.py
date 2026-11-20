@@ -46,3 +46,31 @@ def test_named_component_radius_is_bound_only_to_verified_logical_ids():
     gs[1]['radius']=3000
     with pytest.raises(StructureContractError) as failure:verify_final_source_contract(source,gs,objects)
     assert failure.value.details['geometry_ids']==[2]
+
+
+def test_executor_geometry_refs_are_consumed_and_wrong_dimension_still_fails():
+    gs=[{'id':1,'type':'circle','center':{'x':0,'y':0},'radius':1000},
+        {'id':2,'type':'polyline','closed':True,'vertices':[
+            {'x':3000,'y':0},{'x':5000,'y':0},{'x':5000,'y':2000},{'x':3000,'y':2000}]}]
+    source='画一个圆和一个矩形，圆半径1米，矩形宽2米，矩形高2米'
+    objects=[{'label':'圆','geometry_refs':[1]},{'label':'矩形','geometry_refs':[2]}]
+    result=verify_final_source_contract(source,gs,objects)
+    assert len(result['checks'])==3
+    assert not result['unknown_requirements']
+    gs[0]['radius']=2000
+    with pytest.raises(StructureContractError) as failure:
+        verify_final_source_contract(source,gs,objects)
+    assert failure.value.details['geometry_ids']==[1]
+
+
+def test_conflicting_or_duplicate_object_refs_stay_unresolved():
+    gs=[{'id':1,'type':'circle','center':{'x':0,'y':0},'radius':1000},
+        {'id':2,'type':'circle','center':{'x':4000,'y':0},'radius':2000}]
+    source='内圆：半径1米；外圆：半径2米'
+    for inner in ({'label':'内圆','geometry_refs':[1],'geometry_ids':[2]},
+                  {'label':'内圆','geometry_refs':[1,1]},
+                  {'label':'内圆','geometry_refs':[1.5]},
+                  {'label':'内圆','geometry_refs':['1.0']}):
+        result=verify_final_source_contract(source,gs,[inner,{'label':'外圆','geometry_refs':[2]}])
+        assert not any(c['field']=='radius' and c['geometry_ids']==[1] for c in result['checks'])
+        assert result['unknown_requirements']

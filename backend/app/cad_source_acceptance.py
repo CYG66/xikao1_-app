@@ -5,12 +5,37 @@ and dimensions. Unsupported prose remains unverified, never a full pass.
 """
 import math
 import re
+from copy import deepcopy
 
 from .cad_structure_contract import StructureContractError
 
 N=r"[-+]?\d+(?:\.\d+)?"
 P=rf"[（(]\s*({N})\s*[,，]\s*({N})\s*[）)]"
 INVENTORY_MARKER=r"(?:完整部件清单|全部图元清单)[：:]"
+
+
+def _object_geometry_refs(obj):
+    """Read the executor's canonical object scope without guessing a field.
+
+    ``geometry_refs`` is the executor/logical-object channel; legacy callers
+    and stored records may still carry ``geometry_ids``.  When both exist they
+    must agree, and a missing, malformed, duplicate or conflicting reference
+    stays unresolved so the caller emits ``unknown`` instead of measuring the
+    wrong geometry.
+    """
+    refs=obj.get('geometry_refs') if isinstance(obj,dict) else None
+    legacy=obj.get('geometry_ids') if isinstance(obj,dict) else None
+    if refs is None:refs=legacy
+    elif legacy is not None and refs!=legacy:return None
+    if not isinstance(refs,list) or not refs:return None
+    normalized=[]
+    for value in refs:
+        if isinstance(value,bool):return None
+        if isinstance(value,int):normalized.append(value)
+        elif isinstance(value,str) and value.strip().isdigit():normalized.append(int(value.strip()))
+        else:return None
+    if len(normalized)!=len(set(normalized)):return None
+    return normalized
 
 
 def source_texts(text):
@@ -45,10 +70,11 @@ def verify_final_source_contract(text,geometries,logical_objects=None):
         selected=gs
         if len(contract['subjects'])!=1 or fact['binding']!='single_subject':
             matches=[obj for obj in logical_objects or [] if obj.get('label')==fact['subject']]
-            if len(matches)!=1 or not matches[0].get('geometry_ids'):
+            refs=_object_geometry_refs(matches[0]) if len(matches)==1 else None
+            if len(matches)!=1 or not refs:
                 unknown.append({'source_requirement_id':fact['fact_id'],'reason':'对象范围尚未唯一绑定'});continue
-            selected=[g for g in gs if g['id'] in matches[0]['geometry_ids']]
-            if len(selected)!=len(set(matches[0]['geometry_ids'])):
+            selected=[g for g in gs if g['id'] in refs]
+            if len(selected)!=len(refs):
                 unknown.append({'source_requirement_id':fact['fact_id'],'reason':'逻辑对象引用不完整'});continue
         local_bounds=construction_geometry_bounds(selected)
         field=fact['field'];actual=None
@@ -222,14 +248,65 @@ def verify_scoped_primitives(text, geometries, logical_objects=None):
         "unverified_geometry_ids":unmatched,"review_required":bool(unmatched),"checks":[
         {"subject":s["subject"],"source_requirement":s,"geometry_ids":[ids[i]],
          "status":"passed","authority":"backend_measured_geometry"} for i,s in enumerate(specs)]}
+    ownership_complete=True
     if logical_objects is not None:
+        ownership_complete=False
+        subjects={s["subject"] for s in specs}
         for check in report["checks"]:
-            owners=[o for o in logical_objects if check["geometry_ids"][0] in o.get("geometry_refs",[])]
+            owners=[o for o in logical_objects if check["geometry_ids"][0] in (_object_geometry_refs(o) or [])]
             if not owners or any(not o.get("assembly_id") for o in owners):
                 raise StructureContractError("部件缺少明确整体归属："+check["subject"])
+            # A model label is never positive identity proof.  It is only a
+            # contradiction signal: if an owner is labelled as a different
+            # declared source subject while owning this subject's measured
+            # geometry, the object binding is internally inconsistent.
+            for owner in owners:
+                label=str(owner.get("label") or "")
+                if label in subjects and label!=check["subject"]:
+                    raise StructureContractError(
+                        "部件归属与来源主体不一致："+check["subject"],
+                        {"reason":"object_binding_conflict","subject":check["subject"],
+                         "owner_label":label,"geometry_ids":check["geometry_ids"],
+                         "object_id":owner.get("object_id")})
             check["object_ids"]=[o["object_id"] for o in owners]
             check["assembly_ids"]=sorted({o["assembly_id"] for o in owners})
+            ownership_complete=True
     from .cad_relation_acceptance import verify_named_relations
     report['relation_acceptance']=verify_named_relations(text,geometries,report['checks'])
     report['review_required']=report['review_required'] or report['relation_acceptance']['review_required']
+
+    category_for_kind={"圆":"circle","圆弧":"arc","矩形":"rectangle","线段":"line"}
+    scope_entries=[];all_object_ids=set()
+    for check in report["checks"]:
+        spec=check["source_requirement"]
+        entry={"requirement_id":f"source-scope:{spec['subject']}","subject":spec["subject"],
+               "category":category_for_kind.get(spec["kind"],"named_subject"),
+               "quantity":1,"geometry_ids":deepcopy(check["geometry_ids"]),
+               "object_ids":deepcopy(check.get("object_ids") or []),
+               "assembly_ids":deepcopy(check.get("assembly_ids") or []),
+               "evidence":spec["evidence"],"authority":"backend_measured_geometry",
+               "measurement":{"kind":spec["kind"]}}
+        for key in ("center","radius","origin","width","height","start","end","start_angle","end_angle"):
+            if key in spec:entry["measurement"][key]=deepcopy(spec[key])
+        scope_entries.append(entry)
+        all_object_ids.update(entry["object_ids"])
+    grouping="object"
+    grouped_ids=all_object_ids
+    reasons=[]
+    if not complete_inventory:reasons.append("来源完整清单未声明或包含未解析条款")
+    if unmatched:reasons.append("存在完整清单之外的可见图元")
+    if not ownership_complete:reasons.append("部件缺少唯一逻辑对象和整体归属")
+    if report['relation_acceptance']['review_required']:reasons.append("存在未验证的原文部件关系")
+    complete_scope=(complete_inventory and not unmatched and ownership_complete
+                    and not report['relation_acceptance']['review_required']
+                    and all(c["status"]=="passed" for c in report["checks"]))
+    report["scope_evidence"]={"schema":"cad.source-scope-evidence.v1",
+        "state":"complete" if complete_scope else "partial","entries":scope_entries,
+        "count_baseline":{"expected_object_count":len(grouped_ids) if complete_scope else None,
+                          "grouping":grouping},
+        "unmatched_geometry_ids":deepcopy(unmatched),"reasons":reasons}
+    if complete_scope:
+        report["status"]="passed"
+        report["coverage"]="complete"
+        report["review_required"]=False
     return report

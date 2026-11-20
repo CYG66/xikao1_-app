@@ -201,7 +201,7 @@ aa628fc76ac57368c9afc637971f6deb32be9f6d
 - `scope_evidence.state=partial`
 - `unresolved_evidence=["圆心(9,9)"]`
 - 实际执行仍采用第一个圆心 `(0.35,0.35)`，但不再把第二个圆心当成已验证
-- `acceptance_summary.status=review_required`，`accepted_count=0`
+- `acceptance_summary.status=review_required`，**草稿 1、accepted 0**
 
 没有新增生成器、验收器、通用 NLP、冲突消解器或修复循环；解释器与候选门禁未改。
 

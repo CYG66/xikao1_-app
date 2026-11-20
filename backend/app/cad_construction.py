@@ -785,10 +785,16 @@ def execute_construction_plan(
             backend=validated.constraint_backend,
         )
     except ConstraintSolveError as exc:
+        diagnostics = {"category": exc.category}
+        if getattr(exc, "reports", None):
+            diagnostics["reports"] = exc.reports
+        if getattr(exc, "failed_constraints", None):
+            diagnostics["failed_constraints"] = exc.failed_constraints
         raise ConstructionPlanError(
             exc.code,
             exc.message,
             constraint_id=exc.constraint_id,
+            details=diagnostics,
         ) from exc
     _refresh_logical_object_bounds(objects, geometries)
     if len(objects)==1 and not objects[0].get('assembly_id') and set(objects[0].get('geometry_refs') or [])=={g['id'] for g in geometries}:

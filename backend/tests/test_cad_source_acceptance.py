@@ -44,6 +44,15 @@ def test_unsupported_inventory_clause_cannot_turn_into_false_exact_count():
     assert report['inventory_scope']=='partial'
 
 
+def test_comma_joined_unmeasured_request_keeps_the_clause_partial():
+    source='完整部件清单：\n'+TEXT+'，嘴巴为一条微笑曲线'
+    report=verify_scoped_primitives(source,geometry())
+    assert report['inventory_scope']=='partial'
+    assert report['scope_evidence']['state']=='partial'
+    assert report['checks'][-1]['source_requirement']['unresolved_evidence']=='嘴巴为一条微笑曲线'
+    assert '条款包含未解释、未测量的片段' in report['scope_evidence']['reasons']
+
+
 @pytest.mark.parametrize("role",["reference","annotation","ignored"])
 def test_non_executable_reference_is_not_an_extra_visible_part(role):
     gs=geometry()

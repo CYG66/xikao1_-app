@@ -14,6 +14,29 @@ P=rf"[（(]\s*({N})\s*[,，]\s*({N})\s*[）)]"
 INVENTORY_MARKER=r"(?:完整部件清单|全部图元清单)[：:]"
 
 
+def _unsupported_clause_residue(kind,body):
+    """Return clause text left after removing fields this parser measured.
+
+    A clause can be syntactically captured while carrying additional prose
+    that was never measured.  Removing only the recognized field spans keeps
+    coordinate-internal commas intact; any remaining meaningful character is
+    an unresolved requirement, not proof of complete coverage.
+    """
+    unit=r"毫米|厘米|米|mm|cm|m"
+    common=[r"坐标单位(?:为|是)?\s*("+unit+r")"]
+    patterns={
+        "圆":[r"圆心\s*"+P,r"半径(?:为|是)?\s*("+N+r")\s*("+unit+r")"],
+        "圆弧":[r"圆心\s*"+P,r"半径(?:为|是)?\s*("+N+r")\s*("+unit+r")",
+              r"起始角\s*("+N+r")\s*度",r"终止角\s*("+N+r")\s*度"],
+        "矩形":[r"左下角\s*"+P,r"宽(?:为|是)?\s*("+N+r")\s*("+unit+r")",
+              r"高(?:为|是)?\s*("+N+r")\s*("+unit+r")"],
+        "线段":[r"起点\s*"+P,r"终点\s*"+P],
+    }.get(kind,[])
+    text=body
+    for pattern in common+patterns:text=re.sub(pattern,"",text,flags=re.I)
+    return re.sub(r"[\s，,；;。:：]+","",text)
+
+
 def _object_geometry_refs(obj):
     """Read the executor's canonical object scope without guessing a field.
 
@@ -124,6 +147,8 @@ def extract_scoped_primitives(text):
             units=re.search(r"坐标单位(?:为|是)?\s*("+unit_pattern+r")",body)
             if not units:continue
             spec={"subject":label.strip(),"kind":kind,"evidence":clause.strip()}
+            residue=_unsupported_clause_residue(kind,body)
+            if residue:spec["unresolved_evidence"]=residue
             def scalar(name):
                 match=re.search(rf"{name}(?:为|是)?\s*({N})\s*({unit_pattern})",body)
                 return float(match[1])*factors[match[2]] if match else None
@@ -231,7 +256,7 @@ def verify_scoped_primitives(text, geometries, logical_objects=None):
     # exact cardinality. An unsupported clause must not become a missing part.
     inventories=[re.split(INVENTORY_MARKER,s,maxsplit=1)[1] for s in source_texts(text)
                  if re.search(INVENTORY_MARKER,s)]
-    evidence={s['evidence'] for s in specs}
+    evidence={s['evidence'] for s in specs if not s.get('unresolved_evidence')}
     from .cad_relation_acceptance import extract_named_relations
     evidence.update(r['evidence']['text'] for r in extract_named_relations(text,[s['subject'] for s in specs]))
     complete_inventory=bool(inventories) and all(
@@ -288,16 +313,21 @@ def verify_scoped_primitives(text, geometries, logical_objects=None):
                "measurement":{"kind":spec["kind"]}}
         for key in ("center","radius","origin","width","height","start","end","start_angle","end_angle"):
             if key in spec:entry["measurement"][key]=deepcopy(spec[key])
+        if spec.get("unresolved_evidence"):
+            entry["unresolved_evidence"]=spec["unresolved_evidence"]
         scope_entries.append(entry)
         all_object_ids.update(entry["object_ids"])
     grouping="object"
     grouped_ids=all_object_ids
     reasons=[]
+    unresolved=[s for s in specs if s.get("unresolved_evidence")]
     if not complete_inventory:reasons.append("来源完整清单未声明或包含未解析条款")
+    if unresolved:reasons.append("条款包含未解释、未测量的片段")
     if unmatched:reasons.append("存在完整清单之外的可见图元")
     if not ownership_complete:reasons.append("部件缺少唯一逻辑对象和整体归属")
     if report['relation_acceptance']['review_required']:reasons.append("存在未验证的原文部件关系")
     complete_scope=(complete_inventory and not unmatched and ownership_complete
+                    and not unresolved
                     and not report['relation_acceptance']['review_required']
                     and all(c["status"]=="passed" for c in report["checks"]))
     report["scope_evidence"]={"schema":"cad.source-scope-evidence.v1",

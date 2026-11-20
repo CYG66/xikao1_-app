@@ -95,12 +95,16 @@ def test_complete_scoped_positive_becomes_accepted_candidate(tmp_path):
     assert (result["construction_commit"] or {}).get("persisted_candidate_count") == 1
 
 
-@pytest.mark.parametrize("mutation", ["unknown_clause", "wrong_dimension",
+@pytest.mark.parametrize("mutation", ["unknown_clause", "unknown_clause_comma",
+                                      "wrong_dimension",
                                       "missing_object", "wrong_binding"])
 def test_bad_variant_of_the_same_positive_is_not_accepted(tmp_path, mutation):
     source = POSITIVE_SOURCE
     if mutation == "unknown_clause":
         source += "；嘴巴为一条微笑曲线"
+        steps = _circle_steps()
+    elif mutation == "unknown_clause_comma":
+        source += "，嘴巴为一条微笑曲线"
         steps = _circle_steps()
     elif mutation == "wrong_dimension":
         steps = _circle_steps(wrong_radius=True)

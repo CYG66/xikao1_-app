@@ -96,7 +96,7 @@ def test_complete_scoped_positive_becomes_accepted_candidate(tmp_path):
 
 
 @pytest.mark.parametrize("mutation", ["unknown_clause", "unknown_clause_comma",
-                                      "wrong_dimension",
+                                      "repeated_center", "wrong_dimension",
                                       "missing_object", "wrong_binding"])
 def test_bad_variant_of_the_same_positive_is_not_accepted(tmp_path, mutation):
     source = POSITIVE_SOURCE
@@ -105,6 +105,9 @@ def test_bad_variant_of_the_same_positive_is_not_accepted(tmp_path, mutation):
         steps = _circle_steps()
     elif mutation == "unknown_clause_comma":
         source += "，嘴巴为一条微笑曲线"
+        steps = _circle_steps()
+    elif mutation == "repeated_center":
+        source += "，圆心(9,9)"
         steps = _circle_steps()
     elif mutation == "wrong_dimension":
         steps = _circle_steps(wrong_radius=True)

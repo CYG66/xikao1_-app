@@ -14,27 +14,44 @@ P=rf"[（(]\s*({N})\s*[,，]\s*({N})\s*[）)]"
 INVENTORY_MARKER=r"(?:完整部件清单|全部图元清单)[：:]"
 
 
-def _unsupported_clause_residue(kind,body):
-    """Return clause text left after removing fields this parser measured.
+def _clause_field_matches(kind,body):
+    """Find the exact field matches this parser will consume, once.
 
-    A clause can be syntactically captured while carrying additional prose
-    that was never measured.  Removing only the recognized field spans keeps
-    coordinate-internal commas intact; any remaining meaningful character is
-    an unresolved requirement, not proof of complete coverage.
+    The parser uses the first match for each named field.  Returning those
+    match objects lets residual calculation remove only the consumed span;
+    a second center/radius or unit therefore remains unresolved instead of
+    being silently erased by a broader cleanup regex.
     """
-    unit=r"毫米|厘米|米|mm|cm|m"
-    common=[r"坐标单位(?:为|是)?\s*("+unit+r")"]
-    patterns={
-        "圆":[r"圆心\s*"+P,r"半径(?:为|是)?\s*("+N+r")\s*("+unit+r")"],
-        "圆弧":[r"圆心\s*"+P,r"半径(?:为|是)?\s*("+N+r")\s*("+unit+r")",
-              r"起始角\s*("+N+r")\s*度",r"终止角\s*("+N+r")\s*度"],
-        "矩形":[r"左下角\s*"+P,r"宽(?:为|是)?\s*("+N+r")\s*("+unit+r")",
-              r"高(?:为|是)?\s*("+N+r")\s*("+unit+r")"],
-        "线段":[r"起点\s*"+P,r"终点\s*"+P],
-    }.get(kind,[])
+    unit_pattern=r"毫米|厘米|米|mm|cm|m"
+    matches={};spans=[]
+    def first(key,pattern,flags=0):
+        match=re.search(pattern,body,flags)
+        if match:
+            matches[key]=match
+            spans.append(match.span())
+        return match
+    first("units",r"坐标单位(?:为|是)?\s*("+unit_pattern+r")")
+    if kind in {"圆","圆弧"}:
+        first("圆心","圆心"+P)
+        first("半径",r"半径(?:为|是)?\s*("+N+r")\s*("+unit_pattern+r")")
+        if kind=="圆弧":
+            first("角度",rf"起始角\s*({N})\s*度[，,\s]+终止角\s*({N})\s*度")
+    elif kind=="矩形":
+        first("左下角","左下角"+P)
+        first("宽",r"宽(?:为|是)?\s*("+N+r")\s*("+unit_pattern+r")")
+        first("高",r"高(?:为|是)?\s*("+N+r")\s*("+unit_pattern+r")")
+    else:
+        first("起点","起点"+P)
+        first("终点","终点"+P)
+    return matches,spans
+
+
+def _unsupported_clause_residue(body,consumed_spans):
+    """Return clause text left after removing the spans actually consumed."""
     text=body
-    for pattern in common+patterns:text=re.sub(pattern,"",text,flags=re.I)
-    return re.sub(r"[\s，,；;。:：]+","",text)
+    for start,end in sorted(set(consumed_spans),reverse=True):
+        text=text[:start]+text[end:]
+    return text.strip(" \t\r\n，,；;。:：")
 
 
 def _object_geometry_refs(obj):
@@ -142,24 +159,22 @@ def extract_scoped_primitives(text):
             label,kind,body=m.groups()
             # Explicit per-clause unit required; never borrow another part's
             # radius, dimensions, or units.
-            unit_pattern=r"毫米|厘米|米|mm|cm|m"
             factors={"毫米":1,"mm":1,"厘米":10,"cm":10,"米":1000,"m":1000}
-            units=re.search(r"坐标单位(?:为|是)?\s*("+unit_pattern+r")",body)
+            matches,consumed=_clause_field_matches(kind,body)
+            units=matches.get("units")
             if not units:continue
             spec={"subject":label.strip(),"kind":kind,"evidence":clause.strip()}
-            residue=_unsupported_clause_residue(kind,body)
-            if residue:spec["unresolved_evidence"]=residue
             def scalar(name):
-                match=re.search(rf"{name}(?:为|是)?\s*({N})\s*({unit_pattern})",body)
+                match=matches.get(name)
                 return float(match[1])*factors[match[2]] if match else None
             def point(name):
-                match=re.search(name+P,body)
+                match=matches.get(name)
                 return [float(match[1])*factors[units[1]],float(match[2])*factors[units[1]]] if match else None
             if kind in {"圆","圆弧"}:
                 spec.update(center=point("圆心"),radius=scalar("半径"))
                 if spec["center"] is None or spec["radius"] is None:continue
                 if kind=="圆弧":
-                    angles=re.search(rf"起始角\s*({N})\s*度[，,\s]+终止角\s*({N})\s*度",body)
+                    angles=matches.get("角度")
                     if not angles:continue
                     spec.update(start_angle=float(angles[1]),end_angle=float(angles[2]))
             elif kind=="矩形":
@@ -168,6 +183,8 @@ def extract_scoped_primitives(text):
             else:
                 spec.update(start=point("起点"),end=point("终点"))
                 if spec["start"] is None or spec["end"] is None:continue
+            residue=_unsupported_clause_residue(body,consumed)
+            if residue:spec["unresolved_evidence"]=residue
             # Later revisions override only the same explicitly named subject.
             specs[spec["subject"]]=spec
     # Also accept one unambiguous primitive described in ordinary command

@@ -14,6 +14,32 @@
             "circle-1",
             "circle-2"
           ],
+          "geometry_ids": [
+            [
+              1
+            ],
+            [
+              2
+            ]
+          ],
+          "bindings": [
+            {
+              "object_id": "circle-1",
+              "geometry_ids": [
+                1
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "测量到圆几何（圆心/半径由执行器产出）"
+            },
+            {
+              "object_id": "circle-2",
+              "geometry_ids": [
+                2
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "测量到圆几何（圆心/半径由执行器产出）"
+            }
+          ],
           "evidence": "两个圆",
           "evidence_grade": "measured_geometry",
           "justification": "条目「圆」要求 2 个测量类别为circle的对象；对象 circle-1, circle-2 归属活动几何并通过后端图校验，测量类别与条目一致；依据为执行器产出几何与归属图，未采用模型标签。 同规格同类对象集合匹配成立，个体配对顺序不唯一。"
@@ -57,6 +83,32 @@
             "circle-1",
             "circle-2"
           ],
+          "geometry_ids": [
+            [
+              1
+            ],
+            [
+              2
+            ]
+          ],
+          "bindings": [
+            {
+              "object_id": "circle-1",
+              "geometry_ids": [
+                1
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "测量到圆几何（圆心/半径由执行器产出）"
+            },
+            {
+              "object_id": "circle-2",
+              "geometry_ids": [
+                2
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "测量到圆几何（圆心/半径由执行器产出）"
+            }
+          ],
           "evidence": "两个圆",
           "evidence_grade": "measured_geometry",
           "justification": "条目「圆」要求 2 个测量类别为circle的对象；对象 circle-1, circle-2 归属活动几何并通过后端图校验，测量类别与条目一致；依据为执行器产出几何与归属图，未采用模型标签。 同规格同类对象集合匹配成立，个体配对顺序不唯一。"
@@ -99,6 +151,21 @@
           "object_ids": [
             "circle-1"
           ],
+          "geometry_ids": [
+            [
+              1
+            ]
+          ],
+          "bindings": [
+            {
+              "object_id": "circle-1",
+              "geometry_ids": [
+                1
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "测量到圆几何（圆心/半径由执行器产出）"
+            }
+          ],
           "evidence": "画一个圆和一个矩形，圆半径1米，矩形宽2米高2米",
           "evidence_grade": "measured_geometry",
           "justification": "条目「圆」要求 1 个测量类别为circle的对象；对象 circle-1 归属活动几何并通过后端图校验，测量类别与条目一致；依据为执行器产出几何与归属图，未采用模型标签。"
@@ -110,6 +177,21 @@
           "category": "rectangle",
           "object_ids": [
             "rect-1"
+          ],
+          "geometry_ids": [
+            [
+              2
+            ]
+          ],
+          "bindings": [
+            {
+              "object_id": "rect-1",
+              "geometry_ids": [
+                2
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "测量到闭合矩形框"
+            }
           ],
           "evidence": "画一个圆和一个矩形，圆半径1米，矩形宽2米高2米",
           "evidence_grade": "measured_geometry",
@@ -210,8 +292,11 @@
           "quantity": 2,
           "category": "circle",
           "reason": "insufficient_evidence",
-          "detail": "现有测量通道未能为该条目凑齐足够的可信对象；缺少可信几何证据，未按模型标签补齐。",
-          "evidence": "两个圆"
+          "detail": "仅 0 个对象有自身可信分类证据，其余对象分类未判明；缺少可信几何证据，未按模型标签补齐，也未判为类型错误。",
+          "evidence": "两个圆",
+          "unmatched_object_ids": [
+            "obj-1"
+          ]
         }
       ],
       "unmatched_objects": [
@@ -238,6 +323,38 @@
             "rect-loop",
             "rect-poly"
           ],
+          "geometry_ids": [
+            [
+              1,
+              2,
+              3,
+              4
+            ],
+            [
+              5
+            ]
+          ],
+          "bindings": [
+            {
+              "object_id": "rect-loop",
+              "geometry_ids": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "线段闭合正交四边形（四条线段表达），测量类别为矩形"
+            },
+            {
+              "object_id": "rect-poly",
+              "geometry_ids": [
+                5
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "测量到闭合矩形框"
+            }
+          ],
           "evidence": "两个矩形",
           "evidence_grade": "measured_geometry",
           "justification": "条目「矩形」要求 2 个测量类别为rectangle的对象；对象 rect-loop, rect-poly 归属活动几何并通过后端图校验，测量类别与条目一致；依据为执行器产出几何与归属图，未采用模型标签。 同规格同类对象集合匹配成立，个体配对顺序不唯一。"
@@ -260,6 +377,21 @@
           "category": "circle",
           "object_ids": [
             "obj-1"
+          ],
+          "geometry_ids": [
+            [
+              1
+            ]
+          ],
+          "bindings": [
+            {
+              "object_id": "obj-1",
+              "geometry_ids": [
+                1
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "测量到圆几何（圆心/半径由执行器产出）"
+            }
           ],
           "evidence": "第一个圆",
           "evidence_grade": "measured_geometry",
@@ -425,6 +557,98 @@
     "attribute_numbers": {
       "count_status": "not_checked",
       "identity_status": "not_checked"
+    }
+  },
+  "round2": {
+    "one_classified_one_unclassified": {
+      "status": "unverified",
+      "unmatched": [
+        {
+          "requirement_id": "request-0:object-1:object",
+          "noun": "圆",
+          "quantity": 2,
+          "category": "circle",
+          "reason": "insufficient_evidence",
+          "detail": "仅 1 个对象有自身可信分类证据，其余对象分类未判明；缺少可信几何证据，未按模型标签补齐，也未判为类型错误。",
+          "evidence": "两个圆",
+          "unmatched_object_ids": [
+            "obj-2"
+          ]
+        }
+      ]
+    },
+    "two_classified_circles": {
+      "status": "passed",
+      "geometry_ids": [
+        [
+          1
+        ],
+        [
+          2
+        ]
+      ]
+    },
+    "channel_partial_coverage": {
+      "status": "unverified",
+      "unmatched": [
+        {
+          "requirement_id": "request-0:object-1:object",
+          "noun": "立方体",
+          "quantity": 2,
+          "category": "box_projection",
+          "reason": "channel_partial_coverage",
+          "detail": "通道结论仅覆盖 1 个对象，缺少 1 个对象的对象级通道证据；未覆盖对象不建立身份绑定。",
+          "evidence": "两个立方体的等轴投影",
+          "covered_object_ids": [
+            "obj-1"
+          ],
+          "uncovered_object_ids": [
+            "obj-2"
+          ]
+        }
+      ]
+    },
+    "proven_mismatch_both_classified": {
+      "status": "failed",
+      "unmatched": [
+        {
+          "requirement_id": "request-0:object-1:object",
+          "noun": "矩形",
+          "quantity": 2,
+          "category": "rectangle",
+          "reason": "category_mismatch",
+          "detail": "作用域完整，测量证据证明已分类对象类别为 ['circle']，与来源要求的 rectangle 不一致。",
+          "evidence": "两个矩形",
+          "matched_object_ids": [],
+          "other_object_ids": [
+            "obj-1",
+            "obj-2"
+          ]
+        }
+      ]
+    },
+    "three_circles_require_two": {
+      "identity_status": "passed",
+      "matched_object_ids": [
+        "obj-1",
+        "obj-2"
+      ],
+      "unmatched_objects": [
+        {
+          "object_id": "obj-3",
+          "measured_category": "circle",
+          "evidence_grade": "measured_geometry"
+        }
+      ],
+      "count_status": "failed",
+      "count_mismatch": "extra_object"
+    },
+    "shared_both_evidenced": {
+      "status": "passed"
+    },
+    "shared_only_no_own_evidence": {
+      "status": "unverified",
+      "unmatched": []
     }
   },
   "failures": []

@@ -1942,24 +1942,52 @@ def _object_identity_consistency(*, trial_result: dict[str, Any] | None,
     matched_entries: list[dict[str, Any]] = []
     unmatched_entries: list[dict[str, Any]] = []
     ambiguous_bindings: list[dict[str, Any]] = []
-    pool_categories = {desc["category"] for desc in descriptors.values()}
-    classified_pool = {category for category in pool_categories if category != "unclassified"}
     any_failed = False
     any_unverified = False
+
+    # Geometry ids already scoped to an object by an existing applicable channel.
+    # A whole-report channel verdict cannot bind objects its checks never touched.
+    channel_geometry_ids: set[Any] = set()
+    for channel_report in (projection_report, semantic_report):
+        for check in channel_report.get("checks") or []:
+            for geometry_id in check.get("geometry_ids") or []:
+                if geometry_id is not None:
+                    channel_geometry_ids.add(geometry_id)
+        for target in channel_report.get("object_acceptance") or []:
+            for geometry_id in (target.get("target_ref") or {}).get("geometry_ids") or []:
+                if geometry_id is not None:
+                    channel_geometry_ids.add(geometry_id)
+
+    def _bindings(object_ids: list[str]) -> list[dict[str, Any]]:
+        return [{
+            "object_id": object_id,
+            "geometry_ids": descriptors[object_id]["geometry_ids"],
+            "evidence_grade": descriptors[object_id]["evidence_grade"],
+            "detail": descriptors[object_id]["detail"],
+        } for object_id in object_ids]
 
     for entry in entries:
         requirement_id = entry["requirement_id"]
         noun = entry["noun"]
         quantity = entry["quantity"]
         category = entry["category"]
-        eligible = [
-            object_id for object_id, desc in descriptors.items()
-            if object_id not in used_object_ids and desc["category"] == category
-        ]
 
         if category in _MEASURED_CATEGORIES:
-            if len(eligible) >= quantity:
-                assigned = eligible[:quantity]
+            matches = [
+                object_id for object_id, desc in descriptors.items()
+                if object_id not in used_object_ids and desc["category"] == category
+            ]
+            others = [
+                object_id for object_id, desc in descriptors.items()
+                if object_id not in used_object_ids and object_id not in matches
+                and desc["category"] != "unclassified"
+            ]
+            unknowns = [
+                object_id for object_id, desc in descriptors.items()
+                if object_id not in used_object_ids and desc["category"] == "unclassified"
+            ]
+            if len(matches) >= quantity:
+                assigned = matches[:quantity]
                 used_object_ids.update(assigned)
                 justification = (
                     f"条目「{noun}」要求 {quantity} 个测量类别为{category}的对象；"
@@ -1974,43 +2002,62 @@ def _object_identity_consistency(*, trial_result: dict[str, Any] | None,
                     "quantity": quantity,
                     "category": category,
                     "object_ids": assigned,
+                    "geometry_ids": [descriptors[object_id]["geometry_ids"]
+                                     for object_id in assigned],
+                    "bindings": _bindings(assigned),
                     "evidence": entry["evidence"],
                     "evidence_grade": "measured_geometry",
                     "justification": justification,
                 })
-                if len(eligible) > quantity:
+                if len(matches) > quantity:
                     ambiguous_bindings.append({
                         "requirement_id": requirement_id,
-                        "candidate_object_ids": eligible,
+                        "candidate_object_ids": matches,
                         "reason": "集合匹配成立，个体配对存在多种合法对应，保留歧义不强行确定映射。",
                     })
+            elif unknowns:
+                # An unclassified object is missing evidence, never a proven wrong
+                # type; the requirement stays unresolved rather than failed.
+                any_unverified = True
+                unmatched_entries.append({
+                    "requirement_id": requirement_id,
+                    "noun": noun,
+                    "quantity": quantity,
+                    "category": category,
+                    "reason": "insufficient_evidence",
+                    "detail": f"仅 {len(matches)} 个对象有自身可信分类证据，其余对象分类未判明；"
+                              "缺少可信几何证据，未按模型标签补齐，也未判为类型错误。",
+                    "evidence": entry["evidence"],
+                    "unmatched_object_ids": unknowns,
+                })
+            elif others:
+                # Scope complete: every remaining object is a classified, proven
+                # mismatch; no unknown object keeps the verdict open.
+                any_failed = True
+                unmatched_entries.append({
+                    "requirement_id": requirement_id,
+                    "noun": noun,
+                    "quantity": quantity,
+                    "category": category,
+                    "reason": "category_mismatch",
+                    "detail": f"作用域完整，测量证据证明已分类对象类别为 "
+                              f"{sorted({descriptors[oid]['category'] for oid in others})}，"
+                              f"与来源要求的 {category} 不一致。",
+                    "evidence": entry["evidence"],
+                    "matched_object_ids": matches,
+                    "other_object_ids": others,
+                })
             else:
-                # A measured, classified category that differs from the
-                # requirement is a provable mismatch. An unclassified object
-                # means evidence is missing, never a proven wrong type.
-                provable_mismatch = bool(classified_pool) and category not in classified_pool
-                if provable_mismatch:
-                    any_failed = True
-                    unmatched_entries.append({
-                        "requirement_id": requirement_id,
-                        "noun": noun,
-                        "quantity": quantity,
-                        "category": category,
-                        "reason": "category_mismatch",
-                        "detail": f"测量证据证明已分类对象类别为 {sorted(classified_pool)}，与来源要求的 {category} 不一致。",
-                        "evidence": entry["evidence"],
-                    })
-                else:
-                    any_unverified = True
-                    unmatched_entries.append({
-                        "requirement_id": requirement_id,
-                        "noun": noun,
-                        "quantity": quantity,
-                        "category": category,
-                        "reason": "insufficient_evidence",
-                        "detail": "现有测量通道未能为该条目凑齐足够的可信对象；缺少可信几何证据，未按模型标签补齐。",
-                        "evidence": entry["evidence"],
-                    })
+                any_unverified = True
+                unmatched_entries.append({
+                    "requirement_id": requirement_id,
+                    "noun": noun,
+                    "quantity": quantity,
+                    "category": category,
+                    "reason": "insufficient_evidence",
+                    "detail": "现有测量通道未能为该条目凑齐足够的可信对象；缺少可信几何证据，未按模型标签补齐。",
+                    "evidence": entry["evidence"],
+                })
             continue
 
         # Non-measurable scope: defer to an already-verified applicable channel.
@@ -2028,20 +2075,56 @@ def _object_identity_consistency(*, trial_result: dict[str, Any] | None,
             })
             continue
         if channel_verdict == "passed":
-            object_ids = [object_id for object_id in descriptors if object_id not in used_object_ids]
-            used_object_ids.update(object_ids)
-            matched_entries.append({
-                "requirement_id": requirement_id,
-                "noun": noun,
-                "quantity": quantity,
-                "category": category,
-                "object_ids": object_ids,
-                "evidence": entry["evidence"],
-                "evidence_grade": channel_grade,
-                "justification": f"既有适用通道已核验条目「{noun}」；绑定对象来自后端归属台账。",
-            })
+            # Per-object backing: only objects whose current refs intersect the
+            # channel's verified geometry ids may be bound. A whole-report pass
+            # never sweeps uncovered objects.
+            backed = [
+                object_id for object_id, desc in descriptors.items()
+                if object_id not in used_object_ids
+                and channel_geometry_ids.intersection(desc["geometry_ids"])
+            ]
+            if len(backed) >= quantity:
+                assigned = backed[:quantity]
+                used_object_ids.update(assigned)
+                matched_entries.append({
+                    "requirement_id": requirement_id,
+                    "noun": noun,
+                    "quantity": quantity,
+                    "category": category,
+                    "object_ids": assigned,
+                    "geometry_ids": [descriptors[object_id]["geometry_ids"]
+                                     for object_id in assigned],
+                    "bindings": _bindings(assigned),
+                    "evidence": entry["evidence"],
+                    "evidence_grade": channel_grade,
+                    "justification": f"既有适用通道的核验几何落到对象 "
+                                     f"{', '.join(assigned)}；绑定对象来自后端归属台账。",
+                })
+            else:
+                any_unverified = True
+                uncovered = [
+                    object_id for object_id in descriptors
+                    if object_id not in used_object_ids and object_id not in backed
+                ]
+                unmatched_entries.append({
+                    "requirement_id": requirement_id,
+                    "noun": noun,
+                    "quantity": quantity,
+                    "category": category,
+                    "reason": "channel_partial_coverage",
+                    "detail": f"通道结论仅覆盖 {len(backed)} 个对象，缺少 "
+                              f"{quantity - len(backed)} 个对象的对象级通道证据；"
+                              "未覆盖对象不建立身份绑定。",
+                    "evidence": entry["evidence"],
+                    "covered_object_ids": backed,
+                    "uncovered_object_ids": uncovered,
+                })
         elif channel_verdict == "failed":
             any_failed = True
+            covered = [
+                object_id for object_id, desc in descriptors.items()
+                if channel_geometry_ids.intersection(desc["geometry_ids"])
+            ]
             unmatched_entries.append({
                 "requirement_id": requirement_id,
                 "noun": noun,
@@ -2050,6 +2133,7 @@ def _object_identity_consistency(*, trial_result: dict[str, Any] | None,
                 "reason": "channel_category_mismatch",
                 "detail": "既有适用验收通道的核验结论证明实际结果违反该条目要求。",
                 "evidence": entry["evidence"],
+                "covered_object_ids": covered,
             })
         else:
             any_unverified = True

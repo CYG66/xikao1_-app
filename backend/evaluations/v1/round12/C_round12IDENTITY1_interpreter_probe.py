@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from app.cad_construction_interpreter import (
     interpret_construction_request,
     _object_identity_consistency,
+    _logical_object_count_consistency,
 )
 
 
@@ -109,9 +110,9 @@ def record(bucket, key, result, expect_status):
         failures.append((bucket, key, (identity or {}).get("status"), expect_status))
 
 
-def synthetic_trial(geometries, objects):
+def synthetic_trial(geometries, objects, topology=None):
     return {"geometries": geometries, "logical_objects": objects,
-            "topology": {"shared_geometries": []},
+            "topology": topology or {"shared_geometries": []},
             "graph_validation": {"verified": True, "errors": []}}
 
 
@@ -259,6 +260,128 @@ r4 = _object_identity_consistency(
     scalar_contract={"subjects": ["实体"]}, source="生成两个可操作的三维实体，宽2米高2米")
 record("direct", "three_d_solid_unverified", r4, "unverified")
 
+# --- Round 2: per-object evidence scope, three-state classification. ----------
+report["round2"] = {}
+
+
+def _circle_g(gid, x, y):
+    return {"id": gid, "type": "circle", "role": "printing", "selected": True,
+            "center": {"x": x, "y": y}, "radius": 1.0}
+
+
+def _obj(oid, refs):
+    return {"object_id": oid, "geometry_refs": refs, "label": "圆"}
+
+
+def _arc_g(gid):
+    return {"id": gid, "type": "arc", "role": "printing", "selected": True,
+            "center": {"x": 0, "y": 0}, "radius": 1,
+            "start_angle": 0, "end_angle": 90}
+
+
+def _circle_contract(noun, quantity, evidence):
+    return {"object_requirements_state": "complete", "logical_object_count": quantity,
+            "object_requirements": [{
+                "requirement_id": "request-0:object-1:object", "object_noun": noun,
+                "quantity": quantity, "measure_word": "个", "expected_category": "object",
+                "evidence": evidence, "evidence_span": [1, 4], "source_id": "request-0"}]}
+
+
+def _identity(geometries, objects, contract, source, topology=None, source_acceptance=None):
+    return _object_identity_consistency(
+        trial_result=synthetic_trial(geometries, objects, topology),
+        composition_contract=contract, structure_contract=None,
+        scalar_contract={"subjects": []}, source=source,
+        source_acceptance=source_acceptance)
+
+
+# R2-1: one classified circle, one unclassified arc -> unverified, not passed.
+r21 = _identity([_circle_g(1, -1, 0), _arc_g(2)], [_obj("obj-1", [1]), _obj("obj-2", [2])],
+                _circle_contract("圆", 2, "两个圆"), "画两个圆，半径1米")
+report["round2"]["one_classified_one_unclassified"] = {
+    "status": r21["status"],
+    "unmatched": r21["unmatched_entries"],
+}
+if r21["status"] != "unverified":
+    failures.append(("round2", "one_classified_one_unclassified", r21["status"], "unverified"))
+
+# R2-2: two classified circles -> passed, matched entries carry geometry_ids.
+r22 = _identity([_circle_g(1, -1, 0), _circle_g(2, 1, 0)],
+                [_obj("obj-1", [1]), _obj("obj-2", [2])],
+                _circle_contract("圆", 2, "两个圆"), "画两个圆，半径1米")
+r22_geo = [b["geometry_ids"] for e in r22["matched_entries"] for b in e["bindings"]]
+report["round2"]["two_classified_circles"] = {
+    "status": r22["status"], "geometry_ids": r22_geo,
+}
+if r22["status"] != "passed" or not all(r22_geo):
+    failures.append(("round2", "two_classified_circles", r22["status"], "passed+geometry_ids"))
+
+# R2-3: channel passed but covers only object A; B uncovered -> unverified.
+r23 = _identity([_circle_g(1, -1, 0), _circle_g(2, 1, 0)],
+                [_obj("obj-1", [1]), _obj("obj-2", [2])],
+                _circle_contract("立方体", 2, "两个立方体的等轴投影"),
+                "画两个立方体的等轴投影，边长2米",
+                source_acceptance={"projection_acceptance": {
+                    "status": "passed", "checks": [{"geometry_ids": [1]}]}})
+report["round2"]["channel_partial_coverage"] = {
+    "status": r23["status"], "unmatched": r23["unmatched_entries"],
+}
+if r23["status"] != "unverified":
+    failures.append(("round2", "channel_partial_coverage", r23["status"], "unverified"))
+
+# R2-4: two rectangles required, two proven circles (both classified) -> failed.
+rect_contract = _circle_contract("矩形", 2, "两个矩形")
+r24 = _identity([_circle_g(1, -1, 0), _circle_g(2, 1, 0)],
+                [_obj("obj-1", [1]), _obj("obj-2", [2])],
+                rect_contract, "画两个矩形，宽2米高2米")
+report["round2"]["proven_mismatch_both_classified"] = {
+    "status": r24["status"], "unmatched": r24["unmatched_entries"],
+}
+if r24["status"] != "failed":
+    failures.append(("round2", "proven_mismatch_both_classified", r24["status"], "failed"))
+
+# R2-5: three circles, requirement 2 -> identity 2/2 passed, third unmatched;
+# count report still failed/extra_object (independent reports, no field cross-write).
+three = [_circle_g(1, -2, 0), _circle_g(2, 0, 0), _circle_g(3, 2, 0)]
+three_objs = [_obj("obj-1", [1]), _obj("obj-2", [2]), _obj("obj-3", [3])]
+r25 = _identity(three, three_objs, _circle_contract("圆", 2, "两个圆"), "画两个圆，半径1米")
+count25 = _logical_object_count_consistency(
+    trial_result=synthetic_trial(three, three_objs),
+    composition_contract=_circle_contract("圆", 2, "两个圆"),
+    structure_contract=None, scalar_contract={"subjects": []}, source="画两个圆，半径1米")
+report["round2"]["three_circles_require_two"] = {
+    "identity_status": r25["status"],
+    "matched_object_ids": [b["object_id"] for e in r25["matched_entries"] for b in e["bindings"]],
+    "unmatched_objects": r25["unmatched_objects"],
+    "count_status": count25.get("status"),
+    "count_mismatch": (count25.get("unknown_requirements") or [{}])[0].get("mismatch"),
+}
+if r25["status"] != "passed" or len(r25["unmatched_objects"]) != 1:
+    failures.append(("round2", "three_circles_identity", r25["status"], "passed+1 unmatched"))
+if count25.get("status") != "failed" or (count25.get("unknown_requirements") or [{}])[0].get("mismatch") != "extra_object":
+    failures.append(("round2", "three_circles_count", count25.get("status"), "failed/extra_object"))
+
+# R2-6a: shared owners=2, each backed by own measured geometry -> passed.
+shared_topology = {"shared_geometries": [{"geometry_id": 3, "object_ids": ["sh-1", "sh-2"]}]}
+r26a = _identity([_circle_g(1, -1, 0), _circle_g(2, 1, 0), _arc_g(3)],
+                [_obj("sh-1", [1, 3]), _obj("sh-2", [2, 3])],
+                _circle_contract("圆", 2, "两个圆"), "画两个圆，半径1米",
+                topology=shared_topology)
+report["round2"]["shared_both_evidenced"] = {"status": r26a["status"]}
+if r26a["status"] != "passed":
+    failures.append(("round2", "shared_both_evidenced", r26a["status"], "passed"))
+
+# R2-6b: second object only references the shared arc, no own measured evidence.
+r26b = _identity([_circle_g(1, -1, 0), _arc_g(3)],
+                [_obj("sh-1", [1]), _obj("sh-2", [3])],
+                _circle_contract("圆", 2, "两个圆"), "画两个圆，半径1米",
+                topology=shared_topology)
+report["round2"]["shared_only_no_own_evidence"] = {
+    "status": r26b["status"], "unmatched": r26b["unmatched_entries"],
+}
+if r26b["status"] == "passed":
+    failures.append(("round2", "shared_only_no_own_evidence", r26b["status"], "not passed"))
+
 # --- 8. Count regression: B2 missing object still failed; attribute not checked.
 source8a = "画两个立方体并排，边长2米"
 steps8a = [rectangle_polyline_step("cube-1", -1, -1, 2, 2)]
@@ -279,7 +402,6 @@ r8b_count = _object_identity_consistency(
     trial_result=None, composition_contract=None, structure_contract=None,
     scalar_contract={"subjects": ["立方体"]}, source=source8b)
 # Count-side helper on the same no-baseline source, kept for regression parity.
-from app.cad_construction_interpreter import _logical_object_count_consistency
 count8b = _logical_object_count_consistency(
     trial_result=None, composition_contract=None, structure_contract=None,
     scalar_contract={"subjects": ["立方体"]}, source=source8b)

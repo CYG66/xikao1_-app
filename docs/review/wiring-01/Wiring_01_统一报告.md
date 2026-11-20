@@ -2,18 +2,18 @@
 
 ## 0. 结论
 
-在固定父提交 `aa628fc76ac57368c9afc637971f6deb32be9f6d` 上，已完成第一批最小接线；独立终验固定检出 `f2a6da690e69d95bad30b931eaa2a0b2d74bd6e4` 后发现的“逗号追加未知条款仍被接受”阻断，已用提交 `2fb8dc75fb338a8e1c3d6507664b1bcaa7d7ed54` 追加最小修复。终验已认可的 A、C1、C2、三圆正例和计数口径均保留，不回滚、不重新立项。第一批最小接线：
+在固定父提交 `aa628fc76ac57368c9afc637971f6deb32be9f6d` 上，已完成第一批最小接线；独立终验固定检出 `f2a6da690e69d95bad30b931eaa2a0b2d74bd6e4` 后发现的“逗号追加未知条款仍被接受”阻断，已用提交 `2fb8dc75fb338a8e1c3d6507664b1bcaa7d7ed54` 追加最小修复；随后独立复核又发现“重复圆心被清除但未验证”，已用提交 `fbe7de5726f0d5e838134fb7d308663ef52b123a` 将残留判断改为复用解析器实际消费的匹配位置。终验已认可的 A、C1、C2、三圆正例和计数口径均保留，不回滚、不重新立项。第一批最小接线：
 
 - **A**：来源验收消费执行器的对象引用，并把已有逐件测量、二分图匹配和对象归属输出为可复用证据；
 - **C1**：已经确定的来源数量/身份失败，进入现有有界修复循环，不再停留在 `ready`；
 - **C2**：后续数量、身份和汇总闸消费已有的完整来源证据，不再把同一需求重复当作未知。
 
-第一批四条结束条件均已实测：
+第一批四条结束条件均已实测；独立复核追加的“逗号未知条款”和“重复圆心”两项完整性反例也已关闭：
 
 1. 正确的具名尺寸被真实测量；错误尺寸继续被拒绝。
 2. 已确定的缺件触发现有修复循环，`max_repairs=2` 未改变。
 3. 三圆完整清单正例沿真实服务、执行、验收、隔离存储链成为 **1 条正式 accepted 候选**。
-4. 同一正例加入未知条款（分号与逗号两种连接方式）、错误尺寸、缺件、错误绑定后，**accepted 均为 0**。
+4. 同一正例加入未知条款（分号与逗号两种连接方式）、重复冲突圆心、错误尺寸、缺件、错误绑定后，**accepted 均为 0**。
 
 **正式集成仍维持 NO-GO。** 本批只完成接线，不代表真实生成通过率已有新评测结论，也不代表 App 画布/HTTP 渲染已验收。
 
@@ -29,10 +29,11 @@
 | A 提交 | `f05c5b860d970e62d40d59fdbc166986cffa73dd` |
 | C1 提交 | `fa65bb37e883b2fb3e592ccec82f9ee2586f5936` |
 | C2 提交 | `730a7c333abfebb4f1ef04f003fab0b0c51a0510` |
-| 终验阻断修复提交 | `2fb8dc75fb338a8e1c3d6507664b1bcaa7d7ed54` |
-| 文档提交 | `730a7c3` 之后的文档提交，仅报告与证据，不改生产代码 |
-| 生产代码最后提交 | `2fb8dc75fb338a8e1c3d6507664b1bcaa7d7ed54` |
-| 是否推送 | **是**，正常 fast-forward 到独立评审分支；前两次网络超时，第三次成功 |
+| 逗号阻断修复提交 | `2fb8dc75fb338a8e1c3d6507664b1bcaa7d7ed54` |
+| 重复圆心收尾提交 | `fbe7de5726f0d5e838134fb7d308663ef52b123a` |
+| 文档提交 | 上述提交之后的报告与证据提交，仅文档，不改生产代码 |
+| 生产代码最后提交 | `fbe7de5726f0d5e838134fb7d308663ef52b123a` |
+| 是否推送 | **是**，正常 fast-forward 到独立评审分支 |
 | 是否合并 main | **否** |
 | 是否 amend / force push | **否** |
 
@@ -45,26 +46,27 @@ aa628fc76ac57368c9afc637971f6deb32be9f6d
           └─ 730a7c333abfebb4f1ef04f003fab0b0c51a0510  C2
               └─ 0812b6c2f14e8b47a8495f1c8dcc266da5165701  文档
                   └─ f2a6da690e69d95bad30b931eaa2a0b2d74bd6e4  文档修正
-                      └─ 2fb8dc75fb338a8e1c3d6507664b1bcaa7d7ed54  终验阻断最小修复
+                      └─ 2fb8dc75fb338a8e1c3d6507664b1bcaa7d7ed54  逗号阻断最小修复
+                          └─ fbe7de5726f0d5e838134fb7d308663ef52b123a  重复圆心收尾
 ```
 
-`2fb8dc7` 之前的生产代码父链到 `730a7c3` 结束；`2fb8dc7` 本身只改 `cad_source_acceptance.py` 及两个现有测试文件，不新增生产入口、不改 `cad_construction_interpreter.py`。其后的文档提交只更新报告与证据，最终分支 HEAD 以远端评审分支 tip 为准。
+`2fb8dc7` 和 `fbe7de5` 都只改 `cad_source_acceptance.py` 及现有测试文件，不新增生产入口、不改 `cad_construction_interpreter.py`。`fbe7de5` 之后的文档提交只更新报告与证据，最终分支 HEAD 以远端评审分支 tip 为准。
 
 评审入口：
 
 - 分支树：https://github.com/CYG66/xikao1_-app/tree/doubao/review-wiring-01-20261120
 - 相对父提交的评审范围：https://github.com/CYG66/xikao1_-app/compare/aa628fc76ac57368c9afc637971f6deb32be9f6d...doubao/review-wiring-01-20261120
 
-代码与测试共 6 个文件，相对父提交合计 **+554/−13**：
+代码与测试共 6 个文件，相对父提交合计 **+588/−18**：
 
-- `backend/app/cad_source_acceptance.py`（+112/−5，累计）
+- `backend/app/cad_source_acceptance.py`（+134/−10，累计）
 - `backend/app/cad_construction_interpreter.py`（+185/−8）
 - `backend/tests/test_cad_final_source_contract.py`（+28）
-- `backend/tests/test_cad_source_acceptance.py`（+33）
+- `backend/tests/test_cad_source_acceptance.py`（+42）
 - `backend/tests/test_wiring_01_repair_gate.py`（+78）
-- `backend/tests/test_wiring_01_evidence_consumption.py`（+118）
+- `backend/tests/test_wiring_01_evidence_consumption.py`（+121）
 
-生产代码只有两个文件，合计 **+297/−13**。终验阻断修复本身为 3 文件 **+45/−2**，其中生产代码只动 `cad_source_acceptance.py`（**+31/−1**），消费侧 `cad_construction_interpreter.py` 保持零补丁。
+生产代码只有两个文件，合计 **+319/−18**。重复圆心收尾本身为 3 文件 **+55/−26**，其中生产代码只动 `cad_source_acceptance.py`（**+42/−25**），消费侧 `cad_construction_interpreter.py` 保持零补丁。
 
 ---
 
@@ -159,6 +161,50 @@ aa628fc76ac57368c9afc637971f6deb32be9f6d
 
 没有硬编码“嘴巴”“微笑”或 `case_id`，没有新增微笑曲线生成器、验收器或通用 NLP，也没有把全部逗号当分隔符。C 线核对现有消费侧后确认无需改动：`scope_evidence` 的 `partial` 状态已被汇总与候选门禁消费，`cad_construction_interpreter.py` 在本补丁中保持零补丁。
 
+### 2.4 重复字段：解析采用一份，残留就不能扣除两份
+
+独立复核在 `2fb8dc7` 上继续追加同一三圆计划的原文：
+
+```text
+，圆心(9,9)
+```
+
+右眼条款于是同时含有两个圆心：
+
+```text
+右眼：圆，圆心(0.35,0.35)，半径0.09米，坐标单位米，圆心(9,9)
+```
+
+修复前，解析器采用第一个圆心 `(0.35,0.35)` 并据此测量；残留检查使用 `re.sub` 删除了该字段的**全部**匹配，第二个 `圆心(9,9)` 也被从残留中清除。结果是原文中仍有一个未处理要求，系统却输出 `complete/passed/accepted=true`。独立复核确认同一反例在 `f2a6da6` 上也为 accepted=1，属于上一轮完整性修复未覆盖到的同一机制，不是本次新增回归。
+
+`fbe7de5` 的收尾只做一件事：让解析与残留共用同一份消费证据。
+
+- 新增 `_clause_field_matches(kind, body)`，按解析器实际会消费的字段各取第一个 `re.search` 匹配，返回同一组 match 对象及其 span；
+- `extract_scoped_primitives()` 从这组 match 对象取值，不再另起一套字段正则；
+- `_unsupported_clause_residue()` 只删除这组已消费 span，不再对字段做全量 `re.sub`；
+- 剩余文本只裁掉边界空白和分隔符，保留内部逗号与括号，因此第二个圆心会原样进入 `unresolved_evidence`；
+- 未增加冲突消解能力；重复或冲突字段只保留为未决，不声称已处理。
+
+服务级复跑：
+
+| 同一三圆计划的输入 | 结果 |
+|---|---:|
+| 原三圆完整清单 | **accepted=1** |
+| 末尾 `；嘴巴为一条微笑曲线` | **accepted=0** |
+| 末尾 `，嘴巴为一条微笑曲线` | **accepted=0** |
+| 末尾 `，圆心(9,9)` | **accepted=0** |
+
+重复圆心变体的关键值：
+
+- `source_acceptance.status=partial`
+- `inventory_scope=partial`
+- `scope_evidence.state=partial`
+- `unresolved_evidence=["圆心(9,9)"]`
+- 实际执行仍采用第一个圆心 `(0.35,0.35)`，但不再把第二个圆心当成已验证
+- `acceptance_summary.status=review_required`，`accepted_count=0`
+
+没有新增生成器、验收器、通用 NLP、冲突消解器或修复循环；解释器与候选门禁未改。
+
 ---
 
 ## 3. C1：确定失败进入现有修复循环
@@ -216,7 +262,7 @@ aa628fc76ac57368c9afc637971f6deb32be9f6d
 | 指标 | 实测 |
 |---|---|
 | 模型文本出口调用 | **1 次** |
-| 隔离库持久化候选 | **1 条**（本次复跑 `variant_id=98fc25a7-0cbf-4024-b1c5-88812f8ec17c`） |
+| 隔离库持久化候选 | **1 条**（本次运行内同一 `variant_id`） |
 | 其中 accepted | **1 条** |
 | 正式候选视图 | **1 条**，同一 `variant_id` |
 | `candidate_is_accepted` | **true** |
@@ -230,17 +276,18 @@ aa628fc76ac57368c9afc637971f6deb32be9f6d
 
 需要明确的口径：三圆正例的完整覆盖来自 base `verify_scoped_primitives()` 的 `scope_evidence`。对带“完整部件清单”标记的源文本，`verify_final_source_contract()` 本身返回 `not_checked`，因此本批没有把 final contract 当成正例的完整测量来源，也没有用它替代 base 证据。
 
-### 4.3 同一正例的五类负例
+### 4.3 同一正例的六类负例
 
 | 负例 | 结果 |
 |---|---|
 | 末尾用分号增加未知条款“嘴巴为一条微笑曲线” | **accepted=0** |
 | 末尾用逗号增加同一未知条款 | **accepted=0**，来源 `partial`，`unresolved_evidence` 保留该片段 |
+| 末尾用逗号增加重复圆心 `圆心(9,9)` | **accepted=0**，来源 `partial`，`unresolved_evidence` 精确保留该片段 |
 | 外圆半径改为 1.2 米 | **accepted=0**，试算阶段拒绝 |
 | 缺少最后一个圆 | **accepted=0**；先由逐件来源匹配找不到“右眼”拒绝，早于数量一致性报告 |
 | 标签与几何归属互换 | **accepted=0**，`object_binding_conflict` |
 
-没有为了这五类负例新增专用生成器或验收框架；它们分别由现有尺寸测量、逐件来源匹配、条款残留判定、数量/身份报告和 A 的绑定矛盾检查拦住。特别更正：三圆缺最后一圆的首拒原因不是“两立方体”负例中的 `missing_object`，而是逐件来源匹配先找不到右眼。
+没有为了这六类负例新增专用生成器或验收框架；它们分别由现有尺寸测量、逐件来源匹配、共享消费的条款残留判定、数量/身份报告和 A 的绑定矛盾检查拦住。特别更正：三圆缺最后一圆的首拒原因不是“两立方体”负例中的 `missing_object`，而是逐件来源匹配先找不到右眼。
 
 ---
 
@@ -252,7 +299,7 @@ aa628fc76ac57368c9afc637971f6deb32be9f6d
 
 | 指标 | 结果 |
 |---|---|
-| passed | **277**（比补丁前 275 增加 2 条） |
+| passed | **279**（比上一轮 277 增加 2 条） |
 | skipped | **4** |
 | failed | **0** |
 | errors | **0** |
@@ -260,7 +307,7 @@ aa628fc76ac57368c9afc637971f6deb32be9f6d
 拆分口径：
 
 - 主控 14 模块：**214 passed、4 skipped**（本轮未改动这些模块，沿用已核对的基线）；
-- 本批 5 模块：**63 passed**（补丁新增 2 条用例，较补丁前 61 条增加 2 条）；
+- 本批 5 模块：**65 passed**（本收尾新增 2 条用例，较上一轮 63 条增加 2 条）；
 - 4 条 skip 仍因审查环境未安装原生 `planegcs` / `solvespace`，与本次改动无关。
 
 本轮 19 模块的实际命令为：
@@ -346,9 +393,9 @@ B 线未修改生产代码，只核对对象作用域和证据边界。当前实
 
 ## 8. 环境与同步清单
 
-- 本批 A、C1、C2、终验修复及报告/证据提交均已正常推送到远端独立评审分支 `doubao/review-wiring-01-20261120`；推送前两次遇到 GitHub 443 连接超时，第三次成功，结果为普通 fast-forward。
-- 终验阻断修复为正常新增提交 `2fb8dc75fb338a8e1c3d6507664b1bcaa7d7ed54`，其父提交为已评审的 `f2a6da6`；原 `aa628fc` 评审分支和 `f2a6da6` 均未被改写。
-- 生产代码最后提交为 `2fb8dc75fb338a8e1c3d6507664b1bcaa7d7ed54`；其后只有报告、证据和推送状态更正，不改生产代码。远端最终 tip 以评审分支为准。
+- 本批 A、C1、C2、两轮终验收尾及报告/证据提交均已正常推送到远端独立评审分支 `doubao/review-wiring-01-20261120`；均为普通 fast-forward。
+- 两轮终验收尾分别为 `2fb8dc75fb338a8e1c3d6507664b1bcaa7d7ed54` 和 `fbe7de5726f0d5e838134fb7d308663ef52b123a`；原 `aa628fc` 评审分支、`f2a6da6` 和 `26d5938` 均未被改写。
+- 生产代码最后提交为 `fbe7de5726f0d5e838134fb7d308663ef52b123a`；其后只有报告、证据提交，不改生产代码。远端最终 tip 以评审分支为准。
 - 全程**未合并 main、未 force push、未 amend、未重写历史**。
 - 用户偏好要求本地代码修改后更新指定的“后端最终同步清单”；该目标路径在本机不存在、不可达。已确认不可达，**未擅自改写其他同名文件**。
 - `.audit-evidence` 为临时探针与原始输出目录，未纳入任何提交；原始证据已另存到交付证据包，提交前状态为仅该目录未跟踪。
@@ -360,12 +407,12 @@ B 线未修改生产代码，只核对对象作用域和证据边界。当前实
 证据包：`Wiring_01_Evidence_final.zip`。
 
 - `manifest.json`：版本、提交、测试与探针原始结果摘要；
-- `Wiring_01.diff`：`aa628fc..2fb8dc7` 完整代码与测试差异；
-- `Wiring_01_minimal_patch.diff`：`f2a6da6..2fb8dc7` 本次最小补丁；
-- `pytest_final_19_modules.txt`：补丁后 19 模块统一回归原始输出（277 passed、4 skipped）；
-- `pytest_five_modules.txt`：补丁后本批 5 模块原始输出（63 passed）；
-- `pytest_positive_and_two_unknown_variants.txt`：三圆正例、分号未知条款、逗号未知条款三条服务级用例；
-- `service_variants_after_patch.txt`：正例与五类负例的服务级结果、来源状态、未决片段与 accepted 计数；
+- `Wiring_01.diff`：`aa628fc..fbe7de5` 完整代码与测试差异；
+- `Wiring_01_minimal_patch.diff`：`26d5938..fbe7de5` 本轮共享消费最小补丁；
+- `pytest_final_19_modules.txt`：收尾后 19 模块统一回归原始输出（279 passed、4 skipped）；
+- `pytest_five_modules.txt`：收尾后本批 5 模块原始输出（65 passed）；
+- `pytest_positive_and_three_variants.txt`：三圆正例、分号未知条款、逗号未知条款、重复圆心四条服务级用例；
+- `service_variants_after_patch.txt`：正例与六类负例的服务级结果、来源状态、未决片段与 accepted 计数；
 - `notes.txt`：C1 独立 75 passed 的日志留存口径与本次报告更正说明。
 
 C1 独立 75 passed 的原始命令日志未保留在本包中，仅作为报告记录；不伪造日志，也不以补丁后回归替代该历史结果。

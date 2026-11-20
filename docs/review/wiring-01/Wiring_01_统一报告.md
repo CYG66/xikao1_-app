@@ -29,8 +29,11 @@
 | A 提交 | `f05c5b860d970e62d40d59fdbc166986cffa73dd` |
 | C1 提交 | `fa65bb37e883b2fb3e592ccec82f9ee2586f5936` |
 | C2 提交 | `730a7c333abfebb4f1ef04f003fab0b0c51a0510` |
+| 文档提交 | `730a7c3` 之后的文档提交，仅报告与证据，不改生产代码 |
+| 生产代码最后提交 | `730a7c333abfebb4f1ef04f003fab0b0c51a0510` |
 | 是否推送 | **是**，仅推送到独立评审分支 |
 | 是否合并 main | **否** |
+| 是否 amend / force push | **否** |
 
 实际父链（Git 实测）：
 
@@ -40,12 +43,13 @@ aa628fc76ac57368c9afc637971f6deb32be9f6d
       └─ fa65bb37e883b2fb3e592ccec82f9ee2586f5936
           └─ 730a7c333abfebb4f1ef04f003fab0b0c51a0510
 ```
-| 是否 amend / force push | **否** |
+
+生产代码父链到 `730a7c3` 结束；其上另有文档提交，最终分支 HEAD 以远端评审分支 tip 为准。
 
 评审入口：
 
 - 分支树：https://github.com/CYG66/xikao1_-app/tree/doubao/review-wiring-01-20261120
-- 相对父提交的评审范围：https://github.com/CYG66/xikao1_-app/compare/aa628fc76ac57368c9afc637971f6deb32be9f6d...730a7c333abfebb4f1ef04f003fab0b0c51a0510
+- 相对父提交的评审范围：https://github.com/CYG66/xikao1_-app/compare/aa628fc76ac57368c9afc637971f6deb32be9f6d...doubao/review-wiring-01-20261120
 
 改动 6 个文件，+510/−12：
 
@@ -55,6 +59,8 @@ aa628fc76ac57368c9afc637971f6deb32be9f6d
 - `backend/tests/test_cad_source_acceptance.py`
 - `backend/tests/test_wiring_01_repair_gate.py`
 - `backend/tests/test_wiring_01_evidence_consumption.py`
+
+后续文档提交另加 2 个文件、+276，仅包含评审报告和原始证据包，未改生产代码。
 
 ---
 
@@ -260,7 +266,7 @@ B 线未修改生产代码，只核对对象作用域和证据边界。当前实
 ## 8. 环境与同步清单
 
 - 本批生产代码与测试均在 `fix/wiring-01` 分支完成，既有三个提交已正常推送到远端独立评审分支 `doubao/review-wiring-01-20261120`；**未合并 main、未 force push、未 amend、未重写历史**。
-- 远端最终 HEAD 为 `730a7c333abfebb4f1ef04f003fab0b0c51a0510`，与本地 `fix/wiring-01` 树一致；生产代码最后提交与最终交付 HEAD 均为该提交，未追加文档提交。
+- 远端评审分支 HEAD 为 `730a7c3` 之上的文档提交；**生产代码最后提交**为 `730a7c333abfebb4f1ef04f003fab0b0c51a0510`。文档提交未改生产代码，也没有 amend 前三个提交。
 - 用户偏好要求本地代码修改后更新指定的“后端最终同步清单”；该目标路径在本机不存在、不可达。已确认不可达，**未擅自改写其他同名文件**。
 - `.audit-evidence` 为临时探针与原始输出目录，未纳入任何提交；原始证据已另存到交付证据包，提交前状态为仅该目录未跟踪。
 

@@ -2,7 +2,7 @@
 
 ## 0. 结论
 
-在固定 HEAD `aa628fc76ac57368c9afc637971f6deb32be9f6d` 上，已完成第一批最小接线：
+在固定父提交 `aa628fc76ac57368c9afc637971f6deb32be9f6d` 上，已完成第一批最小接线；独立终验固定检出 `f2a6da690e69d95bad30b931eaa2a0b2d74bd6e4` 后发现的“逗号追加未知条款仍被接受”阻断，已用提交 `2fb8dc75fb338a8e1c3d6507664b1bcaa7d7ed54` 追加最小修复。终验已认可的 A、C1、C2、三圆正例和计数口径均保留，不回滚、不重新立项。第一批最小接线：
 
 - **A**：来源验收消费执行器的对象引用，并把已有逐件测量、二分图匹配和对象归属输出为可复用证据；
 - **C1**：已经确定的来源数量/身份失败，进入现有有界修复循环，不再停留在 `ready`；
@@ -13,7 +13,7 @@
 1. 正确的具名尺寸被真实测量；错误尺寸继续被拒绝。
 2. 已确定的缺件触发现有修复循环，`max_repairs=2` 未改变。
 3. 三圆完整清单正例沿真实服务、执行、验收、隔离存储链成为 **1 条正式 accepted 候选**。
-4. 同一正例加入未知条款、错误尺寸、缺件、错误绑定后，**accepted 均为 0**。
+4. 同一正例加入未知条款（分号与逗号两种连接方式）、错误尺寸、缺件、错误绑定后，**accepted 均为 0**。
 
 **正式集成仍维持 NO-GO。** 本批只完成接线，不代表真实生成通过率已有新评测结论，也不代表 App 画布/HTTP 渲染已验收。
 
@@ -29,8 +29,9 @@
 | A 提交 | `f05c5b860d970e62d40d59fdbc166986cffa73dd` |
 | C1 提交 | `fa65bb37e883b2fb3e592ccec82f9ee2586f5936` |
 | C2 提交 | `730a7c333abfebb4f1ef04f003fab0b0c51a0510` |
+| 终验阻断修复提交 | `2fb8dc75fb338a8e1c3d6507664b1bcaa7d7ed54` |
 | 文档提交 | `730a7c3` 之后的文档提交，仅报告与证据，不改生产代码 |
-| 生产代码最后提交 | `730a7c333abfebb4f1ef04f003fab0b0c51a0510` |
+| 生产代码最后提交 | `2fb8dc75fb338a8e1c3d6507664b1bcaa7d7ed54` |
 | 是否推送 | **是**，仅推送到独立评审分支 |
 | 是否合并 main | **否** |
 | 是否 amend / force push | **否** |
@@ -39,28 +40,31 @@
 
 ```text
 aa628fc76ac57368c9afc637971f6deb32be9f6d
-  └─ f05c5b860d970e62d40d59fdbc166986cffa73dd
-      └─ fa65bb37e883b2fb3e592ccec82f9ee2586f5936
-          └─ 730a7c333abfebb4f1ef04f003fab0b0c51a0510
+  └─ f05c5b860d970e62d40d59fdbc166986cffa73dd  A
+      └─ fa65bb37e883b2fb3e592ccec82f9ee2586f5936  C1
+          └─ 730a7c333abfebb4f1ef04f003fab0b0c51a0510  C2
+              └─ 0812b6c2f14e8b47a8495f1c8dcc266da5165701  文档
+                  └─ f2a6da690e69d95bad30b931eaa2a0b2d74bd6e4  文档修正
+                      └─ 2fb8dc75fb338a8e1c3d6507664b1bcaa7d7ed54  终验阻断最小修复
 ```
 
-生产代码父链到 `730a7c3` 结束；其上另有文档提交，最终分支 HEAD 以远端评审分支 tip 为准。
+`2fb8dc7` 之前的生产代码父链到 `730a7c3` 结束；`2fb8dc7` 本身只改 `cad_source_acceptance.py` 及两个现有测试文件，不新增生产入口、不改 `cad_construction_interpreter.py`。其后的文档提交只更新报告与证据，最终分支 HEAD 以远端评审分支 tip 为准。
 
 评审入口：
 
 - 分支树：https://github.com/CYG66/xikao1_-app/tree/doubao/review-wiring-01-20261120
 - 相对父提交的评审范围：https://github.com/CYG66/xikao1_-app/compare/aa628fc76ac57368c9afc637971f6deb32be9f6d...doubao/review-wiring-01-20261120
 
-改动 6 个文件，+510/−12：
+代码与测试共 6 个文件，相对父提交合计 **+554/−13**：
 
-- `backend/app/cad_source_acceptance.py`
-- `backend/app/cad_construction_interpreter.py`
-- `backend/tests/test_cad_final_source_contract.py`
-- `backend/tests/test_cad_source_acceptance.py`
-- `backend/tests/test_wiring_01_repair_gate.py`
-- `backend/tests/test_wiring_01_evidence_consumption.py`
+- `backend/app/cad_source_acceptance.py`（+112/−5，累计）
+- `backend/app/cad_construction_interpreter.py`（+185/−8）
+- `backend/tests/test_cad_final_source_contract.py`（+28）
+- `backend/tests/test_cad_source_acceptance.py`（+33）
+- `backend/tests/test_wiring_01_repair_gate.py`（+78）
+- `backend/tests/test_wiring_01_evidence_consumption.py`（+118）
 
-后续文档提交另加 2 个文件、+276，仅包含评审报告和原始证据包，未改生产代码。
+生产代码只有两个文件，合计 **+297/−13**。终验阻断修复本身为 3 文件 **+45/−2**，其中生产代码只动 `cad_source_acceptance.py`（**+31/−1**），消费侧 `cad_construction_interpreter.py` 保持零补丁。
 
 ---
 
@@ -86,7 +90,7 @@ aa628fc76ac57368c9afc637971f6deb32be9f6d
 
 只有同时满足以下条件才输出 `state=complete`、`status=passed`、`coverage=complete`：
 
-- 来源声明完整部件清单，且清单内所有条款都能对应到已解析证据；
+- 来源声明完整部件清单，且清单内所有条款都已完整解析、没有未解释残留；
 - 没有清单之外的可见图元；
 - 每个来源条目有唯一逻辑对象和整体归属；
 - 关系验收没有待复核项；
@@ -114,6 +118,46 @@ aa628fc76ac57368c9afc637971f6deb32be9f6d
 - `count_baseline.expected_object_count=3`，`grouping=object`
 - 三个条目分别绑定 `r0/r1/r2`
 - `object_identity_acceptance.status=passed`
+
+### 2.3 条款内残留：已捕获文本不等于已完整验证
+
+独立终验复现的阻断是：同一三圆清单末尾用分号追加“嘴巴为一条微笑曲线”会被拒绝；仅把分隔符改成逗号，实际图元仍只有三个圆，却在 `f2a6da6` 得到 `complete/passed/accepted=true`。
+
+根因在来源验收的完整覆盖判定：
+
+1. 解析器把整条条款正文保存进 `evidence`；
+2. 实际只测量圆心、半径、尺寸、端点等支持字段；
+3. 完整清单检查只看“条款字符串是否已进入 evidence 集合”；
+4. 因而“嘴巴”被保存在右眼的 evidence 文本里，却没有被解析、测量或登记为未决要求。
+
+修复仅动 `cad_source_acceptance.py`：
+
+- 新增 `_unsupported_clause_residue(kind, body)`，按当前解析器真正消费的字段逐个移除 span；
+- 坐标内部逗号随整个坐标字段一起移除，不会把逗号当条款分隔符；
+- 字段移除后仍剩下有意义字符时，写入该条目的 `unresolved_evidence`，原 `evidence` 全文保持不变；
+- 完整清单的 evidence 集合只纳入“无未解释残留”的条款；
+- `scope_evidence` 仍保留逐条 `unresolved_evidence` 供审计，`complete_scope` 显式要求没有残留。
+
+修复后服务级复跑：
+
+| 同一三圆计划的输入 | `f2a6da6` | `2fb8dc7` |
+|---|---:|---:|
+| 原三圆完整清单 | 1，正确 | **1，正确** |
+| 末尾 `；嘴巴为一条微笑曲线` | 0，正确 | **0，正确** |
+| 末尾 `，嘴巴为一条微笑曲线` | **1，错误接受** | **0，正确拒绝** |
+
+逗号变体复跑的关键值：
+
+- `source_acceptance.status=partial`
+- `inventory_scope=partial`
+- `scope_evidence.state=partial`
+- `scope_evidence.reasons` 同时包含“来源完整清单未声明或包含未解析条款”和“条款包含未解释、未测量的片段”
+- `unresolved_evidence=["嘴巴为一条微笑曲线"]`
+- 原 `evidence` 仍是完整右眼条款，未丢弃原文
+- `acceptance_summary.status=review_required`，`requirement_coverage=unknown`
+- `accepted_count=0`
+
+没有硬编码“嘴巴”“微笑”或 `case_id`，没有新增微笑曲线生成器、验收器或通用 NLP，也没有把全部逗号当分隔符。C 线核对现有消费侧后确认无需改动：`scope_evidence` 的 `partial` 状态已被汇总与候选门禁消费，`cad_construction_interpreter.py` 在本补丁中保持零补丁。
 
 ---
 
@@ -167,12 +211,12 @@ aa628fc76ac57368c9afc637971f6deb32be9f6d
 
 原文：
 
-> 完整部件清单：外圆、左眼、右眼，三个圆，坐标与半径明确
+> 生成一个图案。完整部件清单：外圆：圆，圆心(0,0)，半径1米，坐标单位米；左眼：圆，圆心(-0.35,0.35)，半径0.09米，坐标单位米；右眼：圆，圆心(0.35,0.35)，半径0.09米，坐标单位米
 
 | 指标 | 实测 |
 |---|---|
 | 模型文本出口调用 | **1 次** |
-| 隔离库持久化候选 | **1 条**（`variant_id=b9620849-0eeb-4700-8846-24c94cfb4b2c`） |
+| 隔离库持久化候选 | **1 条**（本次复跑 `variant_id=98fc25a7-0cbf-4024-b1c5-88812f8ec17c`） |
 | 其中 accepted | **1 条** |
 | 正式候选视图 | **1 条**，同一 `variant_id` |
 | `candidate_is_accepted` | **true** |
@@ -182,20 +226,21 @@ aa628fc76ac57368c9afc637971f6deb32be9f6d
 | `verified_checks` | **5** |
 | `requirement_coverage` | **complete** |
 
-该正例沿真实 `_formal_cad_construction`、执行器、逐件来源验收、数量/身份验收、候选提交和隔离存储运行；只替换了 `_structured_review_text` 这一模型文本出口。持久化记录与正式候选视图指向同一个 `variant_id`，没有产生第二条候选。**没有测试注入 `passed/complete`，没有放宽 `_verified_candidates` 或正式 accepted 门禁。**
+该正例沿真实 `_formal_cad_construction`、执行器、逐件来源验收、数量/身份验收、候选提交和隔离存储运行；只替换了 `_structured_review_text` 这一模型文本出口。持久化记录与正式候选视图指向同一个 `variant_id`，没有产生第二条候选。该 ID 是本次隔离存储运行内的一致性键，不作为跨运行的稳定标识。**没有测试注入 `passed/complete`，没有放宽 `_verified_candidates` 或正式 accepted 门禁。**
 
 需要明确的口径：三圆正例的完整覆盖来自 base `verify_scoped_primitives()` 的 `scope_evidence`。对带“完整部件清单”标记的源文本，`verify_final_source_contract()` 本身返回 `not_checked`，因此本批没有把 final contract 当成正例的完整测量来源，也没有用它替代 base 证据。
 
-### 4.3 同一正例的四类负例
+### 4.3 同一正例的五类负例
 
 | 负例 | 结果 |
 |---|---|
-| 增加未知条款“嘴巴为一条微笑曲线” | **accepted=0** |
+| 末尾用分号增加未知条款“嘴巴为一条微笑曲线” | **accepted=0** |
+| 末尾用逗号增加同一未知条款 | **accepted=0**，来源 `partial`，`unresolved_evidence` 保留该片段 |
 | 外圆半径改为 1.2 米 | **accepted=0**，试算阶段拒绝 |
-| 缺少最后一个圆 | **accepted=0**，数量报告 `failed/missing_object` |
+| 缺少最后一个圆 | **accepted=0**；先由逐件来源匹配找不到“右眼”拒绝，早于数量一致性报告 |
 | 标签与几何归属互换 | **accepted=0**，`object_binding_conflict` |
 
-没有为了这四类负例新增专用生成器或验收框架；它们分别由现有尺寸测量、数量报告、身份报告和 A 的绑定矛盾检查拦住。
+没有为了这五类负例新增专用生成器或验收框架；它们分别由现有尺寸测量、逐件来源匹配、条款残留判定、数量/身份报告和 A 的绑定矛盾检查拦住。特别更正：三圆缺最后一圆的首拒原因不是“两立方体”负例中的 `missing_object`，而是逐件来源匹配先找不到右眼。
 
 ---
 
@@ -207,16 +252,52 @@ aa628fc76ac57368c9afc637971f6deb32be9f6d
 
 | 指标 | 结果 |
 |---|---|
-| passed | **275** |
+| passed | **277**（比补丁前 275 增加 2 条） |
 | skipped | **4** |
 | failed | **0** |
 | errors | **0** |
 
 拆分口径：
 
-- 主控 14 模块：**214 passed、4 skipped**；
-- 本批 5 模块：**61 passed**；
+- 主控 14 模块：**214 passed、4 skipped**（本轮未改动这些模块，沿用已核对的基线）；
+- 本批 5 模块：**63 passed**（补丁新增 2 条用例，较补丁前 61 条增加 2 条）；
 - 4 条 skip 仍因审查环境未安装原生 `planegcs` / `solvespace`，与本次改动无关。
+
+本轮 19 模块的实际命令为：
+
+```powershell
+python -m pytest -q `
+  tests/test_c12_production_loop_mock.py `
+  tests/test_cad_constraint_solver.py `
+  tests/test_cad_construction.py `
+  tests/test_cad_construction_commit.py `
+  tests/test_cad_construction_interpreter.py `
+  tests/test_cad_feature_contract.py `
+  tests/test_cad_generation_recovery.py `
+  tests/test_cad_plan_component_repair.py `
+  tests/test_candidate_visibility_gate.py `
+  tests/test_cad_edit_chain.py `
+  tests/test_cad_edit_preview.py `
+  tests/test_cad_edit_session.py `
+  tests/test_cad_version_symbols.py `
+  tests/test_candidate_save.py `
+  tests/test_wiring_01_repair_gate.py `
+  tests/test_wiring_01_evidence_consumption.py `
+  tests/test_cad_source_acceptance.py `
+  tests/test_cad_final_source_contract.py `
+  tests/test_cad_relation_acceptance.py
+```
+
+5 模块命令为：
+
+```powershell
+python -m pytest -q `
+  tests/test_wiring_01_repair_gate.py `
+  tests/test_wiring_01_evidence_consumption.py `
+  tests/test_cad_source_acceptance.py `
+  tests/test_cad_final_source_contract.py `
+  tests/test_cad_relation_acceptance.py
+```
 
 ### 5.2 C1 提交单独验证
 
@@ -265,8 +346,9 @@ B 线未修改生产代码，只核对对象作用域和证据边界。当前实
 
 ## 8. 环境与同步清单
 
-- 本批生产代码与测试均在 `fix/wiring-01` 分支完成，既有三个提交已正常推送到远端独立评审分支 `doubao/review-wiring-01-20261120`；**未合并 main、未 force push、未 amend、未重写历史**。
-- 远端评审分支 HEAD 为 `730a7c3` 之上的文档提交；**生产代码最后提交**为 `730a7c333abfebb4f1ef04f003fab0b0c51a0510`。文档提交未改生产代码，也没有 amend 前三个提交。
+- 本批生产代码与测试均在 `fix/wiring-01` 分支完成，已正常推送到远端独立评审分支 `doubao/review-wiring-01-20261120`；**未合并 main、未 force push、未 amend、未重写历史**。
+- 终验阻断修复为正常新增提交 `2fb8dc75fb338a8e1c3d6507664b1bcaa7d7ed54`，其父提交为已评审的 `f2a6da6`；原 `aa628fc` 评审分支和 `f2a6da6` 均未被改写。
+- 生产代码最后提交为 `2fb8dc75fb338a8e1c3d6507664b1bcaa7d7ed54`；其后文档提交只更新报告与证据，最终分支 HEAD 以远端评审分支 tip 为准。
 - 用户偏好要求本地代码修改后更新指定的“后端最终同步清单”；该目标路径在本机不存在、不可达。已确认不可达，**未擅自改写其他同名文件**。
 - `.audit-evidence` 为临时探针与原始输出目录，未纳入任何提交；原始证据已另存到交付证据包，提交前状态为仅该目录未跟踪。
 
@@ -274,9 +356,15 @@ B 线未修改生产代码，只核对对象作用域和证据边界。当前实
 
 ## 9. 交付证据索引
 
+证据包：`Wiring_01_Evidence_final.zip`。
+
 - `manifest.json`：版本、提交、测试与探针原始结果摘要；
-- `Wiring_01.diff`：`aa628fc..730a7c3` 完整代码差异；
-- `pytest_final_19_modules.txt`：19 模块统一回归原始输出；
-- `wiring_check_output.txt`：引用字段、三圆 scope、数量闸原始输出；
-- `service_check_output.txt`：缺件修复正/负例与三圆 accepted 原始输出；
-- `binding_check_output.txt`：错误绑定拒绝原始输出。
+- `Wiring_01.diff`：`aa628fc..2fb8dc7` 完整代码与测试差异；
+- `Wiring_01_minimal_patch.diff`：`f2a6da6..2fb8dc7` 本次最小补丁；
+- `pytest_final_19_modules.txt`：补丁后 19 模块统一回归原始输出（277 passed、4 skipped）；
+- `pytest_five_modules.txt`：补丁后本批 5 模块原始输出（63 passed）；
+- `pytest_positive_and_two_unknown_variants.txt`：三圆正例、分号未知条款、逗号未知条款三条服务级用例；
+- `service_variants_after_patch.txt`：正例与五类负例的服务级结果、来源状态、未决片段与 accepted 计数；
+- `notes.txt`：C1 独立 75 passed 的日志留存口径与本次报告更正说明。
+
+C1 独立 75 passed 的原始命令日志未保留在本包中，仅作为报告记录；不伪造日志，也不以补丁后回归替代该历史结果。

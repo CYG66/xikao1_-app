@@ -1259,6 +1259,73 @@ def interpret_construction_request(
         trial_result=result,
         source=original_requirement,
     )
+
+    # A measured, source-scoped object-count/identity failure is already a
+    # determined, repairable construction failure.  Feed it into the existing
+    # invalid-result repair protocol instead of leaving the top-level status
+    # ``ready`` solely because the plan executed.  Only ``failed`` reports with
+    # an explicit mismatch enter this gate; unverified/unknown evidence never
+    # becomes an automatic retry.
+    repair_error = None
+    if object_count_report.get('status') == 'failed':
+        mismatch = next((u for u in object_count_report.get('unknown_requirements') or []
+                         if u.get('mismatch')), {})
+        expected = mismatch.get('expected_object_count')
+        actual = mismatch.get('actual_object_count')
+        repair_error = {
+            'code': 'object_count_mismatch',
+            'message': f'来源对象数量与后端归属对象不一致（要求 {expected}，实际 {actual}）。',
+            'details': {
+                'reason': mismatch.get('mismatch') or 'object_count_mismatch',
+                'failure_subtype': 'count',
+                'geometry_scope': 'logical_objects',
+                'expected_count': expected,
+                'actual_count': actual,
+                'baseline_source': (object_count_report.get('baseline') or {}).get('source'),
+                'requires_structural_replan': True,
+                'repair_instruction': '按来源清单补齐或删减对象；保留已通过对象的坐标、尺寸、单位、关系及原有断言，修复后重跑全部独立验收。',
+            },
+        }
+    elif object_identity_report.get('status') == 'failed':
+        failed_entries = [e for e in object_identity_report.get('unmatched_entries') or []
+                          if e.get('reason') in {'category_mismatch', 'channel_category_mismatch'}]
+        repair_error = {
+            'code': 'object_identity_mismatch',
+            'message': '来源对象身份与后端测量对象不一致。',
+            'details': {
+                'reason': 'object_identity_mismatch',
+                'failure_subtype': 'identity',
+                'geometry_scope': 'logical_objects',
+                'failed_entries': deepcopy(failed_entries),
+                'requires_structural_replan': True,
+                'repair_instruction': '按来源逐件对象修正类型与身份；保留已通过对象的尺寸、坐标、单位和关系，不得用模型标签替代测量。',
+            },
+        }
+    if repair_error is not None:
+        source_acceptance['repair_gate'] = {'status': 'invalid',
+            'reason': repair_error['details']['reason'],
+            'count_report_status': object_count_report.get('status'),
+            'identity_report_status': object_identity_report.get('status'),
+        }
+        return {
+            **_failure('trial_execution_failed', repair_error['message'], parser),
+            'construction_request_recognized': True,
+            'construction_error': repair_error,
+            'requirements_contract': outline_requirements(text),
+            'deterministic_repairs': deterministic_repairs,
+            'plan': plan.model_dump(mode='json'),
+            'confidence': confidence,
+            'assumptions': deepcopy(assumptions),
+            'source_acceptance': source_acceptance,
+            'acceptance_summary': acceptance_summary,
+            'trial_result': result,
+            'structure_contract': structure_contract,
+            'preflight_structure': preflight_structure,
+            'structure_validation': structure_validation,
+            'composition_contract': composition_contract,
+            'composition_validation': composition_validation,
+        }
+
     return {
         "schema": "cad.construction-interpretation-result.v1",
         "status": "ready",

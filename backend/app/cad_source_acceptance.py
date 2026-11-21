@@ -357,3 +357,671 @@ def verify_scoped_primitives(text, geometries, logical_objects=None):
         report["coverage"]="complete"
         report["review_required"]=False
     return report
+
+
+# ---------------------------------------------------------------------------
+# Requirement -> verifier -> measurement coverage closure
+# ---------------------------------------------------------------------------
+# This layer does not recognize requirements and does not create geometry.  It
+# consumes the already measured *_acceptance reports and binds each source
+# clause to the backend check that measured it.  A clause is complete only
+# when every applicable check passed and no unresolved/unsupported item
+# remains.  A failed, partial or unbound clause stays a blocking requirement.
+#
+# The table below is a bridge for semantic verifiers that expose their
+# recognized scope through ``coverage`` but omit source spans.  It is keyed by
+# the verifier's own coverage value, not by a case id, and carries no pass
+# authority: the semantic report itself must be ``passed``.
+
+_SEMANTIC_COVERAGE_SOURCE_TERMS = {
+    "cardioid_shape_and_declared_direction": [
+        {"role": "shape_identity", "pattern": r"cardioid|心形线",
+         "check": "cardioid_polar_identity"},
+        {"role": "declared_direction", "pattern": r"尖点朝下",
+         "check": "cardioid_polar_identity"},
+    ],
+    "astroid_identity_radius_and_four_cusps": [
+        {"role": "shape_identity", "pattern": r"astroid|星形线",
+         "check": None},
+    ],
+    "explicit_nested_square_frames": [
+        {"role": "shape_identity", "pattern": r"嵌套[^，,；;。\n]*正方形",
+         "check": None},
+    ],
+    "explicit_regular_polygon_and_concentric_hole": [
+        {"role": "shape_identity", "pattern": r"正\s*\d+\s*边形",
+         "check": None},
+    ],
+}
+
+_ADMIN_SEGMENT = re.compile(
+    r"^(?:完整部件清单|全部图元清单|坐标单位(?:为|是)?\s*"
+    r"(?:毫米|厘米|米|mm|cm|m))[：:]?$", re.I)
+
+
+def _source_segments(text):
+    """Split source into top-level clauses without breaking coordinates.
+
+    Commas inside parentheses belong to a point, not to a new requirement.
+    The inventory header and a stand-alone unit declaration are administrative
+    and never count as user requirements.
+    """
+    segments = []
+    for source_index, source in enumerate(source_texts(text)):
+        pieces = []
+        begin = 0
+        depth = 0
+        for index, char in enumerate(source):
+            if char in "(（":
+                depth += 1
+            elif char in ")）":
+                depth = max(0, depth - 1)
+            elif depth == 0 and char in "，,；;。\n":
+                pieces.append((begin, index))
+                begin = index + 1
+        pieces.append((begin, len(source)))
+        for begin, end in pieces:
+            raw = source[begin:end]
+            stripped = raw.strip()
+            if not stripped:
+                continue
+            offset = len(raw) - len(raw.lstrip())
+            begin += offset
+            end = begin + len(stripped)
+            if _ADMIN_SEGMENT.match(stripped):
+                continue
+            segments.append({
+                "source_index": source_index,
+                "text": source[begin:end],
+                "start": begin,
+                "end": end,
+                "administrative": False,
+            })
+    return segments
+
+
+def _segment_for_span(segments, source_index, start, end=None):
+    for segment in segments:
+        if segment["source_index"] != source_index:
+            continue
+        if end is None:
+            if segment["start"] <= start < segment["end"]:
+                return segment
+        elif start >= segment["start"] and end <= segment["end"]:
+            return segment
+        if start < segment["end"] and end is not None and end > segment["start"]:
+            return segment
+    return None
+
+
+def _numbers_mm(text):
+    factors = {"毫米": 1.0, "mm": 1.0, "厘米": 10.0, "cm": 10.0,
+               "米": 1000.0, "m": 1000.0}
+    values = []
+    for match in re.finditer(r"(\d+(?:\.\d+)?)\s*(毫米|厘米|米|mm|cm|m)(?![a-zA-Z])",
+                             text, re.I):
+        values.append(float(match.group(1)) * factors[match.group(2).lower()])
+    return values
+
+
+def _near_mm(left, right, tolerance=0.5):
+    return abs(float(left) - float(right)) <= tolerance
+
+
+def _path_actual_width_mm(check, expected_mm):
+    """Read the measured boundary width, not the source-parsed requirement."""
+    expected = check.get("expected_boundary_lengths_m")
+    actual = check.get("actual_boundary_lengths_m")
+    if not isinstance(expected, list) or not isinstance(actual, list):
+        return None
+    if len(expected) != len(actual):
+        return None
+    target = float(expected_mm) / 1000.0
+    candidates = [
+        float(measured) * 1000.0
+        for wanted, measured in zip(expected, actual)
+        if _near_mm(wanted, target, tolerance=0.0005)
+    ]
+    if not candidates:
+        return None
+    if not all(_near_mm(candidate, expected_mm) for candidate in candidates):
+        return None
+    return min(candidates)
+
+
+def _path_claim_matches_fact(claim, fact):
+    if claim.get("status") != "verified" or claim.get("covers_field") != fact.get("field"):
+        return None
+    if fact.get("field") == "width":
+        measured = _path_actual_width_mm(claim.get("check") or {}, fact.get("value_mm"))
+        if measured is None or not _near_mm(measured, fact.get("value_mm")):
+            return None
+        return measured
+    return claim.get("value_mm") if _near_mm(claim.get("value_mm"), fact.get("value_mm")) else None
+
+
+def _checks_all_passed(report):
+    checks = report.get("checks") if isinstance(report, dict) else None
+    if not isinstance(checks, list) or not checks:
+        return True
+    return all(isinstance(check, dict) and check.get("status") == "passed"
+               for check in checks)
+
+
+def _semantic_check(report, name=None):
+    checks = report.get("checks") if isinstance(report, dict) else None
+    if not isinstance(checks, list):
+        return None
+    for check in checks:
+        if not isinstance(check, dict):
+            continue
+        if name is None or check.get("name") == name:
+            return check
+    return None
+
+
+def _semantic_claim_status(report):
+    if not isinstance(report, dict):
+        return "partial", "semantic_acceptance_report_unavailable"
+    if report.get("status") != "passed":
+        return "partial", f"semantic_report_status_{report.get('status') or 'missing'}"
+    if report.get("review_required") is True:
+        return "partial", "semantic_report_review_required"
+    if not _checks_all_passed(report):
+        return "partial", "semantic_checks_not_all_passed"
+    return "verified", None
+
+
+def _semantic_claims(report, segments):
+    """Return source-bound semantic claims, never model text as evidence."""
+    claims = []
+    if not isinstance(report, dict):
+        return claims
+    status, reason = _semantic_claim_status(report)
+    evidence_texts = []
+    for requirement in report.get("requirements") or []:
+        if not isinstance(requirement, dict):
+            continue
+        for evidence in requirement.get("source_evidence") or []:
+            if isinstance(evidence, str) and evidence.strip():
+                evidence_texts.append({
+                    "text": evidence,
+                    "kind": requirement.get("kind"),
+                    "role": "semantic_requirement",
+                    "check": None,
+                })
+    coverage = report.get("coverage")
+    for term in _SEMANTIC_COVERAGE_SOURCE_TERMS.get(coverage, []):
+        evidence_texts.append({**term, "kind": coverage})
+    seen = set()
+    for item in evidence_texts:
+        text = item.get("text")
+        pattern = item.get("pattern")
+        if not text and not pattern:
+            continue
+        matches = []
+        for segment in segments:
+            source = None
+            if text:
+                if text in segment["text"]:
+                    matches.append((segment, text))
+            elif pattern and re.search(pattern, segment["text"], re.I):
+                match = re.search(pattern, segment["text"], re.I)
+                matches.append((segment, match.group(0)))
+        for segment, evidence in matches:
+            key = (segment["source_index"], segment["start"], item.get("role"),
+                   item.get("check"), evidence)
+            if key in seen:
+                continue
+            seen.add(key)
+            claim = {
+                "requirement": segment["text"],
+                "source_evidence": evidence,
+                "source_index": segment["source_index"],
+                "role": item.get("role"),
+                "kind": item.get("kind"),
+                "verifier": "semantic_acceptance",
+                "check_name": item.get("check"),
+                "status": status,
+            }
+            check = _semantic_check(report, item.get("check"))
+            if check:
+                claim["check"] = deepcopy(check)
+                if item.get("role") == "declared_direction":
+                    vector = ((check.get("measurements") or {})
+                              .get("cusp_pointing_unit_vector"))
+                    if not isinstance(vector, list) or len(vector) != 2:
+                        claim["status"] = "partial"
+                        claim["reason"] = "direction_measurement_missing"
+                    elif vector[1] > -math.cos(math.radians(10)):
+                        claim["status"] = "partial"
+                        claim["reason"] = "measured_direction_not_downward"
+            elif item.get("check"):
+                claim["status"] = "partial"
+                claim["reason"] = "declared_semantic_check_missing"
+            if status != "verified" and not claim.get("reason"):
+                claim["reason"] = reason
+            claims.append(claim)
+    return claims
+
+
+def _path_claims(report, segments):
+    """Bind the existing right-angle-arm measurements to their source clauses.
+
+    The path verifier is itself a source-scoped acceptance rule.  This bridge
+    only exposes the numbers it already measured; it does not accept geometry
+    and does not fill a missing measurement.
+    """
+    if not isinstance(report, dict) or report.get("status") != "passed":
+        return []
+    checks = report.get("checks") or []
+    check = next((item for item in checks if isinstance(item, dict)
+                  and item.get("name") == "perpendicular_arm_dimensions"), None)
+    if not check or check.get("status") != "passed":
+        return []
+    width = check.get("required_width_m")
+    arms = check.get("required_arm_extents_m")
+    substantive = [segment for segment in segments
+                   if not segment.get("administrative")]
+    first_substantive = substantive[0] if substantive else None
+    claims = []
+    for segment in segments:
+        text = segment["text"]
+        numbers = _numbers_mm(text)
+        if width is not None and "宽" in text and numbers:
+            if any(_near_mm(value, float(width) * 1000) for value in numbers):
+                claims.append({
+                    "requirement": text, "source_evidence": text,
+                    "source_index": segment["source_index"],
+                    "role": "path_width", "verifier": "path_relation_acceptance",
+                    "status": "verified", "check": deepcopy(check),
+                    "covers_field": "width", "value_mm": float(width) * 1000,
+                })
+                continue
+        if arms and "臂" in text and len(numbers) >= len(arms):
+            converted = [float(value) * 1000 for value in arms]
+            if all(any(_near_mm(number, required) for number in numbers)
+                   for required in converted):
+                claims.append({
+                    "requirement": text, "source_evidence": text,
+                    "source_index": segment["source_index"],
+                    "role": "path_arm_extents", "verifier": "path_relation_acceptance",
+                    "status": "verified", "check": deepcopy(check),
+                    "value_mm": converted,
+                })
+                continue
+        if "直角" in text and check.get("orthogonal") is True:
+            claims.append({
+                "requirement": text, "source_evidence": text,
+                "source_index": segment["source_index"],
+                "role": "path_right_angle", "verifier": "path_relation_acceptance",
+                "status": "verified", "check": deepcopy(check),
+            })
+            continue
+        actual = check.get("actual_boundary_lengths_m")
+        if (segment is first_substantive and not numbers
+                and check.get("polygon_count") == 1
+                and check.get("orthogonal") is True
+                and isinstance(actual, list) and len(actual) == 6):
+            claims.append({
+                "requirement": text, "source_evidence": text,
+                "source_index": segment["source_index"],
+                "role": "path_shape_identity", "verifier": "path_relation_acceptance",
+                "status": "verified", "check": deepcopy(check),
+                "note": "唯一闭合、六边直角边界与两臂/宽度测量共同确定直角折形",
+            })
+    return claims
+
+
+def _scope_claims(source_acceptance, segments):
+    evidence = source_acceptance.get("scope_evidence") or {}
+    if evidence.get("state") != "complete":
+        return []
+    claims = []
+    checks = source_acceptance.get("checks") or []
+    for entry in evidence.get("entries") or []:
+        if not isinstance(entry, dict):
+            continue
+        text = entry.get("evidence")
+        if not isinstance(text, str) or not text.strip():
+            continue
+        segment = next((item for item in segments if text == item["text"]
+                        or text in item["text"]), None)
+        if segment is None:
+            continue
+        check = next((item for item in checks if isinstance(item, dict)
+                      and item.get("source_requirement", {}).get("subject")
+                      == entry.get("subject")), None)
+        claims.append({
+            "requirement": segment["text"],
+            "source_evidence": text,
+            "source_index": segment["source_index"],
+            "role": "explicit_scoped_primitive",
+            "verifier": "verify_scoped_primitives",
+            "status": "verified" if check and check.get("status") == "passed" else "partial",
+            "check": deepcopy(check) if check else None,
+            "measurement": deepcopy(entry.get("measurement")),
+        })
+    return claims
+
+
+def _generic_claims(source_acceptance, segments):
+    """Bind checks that already carry a source quote or a source requirement."""
+    claims = []
+    for key, report in source_acceptance.items():
+        if key in {"semantic_acceptance", "final_source_acceptance"}:
+            continue
+        if not key.endswith("_acceptance"):
+            continue
+        if not isinstance(report, dict):
+            continue
+        for check in report.get("checks") or []:
+            if not isinstance(check, dict):
+                continue
+            evidence = check.get("source_evidence")
+            if isinstance(evidence, dict):
+                text = evidence.get("text")
+                start = evidence.get("start")
+                source_index = 0
+            else:
+                text = None
+                start = None
+                source_index = 0
+            requirement = check.get("source_requirement")
+            if isinstance(requirement, dict):
+                text = requirement.get("evidence") or text
+            if not isinstance(text, str) or not text.strip():
+                continue
+            segment = None
+            if isinstance(start, int):
+                segment = _segment_for_span(segments, source_index, start)
+            if segment is None:
+                segment = next((item for item in segments if text in item["text"]), None)
+            if segment is None:
+                continue
+            claims.append({
+                "requirement": segment["text"],
+                "source_evidence": text,
+                "source_index": segment["source_index"],
+                "role": check.get("name") or check.get("field") or key,
+                "verifier": key,
+                "status": "verified" if check.get("status") == "passed" else "partial",
+                "check": deepcopy(check),
+            })
+    return claims
+
+
+def _top_level_check_claims(source_acceptance, segments):
+    """Bind evidence-free top-level checks only when one clause can own them.
+
+    Existing explicit Bezier bridging is the only producer of such checks.
+    Requiring a single substantive clause prevents an unscoped check from
+    being assigned to an arbitrary requirement.
+    """
+    substantive = [segment for segment in segments if not segment.get("administrative")]
+    if len(substantive) != 1:
+        return []
+    check_fields = {"bezier_segment_count", "bezier_continuity"}
+    claims = []
+    for check in source_acceptance.get("checks") or []:
+        if not isinstance(check, dict) or check.get("field") not in check_fields:
+            continue
+        claims.append({
+            "requirement": substantive[0]["text"],
+            "source_evidence": substantive[0]["text"],
+            "source_index": substantive[0]["source_index"],
+            "role": check.get("field"),
+            "verifier": "source_acceptance",
+            "status": "verified" if check.get("status") == "passed" else "partial",
+            "check": deepcopy(check),
+        })
+    return claims
+
+
+def _unknown_requirements(source_acceptance):
+    found = []
+    reports = {"source_acceptance": source_acceptance}
+    for key, value in source_acceptance.items():
+        if key.endswith("_acceptance") and isinstance(value, dict):
+            reports[key] = value
+    for key, value in reports.items():
+        for item in value.get("unknown_requirements") or []:
+            if isinstance(item, dict):
+                found.append({"report": key, **deepcopy(item)})
+    return found
+
+
+def build_requirement_coverage_evidence(text, source_acceptance):
+    """Build the source-clause to verifier/measurement coverage ledger."""
+    from .cad_requirement_contract import requirement_contract
+
+    source_acceptance = source_acceptance or {}
+    scope = source_acceptance.get("scope_evidence") or {}
+    if scope.get("state") == "complete" and source_acceptance.get("coverage") == "complete":
+        entries = []
+        for entry in scope.get("entries") or []:
+            entries.append({
+                "requirement_id": entry.get("requirement_id"),
+                "requirement": entry.get("evidence"),
+                "source_evidence": entry.get("evidence"),
+                "status": "verified",
+                "verifier": "verify_scoped_primitives",
+                "measurement": deepcopy(entry.get("measurement")),
+                "authority": "backend_measured_geometry",
+            })
+        return {
+            "schema": "cad.requirement-coverage-evidence.v1",
+            "state": "complete",
+            "authority": "backend_measured_geometry",
+            "clauses": entries,
+            "verified_requirement_count": len(entries),
+            "partial_requirement_count": 0,
+            "unverified_requirement_count": 0,
+            "blocking_requirements": [],
+            "unresolved_fact_ids": [],
+            "note": "显式完整部件清单已由既有来源作用域验收证明，未新增放行规则。",
+        }
+
+    sources = source_texts(text)
+    contract = requirement_contract([
+        {"source_id": f"user:{index}", "text": source}
+        for index, source in enumerate(sources)
+    ])
+    segments = _source_segments(text)
+
+    semantic_claims = _semantic_claims(source_acceptance.get("semantic_acceptance"), segments)
+    path_claims = _path_claims(source_acceptance.get("path_relation_acceptance"), segments)
+    scope_claims = _scope_claims(source_acceptance, segments)
+    generic_claims = _generic_claims(source_acceptance, segments)
+    top_level_claims = _top_level_check_claims(source_acceptance, segments)
+    claims = semantic_claims + path_claims + scope_claims + generic_claims + top_level_claims
+
+    final_report = source_acceptance.get("final_source_acceptance") or {}
+    final_checks = final_report.get("checks") or []
+    final_unknown = final_report.get("unknown_requirements") or []
+    clauses = []
+    blocking = []
+
+    for segment in segments:
+        facts = []
+        for fact in contract.get("facts") or []:
+            evidence = fact.get("evidence") or {}
+            if _segment_for_span(segments, segment["source_index"],
+                                 evidence.get("start", -1),
+                                 evidence.get("end")) is segment:
+                facts.append(fact)
+        applicable_claims = [
+            claim for claim in claims
+            if claim["source_index"] == segment["source_index"]
+            and claim["requirement"] == segment["text"]
+        ]
+        evidence_items = []
+        unresolved = []
+        supported = False
+        failed = False
+        consumed_claims = set()
+        for fact in facts:
+            fact_id = fact.get("fact_id")
+            if fact.get("status") != "effective" or fact.get("binding") == "unresolved":
+                covered = next(
+                    (claim for claim in applicable_claims
+                     if _path_claim_matches_fact(claim, fact) is not None),
+                    None,
+                )
+                if covered:
+                    supported = True
+                    consumed_claims.add(id(covered))
+                    measured_mm = _path_claim_matches_fact(covered, fact)
+                    evidence_items.append({
+                        "requirement_id": fact_id,
+                        "verifier": "path_relation_acceptance",
+                        "status": "verified",
+                        "measurement": {
+                            "field": fact.get("field"),
+                            "actual_mm": measured_mm,
+                            "expected_mm": fact.get("value_mm"),
+                            "source_evidence": fact.get("evidence"),
+                            "check_name": (covered.get("check") or {}).get("name"),
+                            "actual_boundary_lengths_m": deepcopy(
+                                (covered.get("check") or {}).get("actual_boundary_lengths_m")),
+                            "authority": "backend_measured_geometry",
+                        },
+                    })
+                else:
+                    unresolved.append({
+                        "requirement_id": fact_id,
+                        "field": fact.get("field"),
+                        "expected_mm": fact.get("value_mm"),
+                        "source_evidence": fact.get("evidence"),
+                        "reason": "无法唯一绑定验证对象",
+                    })
+                continue
+            check = next((item for item in final_checks
+                          if isinstance(item, dict)
+                          and item.get("source_requirement_id") == fact_id), None)
+            if check and check.get("status") == "passed":
+                supported = True
+                evidence_items.append({
+                    "requirement_id": fact_id,
+                    "verifier": "verify_final_source_contract",
+                    "status": "verified",
+                    "measurement": deepcopy(check),
+                })
+            else:
+                failed = True
+                unknown = next((item for item in final_unknown
+                                if isinstance(item, dict)
+                                and item.get("source_requirement_id") == fact_id), None)
+                reason = (unknown or {}).get("reason") or "无独立测量结果"
+                unresolved.append({
+                    "requirement_id": fact_id,
+                    "field": fact.get("field"),
+                    "expected_mm": fact.get("value_mm"),
+                    "source_evidence": fact.get("evidence"),
+                    "reason": reason,
+                })
+        for claim in applicable_claims:
+            if id(claim) in consumed_claims:
+                continue
+            evidence_items.append({
+                "requirement_id": f"clause:{segment['source_index']}:{segment['start']}",
+                "verifier": claim.get("verifier"),
+                "role": claim.get("role"),
+                "status": claim.get("status"),
+                "measurement": deepcopy(claim.get("check") or claim.get("measurement")),
+                "reason": claim.get("reason"),
+            })
+            if claim.get("status") == "verified":
+                supported = True
+            else:
+                failed = True
+        if supported and not failed and not unresolved:
+            status = "verified"
+            reason = None
+        elif supported:
+            status = "partial"
+            reason = "部分要求已有独立测量，但仍有未决或无能力项"
+        elif failed and applicable_claims:
+            status = "partial"
+            reason = "已有验证器返回 partial，不能提升为逐条完整覆盖"
+        elif unresolved:
+            status = "unbound" if any(item.get("reason") == "无法唯一绑定验证对象"
+                                      for item in unresolved) else "unverified"
+            reason = unresolved[0].get("reason")
+        else:
+            status = "unverified"
+            reason = "当前没有可用的独立验证能力"
+        clause = {
+            "requirement_id": f"clause:{segment['source_index']}:{segment['start']}",
+            "source_index": segment["source_index"],
+            "requirement": segment["text"],
+            "span": {"start": segment["start"], "end": segment["end"]},
+            "status": status,
+            "reason": reason,
+            "unsupported_evidence": deepcopy(unresolved),
+            "evidence": evidence_items,
+            "authority": "backend_measured_geometry",
+        }
+        clauses.append(clause)
+        if status != "verified":
+            blocking.append({
+                "requirement_id": clause["requirement_id"],
+                "requirement": clause["requirement"],
+                "status": status,
+                "reason": reason or "未获得完整、来源绑定的独立测量证据",
+            })
+
+    covered_fact_ids = {
+        item.get("requirement_id")
+        for clause in clauses
+        for item in clause.get("unsupported_evidence") or []
+    }
+    for item in _unknown_requirements(source_acceptance):
+        source_id = item.get("source_requirement_id")
+        if source_id in covered_fact_ids:
+            continue
+        already = any(
+            blocker.get("requirement_id") == source_id
+            for blocker in blocking
+        )
+        if not already:
+            blocking.append({
+                "requirement_id": source_id or f"report:{item.get('report')}",
+                "requirement": item.get("text") or item.get("source_evidence") or source_id,
+                "status": "unverified",
+                "reason": item.get("reason") or "报告声明了未决要求",
+            })
+
+    semantic = source_acceptance.get("semantic_acceptance") or {}
+    semantic_status, semantic_reason = _semantic_claim_status(semantic)
+    semantic_kinds = semantic.get("applicable_requirement_kinds") or []
+    semantic_block = False
+    if semantic_kinds and semantic_status != "verified":
+        semantic_block = True
+        blocking.append({
+            "requirement_id": "semantic:" + ",".join(str(kind) for kind in semantic_kinds),
+            "requirement": ",".join(str(kind) for kind in semantic_kinds),
+            "status": "partial",
+            "reason": semantic_reason or "语义验证器未给出 passed 完整状态",
+        })
+
+    state = "complete" if not blocking else "partial"
+    return {
+        "schema": "cad.requirement-coverage-evidence.v1",
+        "state": state,
+        "authority": "backend_measured_geometry",
+        "clauses": clauses,
+        "verified_requirement_count": sum(1 for item in clauses if item["status"] == "verified"),
+        "partial_requirement_count": sum(1 for item in clauses if item["status"] == "partial"),
+        "unverified_requirement_count": sum(
+            1 for item in clauses
+            if item["status"] in {"unverified", "unbound", "unsupported", "unparseable"}
+        ),
+        "blocking_requirements": blocking,
+        "unresolved_fact_ids": [
+            clause["requirement_id"] for clause in clauses
+            if clause["status"] != "verified"
+        ],
+        "semantic_block": semantic_block,
+        "note": "每条原文要求须绑定既有后端测量；未绑定、未支持或 partial 项均阻断完整覆盖。",
+    }

@@ -1015,6 +1015,48 @@ def interpret_construction_request(
             repetition_acceptance=verify_repetition_requirements(original_requirement,result['geometries'])
             if repetition_acceptance['status']!='not_checked':
                 source_acceptance['repetition_acceptance']=repetition_acceptance
+            # Close the source-requirement loop only after every independent
+            # verifier has run.  This reads their measurements; it never
+            # recognizes a new requirement, creates geometry or relaxes a
+            # verifier.  Any clause without a passed, source-bound measurement
+            # remains blocking.
+            from .cad_source_acceptance import build_requirement_coverage_evidence
+            coverage_evidence = build_requirement_coverage_evidence(
+                original_requirement, source_acceptance)
+            source_acceptance['coverage_evidence'] = coverage_evidence
+            if coverage_evidence.get('state') == 'complete':
+                source_acceptance['status'] = 'passed'
+                source_acceptance['coverage'] = 'complete'
+                source_acceptance['review_required'] = False
+                source_acceptance['unknown_requirements'] = []
+            else:
+                source_acceptance['coverage'] = 'partial'
+                source_acceptance['review_required'] = True
+                closure_fact_ids = {
+                    evidence.get('requirement_id')
+                    for clause in coverage_evidence.get('clauses') or []
+                    for evidence in clause.get('unsupported_evidence') or []
+                }
+                existing = [
+                    item for item in (source_acceptance.get('unknown_requirements') or [])
+                    if not (isinstance(item, dict)
+                            and item.get('source_requirement_id') in closure_fact_ids)
+                ]
+                seen = {(item.get('source_requirement_id'),
+                         item.get('reason')) for item in existing if isinstance(item, dict)}
+                for blocker in coverage_evidence.get('blocking_requirements') or []:
+                    item = {
+                        'source_requirement_id': blocker.get('requirement_id'),
+                        'requirement': blocker.get('requirement'),
+                        'reason': blocker.get('reason'),
+                        'status': blocker.get('status'),
+                        'source': 'requirement_coverage_evidence',
+                    }
+                    key = (item['source_requirement_id'], item['reason'])
+                    if key not in seen:
+                        existing.append(item)
+                        seen.add(key)
+                source_acceptance['unknown_requirements'] = existing
         except StructureContractError as exc:
             from .cad_local_repair import build_local_repair_scope
             details = dict(exc.details or {})
@@ -2442,15 +2484,23 @@ def construction_acceptance_summary(
         )
     )
     source_acceptance = source_acceptance or {}
+    coverage_evidence = source_acceptance.get("coverage_evidence")
+    closure_state = coverage_evidence.get("state") if isinstance(coverage_evidence, dict) else None
     # The semantic report is judged exclusively by A's three-state verdict and
     # is kept out of the generic report loop; otherwise a legacy no-applicable
     # report carrying a stray review_required flag would false-fail the
     # "no mandatory requirement" positive case.
     semantic_report = source_acceptance.get("semantic_acceptance")
+    all_reports = [source_acceptance]
+    all_reports.extend(
+        value for key, value in source_acceptance.items()
+        if key != "semantic_acceptance" and key.endswith("_acceptance") and isinstance(value, dict)
+    )
     reports = [source_acceptance]
     reports.extend(
         value for key, value in source_acceptance.items()
         if key != "semantic_acceptance" and key.endswith("_acceptance") and isinstance(value, dict)
+        and not (key == "final_source_acceptance" and closure_state == "complete")
     )
     from .cad_semantic_dispatch import state_allows_summary_passed
     semantic_verdict = _semantic_summary_verdict(semantic_report, source)
@@ -2460,7 +2510,7 @@ def construction_acceptance_summary(
         or any((report or {}).get('review_required') is True for report in
                (preflight_structure,structure_validation,composition_validation)))
     verified_checks = sum(
-        1 for report in reports for check in report.get("checks", [])
+        1 for report in all_reports for check in report.get("checks", [])
         if isinstance(check, dict) and check.get("status") == "passed"
     )
     verified_checks += int(
@@ -2475,13 +2525,25 @@ def construction_acceptance_summary(
     )
     # Executability never establishes source requirement coverage. Partial or
     # missing coverage remains reviewable even when every known check passes.
-    coverage_complete = source_acceptance.get('coverage') in {'complete', 'full'}
+    if closure_state:
+        coverage_complete = closure_state == 'complete'
+    else:
+        coverage_complete = source_acceptance.get('coverage') in {'complete', 'full'}
     unknown_requirements = source_acceptance.get('unknown_requirements', [])
     # Coverage strings are never sole evidence: an applicable semantic
     # requirement left unverified/partial blocks a complete verdict even when
     # the producer emitted coverage=complete with no unknown requirements.
     coverage_complete = coverage_complete and not unknown_requirements and not semantic_blocks
     review_required = review_required or not coverage_complete
+    coverage_summary = None
+    if isinstance(coverage_evidence, dict):
+        coverage_summary = {
+            "state": coverage_evidence.get("state"),
+            "verified_requirement_count": coverage_evidence.get("verified_requirement_count"),
+            "partial_requirement_count": coverage_evidence.get("partial_requirement_count"),
+            "unverified_requirement_count": coverage_evidence.get("unverified_requirement_count"),
+            "blocking_requirements": deepcopy(coverage_evidence.get("blocking_requirements") or []),
+        }
     return {
         "status": "review_required" if review_required else "passed",
         "review_required": review_required,
@@ -2490,6 +2552,7 @@ def construction_acceptance_summary(
         "requirement_coverage": "complete" if coverage_complete else "unknown",
         "unknown_requirements": deepcopy(unknown_requirements) or ([] if coverage_complete else [
             {'source':'source_acceptance','reason':'需求清单或完整覆盖证据缺失'}]),
+        "coverage_evidence": coverage_summary,
         "geometry_validity": 'passed' if (trial_result or {}).get('feasibility',{}).get('ok') is True else 'not_checked',
         "constraint_satisfaction": (trial_result or {}).get('constraint_solve',{}).get('status','not_checked'),
         "assertion_status": ('passed' if (trial_result or {}).get('assertions',{}).get('ok') is True

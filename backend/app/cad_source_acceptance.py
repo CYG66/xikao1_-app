@@ -398,6 +398,40 @@ _ADMIN_SEGMENT = re.compile(
     r"^(?:完整部件清单|全部图元清单|坐标单位(?:为|是)?\s*"
     r"(?:毫米|厘米|米|mm|cm|m))[：:]?$", re.I)
 
+# A second requirement can be attached to the previous one without any comma,
+# e.g. "直角连接并在墙上加一扇门".  Split before these top-level connectors so
+# the added component cannot inherit the previous clause's verified status.
+_SUBREQUIREMENT_BOUNDARY = re.compile(
+    r"(?=(?:并在|且在|并且|同时|然后|另外|还要|以及|并加|并带|且加|且带|再在|再加))")
+_PATH_SHAPE_CLAUSE = re.compile(
+    r"^(?:请|帮我|麻烦|给我)?(?:画|绘制|生成|制作|创建|设计|建|做)?"
+    r"(?:一个|一条|一座|个|条)?\s*"
+    r"(?:L\s*[形型](?:走廊|通道|路径|轮廓|线)?"
+    r"|直角折形(?:走廊|通道)?"
+    r"|折形(?:走廊|通道)?)$", re.I)
+_PATH_RIGHT_ANGLE_CLAUSE = re.compile(
+    r"^(?:请|帮我|麻烦)?(?:两臂|两段|两条臂|边界|拐角|转角|连接"
+    r"|并|且|同时)?(?:以|成|为|是)?直角(?:连接|相连|相接|拐角|转角)?$")
+
+
+def _split_subrequirements(raw):
+    """Split top-level attached requirements while preserving offsets."""
+    depths = []
+    depth = 0
+    for char in raw:
+        depths.append(depth)
+        if char in "(（":
+            depth += 1
+        elif char in ")）":
+            depth = max(0, depth - 1)
+    boundaries = [match.start() for match in _SUBREQUIREMENT_BOUNDARY.finditer(raw)
+                  if match.start() > 0 and depths[match.start()] == 0]
+    if not boundaries:
+        return [(0, len(raw))]
+    starts = [0] + boundaries
+    ends = boundaries + [len(raw)]
+    return [(start, end) for start, end in zip(starts, ends) if end > start]
+
 
 def _source_segments(text):
     """Split source into top-level clauses without breaking coordinates.
@@ -420,7 +454,12 @@ def _source_segments(text):
                 pieces.append((begin, index))
                 begin = index + 1
         pieces.append((begin, len(source)))
-        for begin, end in pieces:
+        expanded = []
+        for piece_begin, piece_end in pieces:
+            raw = source[piece_begin:piece_end]
+            expanded.extend((piece_begin + start, piece_begin + end)
+                            for start, end in _split_subrequirements(raw))
+        for begin, end in expanded:
             raw = source[begin:end]
             stripped = raw.strip()
             if not stripped:
@@ -650,7 +689,8 @@ def _path_claims(report, segments):
                     "value_mm": converted,
                 })
                 continue
-        if "直角" in text and check.get("orthogonal") is True:
+        if "直角" in text and check.get("orthogonal") is True \
+                and _PATH_RIGHT_ANGLE_CLAUSE.fullmatch(text.strip()):
             claims.append({
                 "requirement": text, "source_evidence": text,
                 "source_index": segment["source_index"],
@@ -660,6 +700,7 @@ def _path_claims(report, segments):
             continue
         actual = check.get("actual_boundary_lengths_m")
         if (segment is first_substantive and not numbers
+                and _PATH_SHAPE_CLAUSE.fullmatch(text.strip())
                 and check.get("polygon_count") == 1
                 and check.get("orthogonal") is True
                 and isinstance(actual, list) and len(actual) == 6):

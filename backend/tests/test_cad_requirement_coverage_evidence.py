@@ -32,6 +32,60 @@ def _cardioid_report():
     }
 
 
+def _path_report():
+    return {
+        "status": "passed",
+        "coverage": "explicit_perpendicular_arm_extents_and_width",
+        "checks": [{
+            "name": "perpendicular_arm_dimensions", "status": "passed",
+            "geometry_ids": [1], "required_arm_extents_m": [3.0, 2.0],
+            "required_width_m": 1.0,
+            "expected_boundary_lengths_m": [1.0, 1.0, 1.0, 2.0, 2.0, 3.0],
+            "actual_boundary_lengths_m": [1.0, 1.0, 1.0, 2.0, 2.0, 3.0],
+            "orthogonal": True, "polygon_count": 1,
+            "authority": "backend_measured_geometry",
+        }],
+    }
+
+
+def _path_source_acceptance():
+    return {
+        "status": "not_checked", "coverage": "partial", "checks": [],
+        "final_source_acceptance": {"status": "not_checked", "coverage": "partial",
+                                    "checks": [], "unknown_requirements": []},
+        "semantic_acceptance": {"status": "not_checked", "coverage": "partial",
+                                "checks": [], "review_required": True,
+                                "applicable_requirement_kinds": []},
+        "path_relation_acceptance": _path_report(),
+    }
+
+
+def test_circular_corridor_is_not_verified_by_l_shaped_path_measurements():
+    """L-path dimensions must not stand in for an explicitly circular corridor."""
+    coverage = build_requirement_coverage_evidence(
+        "画一个圆形走廊，宽1米，两条臂分别长3米和2米，直角连接",
+        _path_source_acceptance())
+    assert coverage["state"] == "partial"
+    clauses = {item["requirement"]: item for item in coverage["clauses"]}
+    assert clauses["画一个圆形走廊"]["status"] == "unverified"
+    assert clauses["宽1米"]["status"] == "verified"
+    assert clauses["两条臂分别长3米和2米"]["status"] == "verified"
+    assert coverage["blocking_requirements"][0]["requirement"] == "画一个圆形走廊"
+
+
+def test_attached_door_cannot_inherit_verified_l_path_clause():
+    """An attached door is a separate requirement even without a comma."""
+    coverage = build_requirement_coverage_evidence(
+        "画一个L形走廊，宽1米，两条臂分别长3米和2米，直角连接并在墙上加一扇门",
+        _path_source_acceptance())
+    assert coverage["state"] == "partial"
+    clauses = {item["requirement"]: item for item in coverage["clauses"]}
+    assert clauses["直角连接"]["status"] == "verified"
+    assert clauses["并在墙上加一扇门"]["status"] == "unverified"
+    assert coverage["verified_requirement_count"] == 4
+    assert coverage["blocking_requirements"][0]["requirement"] == "并在墙上加一扇门"
+
+
 def test_cardioid_each_source_clause_is_bound_to_backend_measurement():
     source = "生成一个心形线（cardioid），尖点朝下，最大宽度3米"
     coverage = build_requirement_coverage_evidence(source, {

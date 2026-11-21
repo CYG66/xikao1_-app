@@ -250,4 +250,3 @@ def test_no_candidate_keeps_original_retry_error():
     assert routed["message"] == "模型输出超时，请重试"
     assert routed["variant"] is None
     assert routed["variants"] == []
-

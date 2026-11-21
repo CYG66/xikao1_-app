@@ -278,10 +278,10 @@ def _project_candidate_response(result: dict[str, object]) -> dict[str, object]:
         output.update({
             "ok": True,
             "variant": None,
-            "variants": [],
+            "variants": list(project_variants),
             "preview_paths": [],
             "drawing_json": None,
-            "project": {**project_view, "variants": []} if isinstance(project_view, dict) else project_view,
+            "project": project_view,
             "draft_preview": draft,
             "candidate_visibility": {"status": "draft_review", "scope": "project"},
             "acceptance_summary": deepcopy(variant.get("acceptance_summary") or {}),

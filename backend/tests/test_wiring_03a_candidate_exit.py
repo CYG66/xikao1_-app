@@ -87,6 +87,26 @@ def _run_service(source: str, name: str):
     return raw, project["id"], len(calls)
 
 
+def _two_candidate_response():
+    accepted_raw, _, _ = _run_service(POSITIVE_SOURCE, "accepted")
+    draft_raw, _, _ = _run_service(
+        POSITIVE_SOURCE + "；嘴巴为一条微笑曲线",
+        "review_required",
+    )
+    accepted = deepcopy(accepted_raw["variant"])
+    draft = deepcopy(draft_raw["variant"])
+    project = deepcopy(draft_raw["project"])
+    project["variants"] = [accepted, draft]
+    project["selected_variant_id"] = accepted["id"]
+    raw = {
+        **deepcopy(draft_raw),
+        "project": project,
+        "variants": [accepted, draft],
+        "variant": draft,
+    }
+    return raw, accepted, draft
+
+
 def _route(raw: dict, project_id: str) -> dict:
     with patch.object(
         projects.robot_agent,
@@ -149,6 +169,36 @@ def test_review_required_draft_has_preview_but_no_formal_candidate():
     assert draft["construction_authorized"] is False
     assert draft["acceptance_summary"]["review_required"] is True
     assert len(draft["preview_paths"]) == len(raw["preview_paths"]) > 0
+
+
+def test_draft_keeps_existing_accepted_candidate_in_formal_view():
+    raw, accepted, draft = _two_candidate_response()
+    assert accepted["acceptance_summary"]["status"] == "passed"
+    assert draft["acceptance_summary"]["status"] == "review_required"
+    assert candidate_is_reviewable_draft(draft) is True
+    persisted_ids = {item["id"] for item in raw["project"]["variants"]}
+    accepted_id = accepted["id"]
+    draft_id = draft["id"]
+    assert {accepted_id, draft_id} <= persisted_ids
+
+    routed = _route(raw, raw["project_id"])
+
+    assert routed["variant"] is None
+    assert [item["id"] for item in routed["project"]["variants"]] == [accepted_id]
+    assert [item["id"] for item in routed["variants"]] == [accepted_id]
+    assert routed["preview_paths"] == []
+    assert routed["drawing_json"] is None
+    assert routed["construction_commit"] is None
+    assert routed["tool_results"] == []
+    assert routed["next_action"] == "review_cad_draft"
+    assert routed["candidate_visibility"] == {
+        "status": "draft_review",
+        "scope": "project",
+    }
+    assert routed["draft_preview"]["variant_id"] == draft_id
+    assert routed["draft_preview"]["selectable"] is False
+    assert draft_id not in {item["id"] for item in routed["variants"]}
+    assert draft_id not in {item["id"] for item in routed["project"]["variants"]}
 
 
 def test_no_candidate_does_not_claim_selection_success():

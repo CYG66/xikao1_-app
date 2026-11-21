@@ -412,6 +412,23 @@ _PATH_SHAPE_CLAUSE = re.compile(
 _PATH_RIGHT_ANGLE_CLAUSE = re.compile(
     r"^(?:请|帮我|麻烦)?(?:两臂|两段|两条臂|边界|拐角|转角|连接"
     r"|并|且|同时)?(?:以|成|为|是)?直角(?:连接|相连|相接|拐角|转角)?$")
+_PATH_ARM_CLAUSE = re.compile(
+    rf"^(?:两条臂|两臂|两段|两条)?(?:分别|各)?(?:长|长度为|为)?\s*"
+    rf"({N})\s*(毫米|厘米|米|mm|cm|m)\s*(?:和|、|,|，)\s*"
+    rf"({N})\s*(毫米|厘米|米|mm|cm|m)$", re.I)
+_WIDTH_CLAUSE = re.compile(
+    rf"宽(?:度)?(?:为|是|取|设为)?\s*({N})\s*(毫米|厘米|米|mm|cm|m)",
+    re.I)
+# Only syntax that decorates a measurement is removable when checking whether
+# a verified claim really covers the whole source clause.  Everything else is
+# left as residual and blocks the clause.
+_REQUEST_PREFIX = re.compile(
+    r"^(?:请|帮我|麻烦|给我)?(?:画|绘制|生成|制作|创建|设计|建|做)?"
+    r"(?:一个|一条|一座|一张|一幅|个|条)?\s*")
+_ASCII_ALIAS_PAREN = re.compile(
+    r"[（(]\s*[A-Za-z][A-Za-z0-9 _./+-]*\s*[）)]")
+_UNIT_FACTORS = {"毫米": 1.0, "mm": 1.0, "厘米": 10.0, "cm": 10.0,
+                 "米": 1000.0, "m": 1000.0}
 
 
 def _split_subrequirements(raw):
@@ -505,6 +522,24 @@ def _numbers_mm(text):
 
 def _near_mm(left, right, tolerance=0.5):
     return abs(float(left) - float(right)) <= tolerance
+
+
+def _claim_residual(text, evidence):
+    """Return source text not covered by a claim's actual evidence phrase.
+
+    This is deliberately syntax-only: command prefixes and ASCII alias
+    parentheses are decoration, while any remaining content is substantive and
+    must keep the clause partial.  No list of requirement connectors is used.
+    """
+    if not isinstance(text, str) or not isinstance(evidence, str) or not evidence:
+        return (text or "").strip()
+    index = text.find(evidence)
+    if index < 0:
+        return text.strip()
+    residual = text[:index] + text[index + len(evidence):]
+    residual = _REQUEST_PREFIX.sub("", residual, count=1)
+    residual = _ASCII_ALIAS_PAREN.sub("", residual)
+    return re.sub(r"[\s，,；;。:：、（）()]", "", residual)
 
 
 def _path_actual_width_mm(check, expected_mm):
@@ -640,6 +675,11 @@ def _semantic_claims(report, segments):
                 claim["reason"] = "declared_semantic_check_missing"
             if status != "verified" and not claim.get("reason"):
                 claim["reason"] = reason
+            if claim.get("status") == "verified":
+                residual = _claim_residual(segment["text"], evidence)
+                if residual:
+                    claim["status"] = "partial"
+                    claim["reason"] = "局部语义证据未覆盖剩余原文：" + residual
             claims.append(claim)
     return claims
 
@@ -667,17 +707,27 @@ def _path_claims(report, segments):
     for segment in segments:
         text = segment["text"]
         numbers = _numbers_mm(text)
-        if width is not None and "宽" in text and numbers:
-            if any(_near_mm(value, float(width) * 1000) for value in numbers):
-                claims.append({
-                    "requirement": text, "source_evidence": text,
+        width_match = _WIDTH_CLAUSE.search(text)
+        if width is not None and width_match:
+            measured_width = (float(width_match.group(1))
+                              * _UNIT_FACTORS[width_match.group(2).lower()])
+            if _near_mm(measured_width, float(width) * 1000):
+                evidence = width_match.group(0).strip()
+                residual = _claim_residual(text, evidence)
+                claim = {
+                    "requirement": text, "source_evidence": evidence,
                     "source_index": segment["source_index"],
                     "role": "path_width", "verifier": "path_relation_acceptance",
-                    "status": "verified", "check": deepcopy(check),
+                    "status": "partial" if residual else "verified",
+                    "check": deepcopy(check),
                     "covers_field": "width", "value_mm": float(width) * 1000,
-                })
+                }
+                if residual:
+                    claim["reason"] = "局部尺寸证据未覆盖剩余原文：" + residual
+                claims.append(claim)
                 continue
-        if arms and "臂" in text and len(numbers) >= len(arms):
+        if (arms and "臂" in text and len(numbers) >= len(arms)
+                and _PATH_ARM_CLAUSE.fullmatch(text.strip())):
             converted = [float(value) * 1000 for value in arms]
             if all(any(_near_mm(number, required) for number in numbers)
                    for required in converted):
@@ -900,6 +950,7 @@ def build_requirement_coverage_evidence(text, source_acceptance):
         unresolved = []
         supported = False
         failed = False
+        claim_reason = None
         consumed_claims = set()
         for fact in facts:
             fact_id = fact.get("fact_id")
@@ -976,6 +1027,7 @@ def build_requirement_coverage_evidence(text, source_acceptance):
                 supported = True
             else:
                 failed = True
+                claim_reason = claim_reason or claim.get("reason")
         if supported and not failed and not unresolved:
             status = "verified"
             reason = None
@@ -984,7 +1036,7 @@ def build_requirement_coverage_evidence(text, source_acceptance):
             reason = "部分要求已有独立测量，但仍有未决或无能力项"
         elif failed and applicable_claims:
             status = "partial"
-            reason = "已有验证器返回 partial，不能提升为逐条完整覆盖"
+            reason = claim_reason or "已有验证器返回 partial，不能提升为逐条完整覆盖"
         elif unresolved:
             status = "unbound" if any(item.get("reason") == "无法唯一绑定验证对象"
                                       for item in unresolved) else "unverified"

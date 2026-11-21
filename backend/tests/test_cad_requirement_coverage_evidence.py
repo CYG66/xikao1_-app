@@ -248,3 +248,49 @@ def test_complete_scope_evidence_is_reused_without_new_authority():
     assert coverage["verified_requirement_count"] == 1
     assert coverage["clauses"][0]["verifier"] == "verify_scoped_primitives"
     assert coverage["clauses"][0]["authority"] == "backend_measured_geometry"
+
+
+def test_width_with_attached_door_cannot_verify_whole_width_clause():
+    """A passing width measurement must not absorb an attached door."""
+    coverage = build_requirement_coverage_evidence(
+        "画一个L形走廊，宽1米并设一扇门，两条臂分别长3米和2米，直角连接",
+        _path_source_acceptance())
+    assert coverage["state"] == "partial"
+    clauses = {item["requirement"]: item for item in coverage["clauses"]}
+    assert clauses["画一个L形走廊"]["status"] == "verified"
+    assert clauses["宽1米并设一扇门"]["status"] == "partial"
+    assert "并设一扇门" in clauses["宽1米并设一扇门"]["reason"]
+    assert clauses["两条臂分别长3米和2米"]["status"] == "verified"
+    assert clauses["直角连接"]["status"] == "verified"
+    assert coverage["verified_requirement_count"] == 3
+    assert coverage["partial_requirement_count"] == 1
+    assert coverage["blocking_requirements"][0]["requirement"] == "宽1米并设一扇门"
+
+
+def test_cardioid_with_hole_cannot_be_verified_by_shape_identity_only():
+    """Cardioid identity does not measure an additional circular hole."""
+    source = "生成一个心形线（cardioid）含一个圆孔，尖点朝下，最大宽度3米"
+    width_start = source.index("最大宽度3米")
+    width_end = width_start + len("最大宽度3米")
+    coverage = build_requirement_coverage_evidence(source, {
+        "status": "partial", "coverage": "partial", "checks": [],
+        "final_source_acceptance": {
+            "status": "partial", "coverage": "partial",
+            "checks": [_final_width_check(
+                "user:0:scalar-1:width:心形线含一个圆孔",
+                "最大宽度3米", width_start, width_end)],
+            "unknown_requirements": [], "review_required": False,
+        },
+        "semantic_acceptance": _cardioid_report(),
+    })
+    assert coverage["state"] == "partial"
+    clauses = {item["requirement"]: item for item in coverage["clauses"]}
+    shape = clauses["生成一个心形线（cardioid）含一个圆孔"]
+    assert shape["status"] == "partial"
+    assert "含一个圆孔" in shape["reason"]
+    assert clauses["尖点朝下"]["status"] == "verified"
+    assert clauses["最大宽度3米"]["status"] == "verified"
+    assert coverage["verified_requirement_count"] == 2
+    assert coverage["partial_requirement_count"] == 1
+    assert coverage["blocking_requirements"][0]["requirement"] == \
+        "生成一个心形线（cardioid）含一个圆孔"

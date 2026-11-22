@@ -74,3 +74,76 @@ def test_conflicting_or_duplicate_object_refs_stay_unresolved():
         result=verify_final_source_contract(source,gs,[inner,{'label':'外圆','geometry_refs':[2]}])
         assert not any(c['field']=='radius' and c['geometry_ids']==[1] for c in result['checks'])
         assert result['unknown_requirements']
+
+
+def _two_rectangles():
+    return [
+        {'id':1,'type':'polyline','closed':True,'vertices':[
+            {'x':0,'y':0},{'x':2000,'y':0},{'x':2000,'y':2000},{'x':0,'y':2000}]},
+        {'id':2,'type':'polyline','closed':True,'vertices':[
+            {'x':3000,'y':0},{'x':5000,'y':0},{'x':5000,'y':2000},{'x':3000,'y':2000}]},
+    ]
+
+
+def test_multi_object_single_subject_size_is_not_measured_as_overall():
+    objects=[{'object_id':'rect-1','label':'矩形','geometry_refs':[1]},
+             {'object_id':'rect-2','label':'矩形','geometry_refs':[2]}]
+    result=verify_final_source_contract('画两个矩形并排，宽2米高2米',_two_rectangles(),objects)
+    assert result['status']=='unverified' and not result['checks']
+    assert len(result['unknown_requirements'])==2
+    assert all('多对象尺寸范围不明确' in item['reason']
+               for item in result['unknown_requirements'])
+
+
+def test_explicit_overall_size_still_measures_all_objects():
+    objects=[{'object_id':'rect-1','label':'矩形','geometry_refs':[1]},
+             {'object_id':'rect-2','label':'矩形','geometry_refs':[2]}]
+    result=verify_final_source_contract(
+        '画两个矩形并排，整体宽5米，整体高2米',_two_rectangles(),objects)
+    assert len(result['checks'])==2
+    assert not result['unknown_requirements']
+
+
+def test_explicit_overall_size_on_rectangle_count_is_validated_as_bounds():
+    from app.cad_structure_contract import explicit_composition, validate_explicit_composition
+    contract=explicit_composition('画两个矩形并排，整体宽5米，整体高2米')
+    assert contract['kind']=='component_count'
+    assert contract['dimension_scope']=='overall'
+    validate_explicit_composition(contract,_two_rectangles())
+    with pytest.raises(StructureContractError):
+        validate_explicit_composition(
+            explicit_composition('画两个矩形并排，整体宽6米，整体高2米'),
+            _two_rectangles())
+
+
+def test_ambiguous_rectangle_size_is_not_enforced_per_component():
+    from app.cad_structure_contract import explicit_composition, validate_explicit_composition
+    contract=explicit_composition('画两个矩形并排，宽2米高2米')
+    assert contract['dimension_scope']=='ambiguous'
+    # Same phrase, another legal reading: each rectangle 1m wide, overall 4m.
+    alternate=[
+        {'id':1,'type':'polyline','closed':True,'vertices':[
+            {'x':0,'y':0},{'x':1000,'y':0},{'x':1000,'y':2000},{'x':0,'y':2000}]},
+        {'id':2,'type':'polyline','closed':True,'vertices':[
+            {'x':3000,'y':0},{'x':4000,'y':0},{'x':4000,'y':2000},{'x':3000,'y':2000}]},
+    ]
+    validate_explicit_composition(contract,alternate)
+
+
+def test_explicit_per_component_size_is_still_enforced():
+    from app.cad_structure_contract import explicit_composition, validate_explicit_composition
+    contract=explicit_composition('画两个矩形并排，每个矩形宽2米高2米')
+    assert contract['dimension_scope']=='component'
+    validate_explicit_composition(contract,_two_rectangles())
+    with pytest.raises(StructureContractError):
+        validate_explicit_composition(
+            explicit_composition('画两个矩形并排，每个矩形宽1米高2米'),
+            _two_rectangles())
+
+
+def test_explicit_overall_size_mismatch_still_fails():
+    objects=[{'object_id':'rect-1','label':'矩形','geometry_refs':[1]},
+             {'object_id':'rect-2','label':'矩形','geometry_refs':[2]}]
+    with pytest.raises(StructureContractError):
+        verify_final_source_contract(
+            '画两个矩形并排，整体宽6米，整体高2米',_two_rectangles(),objects)

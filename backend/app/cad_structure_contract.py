@@ -340,6 +340,23 @@ def explicit_composition(text):
             return _merge(None)
         return _merge({"kind":"component_count","counts":counts,"evidence":circles.group(0),
                 "dimensions":dimensions,"intersecting":"相交" in source})
+    rectangles=re.search(
+        number+r"\s*(?:个|块|张)\s*(?:并排|竖直|水平|相同|等大|的)*\s*(?:矩形|长方形|正方形)",
+        source)
+    if rectangles and count(rectangles[1])>=2:
+        # A rectangle count is authoritative only for a rectangle-only
+        # inventory. In a mixed drawing the same phrase may name a subset,
+        # so decline instead of asserting a whole-drawing component count.
+        if re.search(r"圆(?:形|弧)?|三角形|多边形|五角星|线段|直线",source):
+            return _merge(None)
+        return _merge({"kind":"component_count",
+                "counts":{"rectangle":count(rectangles[1])},
+                "evidence":rectangles.group(0),"dimensions":dimensions,
+                "dimension_scope":("overall" if re.search(
+                    r"整体|总(?:体)?(?:宽|高|长|尺寸)|外包|外形|外廓|包围盒",source)
+                    else "component" if re.search(
+                        r"每个|各个|各|分别|均为|都为",source)
+                    else "ambiguous")})
     # A plainly enumerated line inventory is independently measurable.  Keep
     # this grammar narrow: a line count in a mixed drawing is only a subset,
     # not authority to reject the other required primitives.
@@ -567,10 +584,19 @@ def validate_explicit_composition(contract, geometries):
                         raise StructureContractError("组成间距不符合用户要求（未注明中心距时按边缘净距校验）")
         _validate_geometric_relationships(contract, geometries)
         return {"status":"passed","component_names":contract["names"],"gap_reference":contract["gap_reference"],"observed_counts":observed}
-    for g in rectangles:
-        x,y,w,h=_frame(g)
-        if any(key in dimensions and abs(actual-dimensions[key]*1000)>.5 for key,actual in (("width_m",w),("height_m",h))):
-            raise StructureContractError("矩形组成尺寸不符合原文要求")
+    if contract.get("dimension_scope")=="overall":
+        from .cad_construction import construction_geometry_bounds
+        overall=construction_geometry_bounds(geometries)
+        for key,actual in (("width_m",overall["max_x"]-overall["min_x"]),
+                            ("height_m",overall["max_y"]-overall["min_y"])):
+            if key in dimensions and abs(actual-dimensions[key]*1000)>.5:
+                raise StructureContractError("整体尺寸不符合原文要求",
+                    {"dimension":key,"expected_mm":dimensions[key]*1000,"actual_mm":actual})
+    elif contract.get("dimension_scope")=="component":
+        for g in rectangles:
+            x,y,w,h=_frame(g)
+            if any(key in dimensions and abs(actual-dimensions[key]*1000)>.5 for key,actual in (("width_m",w),("height_m",h))):
+                raise StructureContractError("矩形组成尺寸不符合原文要求")
     if "radius_m" in dimensions and any(abs(g["radius"]-dimensions["radius_m"]*1000)>.5 for g in circles):
         raise StructureContractError("圆的半径不符合原文要求")
     if len(circles)==2:

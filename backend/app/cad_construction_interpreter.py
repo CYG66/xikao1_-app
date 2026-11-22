@@ -930,12 +930,15 @@ def interpret_construction_request(
                             'measured_continuity':quality.get('continuity'),
                             'repair_instruction':'仅修复该复合路径的连接控制点，使相邻段达到C1切向连续；保留中心、尺寸和闭合性。'})
         if len(scalar_contract['subjects']) == 1:
+            from .cad_source_acceptance import scalar_fact_scope_needs_object_binding
             overall = construction_geometry_bounds(result['geometries'])
             for fact in scalar_contract['facts']:
                 if (fact['status'] == 'effective' and fact['operator'] == 'eq'
                         and fact['subject'] == scalar_contract['subjects'][0]
                         and fact['field'] in {'width', 'height'}
                         and fact['binding'] == 'single_subject'):
+                    if scalar_fact_scope_needs_object_binding(fact, result.get('logical_objects')):
+                        continue
                     axis = 'x' if fact['field'] == 'width' else 'y'
                     actual = overall['max_'+axis] - overall['min_'+axis]
                     if abs(actual-fact['value_mm']) > .5:

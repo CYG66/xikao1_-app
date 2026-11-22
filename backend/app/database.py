@@ -22,6 +22,11 @@ def _default_path() -> Path:
     configured = os.getenv("XLINE_DATABASE_PATH", "").strip()
     if configured:
         return Path(configured)
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        raise RuntimeError(
+            "XLINE_DATABASE_PATH must be set explicitly during tests; "
+            "refusing to open the application default database."
+        )
     if os.name == "nt":
         return Path(tempfile.gettempdir()) / "xline-agent" / "xline.db"
     return (

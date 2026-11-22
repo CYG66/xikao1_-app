@@ -12,6 +12,19 @@ from .cad_structure_contract import StructureContractError
 N=r"[-+]?\d+(?:\.\d+)?"
 P=rf"[（(]\s*({N})\s*[,，]\s*({N})\s*[）)]"
 INVENTORY_MARKER=r"(?:完整部件清单|全部图元清单)[：:]"
+_OVERALL_SCOPE_RE=re.compile(r"整体|总(?:体)?(?:宽|高|长|尺寸)|外包|外形|外廓|包围盒")
+
+
+def scalar_fact_has_explicit_overall_scope(fact):
+    """Whether the fact's own source span explicitly scopes it to the whole."""
+    evidence=(fact or {}).get('evidence') or {}
+    text=evidence.get('text') if isinstance(evidence,dict) else str(evidence)
+    return bool(_OVERALL_SCOPE_RE.search(text or ""))
+
+
+def scalar_fact_scope_needs_object_binding(fact,logical_objects):
+    """A single-subject contract does not make several real objects one body."""
+    return len(logical_objects or [])>1 and not scalar_fact_has_explicit_overall_scope(fact)
 
 
 def _clause_field_matches(kind,body):
@@ -108,6 +121,11 @@ def verify_final_source_contract(text,geometries,logical_objects=None):
     for fact in contract['facts']:
         if fact['status']!='effective':continue
         selected=gs
+        if (len(contract['subjects'])==1 and fact['binding']=='single_subject'
+                and scalar_fact_scope_needs_object_binding(fact,logical_objects)):
+            unknown.append({'source_requirement_id':fact['fact_id'],
+                            'reason':'多对象尺寸范围不明确，未把单一契约主体当作整体'})
+            continue
         if len(contract['subjects'])!=1 or fact['binding']!='single_subject':
             matches=[obj for obj in logical_objects or [] if obj.get('label')==fact['subject']]
             refs=_object_geometry_refs(matches[0]) if len(matches)==1 else None
@@ -145,7 +163,8 @@ def verify_final_source_contract(text,geometries,logical_objects=None):
             'authority':'backend_measured_geometry','geometry_ids':sorted({i for f in failures for i in f['geometry_ids']}),
             'failures':failures,'local_repair_possible':True,
             'repair_instruction':'只修正失败源需求绑定的对象和参数；不得删除源要求或改变未受影响对象。'})
-    return {'status':'partial' if checks else 'not_checked','coverage':'partial','checks':checks,
+    return {'status':'partial' if checks else 'unverified' if unknown else 'not_checked',
+            'coverage':'partial','checks':checks,
             'unknown_requirements':unknown,'review_required':bool(unknown)}
 
 

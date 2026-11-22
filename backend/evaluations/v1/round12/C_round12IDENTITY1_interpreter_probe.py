@@ -144,21 +144,38 @@ r2b = interpret_construction_request(source2b, lambda *_: deepcopy(payload_for(s
 record("entry", "circle_and_rectangle_ready", r2b, None)
 report["entry"]["circle_and_rectangle_ready"]["layers"] = entry_layers(r2b)
 
-# --- 2c. Entry gap: a bare rectangle count phrase has no structured baseline in
-# the existing contract; the identity channel must not fabricate one from the
-# model label. Recorded as a known gap, not asserted passed. --------------------
+# --- 2c. Entry: a bare rectangle count phrase now has a source-side
+# component-count baseline and must reach identity reconciliation. The size
+# requirement remains multiply-scoped and therefore stays unverified. ---------
 source2c = "画两个矩形并排，宽2米高2米"
 steps2c = [rectangle_polyline_step("rect-1", -3, -1, 2, 2),
            rectangle_polyline_step("rect-2", 1, -1, 2, 2)]
 r2c = interpret_construction_request(source2c, lambda *_: deepcopy(payload_for(steps2c, source2c)),
                                       force_structured_model=True)
 sa2c = r2c.get("source_acceptance") or {}
+identity2c = sa2c.get("object_identity_acceptance") or {}
+final2c = sa2c.get("final_source_acceptance") or {}
 report["entry"]["rectangle_only_baseline_gap"] = {
+    "status": identity2c.get("status"),
+    "identity_state": identity2c.get("identity_state"),
+    "evidence_grade": identity2c.get("evidence_grade"),
+    "matched_entries": identity2c.get("matched_entries"),
+    "unmatched_entries": identity2c.get("unmatched_entries"),
+    "unmatched_objects": identity2c.get("unmatched_objects"),
+    "ambiguous_bindings": identity2c.get("ambiguous_bindings"),
+    "note": identity2c.get("note"),
     "composition_contract": r2c.get("composition_contract"),
-    "identity_status": (sa2c.get("object_identity_acceptance") or {}).get("status"),
+    "identity_status": identity2c.get("status"),
+    "final_dimension_status": final2c.get("status"),
+    "final_unknown_requirements": final2c.get("unknown_requirements"),
     "top_status": r2c.get("status"),
-    "note": "既有结构化契约未捕获纯矩形数量短语；入口身份通道未建立基线，缺口留证。",
+    "diagnostic_note": "纯矩形数量短语已由来源组件计数契约捕获并完成对象绑定；"
+                       "多对象尺寸范围仍不明确，尺寸子报告保持 unverified。",
 }
+if r2c.get("status") != "ready" or identity2c.get("status") != "passed":
+    failures.append(("entry", "rectangle_only_identity", identity2c.get("status"), "ready+passed"))
+if final2c.get("status") != "unverified" or not final2c.get("review_required"):
+    failures.append(("entry", "rectangle_only_dimensions", final2c.get("status"), "unverified"))
 
 # --- 3. Entry: cube projection required, actual two circles -> unverified. -----
 source3 = "画两个立方体的等轴投影，边长2米"

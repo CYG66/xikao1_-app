@@ -476,24 +476,41 @@ def main(argv: list[str] | None = None) -> int:
     ]
 
     # Test matrix and risk delta are derived from the same evidence, not hand-typed.
+    safety_cases = [
+        case for case in new_junit["cases"]
+        if "test_release_fix_01_storage_safety" in case["id"]
+    ]
+    adjacent_cases = [
+        case for case in new_junit["cases"]
+        if "test_project_transaction_boundary" in case["id"]
+        or "test_audit_store" in case["id"]
+    ]
+
+    def case_counts(cases: list[dict[str, Any]]) -> tuple[int, int, int, int]:
+        failed = sum(1 for case in cases if case["failed"])
+        skipped = sum(1 for case in cases if case["skipped"])
+        return len(cases), len(cases) - failed - skipped, skipped, failed
+
+    safety_counts = case_counts(safety_cases)
+    adjacent_counts = case_counts(adjacent_cases)
     matrix_rows = [
         {
             "suite": "新增存储/审计安全测试",
             "scope": "test_release_fix_01_storage_safety.py",
-            "tests": str(17),
-            "passed": str(16),
-            "skipped": str(1),
-            "failed": "0",
+            "tests": str(safety_counts[0]),
+            "passed": str(safety_counts[1]),
+            "skipped": str(safety_counts[2]),
+            "failed": str(safety_counts[3]),
             "status": "PASS",
             "note": "包含预检、启动闸门、快照 upsert/删除、审计双写失败可见；symlink 用例在 Windows 跳过",
         },
         {
             "suite": "事务边界与审计既有测试",
             "scope": "test_project_transaction_boundary.py + test_audit_store.py",
-            "tests": str(6),
-            "passed": str(6),
-            "skipped": "0",
-            "failed": "0",
+            "tests": str(adjacent_counts[0]),
+            "passed": str(adjacent_counts[1]),
+            "skipped": str(adjacent_counts[2]),
+            "failed": str(adjacent_counts[3]),
             "status": "PASS",
             "note": "项目/图纸/规划同事务，审计失败不阻塞",
         },

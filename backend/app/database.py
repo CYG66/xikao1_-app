@@ -18,6 +18,29 @@ from pathlib import Path
 from typing import Any
 
 
+def _platform_default_path(*, platform_name: str | None = None,
+                           temp_dir: str | Path | None = None,
+                           home_dir: str | Path | None = None,
+                           xdg_state_home: str | Path | None = None) -> Path:
+    """Resolve the application's platform default database path.
+
+    This is the single source of truth shared by the application and the test
+    isolation guard.  It deliberately ignores ``XLINE_DATABASE_PATH``: callers
+    that need the configured path use ``_default_path`` instead.
+    """
+    platform = os.name if platform_name is None else platform_name
+    if platform == "nt":
+        root = Path(temp_dir) if temp_dir is not None else Path(tempfile.gettempdir())
+    else:
+        state_home = xdg_state_home if xdg_state_home is not None else os.getenv("XDG_STATE_HOME")
+        if state_home:
+            root = Path(state_home)
+        else:
+            home = Path(home_dir) if home_dir is not None else Path.home()
+            root = home / ".local" / "state"
+    return root / "xline-agent" / "xline.db"
+
+
 def _default_path() -> Path:
     configured = os.getenv("XLINE_DATABASE_PATH", "").strip()
     if configured:
@@ -27,13 +50,7 @@ def _default_path() -> Path:
             "XLINE_DATABASE_PATH must be set explicitly during tests; "
             "refusing to open the application default database."
         )
-    if os.name == "nt":
-        return Path(tempfile.gettempdir()) / "xline-agent" / "xline.db"
-    return (
-        Path(os.getenv("XDG_STATE_HOME", Path.home() / ".local" / "state"))
-        / "xline-agent"
-        / "xline.db"
-    )
+    return _platform_default_path()
 
 
 class XLineDatabase:

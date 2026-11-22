@@ -36,10 +36,14 @@ def validate_plan_structure(contract, plan):
                 {'phase':'preflight_structure','expected_components':contract.get('names'),
                  'observed_steps':len(steps)})
     elif contract.get('counts'):
-        expected=sum(contract['counts'].values())
-        if len(steps)!=expected:
-            raise StructureContractError('结构计划组成数量与需求不一致',
-                {'phase':'preflight_structure','expected_count':expected,'observed_steps':len(steps)})
+        # A logical-object contract owns the object count, not the number of
+        # literal construction steps.  Four line steps may legitimately
+        # describe one rectangle object, so plan-step count is not authority.
+        if contract.get('count_unit') != 'logical_object':
+            expected=sum(contract['counts'].values())
+            if len(steps)!=expected:
+                raise StructureContractError('结构计划组成数量与需求不一致',
+                    {'phase':'preflight_structure','expected_count':expected,'observed_steps':len(steps)})
     refs=[s.get('output_ref') for s in steps]
     if any(not isinstance(ref,str) or not ref for ref in refs) or len(set(refs))!=len(refs):
         raise StructureContractError('结构计划存在缺失或重复的组成标识', {'phase':'preflight_structure'})
@@ -351,6 +355,8 @@ def explicit_composition(text):
             return _merge(None)
         return _merge({"kind":"component_count",
                 "counts":{"rectangle":count(rectangles[1])},
+                "count_unit":"logical_object",
+                "count_authority":"object_ownership",
                 "evidence":rectangles.group(0),"dimensions":dimensions,
                 "dimension_scope":("overall" if re.search(
                     r"整体|总(?:体)?(?:宽|高|长|尺寸)|外包|外形|外廓|包围盒",source)
@@ -493,7 +499,10 @@ def validate_explicit_composition(contract, geometries):
     # ownership reconciliation is the final object-count verdict.
     if contract.get("kind") == "object_inventory":
         return {"status": "passed", "object_inventory": True, "observed_counts": observed}
-    if len(geometries)!=sum(contract["counts"].values()) or any(observed[k]!=n for k,n in contract["counts"].items()):
+    logical_object_count = contract.get("count_unit") == "logical_object"
+    if not logical_object_count and (
+            len(geometries) != sum(contract["counts"].values())
+            or any(observed[k] != n for k, n in contract["counts"].items())):
         raise StructureContractError("实际组成数量或类型不符合原文要求",
                                      {"expected_counts":contract["counts"],"observed_counts":observed})
     dimensions=contract.get("dimensions",{})
@@ -627,7 +636,13 @@ def validate_explicit_composition(contract, geometries):
             if key in dimensions and any(abs(b-a-dimensions[key]*1000)>.5 for a,b in zip(axis,axis[1:])):
                 raise StructureContractError("阵列中心间距不符合原文要求")
     _validate_geometric_relationships(contract, geometries)
-    return {"status":"passed","expected_counts":contract["counts"],"observed_counts":observed}
+    return {
+        "status": "deferred" if logical_object_count else "passed",
+        "count_unit": "logical_object" if logical_object_count else "primitive",
+        "count_authority": contract.get("count_authority") if logical_object_count else "primitive_inventory",
+        "expected_counts": contract["counts"],
+        "observed_counts": observed,
+    }
 
 
 def _validate_geometric_relationships(contract, geometries):

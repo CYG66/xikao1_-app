@@ -8,17 +8,18 @@ the caller supplied an explicit, non-production database path.
 from __future__ import annotations
 
 import os
-import tempfile
 from pathlib import Path
 
 import pytest
+
+from app.database import _platform_default_path
 
 
 def _production_database_path() -> Path:
     configured = os.getenv("XLINE_PRODUCTION_DATABASE_PATH", "").strip()
     if configured:
         return Path(configured).expanduser().resolve()
-    return (Path(tempfile.gettempdir()) / "xline-agent" / "xline.db").resolve()
+    return _platform_default_path().expanduser().resolve()
 
 
 def pytest_configure(config) -> None:

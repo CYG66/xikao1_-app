@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .startup_guard import assert_startup_admitted
+from .startup_guard import assert_startup_admitted, production_profile
 
 
 def _platform_default_path(*, platform_name: str | None = None,
@@ -608,7 +608,16 @@ class XLineDatabase:
         identifier is supplied in ``deleted_project_ids`` or when a caller
         explicitly opts into a full-table migration replacement.  An empty
         default call is a no-op; it never means ``DELETE FROM projects``.
+
+        Production services may not perform a full-table replacement.  That
+        path is reserved for a separately authorised offline migration and is
+        rejected before the transaction starts, so no row is touched.
         """
+        if replace_all and production_profile():
+            raise RuntimeError(
+                "replace_all=True is prohibited in production; "
+                "use an authorised offline migration process"
+            )
         deleted_ids = {str(value) for value in deleted_project_ids if str(value)}
         project_ids = [str(project["id"]) for project in projects]
         overlap = deleted_ids.intersection(project_ids)

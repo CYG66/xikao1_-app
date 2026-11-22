@@ -75,6 +75,7 @@ PREFLIGHT_REQUIRED_KEYS = (
     "XLINE_DRAWING_VERSION_STORE",
     "XLINE_AGENT_ATTACHMENTS_DIR",
     "XLINE_PLANNED_RESULTS_DIR",
+    "XLINE_CAD_DIR",
     "XLINE_AGENT_USER_CONFIG_PATH",
     "XLINE_AGENT_MODEL_CONFIG_PATH",
 )
@@ -405,9 +406,55 @@ def main(argv: list[str] | None = None) -> int:
     add_check(checks, "D25", "本轮 diff 未引入真实模型或机器人执行", "P0",
               not forbidden_added, f"forbidden added lines={len(forbidden_added)}", forbidden_added)
 
+    # FINAL-02: three boundary fixes must be present in source and tests.
+    test_source = (backend / "tests" / "test_release_fix_01_storage_safety.py").read_text(
+        encoding="utf-8"
+    )
+    preflight_source = (backend / "startup_preflight.py").read_text(encoding="utf-8")
+    cad_preflight_ok = all(token in preflight_source for token in (
+        'CAD_DIR_ENV = "XLINE_CAD_DIR"',
+        '{"env": CAD_DIR_ENV, "kind": "dir", "root": "workspace"',
+        "def _symlink_component_within",
+        "SYMLINK_COMPONENT_",
+    )) and all(name in test_source for name in (
+        "test_preflight_requires_explicit_cad_output_directory",
+        "test_preflight_rejects_cad_output_outside_workspace",
+        "test_preflight_rejects_symlinked_cad_output",
+        "test_preflight_rejects_symlinked_cad_output_parent",
+    ))
+    add_check(checks, "D26", "FINAL-02-A：CAD 输出路径纳入只读预检", "P0",
+              cad_preflight_ok,
+              "XLINE_CAD_DIR explicit workspace dir; symlink component scan; 4 targeted tests")
+
+    database_source = (backend / "app" / "database.py").read_text(encoding="utf-8")
+    replacement_ok = (
+        "if replace_all and production_profile():" in database_source
+        and "replace_all=True is prohibited in production" in database_source
+        and "test_production_rejects_nonempty_and_empty_full_replacement" in test_source
+        and "test_nonproduction_full_replacement_remains_available_for_offline_migration"
+        in test_source
+    )
+    add_check(checks, "D27", "FINAL-02-B：生产拒绝全量项目替换且迁移路径保留", "P0",
+              replacement_ok,
+              "production rejection precedes transaction; non-production migration test retained")
+
+    audit_source = (backend / "app" / "audit_store.py").read_text(encoding="utf-8")
+    success_branch = audit_source.split("if sqlite_ok and jsonl_ok:", 1)[-1].split(
+        "else:", 1
+    )[0]
+    sticky_ok = (
+        '"degraded" = False' not in success_branch
+        and "reconciliation_required" in audit_source
+        and "def mark_reconciled" in audit_source
+        and "test_audit_degraded_is_sticky_until_explicit_reconciliation" in test_source
+    )
+    add_check(checks, "D28", "FINAL-02-C：审计 degraded 失败后不因单次成功自动清除", "P0",
+              sticky_ok,
+              "append success leaves degraded sticky; explicit mark_reconciled required")
+
     # Non-P0 limits that must remain visible to the controller.
     add_check(checks, "L01", "全量 1115 项回归本轮未重跑", "P1", False,
-              "本轮只执行新增 23 项与定向 118 项；全量 42 项产品失败与 8 个 manual collection blocked 未复跑",
+              "本轮执行新增 24 项与定向 118 项；全量 42 项产品失败与 8 个 manual collection blocked 未复跑",
               warn=True)
     add_check(checks, "L02", "生产 Linux 实际环境文件未读取", "P1", False,
               "未读取生产 env、目录权限与磁盘空间；需 RELEASE-GATE-02 现场复核",

@@ -45,6 +45,7 @@ MISSION_LEDGER_ENV = "XLINE_MISSION_LEDGER_STORE"
 DRAWING_VERSION_ENV = "XLINE_DRAWING_VERSION_STORE"
 ATTACHMENTS_DIR_ENV = "XLINE_AGENT_ATTACHMENTS_DIR"
 PLANNED_RESULTS_DIR_ENV = "XLINE_PLANNED_RESULTS_DIR"
+CAD_DIR_ENV = "XLINE_CAD_DIR"
 USER_CONFIG_ENV = "XLINE_AGENT_USER_CONFIG_PATH"
 MODEL_CONFIG_ENV = "XLINE_AGENT_MODEL_CONFIG_PATH"
 
@@ -66,6 +67,7 @@ PATH_SPECS: tuple[dict[str, Any], ...] = (
     {"env": DRAWING_VERSION_ENV, "kind": "file", "root": "state", "required_existing": False},
     {"env": ATTACHMENTS_DIR_ENV, "kind": "dir", "root": "state", "required_existing": False},
     {"env": PLANNED_RESULTS_DIR_ENV, "kind": "dir", "root": "workspace", "required_existing": False},
+    {"env": CAD_DIR_ENV, "kind": "dir", "root": "workspace", "required_existing": False},
     {"env": USER_CONFIG_ENV, "kind": "file", "root": "config", "required_existing": False},
     {"env": MODEL_CONFIG_ENV, "kind": "file", "root": "config", "required_existing": False},
 )
@@ -82,6 +84,7 @@ _ENV_TITLES = {
     DRAWING_VERSION_ENV: "drawing version store",
     ATTACHMENTS_DIR_ENV: "agent attachments",
     PLANNED_RESULTS_DIR_ENV: "planned results",
+    CAD_DIR_ENV: "CAD drawing output",
     USER_CONFIG_ENV: "per-user model config",
     MODEL_CONFIG_ENV: "local model config",
 }
@@ -107,6 +110,27 @@ def _is_relative_to(path: Path, root: Path) -> bool:
 
 def _resolve(path: Path) -> Path:
     return path.expanduser().resolve(strict=False)
+
+
+def _symlink_component_within(root: Path, target: Path) -> Path | None:
+    """Return the first symlink between an authorised root and a target path.
+
+    Checking only ``target.is_symlink()`` misses the common bypass where an
+    intermediate directory is a link.  The scan is lexical and read-only so it
+    can reject a link even when the final directory does not exist yet.
+    """
+    root_abs = Path(os.path.abspath(str(root.expanduser())))
+    target_abs = Path(os.path.abspath(str(target.expanduser())))
+    try:
+        relative = target_abs.relative_to(root_abs)
+    except ValueError:
+        return None
+    current = root_abs
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            return current
+    return None
 
 
 def _truthy(value: str | None) -> bool:
@@ -215,12 +239,15 @@ def build_report(
             "历史 JSON 自动回退已禁用")
 
     root_values: dict[str, Path | None] = {"state": None, "config": None, "workspace": None}
+    raw_root_values: dict[str, Path] = {}
     root_symlinks: dict[str, bool] = {}
     raw_state = str(env.get(STATE_ROOT_ENV, "")).strip()
     raw_config = str(env.get(CONFIG_ROOT_ENV, "")).strip()
     raw_workspace = str(env.get(WORKSPACE_ROOT_ENV, "")).strip()
     for key, raw in (("state", raw_state), ("config", raw_config),
                      ("workspace", raw_workspace)):
+        if raw and Path(raw).expanduser().is_absolute():
+            raw_root_values[key] = Path(raw).expanduser()
         if raw and Path(raw).expanduser().is_symlink():
             root_symlinks[key] = True
             add("FAIL", f"ROOT_SYMLINK_{key.upper()}", None,
@@ -290,6 +317,13 @@ def build_report(
             add("FAIL", f"SYMLINK_{env_name}", env_name,
                 f"生产路径不得是符号链接: {raw_path}")
             continue
+        raw_root = raw_root_values.get(root_name)
+        if raw_root is not None:
+            linked = _symlink_component_within(raw_root, raw_path)
+            if linked is not None:
+                add("FAIL", f"SYMLINK_COMPONENT_{env_name}", env_name,
+                    f"生产路径的上级目录包含符号链接: {linked}")
+                continue
         path = _resolve(raw_path)
         resolved[env_name] = str(path)
         root = root_values.get(root_name)

@@ -54,6 +54,7 @@ def _valid_env(tmp_path: Path) -> dict[str, str]:
         "XLINE_DRAWING_VERSION_STORE": str(state / "drawing_versions.json"),
         "XLINE_AGENT_ATTACHMENTS_DIR": str(state / "attachments"),
         "XLINE_PLANNED_RESULTS_DIR": str(workspace / "planned_results"),
+        "XLINE_CAD_DIR": str(workspace / "cad"),
         "XLINE_AGENT_USER_CONFIG_PATH": str(config / "xline-agent-users.json"),
         "XLINE_AGENT_MODEL_CONFIG_PATH": str(config / "xline-agent.json"),
         "XLINE_STARTUP_RECOVERY_MODE": "disabled",
@@ -102,6 +103,59 @@ def test_preflight_rejects_relative_and_outside_root_paths(tmp_path):
     report = build_report(env, allow_temp_root=True)
     assert report["ok"] is False
     assert any(item["code"].startswith("OUTSIDE_ROOT_") for item in report["issues"])
+
+
+def test_preflight_requires_explicit_cad_output_directory(tmp_path):
+    env = _valid_env(tmp_path)
+    env.pop("XLINE_CAD_DIR")
+    report = build_report(env, allow_temp_root=True)
+    assert report["ok"] is False
+    assert any(item["code"] == "MISSING_XLINE_CAD_DIR" for item in report["issues"])
+
+
+def test_preflight_rejects_cad_output_outside_workspace(tmp_path):
+    env = _valid_env(tmp_path)
+    outside = tmp_path / "outside-cad"
+    outside.mkdir()
+    env["XLINE_CAD_DIR"] = str(outside)
+    report = build_report(env, allow_temp_root=True)
+    assert report["ok"] is False
+    assert any(item["code"] == "OUTSIDE_ROOT_XLINE_CAD_DIR"
+               for item in report["issues"])
+
+
+def test_preflight_rejects_symlinked_cad_output(tmp_path):
+    env = _valid_env(tmp_path)
+    workspace = Path(env["XLINE_WS_ROOT"])
+    target = tmp_path / "real-cad"
+    target.mkdir()
+    link = workspace / "linked-cad"
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlink creation is not permitted on this host")
+    env["XLINE_CAD_DIR"] = str(link)
+    report = build_report(env, allow_temp_root=True)
+    assert report["ok"] is False
+    assert any(item["code"] == "SYMLINK_XLINE_CAD_DIR"
+               for item in report["issues"])
+
+
+def test_preflight_rejects_symlinked_cad_output_parent(tmp_path):
+    env = _valid_env(tmp_path)
+    workspace = Path(env["XLINE_WS_ROOT"])
+    outside = tmp_path / "outside-parent"
+    outside.mkdir()
+    link = workspace / "linked-parent"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlink creation is not permitted on this host")
+    env["XLINE_CAD_DIR"] = str(link / "cad")
+    report = build_report(env, allow_temp_root=True)
+    assert report["ok"] is False
+    assert any(item["code"] == "SYMLINK_COMPONENT_XLINE_CAD_DIR"
+               for item in report["issues"])
 
 
 def test_preflight_rejects_non_sqlite_database_file(tmp_path):
@@ -194,6 +248,25 @@ def test_empty_bundle_is_noop_and_requires_explicit_empty_replacement(tmp_path):
         database.save_project_bundle([], replace_all=True)
 
 
+def test_nonproduction_full_replacement_remains_available_for_offline_migration(tmp_path):
+    database = XLineDatabase(tmp_path / "xline.db")
+    database.save_project_bundle(
+        [
+            {"id": "p1", "status": "ready_for_design", "updated_at": "1"},
+            {"id": "p2", "status": "ready_for_design", "updated_at": "1"},
+        ]
+    )
+    database.save_project_bundle(
+        [{"id": "p2", "status": "ready_for_design", "updated_at": "2"}],
+        replace_all=True,
+    )
+    with sqlite3.connect(database.path) as connection:
+        rows = connection.execute(
+            "SELECT project_id, updated_at FROM projects ORDER BY project_id"
+        ).fetchall()
+    assert rows == [("p2", "2")]
+
+
 def test_explicit_delete_removes_only_the_named_project(tmp_path):
     database = XLineDatabase(tmp_path / "xline.db")
     database.save_project_bundle(
@@ -209,6 +282,29 @@ def test_explicit_delete_removes_only_the_named_project(tmp_path):
             "SELECT project_id FROM projects ORDER BY project_id"
         ).fetchall()
     assert rows == [("p1",), ("p3",)]
+
+
+def test_production_rejects_nonempty_and_empty_full_replacement(tmp_path, monkeypatch):
+    monkeypatch.setenv("XLINE_DEPLOYMENT_PROFILE", "production")
+    monkeypatch.setenv("XLINE_STARTUP_PREFLIGHT_OK", "1")
+    database = XLineDatabase(tmp_path / "xline.db")
+    database.save_project_bundle(
+        [{"id": "p1", "status": "ready_for_design", "updated_at": "1"}]
+    )
+    with pytest.raises(RuntimeError, match="replace_all=True is prohibited"):
+        database.save_project_bundle(
+            [{"id": "p2", "status": "ready_for_design", "updated_at": "2"}],
+            replace_all=True,
+        )
+    with pytest.raises(RuntimeError, match="replace_all=True is prohibited"):
+        database.save_project_bundle(
+            [], replace_all=True, allow_empty_replace=True
+        )
+    with sqlite3.connect(database.path) as connection:
+        rows = connection.execute(
+            "SELECT project_id FROM projects ORDER BY project_id"
+        ).fetchall()
+    assert rows == [("p1",)]
 
 
 def test_delete_project_removes_its_planning_row(tmp_path):
@@ -275,6 +371,45 @@ def test_audit_sqlite_failure_is_visible_but_jsonl_still_written(tmp_path, monke
     assert health["sqlite_failures"] == 1
     assert health["jsonl_failures"] == 0
     assert health["last_error"]["ledger"] == "sqlite"
+
+
+def test_audit_degraded_is_sticky_until_explicit_reconciliation(tmp_path, monkeypatch):
+    database = XLineDatabase(tmp_path / "xline.db")
+    monkeypatch.setattr("app.audit_store.xline_database", database)
+    original = database.record_audit
+    calls = {"count": 0}
+
+    def flaky(record):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise RuntimeError("db down once")
+        return original(record)
+
+    monkeypatch.setattr("app.audit_store.xline_database.record_audit", flaky)
+    path = tmp_path / "audit.jsonl"
+    store = AgentAuditStore(path)
+    store.append("tool_executed", "first", {}, {"ok": True})
+    store.append("tool_executed", "second", {}, {"ok": True})
+    health = store.health_status()
+    assert calls["count"] == 2
+    assert health["append_count"] == 2
+    assert health["sqlite_failures"] == 1
+    assert health["jsonl_failures"] == 0
+    assert health["degraded"] is True
+    assert health["reconciliation_required"] is True
+    assert health["degraded_since"]
+    assert health["last_error"]["record_id"]
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 2
+    with sqlite3.connect(database.path) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM audit_logs").fetchone()[0] == 1
+    store.mark_reconciled("reviewed JSONL/SQLite divergence and accepted the missing row")
+    health = store.health_status()
+    assert health["degraded"] is False
+    assert health["reconciliation_required"] is False
+    assert health["sqlite_failures"] == 1
+    assert health["last_reconciled_at"]
+    with pytest.raises(ValueError, match="note is required"):
+        store.mark_reconciled("  ")
 
 
 def test_audit_jsonl_failure_is_visible_but_sqlite_still_written(tmp_path, monkeypatch):

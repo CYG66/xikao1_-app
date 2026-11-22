@@ -21,7 +21,9 @@ class AgentAuditStore:
     SQLite ``audit_logs`` is the authoritative ledger for new events.  JSONL
     remains a recoverable mirror/export.  Persistence failures are never
     swallowed: they increment visible counters, set a degraded health state,
-    and write a one-line warning to stderr.  Safety actions still proceed.
+    and write a one-line warning to stderr.  The degraded state stays visible
+    across later successful appends until reconciliation is explicitly
+    acknowledged.  Safety actions still proceed.
     """
 
     authority = "sqlite"
@@ -42,11 +44,15 @@ class AgentAuditStore:
         self._health: dict[str, Any] = {
             "authority": self.authority,
             "degraded": False,
+            "degraded_since": None,
+            "reconciliation_required": False,
             "sqlite_failures": 0,
             "jsonl_failures": 0,
             "append_count": 0,
             "last_record_id": None,
             "last_success_at": None,
+            "last_reconciled_at": None,
+            "reconciliation_note": None,
             "last_error": None,
         }
 
@@ -90,11 +96,29 @@ class AgentAuditStore:
             self._health["append_count"] += 1
             self._health["last_record_id"] = record["id"]
             if sqlite_ok and jsonl_ok:
-                self._health["degraded"] = False
                 self._health["last_success_at"] = record["at"]
+                # A successful append does not prove the earlier failed event
+                # was repaired.  ``degraded`` stays sticky until an explicit
+                # reconciliation acknowledgement.
             else:
                 self._health["degraded"] = True
         return deepcopy(record)
+
+    def mark_reconciled(self, note: str) -> None:
+        """Clear the degraded state only after an explicit reconciliation.
+
+        The note is mandatory and retained in health status.  Failure counters
+        remain cumulative so an acknowledgement cannot erase the history.
+        """
+        cleaned = str(note).strip()
+        if not cleaned:
+            raise ValueError("reconciliation note is required")
+        with self._lock:
+            self._health["degraded"] = False
+            self._health["degraded_since"] = None
+            self._health["reconciliation_required"] = False
+            self._health["last_reconciled_at"] = utc_now()
+            self._health["reconciliation_note"] = cleaned
 
     def health_status(self) -> dict[str, Any]:
         with self._lock:
@@ -104,6 +128,9 @@ class AgentAuditStore:
         counter = f"{ledger}_failures"
         self._health[counter] = int(self._health.get(counter, 0)) + 1
         self._health["degraded"] = True
+        self._health["reconciliation_required"] = True
+        if not self._health.get("degraded_since"):
+            self._health["degraded_since"] = utc_now()
         self._health["last_error"] = {
             "ledger": ledger,
             "error": f"{type(error).__name__}: {error}",

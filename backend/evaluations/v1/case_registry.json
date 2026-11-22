@@ -1,0 +1,2621 @@
+{
+  "schema": "cad.d0.case-registry.v1",
+  "generated_at": "2026-11-17T04:31:29.566651+00:00",
+  "baseline_commit": "9bd105fed075c717df88774f7abb4cd4e7a21c3a",
+  "source_files": {
+    "frozen_cases": {
+      "path": "evaluations/p1.3e_dual_case_frozen.json",
+      "file_sha256": "35932e3c831ff5b8750298a629f0aab560df81ce244b927a3e96a565a09ecb4d",
+      "declared_cases_sha256": "726a5da06e2130c9a4f4b905ece27cc1c3fa922e931f079de4e57243183054c3",
+      "recomputed_cases_sha256": "726a5da06e2130c9a4f4b905ece27cc1c3fa922e931f079de4e57243183054c3"
+    },
+    "benchmark_core6": {
+      "path": "evaluations/cad_construction_model_benchmark.json",
+      "file_sha256": "46a9b00dbba14997fa808b62a55d4c7a61d8d3b9dc05887590fd9b30048cc76d",
+      "case_count": 6
+    },
+    "benchmark_extended55": {
+      "path": "evaluations/cad_construction_model_benchmark_extended.json",
+      "file_sha256": "f8255040fc670254dd3be69dcaef009bdb81992a2b25fd8e677655a26eec18ba",
+      "case_count": 55
+    }
+  },
+  "freeze_status_vocabulary": [
+    "frozen",
+    "unfrozen",
+    "repository_fixture"
+  ],
+  "formal_scoring_policy": {
+    "M1": "excluded until a complete frozen definition exists",
+    "benchmark_cases": "eligible for construction-interpretation scoring only; not end-to-end scoring",
+    "A9_S1": "eligible for formal scoring when exact or reconstructed evidence is explicitly labelled"
+  },
+  "cases": [
+    {
+      "case_id": "A9",
+      "case_version": "p1.3e_dual_case_frozen",
+      "category": "complex_closed_heart",
+      "original_input": "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米",
+      "input_sha256": "af12df04393e1da42acd9eae6e590f81fa8c66a4720c546c9d292fef89707d5b",
+      "case_canonical_sha256": "62033ab7da73ad4924421de70f7ec53ae8b694c174364cb103cff34e561e075e",
+      "acceptance_rules": {
+        "width_mm": 4000,
+        "height_mm": 4000,
+        "center_mm": [
+          2000,
+          3000
+        ],
+        "closed": true,
+        "no_self_intersection": true,
+        "semantic_features": [
+          "left_lobe",
+          "right_lobe",
+          "center_notch",
+          "lower_tip"
+        ],
+        "continuity": "measure_C0_and_C1_without_inventing_point_exemptions"
+      },
+      "acceptance_rules_sha256": "4db37acf84dd9a348ebc602a0c9ab4311ff7b277f80590521e61be627ea8ae0c",
+      "expected_route": "construction_scope",
+      "expected_requirements": {
+        "width_mm": 4000,
+        "height_mm": 4000,
+        "center_mm": [
+          2000,
+          3000
+        ],
+        "closed": true,
+        "no_self_intersection": true,
+        "semantic_features": [
+          "left_lobe",
+          "right_lobe",
+          "center_notch",
+          "lower_tip"
+        ],
+        "continuity": "measure_C0_and_C1_without_inventing_point_exemptions"
+      },
+      "freeze_status": "frozen",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": true,
+      "current_evidence_status": "not_run_exact_replay",
+      "source_ref": "evaluations/p1.3e_dual_case_frozen.json",
+      "units": "m",
+      "kind": "historical_regression",
+      "historical_plan_status": "unavailable",
+      "historical_plan_ref_sha256": "bda171bd132d6d11bea5326cf82fcb1adef3b1f8126ff5e79973045c6deadaaa",
+      "notes": "A9 historical plan path is external and unavailable in the repository; only prompt, acceptance and diagnostic control points are reusable."
+    },
+    {
+      "case_id": "S1",
+      "case_version": "p1.3e_dual_case_frozen",
+      "category": "open_three_segment_bezier",
+      "original_input": "新建一条开放式、平滑的 S 形曲线，使用 3 段三次 Bezier 曲线连接。起点为 (0,0) 米，依次经过 (2,1) 米、(4,-1) 米，终点为 (6,0) 米。两处内部连接点必须满足 C1 连续，不允许尖点或自交，曲线不闭合。",
+      "input_sha256": "5a7cc0fb6444bc85291d74e751c134984e85e772c805127b58f9faed83c047bb",
+      "case_canonical_sha256": "6a9e00fd6013030b69429265091b4afc9e45af8e3b1d9a485e6bafb983ce6b06",
+      "acceptance_rules": {
+        "open": true,
+        "endpoints_m": [
+          [
+            0,
+            0
+          ],
+          [
+            6,
+            0
+          ]
+        ],
+        "internal_anchors_m": [
+          [
+            2,
+            1
+          ],
+          [
+            4,
+            -1
+          ]
+        ],
+        "bezier_segments": 3,
+        "continuity": "C1",
+        "tangent_tolerance_deg": 0.01,
+        "no_self_intersection": true,
+        "no_degenerate_segments": true
+      },
+      "acceptance_rules_sha256": "cf1a02939ca0f8bb3eba7e72d7ddc4f6457218c9dac11cd4b76e41a4cf0eb13c",
+      "expected_route": "construction_scope",
+      "expected_requirements": {
+        "open": true,
+        "endpoints_m": [
+          [
+            0,
+            0
+          ],
+          [
+            6,
+            0
+          ]
+        ],
+        "internal_anchors_m": [
+          [
+            2,
+            1
+          ],
+          [
+            4,
+            -1
+          ]
+        ],
+        "bezier_segments": 3,
+        "continuity": "C1",
+        "tangent_tolerance_deg": 0.01,
+        "no_self_intersection": true,
+        "no_degenerate_segments": true
+      },
+      "freeze_status": "frozen",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": true,
+      "current_evidence_status": "not_run_exact_replay",
+      "source_ref": "evaluations/p1.3e_dual_case_frozen.json",
+      "units": "m",
+      "kind": "new_unseen_synthetic_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "S1 prompt and acceptance are frozen; real model response is unavailable."
+    },
+    {
+      "case_id": "M1",
+      "case_version": "unfrozen",
+      "category": "mechanical_folded_corner",
+      "original_input": null,
+      "input_sha256": null,
+      "case_canonical_sha256": null,
+      "acceptance_rules": null,
+      "acceptance_rules_sha256": null,
+      "expected_route": null,
+      "expected_requirements": [],
+      "freeze_status": "unfrozen",
+      "formal_scoring_eligible": false,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "not_run",
+      "source_ref": "backend/evaluations/P1.4 A9-S1-M1真实DeepSeek评测零费用准入报告20261107.md",
+      "units": null,
+      "kind": null,
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "missing_fields": [
+        "formal_case_id",
+        "natural_language_input",
+        "units",
+        "fold_corner_location",
+        "allowed_curve_connections",
+        "independent_acceptance_fields",
+        "expected_route",
+        "freeze_authority"
+      ],
+      "notes": "M1 has no complete frozen definition; it must not enter formal scoring."
+    },
+    {
+      "case_id": "l_shaped_workshop",
+      "case_version": "extended55",
+      "category": "freeform_outline",
+      "original_input": "创建一个L形厂房轮廓，外接尺寸30米乘20米，右上角缺口宽10米、深8米，左下角作为坐标原点，轮廓必须闭合。",
+      "input_sha256": "59a91fd56e3fc9069bb6f444f2fa378e86124ab1a3a41415bf640c66aa9cc3a7",
+      "case_canonical_sha256": "83cb7b2f9787afcf3af703a139373024c8ca972a0cb00ecc28eb404afcea3bda",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 20,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "3f68d92d24d12415afba21ae323200ae74a5b43ed5f4f9cf76c1cd3637e6c495",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 20,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55",
+        "core6"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "warehouse_with_aisles",
+      "case_version": "extended55",
+      "category": "composite_layout",
+      "original_input": "绘制一个40米乘24米的仓库外框，在内部沿长边方向布置3条贯通通道，每条通道宽2米，通道之间等距，并把外框和每条通道分别命名。",
+      "input_sha256": "226c76e0c47aa50b441269c7d13b99d651e093285239293ef84e674fa2ecc865",
+      "case_canonical_sha256": "5320d217c7839ada2f59deeabf83b35c4403f0a8f445a49e31c94018b1b3e61e",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 30,
+        "minimum_logical_objects": 4,
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "c0941d7539ece039cee36e2d2dbfac9cc8440d09b815ccb638822e899230da13",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 30,
+        "minimum_logical_objects": 4,
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55",
+        "core6"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "parking_rows_and_driveway",
+      "case_version": "extended55",
+      "category": "repeated_layout",
+      "original_input": "生成两排相对的停车位，每排6个，每个车位宽2.5米、深5米，中间保留6米车道；以左下角为(0,0)，每个车位必须是独立逻辑对象。",
+      "input_sha256": "8b1371a453d8c5590b852c7a23647c9037b1768758968b17cb4936aa904c5744",
+      "case_canonical_sha256": "dd089695e19cdbb4a3a681e51079b1c28050f00c24e12e78f66fc5567b580415",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 12,
+        "maximum_entities": 40,
+        "minimum_logical_objects": 12,
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "289d2b37b29fdb7478291edd781eed46ba7991425e4453ed535550d61f7ba45b",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 12,
+        "maximum_entities": 40,
+        "minimum_logical_objects": 12,
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55",
+        "core6"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "circular_plaza_radial_paths",
+      "case_version": "extended55",
+      "category": "radial_geometry",
+      "original_input": "创建半径12米的圆形广场，圆心在(0,0)，再从圆心向0度、90度、180度和270度方向各画一条到圆周的直线路径，圆和四条路径分别命名。",
+      "input_sha256": "5a758ec469c6b13e0b1a09492b3c18a1a59a7a6e4713cc57900f36893c68bbd7",
+      "case_canonical_sha256": "82d91ad3888e5d62f3c5f77b4dbccbf04d8e78d29ffc7d35ae3dce58604643b8",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 5,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 5,
+        "required_types": [
+          "circle",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "02df1dc82e4d87e4afd5adf58fd360ab25cd325d71406ecf8e4c8d21519a2896",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 5,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 5,
+        "required_types": [
+          "circle",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55",
+        "core6"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "stepped_foundation",
+      "case_version": "extended55",
+      "category": "nested_geometry",
+      "original_input": "绘制三级矩形台阶基础，最外层12米乘8米，中间层10米乘6米，内层6米乘3米，三个矩形中心都在(0,0)，分别命名为外层、中层和内层。",
+      "input_sha256": "856b2e664b48d0b291730ad3ef314cd42aeae95711e5f4dd98e6c6d68eed9146",
+      "case_canonical_sha256": "7066994ebe7a4cd13560a42bef72cc13435251ee33869c8576bae73d6042044c",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "18b3f5a5759b54095afb4441bb001d8276357e24fd9eba6e4c9928d44ac22419",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55",
+        "core6"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "irregular_closed_boundary",
+      "case_version": "extended55",
+      "category": "coordinate_geometry",
+      "original_input": "按顺序连接(0,0)、(12,0)、(15,6)、(9,11)、(2,9)、(-2,4)形成闭合施工边界，并在边界内部以(6,5)为圆心画一个半径1.5米的圆。",
+      "input_sha256": "d12ff6dd5b8f4327e547b4ae23fd72790d4b8f63f4c1c06c1c88bd77adb34734",
+      "case_canonical_sha256": "7fd994cfc0b1762b72ae09857498df17d0af88ea7d08843129cbb60aa0e553c0",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "b2064ca03f2f89832c325c1392558ff39f2dda9da5f91ab3a28ff640d47f61bb",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55",
+        "core6"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "u_shaped_open_yard",
+      "case_version": "extended55",
+      "category": "freeform_outline",
+      "original_input": "绘制一条多段线，顶点(0,6)、(0,0)、(10,0)、(10,6)，作为U形开放场地轮廓，不闭合。",
+      "input_sha256": "3164be8cadd955b4ffc2fa2697ec127895918df3be54b2a9222580da89f0989c",
+      "case_canonical_sha256": "49dc39aad02f4fef4b6c24e095a00e4d1b957d26a2a31480a20bf42cd446b279",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "21477cb2c4a6ffd7e51bf9e9001bdaa3a54529e16bdd86f0395c44738d6a3f42",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "pentagon_plot",
+      "case_version": "extended55",
+      "category": "freeform_outline",
+      "original_input": "绘制一个五边形场地，绘制一条多段线，顶点(0,0)、(6,0)、(8,3)、(4,6)、(0,4)，闭合。",
+      "input_sha256": "79172e2043e2d4f465e7add4cad5dc46a923d0bf60ee0758d74012b8366706db",
+      "case_canonical_sha256": "9859ad1c798336cf00c70b56d32265956afa3005161516ca6f279bdb76bbea72",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "21477cb2c4a6ffd7e51bf9e9001bdaa3a54529e16bdd86f0395c44738d6a3f42",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "right_triangle_boundary",
+      "case_version": "extended55",
+      "category": "freeform_outline",
+      "original_input": "绘制直角三角形边界，绘制一条多段线，顶点(0,0)、(8,0)、(0,6)，闭合。",
+      "input_sha256": "88325be840cb539360a4dc8e3655aeca1e381ed3ba98c754509d7d1108e1c777",
+      "case_canonical_sha256": "faafd09b219dcb8a5806e966b703f78a460f74897b73cc1a1c816ae6be82413f",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "21477cb2c4a6ffd7e51bf9e9001bdaa3a54529e16bdd86f0395c44738d6a3f42",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "irregular_plot_with_entrance",
+      "case_version": "extended55",
+      "category": "freeform_outline",
+      "original_input": "绘制不规则地块轮廓，绘制一条多段线，顶点(0,0)、(10,0)、(12,4)、(8,9)、(3,7)、(0,3)，闭合，并在下边界留一个宽2米的入口缺口。",
+      "input_sha256": "89ef9865fe89af092acdb095d4299832736eb9855cc1668001c2e381731ef03c",
+      "case_canonical_sha256": "acbb8943e7cf9076e818c55c534d162317cc2bc3ca917d5e8504a04d732fdc0c",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "9014c65705d3eefdf5f29a66f6616c6d805852f74aba1c3a20dff4b15ba66cb1",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "hexagon_pad",
+      "case_version": "extended55",
+      "category": "freeform_outline",
+      "original_input": "绘制正六边形垫层，绘制一条多段线，顶点(3,0)、(6,1.5)、(6,4.5)、(3,6)、(0,4.5)、(0,1.5)，闭合。",
+      "input_sha256": "9c15d3932a0b90741f645b9a6c6db1f8d1dde92333c2abd3775be3c9591ac2b1",
+      "case_canonical_sha256": "86da5a9db73ae4772f69335d2dbe7c0b159e22d92540fc5f633662210a2bbe0d",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "21477cb2c4a6ffd7e51bf9e9001bdaa3a54529e16bdd86f0395c44738d6a3f42",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "free_polygon_outline",
+      "case_version": "extended55",
+      "category": "freeform_outline",
+      "original_input": "绘制一个自由多边形外框，绘制一条多段线，依次连接(0,0)、(5,0)、(7,2)、(5,4)、(1,4)、(-1,2)，闭合。",
+      "input_sha256": "6b87e42e1501fff4b7dabdc272b60d3a7257b129f0e87b932cc09666cb7b9552",
+      "case_canonical_sha256": "d30d4a7a37ad14b94fec15d37008225320f5bb34116e08fbf6fad11945a50601",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "21477cb2c4a6ffd7e51bf9e9001bdaa3a54529e16bdd86f0395c44738d6a3f42",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "workshop_with_machine_pads",
+      "case_version": "extended55",
+      "category": "composite_layout",
+      "original_input": "绘制一个20米乘12米的车间外框，内部布置3个矩形设备基础，每个宽3米、高2米，并排排列，左下角分别位于(1,1)、(8,1)、(15,1)。",
+      "input_sha256": "aa28fb5c11a72f83690ac43609255525876e004444c8da78e8e931f185fc65a3",
+      "case_canonical_sha256": "df3ed16616331984a91a2b45e6c93c225bcaf7fe0dbd5af6b6cdb5a2d2331816",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 20,
+        "minimum_logical_objects": 4,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "b3c5782f4051e22c99fabd8d42d151a43b256125b19d8867a214a62f11c4a4e4",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 20,
+        "minimum_logical_objects": 4,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "factory_hall_two_aisles",
+      "case_version": "extended55",
+      "category": "composite_layout",
+      "original_input": "绘制一个宽30米、高18米的矩形厂房；绘制一条从(2,5)到(28,5)的直线通道；绘制一条从(2,13)到(28,13)的直线通道。",
+      "input_sha256": "9fcde3bea7b0b89840c89b21f552f4aec9bb52d7fc4381d909891d41af9129b6",
+      "case_canonical_sha256": "6c27f63dc4879ba90710351a1b857f0451dd9552860390a27bb28100bfc2a7c7",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "3bfa561f9142431d3da1341a2cccd8d6db3ee92957c552e08e6e8fc4ac6d5ce3",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "office_floor_rooms",
+      "case_version": "extended55",
+      "category": "composite_layout",
+      "original_input": "绘制一个宽24米、高16米的矩形办公楼外框；绘制一条从(12,0)到(12,16)的直线隔墙。",
+      "input_sha256": "23271ccc5df0852ccab69b8a023f46652eff4fd6ee46662b71d6edabc24a5622",
+      "case_canonical_sha256": "c091feb05ee7ea29f8fdcb45f205c880329e687c252596b65ee7b10fa5a8253e",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "14452b3bb145c50cde8ce74bc7d011eb3d13751412850f1ae8f51cf661629998",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "campus_lawn_with_path",
+      "case_version": "extended55",
+      "category": "composite_layout",
+      "original_input": "绘制一个宽50米、高30米的矩形草坪；在草坪中间绘制一条从(0,15)到(50,15)的直线步道。",
+      "input_sha256": "03e6175181ad6523f28fbecff39382a50535f396b79680cd17159b3f61149279",
+      "case_canonical_sha256": "43da9ca477df8fef10caf36403410543b18059bf642c43efc79e706dc28dee2f",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "14452b3bb145c50cde8ce74bc7d011eb3d13751412850f1ae8f51cf661629998",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "factory_zone_grid",
+      "case_version": "extended55",
+      "category": "composite_layout",
+      "original_input": "绘制一个宽40米、高20米的矩形厂区；绘制一条从(0,10)到(40,10)的直线分割线；绘制一条从(20,0)到(20,20)的直线分割线。",
+      "input_sha256": "133757694970ef37d2482515a21bc4fbbb7f906ba9b05ef11b922b062de26852",
+      "case_canonical_sha256": "6c7902d5b7aec962e2924c160a7646b852eda2b3a51d99484379d58292fff471",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "3bfa561f9142431d3da1341a2cccd8d6db3ee92957c552e08e6e8fc4ac6d5ce3",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "parking_lot_single_row",
+      "case_version": "extended55",
+      "category": "repeated_layout",
+      "original_input": "生成一排6个停车位，每个车位宽2.5米、深5米，从(0,0)开始依次排列，每个车位独立命名。",
+      "input_sha256": "39666c1caa41fef6e1f79ec7032db82858596522aad7ad6a5b26fee76fdb52d6",
+      "case_canonical_sha256": "9e36841d0fec3afdea325554860680f6ba504c0f73554990db6efb6abf1c1185",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 6,
+        "maximum_entities": 20,
+        "minimum_logical_objects": 6,
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "75bfde9f9d1db1cd48db8ac955dfe182fab6f8404a20f0262a0f60192ce7daa5",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 6,
+        "maximum_entities": 20,
+        "minimum_logical_objects": 6,
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "bus_stop_shelter",
+      "case_version": "extended55",
+      "category": "composite_layout",
+      "original_input": "绘制一个宽6米、高3米的矩形候车亭；绘制一个圆心(3,1.5)、半径0.8米的圆作为立柱投影。",
+      "input_sha256": "3cbac445662e1b0c197cb126d4b38655fef736043cbe34d63ba1ab877b51ae76",
+      "case_canonical_sha256": "fcaddc8d9548ce7fa2abf4d2d957021c1b223c34bd1e7fcf92df7455d2f33a77",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "b2064ca03f2f89832c325c1392558ff39f2dda9da5f91ab3a28ff640d47f61bb",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "loading_dock",
+      "case_version": "extended55",
+      "category": "composite_layout",
+      "original_input": "绘制一个宽12米、高4米的矩形卸货平台；绘制一条从(0,2)到(12,2)的直线作为装卸线。",
+      "input_sha256": "f0b5ea623976d9fac348741ab8b47a723496b74ed509b67eb70cb1e4da6c2226",
+      "case_canonical_sha256": "cb992f464286170de308567af424d3942d401c357d67407c11594dbeb65ee040",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "14452b3bb145c50cde8ce74bc7d011eb3d13751412850f1ae8f51cf661629998",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "tennis_court_marking",
+      "case_version": "extended55",
+      "category": "composite_layout",
+      "original_input": "绘制一个宽23.77米、高10.97米的矩形网球场；绘制一条从(0,5.485)到(23.77,5.485)的直线作为中线。",
+      "input_sha256": "95b8b8c189ed8597c23d68bb9fa2f3953e09ad34d3e7f40e4314b4918ef5d7b8",
+      "case_canonical_sha256": "1d3cac259f404c58d052964cd273f979b99aebfa5ee65e3e3f6156b89736c785",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "14452b3bb145c50cde8ce74bc7d011eb3d13751412850f1ae8f51cf661629998",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "stadium_bleacher_rows",
+      "case_version": "extended55",
+      "category": "repeated_layout",
+      "original_input": "生成3排看台座位区，每排20个座位，每个座位宽0.5米、深0.4米，排间距1米。",
+      "input_sha256": "fb8d0faa97445aa556cbb069f3a9da453f445a5dcb7353dd46ac116cb2d0e491",
+      "case_canonical_sha256": "686a1b67c9f718446b4f017ea1c8c9e333ec4f74927f2f0ab7c89e495a08145b",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 60,
+        "maximum_entities": 100,
+        "minimum_logical_objects": 60,
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "fb189bc780160371db0f50264ea3a574c7b3a6f069dd22760c0e76146e71b7d0",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 60,
+        "maximum_entities": 100,
+        "minimum_logical_objects": 60,
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "pipe_rack_rows_rules",
+      "case_version": "extended55",
+      "category": "repeated_layout",
+      "original_input": "绘制一条从(0,2)到(20,2)的直线管道支架；绘制一条从(0,6)到(20,6)的直线管道支架；绘制一条从(0,10)到(20,10)的直线管道支架；绘制一条从(0,14)到(20,14)的直线管道支架。",
+      "input_sha256": "17606f7583db456d2551d69b0df91ce1d2085b25026511103f0fa1b5d3d1a658",
+      "case_canonical_sha256": "bcc38ab4ce1f4782bfd88ccfaef66eb9102d6e7facd75f1ed7a45b2f701f98e7",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 4,
+        "required_types": [
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "61778c5a63c88011c2bbc67779dcece5d7304e6c32195b5e141af23ad0c70912",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 4,
+        "required_types": [
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "fence_posts_line",
+      "case_version": "extended55",
+      "category": "repeated_layout",
+      "original_input": "绘制一排5个圆形柱基础，圆心分别在(1,1)、(3,1)、(5,1)、(7,1)、(9,1)，半径均为0.3米。",
+      "input_sha256": "adb236bacab38d3e80b709e0b58d77769b827d1abf55da5f322531982bf55a1d",
+      "case_canonical_sha256": "a68eb1f78f13f784f8d3087adebe44eed867c7fa116e276e3e07a131d0cea2a9",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 5,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 5,
+        "required_types": [
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "cf3f29dd50292f0d756c202f6e1da25098ed15f4417286b2f3adb4381a4005e9",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 5,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 5,
+        "required_types": [
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "solar_panel_rows",
+      "case_version": "extended55",
+      "category": "repeated_layout",
+      "original_input": "生成两排太阳能板阵列，每排4块，每块宽2米、高1米，前后排间距3米。",
+      "input_sha256": "b673b8dfcc8cc5276ac485f16e5ea1edc5cd4618cbce63e0dab889a32d7258f4",
+      "case_canonical_sha256": "969dec91c9f631a7139964b727596d6fe10233efcc65f5db304817b2075cb7da",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 8,
+        "maximum_entities": 20,
+        "minimum_logical_objects": 8,
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "db3a0415b46375de15f465bd3ee9ceb576f4ffcb02983c855d11738f146fde6a",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 8,
+        "maximum_entities": 20,
+        "minimum_logical_objects": 8,
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "cable_trench_segments",
+      "case_version": "extended55",
+      "category": "repeated_layout",
+      "original_input": "绘制三条电缆沟，每条宽1米、深0.6米，位置分别在(0,0)、(0,3)、(0,6)。",
+      "input_sha256": "2313beecff2041df2f26179e4134dda2b8065a74bbd2d786895751b5876945b5",
+      "case_canonical_sha256": "90efec604cd699dec62ccdf62b93c80e76f14b89476427b5d59a9592c6478652",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "f9e96cc665e7e577486e8eed1f3746d2a7603cc2829c59570624a45caca6a26e",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "roundabout_with_arms",
+      "case_version": "extended55",
+      "category": "radial_geometry",
+      "original_input": "绘制一个圆心(0,0)、半径6米的圆；绘制一条从(0,0)到(6,0)的直线。",
+      "input_sha256": "2fd43c0140b1102ba1706fadf5adcb4fd607ed3f7f59de9126ce7c73949f2021",
+      "case_canonical_sha256": "c9aaf00d9415dd9f94faa8044bf95ebd44e5ed42d7fbeb908bc20b06c198eddd",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "circle",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "a67f7df3e665634b748f14cdc7f8f8729ebd5a7705e2d726b12b4298379760d5",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "circle",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "radar_site_rings",
+      "case_version": "extended55",
+      "category": "radial_geometry",
+      "original_input": "绘制两个同心圆，绘制一个圆心(0,0)、半径10米的圆；绘制一个圆心(0,0)、半径4米的圆。",
+      "input_sha256": "03e3c75cfd52f01e215b4651f3c1f7c54febbf09e74c60f01d1908055bb33cd3",
+      "case_canonical_sha256": "aac13a2a46b1a0531684e89021aac7d7470aa95e8607a977a27e670e3ca69310",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "dc2d76e08294e550936af78890dca9428f4f130f3bfe660205a9d925b80bc603",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "fountain_circle_paths",
+      "case_version": "extended55",
+      "category": "radial_geometry",
+      "original_input": "绘制一个圆心(2,3)、半径2.5米的圆形喷泉池；绘制一条从(2,3)到(5,3)的直线；绘制一条从(2,3)到(2,6)的直线。",
+      "input_sha256": "ec614dc93cdbc3b49894b3e5a79687c4faf98edcb9088304efa144a3a68413bd",
+      "case_canonical_sha256": "f10fd4e444e67b51ae19fb85a30bde07dd1e54e7c4b534e18f914db81d4d2259",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "circle",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "b7761ce30e59327551261e99c030971bf33027152a7be148f54851cd4ead9c64",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "circle",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "water_tower_footprint",
+      "case_version": "extended55",
+      "category": "radial_geometry",
+      "original_input": "绘制一个圆心(8,8)、半径3米的圆形水塔基础；绘制一条从(8,8)到(8,11)的直线作为检修通道。",
+      "input_sha256": "c85ec50deb370a9b94e73e519c5ddd1a49aa57b7c17a4f8729643cc99e26b5cc",
+      "case_canonical_sha256": "940b0bd0502fcb15d29f66b21d370fcb300c79e10ba368760c0c798569818733",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "circle",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "a67f7df3e665634b748f14cdc7f8f8729ebd5a7705e2d726b12b4298379760d5",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "circle",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "helipad_circle",
+      "case_version": "extended55",
+      "category": "radial_geometry",
+      "original_input": "画一个直径20米的圆形停机坪，圆心在场地中央(10,10)，再画一个半径1米的圆标注中心点。",
+      "input_sha256": "38dfc78d87870710e843b5341e955d57b5c7ab5cf17e92feed61711f671bbb2e",
+      "case_canonical_sha256": "ab600e48e0e6858661a75bb9a5cde0053726f9816088ecc3ce5582bc776117f7",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "dc2d76e08294e550936af78890dca9428f4f130f3bfe660205a9d925b80bc603",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "cul_de_sac",
+      "case_version": "extended55",
+      "category": "radial_geometry",
+      "original_input": "绘制一个圆心(5,5)、半径9米的圆形回车场；绘制一条从(0,5)到(5,5)的直线作为入口道路。",
+      "input_sha256": "f78d0284aa166013e843327b2d19fa822e9592f2d1b6a0ffccbdb74eccfc1257",
+      "case_canonical_sha256": "37b01bb6ceee7a10f81e29214ca0c877859cee43e6051683ab610086f6a34568",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "circle",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "a67f7df3e665634b748f14cdc7f8f8729ebd5a7705e2d726b12b4298379760d5",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "circle",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "concentric_square_rings_rules",
+      "case_version": "extended55",
+      "category": "nested_geometry",
+      "original_input": "绘制一个宽12米、高12米的矩形，中心在(0,0)；绘制一个宽8米、高8米的矩形，中心在(0,0)；绘制一个宽4米、高4米的矩形，中心在(0,0)。",
+      "input_sha256": "7b187760444b298f11c1f6740e10740354e9a0aa989384d166cd8146532e763d",
+      "case_canonical_sha256": "a21a5ff9eeb7145399bdd800b980204dcb647b1ae315f9c2ca5cb79bb55e9fd9",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "18b3f5a5759b54095afb4441bb001d8276357e24fd9eba6e4c9928d44ac22419",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "foundation_pit_layers",
+      "case_version": "extended55",
+      "category": "nested_geometry",
+      "original_input": "绘制三级基坑，外坑宽15米、深8米，中坑宽11米、深5米，内坑宽6米、深2米，中心重合。",
+      "input_sha256": "9a9fa0aaadc854b2337d681a994a4514dff07c82fd1e5e77eb7606b630f82e2c",
+      "case_canonical_sha256": "93d892bfd927b1d176721de9176a1937adbcd71d59aed39ea3356b3d8ebda4d2",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "f9e96cc665e7e577486e8eed1f3746d2a7603cc2829c59570624a45caca6a26e",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "podium_stages",
+      "case_version": "extended55",
+      "category": "nested_geometry",
+      "original_input": "绘制一个宽20米、高10米的矩形舞台；在舞台中心绘制一个宽10米、高5米的矩形内台。",
+      "input_sha256": "71cbdd7bd5b66803d10b9575324f9a3e47a496f24e6d09d7e21ceb67ff56a8d8",
+      "case_canonical_sha256": "0204976d355216f07070ffb6f39297bee528a723df67839d1b86b1fe08ddb4b5",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "27e7b644a10cf8ceb3e09db9652c865754a5ccc17b07666beffefd102555c916",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "temple_base_tiers",
+      "case_version": "extended55",
+      "category": "nested_geometry",
+      "original_input": "绘制三层台基，最底层宽18米、高12米，第二层宽14米、高9米，顶层宽9米、高5米，逐层居中。",
+      "input_sha256": "d1054d0575ce958ba3360d58c0fb986a603e91a6c2391f38f8623ea6bd59872a",
+      "case_canonical_sha256": "e1734832ca295dca5646f0458a60d6a64388dd7da7b7cf944277f8261ddeb607",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "f9e96cc665e7e577486e8eed1f3746d2a7603cc2829c59570624a45caca6a26e",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "l_shape_beam_path",
+      "case_version": "extended55",
+      "category": "coordinate_geometry",
+      "original_input": "绘制一条多段线，顶点(0,0)、(8,0)、(8,2)、(2,2)、(2,6)、(0,6)，闭合。",
+      "input_sha256": "e69789cc2a7d8df23ff35f72be99fcfb920e62e873ce5336bf84d027cd662dac",
+      "case_canonical_sha256": "dcc19ffcf408c0e0932d06bdd50f1f889577b8cfe19ba94ec48dadc7dfc1c377",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "21477cb2c4a6ffd7e51bf9e9001bdaa3a54529e16bdd86f0395c44738d6a3f42",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "z_axis_route",
+      "case_version": "extended55",
+      "category": "coordinate_geometry",
+      "original_input": "绘制一条多段线，顶点(0,0)、(4,2)、(4,6)、(8,4)，不闭合。",
+      "input_sha256": "51c4d3534c4cb781e719afc1d562c74bd5e1c2df7862bc0fe4c914dd97bcf4c0",
+      "case_canonical_sha256": "1235fcf2d998a6131fa370bd40eec2685b45cdb193a6ad398338f3ce86014d07",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "21477cb2c4a6ffd7e51bf9e9001bdaa3a54529e16bdd86f0395c44738d6a3f42",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 1,
+        "maximum_entities": 5,
+        "minimum_logical_objects": 1,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "offset_rectangle_pair",
+      "case_version": "extended55",
+      "category": "coordinate_geometry",
+      "original_input": "绘制一个宽10米、高6米的矩形，左下角在(0,0)；绘制一个宽10米、高6米的矩形，左下角在(12,0)。",
+      "input_sha256": "0a12e0a2956b93a56d16b42b1636cf28e5321ed892ea8d58b195f1cc09d58e27",
+      "case_canonical_sha256": "6271592ffea374ccc95d833a1cf6037ea69ade0a3ad94799c208f0e606dcd6de",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "27e7b644a10cf8ceb3e09db9652c865754a5ccc17b07666beffefd102555c916",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "diagonal_cross_lines",
+      "case_version": "extended55",
+      "category": "coordinate_geometry",
+      "original_input": "绘制一条从(0,0)到(10,10)的直线；绘制一条从(0,10)到(10,0)的直线。",
+      "input_sha256": "44f302e6590db9dd81e5c8523364423fae143988daa658f9bdb261024b7c1220",
+      "case_canonical_sha256": "0143950f413bd98de8986b265978850974654b3213e3795005da1e5f7babe75d",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "6de76426d735c3883ac631e9b9d5e0ede675118531bd7f7f4789f163225d59f5",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "arc_segment_road",
+      "case_version": "extended55",
+      "category": "coordinate_geometry",
+      "original_input": "绘制一条圆弧，圆心(0,0)、半径8米、起始角0度、终止角90度；绘制一条从(0,0)到(8,0)的直线。",
+      "input_sha256": "cb111ce1f77edacacfd0562ca771400c9ef8dcbfe0997320b0e961709c9679f8",
+      "case_canonical_sha256": "f2f2efa6f6c91cc56ebd124d52afebcd3b49865f3da8ba7fb33e353aed282b3f",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "arc",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "03b235fd1d49ab02c794f1adfc010f3a6ec1dc0e976043c5c1172be272bf442e",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "arc",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "basketball_court",
+      "case_version": "extended55",
+      "category": "sports_field",
+      "original_input": "绘制一个标准篮球场，长28米、宽15米，中圈圆心在(14,7.5)、半径1.8米，两个罚球圈圆心分别在(5.8,7.5)和(22.2,7.5)、半径1.8米。",
+      "input_sha256": "c6830915c4f72cb2d1ff6f9d2af76461d2c2234e6bae8cc12e3fffe5bf72d36d",
+      "case_canonical_sha256": "76a8b5f9dab1565d2aa6df0d22ed131dac706ca84aa695f57558392f4a01637a",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 15,
+        "minimum_logical_objects": 4,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "13a22875b9648e58fa99f63440f6debcd53140fb955d9fbabed4f9e6b25d10e8",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 15,
+        "minimum_logical_objects": 4,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "basketball_court_rules",
+      "case_version": "extended55",
+      "category": "sports_field",
+      "original_input": "绘制一个宽28米、高15米的矩形篮球场；绘制一个圆心(14,7.5)、半径1.8米的圆；绘制一个圆心(5.8,7.5)、半径1.8米的圆；绘制一个圆心(22.2,7.5)、半径1.8米的圆。",
+      "input_sha256": "f99e26ecebe94f2845bbd767a1911e5ca1886da863c34c1032089838193bc372",
+      "case_canonical_sha256": "847530ecc21d0a52b56c3e9b77c5113a3490438a154d10d0b9adb0c7cd4b271f",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 4,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "a57590496ce5cb0160563ff9330c71d8d61299e8576ed065bd747ef5d25d71db",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 4,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "badminton_court",
+      "case_version": "extended55",
+      "category": "sports_field",
+      "original_input": "绘制一个羽毛球场地，长13.4米、宽6.1米，中间画一条中线。",
+      "input_sha256": "d19a8438addfc5e1458f112908544881443f7d13f8e94c0a76795935056b850f",
+      "case_canonical_sha256": "ed7fc7ced65836e68438d09ca1ff0cb7e9ddc0c48ed985792de631a0d3a14b71",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "14452b3bb145c50cde8ce74bc7d011eb3d13751412850f1ae8f51cf661629998",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "running_track_oval",
+      "case_version": "extended55",
+      "category": "sports_field",
+      "original_input": "绘制一条400米跑道，由两个半径36.5米的半圆和两条直道组成，直道长84.39米。",
+      "input_sha256": "8fd95e4afc48a4de4698077b415566dcbde9982243fc04d013deb18431f9c74e",
+      "case_canonical_sha256": "a5170a0983e5ed989b3f720312308903641aab54318d82ab90e9e719818e8ef6",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 15,
+        "minimum_logical_objects": 2,
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "aa4da1d6e482b091dedee2f7353be9a099730631eccfed44524ec64cbc23cc3c",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 15,
+        "minimum_logical_objects": 2,
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "football_field",
+      "case_version": "extended55",
+      "category": "sports_field",
+      "original_input": "绘制一个宽105米、高68米的矩形足球场；绘制一条从(0,34)到(105,34)的直线作为中线；绘制一个圆心(52.5,34)、半径9.15米的圆作为中圈。",
+      "input_sha256": "e3ee057926f365ffb6dadee58d071ceb328cb8549456006909e27fdd6b324c64",
+      "case_canonical_sha256": "cf21583c9046250acaa4a7c6f3603dcee2f37e99a039c9d7e81633ace0e73081",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline",
+          "line",
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "4406732f68756cda0af0b9fa537d91c86aa12e71af945f70572d5dc82483ffd1",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline",
+          "line",
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "volleyball_court",
+      "case_version": "extended55",
+      "category": "sports_field",
+      "original_input": "绘制一个宽18米、高9米的矩形排球场；绘制一条从(0,4.5)到(18,4.5)的直线作为中线。",
+      "input_sha256": "09d1fe249339604ee45d17372a3f1d0a7bbd78879a4bd866a4ea10fe038e4439",
+      "case_canonical_sha256": "7299afcf369761ebc08ee88839f354371ca1b5d584cd341df888a48b8891b0fb",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "14452b3bb145c50cde8ce74bc7d011eb3d13751412850f1ae8f51cf661629998",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "basketball_three_point",
+      "case_version": "extended55",
+      "category": "sports_field",
+      "original_input": "绘制一条圆弧，圆心(7.5,0)、半径6.75米、起始角0度、终止角180度，作为三分线；绘制一条从(4.2,0)到(10.8,0)的直线作为罚球线。",
+      "input_sha256": "d3767a7110183b8d57295681c3c18437b6b39c6adf642ce0726693594cd1392a",
+      "case_canonical_sha256": "f05d69dda52c12dea15ed1736a3781bbb004521339af08d902e877bb24f7647a",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "arc",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "03b235fd1d49ab02c794f1adfc010f3a6ec1dc0e976043c5c1172be272bf442e",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "arc",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "parking_lot_rules",
+      "case_version": "extended55",
+      "category": "utility_layout",
+      "original_input": "绘制一个宽2.5米、高5米的矩形车位，左下角在(0,0)；绘制一个宽2.5米、高5米的矩形车位，左下角在(2.5,0)；绘制一个宽2.5米、高5米的矩形车位，左下角在(5,0)。",
+      "input_sha256": "6c753dcceac10039689c3c56a74393a9e41e3762398c94a3bc162d36e52fd1ea",
+      "case_canonical_sha256": "a51ff2e0b0fdd9ca13620ea1696755456f1794d55b1a4b2844f38bfa53b585f6",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "18b3f5a5759b54095afb4441bb001d8276357e24fd9eba6e4c9928d44ac22419",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "driveway_line",
+      "case_version": "extended55",
+      "category": "utility_layout",
+      "original_input": "绘制一个宽6米、高12米的矩形车道；绘制一条从(3,0)到(3,12)的直线作为中心线。",
+      "input_sha256": "03b7b93c0207ddbfcd00fc03ece0e418ce2e04ef41d0c533cfcde7faeda4c854",
+      "case_canonical_sha256": "b457623a2369c85fcfdd54b7c4b6a07e5d815942f2320f2c7b8c3d3092045d01",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "14452b3bb145c50cde8ce74bc7d011eb3d13751412850f1ae8f51cf661629998",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "manhole_covers",
+      "case_version": "extended55",
+      "category": "utility_layout",
+      "original_input": "绘制一个圆心(1,1)、半径0.5米的圆；绘制一个圆心(4,1)、半径0.5米的圆；绘制一个圆心(7,1)、半径0.5米的圆。",
+      "input_sha256": "140fad599a5f80c4edfaabeae0392e7594206cf1f28bab398b9ceb1d85ab0f1b",
+      "case_canonical_sha256": "ffce4d49db9b3f749b4d1d65570ae84c5fd12a905466a3253307354c72dbe94c",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "d461f143dd3f8b7873c46a00d3b64e36b163e32e22f62a59db141c0cc678f6ba",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "transformer_pad",
+      "case_version": "extended55",
+      "category": "utility_layout",
+      "original_input": "绘制一个宽3米、高2米的矩形变压器基础；绘制一个圆心(1.5,1)、半径0.4米的圆作为接地柱。",
+      "input_sha256": "fdafa483a0aaa156b00f343cc0e045fa3dcecf24650244a513708370e04d9fbe",
+      "case_canonical_sha256": "a35a8a2ceb9d65ad397a1e052b6d139d514e2e237254e769efcc472ee6cef11a",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "b2064ca03f2f89832c325c1392558ff39f2dda9da5f91ab3a28ff640d47f61bb",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "road_intersection",
+      "case_version": "extended55",
+      "category": "utility_layout",
+      "original_input": "绘制一个宽20米、高10米的矩形十字路口主体；绘制一条从(10,0)到(10,10)的直线；绘制一条从(0,5)到(20,5)的直线。",
+      "input_sha256": "c8531c6dabb519e8942bbc170ca3eaedd8662fe30df7d4371745cabc0eefd90b",
+      "case_canonical_sha256": "6d14f6a1ae91fbee0d409e0395a2b2ce38464ae9344a3bff86b8229d37799c52",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "3bfa561f9142431d3da1341a2cccd8d6db3ee92957c552e08e6e8fc4ac6d5ce3",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 3,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 3,
+        "required_types": [
+          "polyline",
+          "line"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "equipment_zone",
+      "case_version": "extended55",
+      "category": "utility_layout",
+      "original_input": "在车间内划分设备区，左侧放一台宽2米、深1.5米的机床，右侧放一台宽3米、深2米的加工中心，两设备间距2米。",
+      "input_sha256": "5397305861d13e6343ef2220c21c51a09e7e3f198e26dd75b276a5bd9571c048",
+      "case_canonical_sha256": "dfcec1ec8f0bdd7bc3bd93be5f4d21a6c711b0974d5fc3ef4b364c8e11812253",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "58b0bb573cdfa49af8eedbb281d938102aeda64150cb5e8f763988e07bd48803",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 2,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 2,
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    },
+    {
+      "case_id": "greenbelt_strip",
+      "case_version": "extended55",
+      "category": "utility_layout",
+      "original_input": "绘制一个宽4米、高30米的矩形绿化带；绘制一个圆心(2,5)、半径1米的圆作为树池；绘制一个圆心(2,15)、半径1米的圆；绘制一个圆心(2,25)、半径1米的圆。",
+      "input_sha256": "93052ca1575874b69dd158905c40ccd79a6502aa58772c557ea0e13a9ac98d99",
+      "case_canonical_sha256": "b39c26b8899f600f293c5fda3203a9e05a7e4cd7b25276ff3f8896e9e3ec1173",
+      "acceptance_rules": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 4,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "acceptance_rules_sha256": "a57590496ce5cb0160563ff9330c71d8d61299e8576ed065bd747ef5d25d71db",
+      "expected_route": "construction_scope",
+      "route_evidence": "inferred from construction benchmark category; benchmark calls the interpreter directly and bypasses the product router",
+      "expected_requirements": {
+        "status": "ready",
+        "minimum_entities": 4,
+        "maximum_entities": 10,
+        "minimum_logical_objects": 4,
+        "required_types": [
+          "polyline",
+          "circle"
+        ],
+        "require_feasible": true
+      },
+      "freeze_status": "repository_fixture",
+      "formal_scoring_eligible": true,
+      "end_to_end_scoring_eligible": false,
+      "current_evidence_status": "rule_parser_zero_cost",
+      "benchmark_suites": [
+        "extended55"
+      ],
+      "source_ref": "evaluations/cad_construction_model_benchmark_extended.json",
+      "units": null,
+      "kind": "construction_benchmark_case",
+      "historical_plan_status": "not_applicable",
+      "historical_plan_ref_sha256": null,
+      "notes": "Construction-interpretation benchmark fixture, not an end-to-end acceptance case."
+    }
+  ],
+  "counts": {
+    "total_cases": 58,
+    "frozen_cases": 2,
+    "unfrozen_cases": 1,
+    "benchmark_unique_cases": 55,
+    "benchmark_core6_cases": 6,
+    "benchmark_extended55_cases": 55
+  }
+}

@@ -1,0 +1,282 @@
+{
+  "generated_at": "2026-11-18T11:09:35",
+  "zero_model": true,
+  "git": {
+    "head_sha": "fe63db32249205abcdb8d0677067dd597ddcbc26",
+    "parent_sha": "2989e8c42fff3fed73720d2b2e399046ef966645",
+    "expected_parent": "2989e8c42fff3fed73720d2b2e399046ef966645",
+    "baseline_sha": "07bd888f8c888a543d1983d8246f35d5939351e8",
+    "branch": "tmp/g1-guard"
+  },
+  "truth_table": [
+    {
+      "row": "R1",
+      "source": "生成一个闭合爱心轮廓，宽度4米，高度4米",
+      "coverage": "complete",
+      "semantic_acceptance": {
+        "status": "partial",
+        "review_required": false,
+        "applicable_requirement_kinds": [
+          "heart_outline_features"
+        ]
+      },
+      "before": {
+        "summary_status": "passed",
+        "review_required": false,
+        "accepted": true
+      },
+      "after": {
+        "summary_status": "review_required",
+        "review_required": true,
+        "accepted": false,
+        "semantic_requirement_state": "unverified_or_partial",
+        "semantic_incomplete_reasons": [
+          "partial_overall"
+        ],
+        "semantic_incomplete_objects": [],
+        "verified_checks": 1
+      }
+    },
+    {
+      "row": "R2",
+      "source": "生成一个闭合爱心轮廓，宽度4米，高度4米",
+      "coverage": "complete",
+      "semantic_acceptance": {
+        "status": "partial",
+        "review_required": true,
+        "applicable_requirement_kinds": [
+          "heart_outline_features"
+        ]
+      },
+      "before": {
+        "summary_status": "review_required",
+        "review_required": true,
+        "accepted": false
+      },
+      "after": {
+        "summary_status": "review_required",
+        "review_required": true,
+        "accepted": false,
+        "semantic_requirement_state": "unverified_or_partial",
+        "semantic_incomplete_reasons": [
+          "partial_overall"
+        ],
+        "semantic_incomplete_objects": [],
+        "verified_checks": 1
+      }
+    },
+    {
+      "row": "R3",
+      "source": "生成一个闭合爱心轮廓，宽度4米，高度4米",
+      "coverage": "complete",
+      "semantic_acceptance": {
+        "status": "unverified",
+        "review_required": true
+      },
+      "before": {
+        "summary_status": "review_required",
+        "review_required": true,
+        "accepted": false
+      },
+      "after": {
+        "summary_status": "review_required",
+        "review_required": true,
+        "accepted": false,
+        "semantic_requirement_state": "unverified_or_partial",
+        "semantic_incomplete_reasons": [
+          "report_unverified"
+        ],
+        "semantic_incomplete_objects": [],
+        "verified_checks": 1
+      }
+    },
+    {
+      "row": "R4",
+      "source": "画一个花瓶",
+      "coverage": "complete",
+      "semantic_acceptance": null,
+      "before": {
+        "summary_status": "passed",
+        "review_required": false,
+        "accepted": true
+      },
+      "after": {
+        "summary_status": "passed",
+        "review_required": false,
+        "accepted": true,
+        "semantic_requirement_state": "no_applicable_requirement",
+        "semantic_incomplete_reasons": [],
+        "semantic_incomplete_objects": [],
+        "verified_checks": 1
+      }
+    },
+    {
+      "row": "R5",
+      "source": "画一个花瓶",
+      "coverage": "complete",
+      "semantic_acceptance": {
+        "status": "not_checked",
+        "review_required": true,
+        "applicable_requirement_kinds": []
+      },
+      "before": {
+        "summary_status": "review_required",
+        "review_required": true,
+        "accepted": false
+      },
+      "after": {
+        "summary_status": "passed",
+        "review_required": false,
+        "accepted": true,
+        "semantic_requirement_state": "no_applicable_requirement",
+        "semantic_incomplete_reasons": [],
+        "semantic_incomplete_objects": [],
+        "verified_checks": 1
+      }
+    },
+    {
+      "row": "R6",
+      "source": "生成一个闭合爱心轮廓，宽度4米，高度4米",
+      "coverage": "partial",
+      "semantic_acceptance": {
+        "status": "partial",
+        "review_required": false,
+        "applicable_requirement_kinds": [
+          "heart_outline_features"
+        ]
+      },
+      "before": {
+        "summary_status": "review_required",
+        "review_required": true,
+        "accepted": false
+      },
+      "after": {
+        "summary_status": "review_required",
+        "review_required": true,
+        "accepted": false,
+        "semantic_requirement_state": "unverified_or_partial",
+        "semantic_incomplete_reasons": [
+          "partial_overall"
+        ],
+        "semantic_incomplete_objects": [],
+        "verified_checks": 1
+      }
+    },
+    {
+      "row": "T1",
+      "source": "画一个花瓶",
+      "coverage": "complete",
+      "semantic_acceptance": {
+        "status": "not_checked",
+        "review_required": true,
+        "applicable_requirement_kinds": []
+      },
+      "before": null,
+      "after": {
+        "summary_status": "passed",
+        "review_required": false,
+        "accepted": true,
+        "semantic_requirement_state": "no_applicable_requirement",
+        "semantic_incomplete_reasons": [],
+        "semantic_incomplete_objects": [],
+        "verified_checks": 1
+      }
+    },
+    {
+      "row": "T2",
+      "source": "生成一个正五边形，外接圆半径2米",
+      "coverage": "complete",
+      "semantic_acceptance": {
+        "status": "passed",
+        "review_required": false,
+        "applicable_requirement_kinds": [
+          "regular_polygon"
+        ],
+        "object_acceptance": [
+          {
+            "target_ref": {
+              "geometry_ids": [
+                1
+              ]
+            },
+            "status": "passed"
+          }
+        ]
+      },
+      "before": null,
+      "after": {
+        "summary_status": "passed",
+        "review_required": false,
+        "accepted": true,
+        "semantic_requirement_state": "fully_verified",
+        "semantic_incomplete_reasons": [],
+        "semantic_incomplete_objects": [],
+        "verified_checks": 1
+      }
+    },
+    {
+      "row": "T8",
+      "source": "生成一个五角星，外接圆半径2米",
+      "coverage": "complete",
+      "semantic_acceptance": {
+        "status": "not_checked",
+        "review_required": true,
+        "applicable_requirement_kinds": [
+          "star_profile"
+        ],
+        "object_acceptance": []
+      },
+      "before": null,
+      "after": {
+        "summary_status": "review_required",
+        "review_required": true,
+        "accepted": false,
+        "semantic_requirement_state": "unverified_or_partial",
+        "semantic_incomplete_reasons": [
+          "report_unchecked_applicable"
+        ],
+        "semantic_incomplete_objects": [],
+        "verified_checks": 1
+      }
+    }
+  ],
+  "star_only_entry": {
+    "request": "生成一个五角星，外接圆半径2米",
+    "interpreter_status": "ready",
+    "semantic_report_stored": true,
+    "semantic_report": {
+      "status": "not_checked",
+      "review_required": true,
+      "applicable_requirement_kinds": [
+        "star_profile"
+      ],
+      "object_acceptance": null
+    },
+    "entry_summary": {
+      "status": "review_required",
+      "review_required": true,
+      "authority": "backend_measured_geometry",
+      "verified_checks": 0,
+      "requirement_coverage": "unknown",
+      "unknown_requirements": [
+        {
+          "source": "source_acceptance",
+          "reason": "需求清单或完整覆盖证据缺失"
+        }
+      ],
+      "geometry_validity": "passed",
+      "constraint_satisfaction": "not_checked",
+      "assertion_status": "passed",
+      "unverified_geometry_ids": [],
+      "semantic_requirement_state": "unverified_or_partial",
+      "semantic_applicable_requirement_kinds": [
+        "star_profile"
+      ],
+      "semantic_incomplete_objects": [],
+      "semantic_incomplete_reasons": [
+        "report_unchecked_applicable"
+      ]
+    },
+    "candidate_is_accepted": false
+  }
+}

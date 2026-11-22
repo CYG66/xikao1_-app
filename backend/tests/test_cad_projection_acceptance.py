@@ -51,4 +51,20 @@ def test_rigid_transform_and_edge_order_do_not_change_acceptance():
 
 def test_unspecified_projection_is_not_falsely_certified():
     assert verify_projection_requirements('画一个立方体透视图',edges())['status']=='not_checked'
-    assert verify_projection_requirements('画一个立方体和一个圆，等轴投影，12条棱线',edges())['status']=='not_checked'
+
+
+def test_recognized_multi_object_projection_is_unverified_not_dropped():
+    report=verify_projection_requirements('画一个立方体和一个圆，等轴投影，12条棱线',edges())
+    assert report['status']=='unverified'
+    assert report['review_required'] is True
+    assert report['coverage']=='unscoped_multiple_objects'
+    assert report['checks']==[]
+    unknown=report['unknown_requirements']
+    assert unknown and unknown[0]['reason']=='unscoped_multiple_objects'
+    assert unknown[0]['evidence'] and unknown[0]['object_count']==2
+
+
+def test_no_match_multi_object_projection_stays_not_checked():
+    report=verify_projection_requirements('画一个圆形和一个矩形，宽2米高2米',edges())
+    assert report['status']=='not_checked'
+    assert report.get('review_required') is not True

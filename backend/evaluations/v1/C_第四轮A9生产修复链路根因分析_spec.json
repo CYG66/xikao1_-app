@@ -1,0 +1,125 @@
+{
+  "schema": "cad.c4-a9-repair-rootcause.v1",
+  "evidence_mode": "live_model_record_readonly",
+  "live_model_calls_replayed": 0,
+  "network_requests_made": 0,
+  "production_code_modified": false,
+  "case_id": "A9",
+  "record_refs": {
+    "case_record": "backend/evaluations/v1/round4/A9_case_record.json",
+    "raw_responses": "backend/evaluations/v1/round4/A9_raw_responses.jsonl",
+    "d_report": "backend/evaluations/v1/D1_round4_A9真实模型受控评测报告.md"
+  },
+  "outcome": {
+    "state": "failed",
+    "variants": [],
+    "error_code": "candidate_generation_failed",
+    "request_count": 2,
+    "repair_count": 1,
+    "max_repairs": 2,
+    "failure_feature": "lower_tip",
+    "failed_features_both_attempts": ["lower_tip"]
+  },
+  "progress_gate_functions": [
+    {
+      "function": "should_repair",
+      "location": "cad_generation_recovery.py:20-22",
+      "inputs": ["status", "provider_attempted", "construction_error.code"],
+      "compares": "invalid + provider attempted + category in {model_plan_invalid, constraint_conflict, sampling_budget}",
+      "a9_conclusion": "allows repair; no before/after comparison",
+      "blind_spot": "no progress semantics"
+    },
+    {
+      "function": "bounded_repair_available",
+      "location": "cad_generation_recovery.py:25-51",
+      "inputs": ["construction_attempts", "max_repairs"],
+      "compares": "repair cap; len<2 early True; error signature tuple; raw plan dict inequality",
+      "a9_conclusion": "second request admitted via len(attempts)<2 early return at :35-36; progress comparison not engaged for round two",
+      "blind_spot": "progress comparison only runs at third+ decision; plan dict != geometry"
+    },
+    {
+      "function": "confidence_only_repair",
+      "location": "cad_generation_recovery.py:54-60",
+      "inputs": ["before", "after"],
+      "compares": "before diagnostic_trial_passed + code low_confidence + after ready + rejected_plan recycled",
+      "a9_conclusion": "not matched; code is structure_requirement_failed and after still invalid",
+      "blind_spot": "covers only confidence inflation recycling; not geometry-equivalent stall"
+    },
+    {
+      "function": "changed_plan_fields",
+      "location": "cad_generation_recovery.py:77-79",
+      "inputs": ["before plan dict", "after plan dict"],
+      "compares": "top-level field name inequality",
+      "a9_conclusion": "records steps changed because t_start/t_end strings differ",
+      "blind_spot": "dict inequality != geometry change"
+    },
+    {
+      "function": "step_diff",
+      "location": "cad_generation_recovery.py:80-90",
+      "inputs": ["before steps", "after steps"],
+      "compares": "per-ref exact step dict equality; label exact_plan_steps_not_geometric_equivalence",
+      "a9_conclusion": "heart.outline in modified_refs",
+      "blind_spot": "no executed-trajectory equivalence"
+    }
+  ],
+  "feedback_to_model": {
+    "assembly_locations": ["agent_service.py:6480", "agent_service.py:6481", "agent_service.py:6486", "agent_service.py:6488-6490", "agent_service.py:6493-6498", "agent_service.py:6499-6510", "agent_service.py:6224-6239"],
+    "visible_fields": ["error.message", "measured_features", "failed_features", "check", "authority", "normalization", "repair_instruction", "affected_output_refs", "previous_plan_json"],
+    "missing_fields": ["failed_feature_target_geometry", "before_after_diff_summary", "top_level_rejected_plan_alias"],
+    "assertion_id_present": false,
+    "prompt_body_persisted": false,
+    "consumption_effectiveness": "pending_verification"
+  },
+  "geometric_no_progress_gap": {
+    "executed_geometry_on_invalid_path": "cad_construction_interpreter.py:1035-1043",
+    "executed_geometry_on_ready_path": "cad_construction_interpreter.py:1062-1087",
+    "recovery_record_keeps": ["plan", "error", "confidence", "plan_sha256"],
+    "reusable_geometry_evidence": [
+      "cad_candidate_state.py:7-10 geometry_evidence_hash",
+      "cad_edit_gate.py:13-17 geometry_fingerprint",
+      "geometry_diff.py:26-69 build_geometry_diff"
+    ],
+    "feature_vector_available_in_error_details": true
+  },
+  "b_interface": {
+    "preferred_layer": "recovery_policy: cad_generation_recovery.bounded_repair_available",
+    "alternative_layer": "service_loop: agent_service.py:6479-6510",
+    "preferred_input": "executed geometry samples (trial_result.geometries)",
+    "degraded_input_without_geometry": ["plan dict", "error signature", "measured_features boolean vector"],
+    "output": "progress classification changed_geometry | stalled_equivalent | confidence_only; stalled reuses bounded_repair_available False semantics; no candidate persisted",
+    "safe_termination": {
+      "max_repairs_unchanged": true,
+      "acceptance_not_lowered": true,
+      "stall_requires": ["failed feature set unchanged", "geometry evidence equivalent within existing tolerances"],
+      "allow_repair_if": ["previously failed feature passes", "geometry moves beyond existing tolerance", "new independent failure or component", "structural_replan branch"],
+      "first_repair_always_allowed": true
+    },
+    "blocks_a9_pattern": {
+      "feature_vector_plus_geometry_check": true,
+      "plan_text_only_check": false,
+      "saved_on_second_request": {"input_tokens": 16172, "output_tokens": 450, "cost_usd": 0.001026288, "wall_clock_seconds_approx": 8}
+    }
+  },
+  "equivalence_holes": [
+    {"id": 1, "pattern": "periodic curve parameter-domain only change, trajectory unchanged", "evidence": ["cad_generation_recovery.py:49-51", "cad_generation_recovery.py:80-90", "A9_case_record.json:721-724 vs 627-630"], "severity": "high", "b_geometry_coverage": "covered_by_geometry_layer_only", "status": "observed_in_a9"},
+    {"id": 2, "pattern": "algebraically equivalent expression or variable rename", "evidence": ["cad_generation_recovery.py:88", "cad_plan_component_repair.py:36-43"], "severity": "medium_high", "b_geometry_coverage": "covered_by_geometry_layer", "status": "inferred_pending_fixture"},
+    {"id": 3, "pattern": "widening replacement of failed assertion tolerance", "evidence": ["cad_plan_component_repair.py:44-57", "cad_source_acceptance.py:35-61"], "severity": "medium", "b_geometry_coverage": "partial; source-side tolerance comparison needed", "status": "pending_verification"},
+    {"id": 4, "pattern": "label/semantic text only change", "evidence": ["cad_plan_component_repair.py:40-42", "cad_plan_component_repair.py:27-33"], "severity": "low_medium", "b_geometry_coverage": "not_covered_by_geometry", "status": "inferred"},
+    {"id": 5, "pattern": "segment reorder with unchanged trajectory", "evidence": ["cad_local_repair.py:181", "cad_plan_component_repair.py:36-43"], "severity": "low", "b_geometry_coverage": "covered_by_point_cloud; order already protected"},
+    {"id": 6, "pattern": "loosening max_sampling_error sampling field", "evidence": ["cad_plan_component_repair.py:39,43"], "severity": "medium", "b_geometry_coverage": "indirect via acceptance residual bound", "status": "inferred"},
+    {"id": 7, "pattern": "confidence inflation with plan stall", "evidence": ["cad_generation_recovery.py:54-60", "agent_service.py:6521-6527"], "severity": "low_medium", "b_geometry_coverage": "not_applicable", "status": "partial_existing_guard"},
+    {"id": 8, "pattern": "unit/scale rescale to meet bounds, distort proportions", "evidence": ["cad_plan_component_repair.py:14-15"], "severity": "medium", "b_geometry_coverage": "geometry measurement detects proportion distortion", "status": "inferred"}
+  ],
+  "proposals_pending_approval": [
+    {"id": 1, "title": "recovery-layer stalled_equivalent classification", "file": "cad_generation_recovery.py", "change": "extend bounded_repair_available with feature-set and optional geometry-hash stall check; record progress field", "regression_scope": ["recovery unit tests", "C1.2 loop mock", "confidence_only/model_plan_invalid/constraint_conflict cases", "A9-shaped fixture"], "rollback": "remove new branch and progress field; restore original comparison; caps/budget/save unchanged"},
+    {"id": 2, "title": "attach lightweight geometry snapshot on invalid path", "file": "cad_construction_interpreter.py", "change": "invalid return at 1035-1043 carries geometry fingerprint/sample summary; no candidate persistence; error code/message unchanged", "regression_scope": ["interpreter failure-path tests"], "rollback": "remove attached field; rest of return shape unchanged"},
+    {"id": 3, "title": "service-loop no_progress intercept", "file": "agent_service.py", "change": "mirror confidence_only_repair intercept; stalled_equivalent -> invalid code no_progress; no persistence; keep manual retry action", "regression_scope": ["_formal_cad_construction loop mock"], "rollback": "remove branch and error mapping"}
+  ],
+  "verdict": {
+    "add_progress_detection_before_next_case": true,
+    "reason": "loop otherwise issues repair requests on trajectory-equivalent stalls; ledger cannot distinguish real repair from oscillation",
+    "minimum_first_step": "feature-vector stalled_equivalent check (no geometry snapshot required to cover A9 shape); geometry equivalence strengthened after proposal 2",
+    "does_not_block": ["audit/history store redirection (D report section 6)", "A planning and B geometry capability improvements"],
+    "sample_size_caveat": "single live case A9; conclusions not extrapolated to other geometry categories"
+  }
+}

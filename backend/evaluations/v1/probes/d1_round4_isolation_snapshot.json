@@ -1,0 +1,230 @@
+{
+  "stages": {
+    "offline": {
+      "sequence": [
+        "prepare_isolation_env",
+        "import app store modules (stage B)",
+        "resolve_state_paths",
+        "assert_within_root"
+      ],
+      "env_set_before_import": true,
+      "env_targets_inside_root": {
+        "XLINE_CREATIVE_PROJECT_STORE": true,
+        "XLINE_AGENT_PLAN_STORE": true,
+        "XLINE_AGENT_USER_CONFIG_PATH": true,
+        "XLINE_AGENT_MEMORY_STORE": true,
+        "XLINE_AGENT_RUN_STORE": true,
+        "XLINE_AGENT_TASK_STORE": true,
+        "XLINE_AGENT_AUDIT_STORE": true,
+        "XLINE_DATABASE_PATH": true,
+        "XLINE_AGENT_ATTACHMENTS_DIR": true,
+        "XLINE_DRAWING_VERSION_STORE": true,
+        "XLINE_MISSION_LEDGER_STORE": true,
+        "XLINE_CAD_DIR": true
+      },
+      "redaction_sample": {
+        "Authorization": "<redacted>",
+        "nested": {
+          "api_key": "<redacted>",
+          "note": "keep-me"
+        },
+        "plain": "<redacted>"
+      },
+      "redaction_secret_shape_absent": true,
+      "budget_reserve": {
+        "worst_cost_usd": 0.0128304,
+        "worst_input_tokens": 10000,
+        "worst_output_tokens": 8192,
+        "peak": true
+      },
+      "budget_settle": {
+        "prompt_tokens": 15382,
+        "completion_tokens": 354,
+        "cache_hit_tokens": 1024,
+        "cache_miss_tokens": 14358,
+        "input_cost_usd": 0.004313544,
+        "output_cost_usd": 0.0004248,
+        "total_cost_usd": 0.004738344
+      },
+      "budget_remaining": {
+        "cost_usd": 0.995261656,
+        "requests": 29,
+        "input_tokens": 284618,
+        "output_tokens": 59646
+      },
+      "model_mismatch_guard_blocked": true,
+      "fail_closed_assertion_blocked": true,
+      "fail_closed_message": "[\n  {\n    \"label\": \"audit_jsonl\",\n    \"env_var\": \"XLINE_AGENT_AUDIT_STORE\",\n    \"resolved\": \"C:\\\\Users\\\\29924\\\\AppData\\\\Local\\\\Temp\\\\xline-agent\\\\agent_audit.jsonl\",\n    \"root\": \"C:\\\\Users\\\\29924\\\\AppData\\\\Local\\\\Temp\\\\xline-d1-isolation-selfcheck\\\\SELFCHECK\"\n  }\n]",
+      "recorder_demo_file": "d1_round4_isolation_demo_raw.jsonl",
+      "recorder_demo_top_fields": [
+        "captured_at_utc",
+        "guard",
+        "request",
+        "response"
+      ],
+      "recorder_demo_response_fields": [
+        "content_excerpt",
+        "finish_reason",
+        "model",
+        "request_id",
+        "usage"
+      ],
+      "real_model_calls": 0,
+      "http_client_instantiated": false,
+      "transport_opened": false
+    },
+    "production_import": {
+      "backend": "C:\\Users\\29924\\Codes\\worktrees\\tmp\\a11-b12-c12-combo\\backend",
+      "resolved_paths": [
+        {
+          "label": "creative_project_store",
+          "env_var": "XLINE_CREATIVE_PROJECT_STORE",
+          "resolved": "C:\\Users\\29924\\AppData\\Local\\Temp\\xline-d1-isolation-selfcheck\\SELFCHECK\\projects.json",
+          "resolver_ref": "app/creative_projects.py:69,76"
+        },
+        {
+          "label": "plan_store",
+          "env_var": "XLINE_AGENT_PLAN_STORE",
+          "resolved": "C:\\Users\\29924\\AppData\\Local\\Temp\\xline-d1-isolation-selfcheck\\SELFCHECK\\agent_plans.sqlite3",
+          "resolver_ref": "app/agent_plan_runtime.py:40-50,103"
+        },
+        {
+          "label": "user_model_config",
+          "env_var": "XLINE_AGENT_USER_CONFIG_PATH",
+          "resolved": "C:\\Users\\29924\\AppData\\Local\\Temp\\xline-d1-isolation-selfcheck\\SELFCHECK\\users.json",
+          "resolver_ref": "app/user_model_config.py:19-20"
+        },
+        {
+          "label": "conversation_memory",
+          "env_var": "XLINE_AGENT_MEMORY_STORE",
+          "resolved": "C:\\Users\\29924\\AppData\\Local\\Temp\\xline-d1-isolation-selfcheck\\SELFCHECK\\conversation_memory.json",
+          "resolver_ref": "app/conversation_memory.py:78-85"
+        },
+        {
+          "label": "run_store",
+          "env_var": "XLINE_AGENT_RUN_STORE",
+          "resolved": "C:\\Users\\29924\\AppData\\Local\\Temp\\xline-d1-isolation-selfcheck\\SELFCHECK\\agent_runs.json",
+          "resolver_ref": "app/agent_run_store.py:54-61"
+        },
+        {
+          "label": "task_store",
+          "env_var": "XLINE_AGENT_TASK_STORE",
+          "resolved": "C:\\Users\\29924\\AppData\\Local\\Temp\\xline-d1-isolation-selfcheck\\SELFCHECK\\tasks.json",
+          "resolver_ref": "app/task_store.py:48-55"
+        },
+        {
+          "label": "audit_jsonl",
+          "env_var": "XLINE_AGENT_AUDIT_STORE",
+          "resolved": "C:\\Users\\29924\\AppData\\Local\\Temp\\xline-d1-isolation-selfcheck\\SELFCHECK\\agent_audit.jsonl",
+          "resolver_ref": "app/audit_store.py:18-27"
+        },
+        {
+          "label": "history_database",
+          "env_var": "XLINE_DATABASE_PATH",
+          "resolved": "C:\\Users\\29924\\AppData\\Local\\Temp\\xline-d1-isolation-selfcheck\\SELFCHECK\\xline.db",
+          "resolver_ref": "app/database.py:22-26,36"
+        },
+        {
+          "label": "attachments_dir",
+          "env_var": "XLINE_AGENT_ATTACHMENTS_DIR",
+          "resolved": "C:\\Users\\29924\\AppData\\Local\\Temp\\xline-d1-isolation-selfcheck\\SELFCHECK\\attachments",
+          "resolver_ref": "app/agent_attachments.py:21-29"
+        },
+        {
+          "label": "drawing_versions",
+          "env_var": "XLINE_DRAWING_VERSION_STORE",
+          "resolved": "C:\\Users\\29924\\AppData\\Local\\Temp\\xline-d1-isolation-selfcheck\\SELFCHECK\\drawing_versions.json",
+          "resolver_ref": "app/drawing_versions.py:28-30"
+        },
+        {
+          "label": "mission_ledger",
+          "env_var": "XLINE_MISSION_LEDGER_STORE",
+          "resolved": "C:\\Users\\29924\\AppData\\Local\\Temp\\xline-d1-isolation-selfcheck\\SELFCHECK\\mission_ledger.json",
+          "resolver_ref": "app/mission_ledger.py:19-26"
+        },
+        {
+          "label": "cad_directory",
+          "env_var": "XLINE_CAD_DIR",
+          "resolved": "C:\\Users\\29924\\AppData\\Local\\Temp\\xline-d1-isolation-selfcheck\\SELFCHECK\\cad",
+          "resolver_ref": "app/drawing_store.py:17-23"
+        }
+      ],
+      "all_within_root": true,
+      "files_in_isolation_root": [
+        "agent_plans.sqlite3",
+        "xline.db"
+      ],
+      "shared_default_dir": "C:\\Users\\29924\\AppData\\Local\\Temp\\xline-agent",
+      "shared_default_unchanged": true,
+      "shared_default_before": {
+        "agent_audit.jsonl": [
+          453758,
+          1794904605113924800
+        ],
+        "agent_plans.sqlite3": [
+          7028736,
+          1794839567865007100
+        ],
+        "agent_runs.json": [
+          85329590,
+          1794839545069267000
+        ],
+        "conversation_memory.json": [
+          14540,
+          1794889687803780000
+        ],
+        "tasks.json": [
+          30787377,
+          1794889208053197700
+        ],
+        "xline.db": [
+          1175552,
+          1794904605143407000
+        ]
+      },
+      "shared_default_after": {
+        "agent_audit.jsonl": [
+          453758,
+          1794904605113924800
+        ],
+        "agent_plans.sqlite3": [
+          7028736,
+          1794839567865007100
+        ],
+        "agent_runs.json": [
+          85329590,
+          1794839545069267000
+        ],
+        "conversation_memory.json": [
+          14540,
+          1794889687803780000
+        ],
+        "tasks.json": [
+          30787377,
+          1794889208053197700
+        ],
+        "xline.db": [
+          1175552,
+          1794904605143407000
+        ]
+      },
+      "real_model_calls": 0,
+      "http_client_instantiated": false
+    },
+    "a9_evidence_protection": {
+      "round4/A9_case_record.json": {
+        "disk_sha256_normalized": "6ff6d252d05462efc53a8e6169aaaf17bef0cbcaf7b36456f8464c53955928d3",
+        "head_sha256_normalized": "6ff6d252d05462efc53a8e6169aaaf17bef0cbcaf7b36456f8464c53955928d3",
+        "line_count": 824,
+        "unchanged": true
+      },
+      "round4/A9_raw_responses.jsonl": {
+        "disk_sha256_normalized": "4a471c6213b75521cfb65af01959075895924e2d85729d4106d787438a0b02ff",
+        "head_sha256_normalized": "4a471c6213b75521cfb65af01959075895924e2d85729d4106d787438a0b02ff",
+        "line_count": 2,
+        "unchanged": true
+      }
+    }
+  },
+  "all_checks_pass": true
+}

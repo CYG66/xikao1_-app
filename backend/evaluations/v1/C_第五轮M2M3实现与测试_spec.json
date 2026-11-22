@@ -1,0 +1,113 @@
+{
+  "schema": "c1-round5-feature-contract.spec.v1",
+  "round": 5,
+  "code_name": "FEATURE-CONTRACT",
+  "branch": "v1/c1-integration",
+  "parent_sha": "8e3efadce5a2ccd07c196f728c817c2e81a44ac9",
+  "status_labels": ["verified", "inferred", "pending_validation"],
+  "scope": {
+    "owned_files": [
+      "backend/app/agent_service.py",
+      "backend/app/cad_generation_recovery.py"
+    ],
+    "new_files": [
+      "backend/tests/test_c13_m2m3_loop_mock.py"
+    ],
+    "read_only_or_untouched": [
+      "backend/app/cad_plan_component_repair.py",
+      "backend/app/cad_construction_interpreter.py",
+      "backend/app/cad_construction.py",
+      "backend/app/agent_http_service.py",
+      "backend/app/routers/**"
+    ],
+    "constraints": {
+      "max_repairs": 2,
+      "model_calls": 0,
+      "network": false,
+      "schema_change": false,
+      "push": false,
+      "amend": false,
+      "merge": false,
+      "feature_special_branch": "none"
+    }
+  },
+  "m3": {
+    "entry": "cad_generation_recovery.evaluate_repair_progress",
+    "double_condition_required": ["failure_vector_unchanged", "geometry_determined_equivalent"],
+    "block_verdict": "stalled_equivalent",
+    "allow_whitelist": [
+      "feature_improved",
+      "new_failure",
+      "geometry_changed",
+      "undetermined",
+      "feature_moved",
+      "first_repair"
+    ],
+    "coverage_dimensions": ["geometry", "orientation", "endpoints", "closed", "topology"],
+    "adapter": "cad_generation_recovery.evaluate_geometry_progress",
+    "evaluator_injection": "cad_generation_recovery.set_geometry_evaluator",
+    "equivalent_relations": ["identical", "equivalent"],
+    "non_equivalent_relations": ["same_trajectory_reversed", "similar_transform", "compliant_other", "different"],
+    "unknown_relation_policy": "undetermined_release_with_audit_record",
+    "similarity_transform_channel": "not_called_separately; compliant transform reported by B as non-equivalent relation and released via geometry_changed; no false block because transform moves sampled points outside equivalence tolerance",
+    "default_evaluator_present": false,
+    "default_verdict": "undetermined_release",
+    "missing_snapshot_release": true,
+    "first_repair_release": true,
+    "progress_log": "recovery_record.progress_log",
+    "rollback_env": "CAD_C1_M3_PROGRESS_GATE",
+    "rollback_default": "on"
+  },
+  "m2": {
+    "entry": "cad_generation_recovery.classify_feature_failure",
+    "signature": "classify_feature_failure(details, code) -> {repair_class, requires_structural_replan, reason, missing_fields, preserve}",
+    "structured_inputs": ["feature_class", "failure_subtype", "measured", "geometry_scope", "code"],
+    "classes": [
+      {"repair_class": "parameter_repair", "requires_structural_replan": false},
+      {"repair_class": "connection_repair", "requires_structural_replan": false},
+      {"repair_class": "feature_replan", "requires_structural_replan": true},
+      {"repair_class": "topology_replan", "requires_structural_replan": true}
+    ],
+    "degraded_default": "parameter_repair",
+    "degraded_structural_escalation": false,
+    "four_element_feedback": ["repair_class", "requires_structural_replan", "expected_feature", "measured_feature", "difference"],
+    "replan_bypass_component_merger": true,
+    "preserve": ["user dimensions", "source requirement references", "part count", "non-target components"],
+    "rollback_env": "CAD_C1_M2_SCOPE_CLASSIFIER",
+    "rollback_default": "on"
+  },
+  "b_contract": {
+    "state": "adapter_ready_test_double_only",
+    "target_module": "probes/b_round5_geometry_contract.py",
+    "target_commit": "5333826",
+    "relations": ["identical", "equivalent", "same_trajectory_reversed", "similar_transform", "compliant_other", "different"],
+    "notes": [
+      "reversed is not progress",
+      "compliant transform/topology-preserving change must not block",
+      "undetermined fails closed and releases",
+      "symmetry is not the sole blocking basis",
+      "real end-to-end validation deferred to D combo tree"
+    ]
+  },
+  "regression": {
+    "new_tests": {"file": "tests/test_c13_m2m3_loop_mock.py", "passed": 27, "failed": 0},
+    "baseline": [
+      {"suite": "tests/test_cad_construction.py", "passed": 37, "failed": 0},
+      {"suite": "tests/test_cad_construction_interpreter.py", "passed": 74, "failed": 0},
+      {"suite": "tests/test_cad_generation_recovery.py", "passed": 14, "failed": 0}
+    ],
+    "c_mock_suite": {"passed": 16, "failed": 5, "failure_kind": "dep_pending", "depends_on": "A1.1 ea8323a230f1cd53cf80f4fd4398328e836962b2"},
+    "adjacent_suite": {"passed": 52, "failed": 1, "failure_kind": "preexisting_route_count_drift", "note": "agent router already 30 routes at HEAD; test expects 26"}
+  },
+  "call_accounting": {
+    "positive_intercept": {"calls": 2, "blocked_request_index": 3, "repair_count": 1, "verdict": "stalled_equivalent"},
+    "negative_release": {"calls": 3},
+    "a9_note": "M3 can only avoid a hypothetical third repeated request; the first repair call cannot be blocked by rule. Theoretical token saving is not booked as realized revenue; real savings pending combo-tree validation."
+  },
+  "gaps": [
+    "failure path carries no executed geometry snapshot",
+    "real B evaluator not merged into C branch",
+    "A1.1 repair-merge contract pending",
+    "route count test drift pending owner"
+  ]
+}

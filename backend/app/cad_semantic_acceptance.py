@@ -7,6 +7,19 @@ import re
 
 from .cad_creation_intent import local_creation_objects
 from .cad_structure_contract import StructureContractError
+from .cad_semantic_dispatch import (
+    DISPATCH_CHANNELS,
+    active_geometries,
+    ambiguous_requirement_kinds_from_text,
+    classify_profile,
+    collect_ambiguous_requirement_kinds,
+    collect_applicable_requirement_kinds,
+    derive_applicability_decision,
+    heart_features,
+    recognized_star_family_unsupported_kinds_from_text,
+    recognized_unverifiable_kinds_from_text,
+    validate_target_binding,
+)
 
 
 def nested_frame_requirement(text):
@@ -72,11 +85,100 @@ def _corners(points,tolerance=.5):
     return pts
 
 
-def verify_semantic_requirements(source,geometries):
+def _generic_profile_targets(geometries,logical_objects=None,topology=None):
+    """Group active geometries into backend-resolved targets for a profile scan."""
+    active=active_geometries(geometries)
+    if logical_objects is not None:
+        binding=validate_target_binding(geometries,logical_objects,topology)
+        if binding["status"]=="bound":
+            return binding["targets"]
+        return []
+    return [{"target_ref":{"object_id":f"geom:{g.get('id')}","geometry_ids":[g.get("id")]},
+             "geometries":[g]} for g in active]
+
+
+def _verify_no_recognized_requirement(source,geometries,logical_objects=None,topology=None):
+    """No registered channel requirement matched the source.
+
+    Source wording is the only authorization for a mandatory requirement.
+    The backend profile is auxiliary evidence: it corroborates an explicit
+    or ambiguous star signal, but a standalone star-like geometry must never
+    fabricate a star requirement.  An ambiguity that cannot be resolved stays
+    unverified; an ambiguity resolved against a non-star outline is released.
+    """
+    explicit=recognized_unverifiable_kinds_from_text(source)
+    ambiguous=ambiguous_requirement_kinds_from_text(source)
+    family=recognized_star_family_unsupported_kinds_from_text(source)
+    signal=bool(explicit or ambiguous)
+    # Recognized star-family intent (four-/six-pointed, asterisk, generic
+    # English star) with no verifier yet: record it as an identified but
+    # unverifiable requirement under its own kind.  It must not be bound to
+    # ``star_profile`` and must not be released as "no applicable requirement".
+    if family:
+        family_requirements=[
+            {"kind":k,"instruction":"来源表达了星形语族意图，当前无对应语义验收器；已识别为不可验收，不得计为通过。"}
+            for k in family
+        ]
+        family_report={
+            "status":"unverified",
+            "coverage":"unsupported_semantic_kind",
+            "requirements":family_requirements,
+            "checks":[],
+            "review_required":True,
+            "unsupported_kind":family[0],
+            "recognized_unverifiable_kinds":family,
+            "reason":"no_verifier_for_kind",
+            "reason_detail":"来源表达了星形语族意图（非五角星轮廓），当前无对应验收器；已识别、不可验收，未绑定 star_profile。",
+        }
+        family_report["applicability_decision"]=derive_applicability_decision(family_report, source)
+        return family_report
+    active=active_geometries(geometries)
+    targets=_generic_profile_targets(geometries,logical_objects,topology)
+    profile_entries=[]
+    for target in targets:
+        profile=classify_profile(target["geometries"])
+        profile_entries.append({
+            "target_ref":target["target_ref"],
+            "profile":profile["profile"],
+            "profile_measurements":profile["measurements"],
+            "profile_votes":profile["votes"],
+        })
+    # Authorization boundary: a star profile entry is recorded only when the
+    # wording itself carries an explicit or ambiguous star signal.  A standalone
+    # star-like outline never fabricates a star requirement.
+    star_entries=[e for e in profile_entries if e["profile"]=="star"] if signal else []
+    object_acceptance=[{**e,"status":"not_checked",
+        "reason":"no_verifier_for_star_profile",
+        "note":"星型轮廓无对应语义验收器；作为适用但未验证对象记录，不得计为通过"}
+        for e in star_entries]
+
+    ambiguity_resolution=None
+    if ambiguous and not explicit:
+        if star_entries:
+            ambiguity_resolution="confirmed_by_geometry"
+        elif active:
+            ambiguity_resolution="resolved_non_star"
+        # 无活动几何可佐证/排除：歧义保持未解决，不落“无适用要求”。
+
+    report={
+        "status":"not_checked","coverage":"partial","checks":[],
+        "review_required":True,"reason":"no_semantic_requirement_matched",
+        "object_acceptance":object_acceptance,
+    }
+    if object_acceptance:
+        report["unsupported_objects"]=[e["target_ref"]["geometry_ids"] for e in object_acceptance]
+    if ambiguity_resolution:
+        report["ambiguity_resolution"]=ambiguity_resolution
+    if ambiguous:
+        report["ambiguous_requirement_kinds"]=ambiguous
+    report["applicability_decision"]=derive_applicability_decision(report, source)
+    return report
+
+
+def _verify_semantic_requirements_raw(source,geometries,logical_objects=None,topology=None):
     from shapely.geometry import LineString,Polygon
     from shapely.ops import polygonize,unary_union
     requirements=semantic_requirements(source)
-    direct_checks=[]
     from .cad_source_acceptance import source_texts
     original='\n'.join(source_texts(source))
     center_match=re.search(r'(?:几何中心|中心点)(?:位于|在|为|是)?\s*[（(]\s*(-?\d+(?:\.\d+)?)\s*[,，]\s*(-?\d+(?:\.\d+)?)\s*[）)]',original)
@@ -98,6 +200,23 @@ def verify_semantic_requirements(source,geometries):
                     'measured_center_mm':list(measured_center),'expected_center_mm':list(expected),
                     'error_mm':error,'tolerance_mm':.5,
                     'repair_instruction':'保持部件形状和尺寸，仅修正整体平移，使实际外接框中心回到用户指定中心。'})
+    # Binding payload guard: when the caller explicitly supplies
+    # ``logical_objects``, a malformed payload / dangling or duplicate refs /
+    # non-unique ownership must terminate here as unresolved.  It must never be
+    # silently swallowed and must never reach a PASS.  A missing payload
+    # (None) falls back to connected-component auxiliary evidence downstream.
+    if logical_objects is not None:
+        binding = validate_target_binding(geometries, logical_objects, topology)
+        if binding["status"] == "unresolved":
+            return {'status':'unresolved','coverage':'target_unresolved',
+                'requirements':requirements,'checks':[],'review_required':True,
+                'reason':'invalid_target_binding',
+                'binding_validation':{
+                    'binding_source':binding['binding_source'],
+                    'errors':binding['errors'],'warnings':binding['warnings'],
+                    'unowned_geometry_ids':binding['unowned_geometry_ids'],
+                    'excluded_geometry_ids':binding['excluded_geometry_ids'],
+                    'excluded_geometries':binding['excluded_geometries']}}
     if re.search(r'astroid|星形线',original,re.I):
         from .cad_curve_fit_acceptance import verify_astroid
         size=re.search(r'最大半径\s*(\d+(?:\.\d+)?)\s*(毫米|厘米|米|mm|cm|m)',original,re.I)
@@ -196,46 +315,31 @@ def verify_semantic_requirements(source,geometries):
         return {'status':'passed','coverage':'cardioid_shape_and_declared_direction',
                 'checks':[{'name':'cardioid_polar_identity','status':'passed','measurements':measured}],
                 'review_required':False}
-    if re.search(r'爱心|心形',original) and len(geometries)==1:
-        from .cad_structure_contract import _points
-        points=_points(geometries[0])
-        if points:
-            xs,ys=zip(*points);w,h=max(xs)-min(xs),max(ys)-min(ys)
-            if w>0 and h>0:
-                normalized=[((x-min(xs))/w,(y-min(ys))/h) for x,y in points]
-                features = {
-                    # Parametric heart curves commonly have lobe maxima below
-                    # the absolute bounding box after exact-height fitting.
-                    # Measure the relative upper band, while retaining the
-                    # independent notch and lower-tip checks.
-                    'center_notch': any(abs(x-.5)<.03 and .5<y<.9 for x,y in normalized),
-                    'left_upper_lobe': any(x<.45 and y>.85 for x,y in normalized),
-                    'right_upper_lobe': any(x>.55 and y>.85 for x,y in normalized),
-                    'lower_tip': any(abs(x-.5)<.1 and y<.01 for x,y in normalized),
-                }
-                if not all(features.values()):
-                    raise StructureContractError('爱心缺少双侧上凸、中央凹口或下方尖点', {
-                        'authority': 'backend_measured_geometry',
-                        'check': 'heart_bilateral_lobes_notch_and_lower_tip',
-                        'geometry_id': geometries[0]['id'],
-                        'measured_features': features,
-                        'failed_features': [key for key,value in features.items() if not value],
-                        'normalization': 'x/y normalized independently to measured bounds [0,1]',
-                        'repair_instruction': '修复失败的上方双峰、中央凹口或下方中心尖点；仅改变曲线参数区间不会改变完整周期的几何形态。保留尺寸与中心布局。',
-                    })
-                direct_checks.append({
-                    'name':'heart_bilateral_lobes_notch_and_lower_tip',
-                    'status':'passed',
-                    'authority':'backend_measured_geometry',
-                    'geometry_ids':[geometries[0]['id']],
-                })
     if not requirements:
-        return ({'status':'partial','coverage':'supported_semantic_profile',
-                 'checks':direct_checks,'review_required':False}
-                if direct_checks else {'status':'not_checked','coverage':'partial','checks':[]})
-    gs=[g for g in geometries if g.get('selected') is not False and g.get('role') not in {'annotation','reference','ignored'}]
+        return _verify_no_recognized_requirement(original, geometries, logical_objects, topology)
+    gs=active_geometries(geometries)
     if not gs or any(g.get('type') not in {'line','polyline'} for g in gs):
-        return {'status':'unverified','coverage':'unsupported_profile_representation','requirements':requirements,'checks':[], 'review_required':True}
+        return {'status':'unverified','coverage':'unsupported_profile_representation','requirements':requirements,'checks':[], 'review_required':True,'reason':'unsupported_profile_representation'}
+    kind=requirements[0]['kind']
+    channel=DISPATCH_CHANNELS.get(kind)
+    if channel is None:
+        # Exhaustive dispatch: an unregistered kind terminates here.  It must
+        # never fall through to the capital-A checker, and it must not silently
+        # pass.
+        return {'status':'unverified','coverage':'unsupported_semantic_kind',
+                'requirements':requirements,'checks':[],'review_required':True,
+                'unsupported_kind':kind,'reason':'no_verifier_for_kind',
+                'reason_detail':'未登记的语义 kind；已终止分派，未进入任何默认图形检查器，也未静默通过。'}
+    if channel=='heart_outline':
+        return _verify_heart_channel(geometries,requirements,logical_objects,topology)
+    if channel=='house_outline':
+        return _verify_house_channel(gs,requirements)
+    return _verify_capital_a_channel(gs,requirements)
+
+
+def _build_linework(gs):
+    from shapely.geometry import LineString,Polygon
+    from shapely.ops import unary_union
     lines=[];polys=[]
     for g in gs:
         pts=[(g[k]['x'],g[k]['y']) for k in ('start','end')] if g['type']=='line' else [(p['x'],p['y']) for p in g['vertices']]
@@ -244,77 +348,214 @@ def verify_semantic_requirements(source,geometries):
         if g.get('closed') and len(pts)>=4:
             polygon=Polygon(pts)
             if polygon.is_valid and polygon.area>.25:polys.append(polygon)
-    network=unary_union(lines);checks=[];tolerance=.5
+    network=unary_union(lines)
+    return lines,polys,network
+
+
+def _verify_heart_channel(geometries,requirements,logical_objects=None,topology=None):
+    """Per-object heart acceptance.
+
+    The heart requirement is bound to one backend-resolved target object;
+    feature measurement only reads that object's own outline.  A star
+    profile is rejected by the negative gate and never counted as a heart
+    pass.  Objects without a matching semantic checker are recorded
+    ``not_checked`` / ``unresolved`` rather than fabricated into a pass.
+    """
+    binding=validate_target_binding(geometries,logical_objects,topology)
+    if binding["status"]=="unresolved":
+        return {'status':'unresolved','coverage':'target_unresolved','requirements':requirements,
+                'checks':[],'review_required':True,'reason':'invalid_target_binding',
+                'binding_validation':{
+                    'binding_source':binding['binding_source'],
+                    'errors':binding['errors'],'warnings':binding['warnings'],
+                    'unowned_geometry_ids':binding['unowned_geometry_ids'],
+                    'excluded_geometry_ids':binding['excluded_geometry_ids'],
+                    'excluded_geometries':binding['excluded_geometries']}}
+    targets=binding["targets"]
+    binding_meta={'binding_source':binding['binding_source'],
+        'binding_auxiliary':binding['auxiliary'],
+        'unowned_geometry_ids':binding['unowned_geometry_ids'],
+        'excluded_geometry_ids':binding['excluded_geometry_ids'],
+        'excluded_geometries':binding['excluded_geometries'],
+        'binding_warnings':binding['warnings']}
+    if not targets:
+        return {'status':'unresolved','coverage':'target_unresolved','requirements':requirements,
+                'checks':[],'review_required':True,'reason':'target_unresolved_no_active_geometry',
+                **binding_meta}
+    evaluated=[];heart_candidates=[];star_entries=[]
+    for target in targets:
+        profile=classify_profile(target['geometries'])
+        measured=heart_features(target['geometries'])
+        entry={'target_ref':target['target_ref'],'profile':profile['profile'],
+               'profile_measurements':profile['measurements'],'profile_votes':profile['votes'],
+               'heart_features':measured['features'],'normalization':measured.get('normalization')}
+        evaluated.append(entry)
+        if profile['profile']=='star':
+            star_entries.append(entry)
+            continue
+        if measured['features'] and all(measured['features'].values()):
+            heart_candidates.append((target,entry,measured))
+    if len(heart_candidates)==1:
+        target,entry,measured=heart_candidates[0]
+        check={'name':'heart_bilateral_lobes_notch_and_lower_tip','status':'passed',
+               'authority':'backend_measured_geometry',
+               'geometry_ids':target['target_ref']['geometry_ids'],
+               'target_ref':target['target_ref'],'measurements':measured['features']}
+        object_acceptance=[{**entry,'status':'passed','reason':'heart_features_measured',
+            'note':'爱心四特征在绑定对象上独立验收通过；未读取其他对象几何'}]
+        for other in evaluated:
+            if other['target_ref']['geometry_ids']==target['target_ref']['geometry_ids']:
+                continue
+            if other['profile']=='star':
+                object_acceptance.append({**other,'status':'not_checked',
+                    'reason':'no_verifier_for_star_profile',
+                    'note':'星型轮廓无对应语义验收器；爱心负向闸门已拒绝该轮廓，不得计为爱心通过'})
+            else:
+                object_acceptance.append({**other,'status':'unresolved',
+                    'reason':'unbound_object_no_requirement',
+                    'note':'该对象未绑定到任何已识别语义要求'})
+        review=any(o['status']!='passed' for o in object_acceptance[1:])
+        # Partial feature coverage is never a full pass: keep review_required
+        # True even when the bound heart check itself passed.
+        return {'status':'partial','coverage':'heart_outline_measured_features',
+                'requirements':requirements,'checks':[check],'review_required':True,
+                'reason':'partial_feature_coverage' if not review else 'partial_with_unverified_objects',
+                'object_acceptance':object_acceptance,
+                'unsupported_objects':[o['target_ref']['geometry_ids']
+                                       for o in object_acceptance if o['status']=='not_checked'],
+                **binding_meta}
+    if len(targets)==1 and star_entries and not heart_candidates:
+        entry=star_entries[0]
+        raise StructureContractError('星型轮廓被爱心负向闸门拒绝，不得作为爱心验收',{
+            'authority':'backend_measured_geometry','check':'rejected_non_heart_profile',
+            'target_ref':entry['target_ref'],'profile_measurements':entry['profile_measurements'],
+            'profile_votes':entry['profile_votes'],
+            'repair_instruction':'该轮廓呈星型（多深谷、低凸包面积比、五重旋转对称）；爱心验收器不接受星型轮廓。若需求为五角星，须由对应星形语义验收器处理，当前语义层无该验收能力。'})
+    non_star=[e for e in evaluated if e['profile']!='star']
+    if len(targets)==1 and non_star:
+        entry=non_star[0]
+        raise StructureContractError('爱心缺少双侧上凸、中央凹口或下方尖点',{
+            'authority':'backend_measured_geometry','check':'heart_bilateral_lobes_notch_and_lower_tip',
+            'target_ref':entry['target_ref'],'measured_features':entry['heart_features'],
+            'failed_features':[k for k,v in entry['heart_features'].items() if not v],
+            'normalization':entry['normalization'],
+            'repair_instruction':'修复失败的上方双峰、中央凹口或下方中心尖点；仅改变曲线参数区间不会改变完整周期的几何形态。保留尺寸与中心布局。'})
+    if len(heart_candidates)>1:
+        return {'status':'unresolved','coverage':'target_unresolved','requirements':requirements,
+                'checks':[],'review_required':True,'object_acceptance':evaluated,
+                'reason':'target_binding_ambiguous_multiple_candidates',
+                'reason_detail':'存在多个爱心轮廓候选，归属不唯一，未猜测绑定',
+                **binding_meta}
+    return {'status':'unresolved','coverage':'target_unresolved','requirements':requirements,
+            'checks':[],'review_required':True,'object_acceptance':evaluated,
+            'reason':'target_binding_ambiguous',
+            'reason_detail':'无法将爱心要求唯一绑定到一个可靠对象',
+            **binding_meta}
+
+
+def _verify_house_channel(gs,requirements):
+    from shapely.ops import polygonize,unary_union
+    lines,polys,network=_build_linework(gs)
+    checks=[];tolerance=.5
     def require(ok,name,measurements=None):
         if not ok:raise StructureContractError('图形语义结构验收失败：'+name,
             {'authority':'backend_measured_geometry','check':name,'measurements':measurements})
         checks.append({'name':name,'status':'passed','authority':'backend_measured_geometry',
             'geometry_ids':[g['id'] for g in gs],'measurements':measurements})
-    kind=requirements[0]['kind']
-    if kind=='triangle_roof_house':
-        faces=list(polygonize(network))
-        region=unary_union(faces)
-        require(region.geom_type=='Polygon','墙体与三角屋顶必须组成一个完整区域')
-        pts=_corners(region.exterior.coords)
-        require(len(pts)==5,'房子外轮廓应包含两侧墙、底边和两侧三角屋顶斜边')
-        apex=max(pts,key=lambda p:p[1]);i=pts.index(apex)
-        left,right=sorted([pts[i-1],pts[(i+1)%5]])
-        minx,miny,maxx,maxy=region.bounds
-        eave=(left[1]+right[1])/2
-        require(abs(left[1]-right[1])<=tolerance and apex[1]>eave+tolerance
-            and left[0]+tolerance<apex[0]<right[0]-tolerance,'屋顶须为同高屋檐上的两斜边与共同尖顶')
-        expected=[(minx,miny),(maxx,miny),(maxx,eave),apex,(minx,eave)]
-        require(all(any(math.dist(a,b)<=tolerance for b in pts) for a in expected),'墙体须竖直连接屋檐与底边')
-        doors=[]
-        for face in faces:
-            x,y,X,Y=face.bounds;w,h=X-x,Y-y
-            if len(_corners(face.exterior.coords))!=4 or face.interiors or abs(face.area-w*h)>tolerance:continue
-            if (w>tolerance and h>tolerance and w<maxx-minx-tolerance and abs(y-miny)<=tolerance
-                    and x>=minx-tolerance and x+w<=maxx+tolerance and y+h<eave-tolerance):doors.append([x,y,w,h])
-        require(bool(doors),'门须位于墙体内并连接底边',{'door_bounds_mm':doors})
-    else:
-        minx,miny,maxx,maxy=network.bounds
-        triangles=[];triangle_diagnostics=[]
-        for polygon in polygonize(network):
-            pts=_corners(polygon.exterior.coords)
-            if len(pts)!=3:continue
-            diagnostic={'corners_mm':[list(p) for p in pts]}
-            for j in range(3):
-                a,b,tip=pts[j],pts[(j+1)%3],pts[(j+2)%3]
-                if abs(a[1]-b[1])<=tolerance:
-                    diagnostic.update(horizontal_base_y_mm=(a[1]+b[1])/2,tip_y_mm=tip[1],
-                                      tip_above_base=tip[1]>(a[1]+b[1])/2+tolerance)
-                    break
-            triangle_diagnostics.append(diagnostic)
-            apex=max(pts,key=lambda p:p[1]);base=[p for p in pts if p!=apex]
-            if (abs(base[0][1]-base[1][1])<=tolerance and miny+tolerance<base[0][1]<apex[1]-tolerance
-                    and min(p[0] for p in base)+tolerance<apex[0]<max(p[0] for p in base)-tolerance):triangles.append(polygon)
-        require(bool(triangles),'大写A缺少由两斜笔与横笔围成的上部三角区域',
-                {'required_relation':'triangle_tip_above_horizontal_base',
-                 'observed_triangular_regions':triangle_diagnostics[:16]})
-        outer=max(polys,key=lambda p:p.area) if polys else None
-        nested=bool(outer and any(outer.area>t.area+.25 and outer.buffer(tolerance).covers(t) for t in triangles))
-        if not nested:
-            connected={0}
-            while True:
-                expanded=connected|{i for i,line in enumerate(lines) if any(line.distance(lines[j])<=tolerance for j in connected)}
-                if expanded==connected:break
-                connected=expanded
-            require(len(connected)==len(lines),'大写A的三角区域须属于同一笔画结构，不能用游离三角形代替')
-        bottom_probe=LineString([(minx-1,miny),(maxx+1,miny)])
-        feet=network.intersection(bottom_probe)
-        parts=list(feet.geoms) if hasattr(feet,'geoms') else [feet]
-        contacts=[]
-        for geometry,line in zip(gs,lines):
-            intersection=line.intersection(bottom_probe)
-            if not intersection.is_empty:
-                contacts.append({'geometry_id':geometry.get('id'),'intersection_bounds_mm':list(intersection.bounds)})
-        require(len(parts)==2 and parts[0].distance(parts[1])>tolerance,'大写A底部须保留分离的左右支脚',
-                {'required_bottom_components':2,'actual_bottom_components':len(parts),
-                 'probe_y_mm':miny,'bottom_component_bounds_mm':[list(p.bounds) for p in parts if not p.is_empty],
-                 'affected_geometries':contacts,'previously_passed_checks':[{'check':c['name'],'status':'passed'} for c in checks],
-                 'verified_structure':{'upper_triangle_present':True,'triangle_associated_with_letter':True},
-                 'repair_guidance':'检查与底部探测线相交的路径，保留上部三角区域和原始整体宽高。脚底水平线与图形应只相交成两段互不连接的脚底；脚间内边界必须离开底线并沿上方绕过开口，不能用一条底边横跨两脚，也不能把底边移到顶端来逃避检查。'})
-        top=network.intersection(LineString([(minx-1,maxy),(maxx+1,maxy)]))
-        require(top.bounds[2]-top.bounds[0]<maxx-minx-tolerance,'大写A须具有向上收拢的斜笔结构')
-    return {'status':'partial','coverage':kind+'_structural_relations_only','requirements':requirements,'checks':checks,'review_required':False}
+    faces=list(polygonize(network))
+    region=unary_union(faces)
+    require(region.geom_type=='Polygon','墙体与三角屋顶必须组成一个完整区域')
+    pts=_corners(region.exterior.coords)
+    require(len(pts)==5,'房子外轮廓应包含两侧墙、底边和两侧三角屋顶斜边')
+    apex=max(pts,key=lambda p:p[1]);i=pts.index(apex)
+    left,right=sorted([pts[i-1],pts[(i+1)%5]])
+    minx,miny,maxx,maxy=region.bounds
+    eave=(left[1]+right[1])/2
+    require(abs(left[1]-right[1])<=tolerance and apex[1]>eave+tolerance
+        and left[0]+tolerance<apex[0]<right[0]-tolerance,'屋顶须为同高屋檐上的两斜边与共同尖顶')
+    expected=[(minx,miny),(maxx,miny),(maxx,eave),apex,(minx,eave)]
+    require(all(any(math.dist(a,b)<=tolerance for b in pts) for a in expected),'墙体须竖直连接屋檐与底边')
+    doors=[]
+    for face in faces:
+        x,y,X,Y=face.bounds;w,h=X-x,Y-y
+        if len(_corners(face.exterior.coords))!=4 or face.interiors or abs(face.area-w*h)>tolerance:continue
+        if (w>tolerance and h>tolerance and w<maxx-minx-tolerance and abs(y-miny)<=tolerance
+                and x>=minx-tolerance and x+w<=maxx+tolerance and y+h<eave-tolerance):doors.append([x,y,w,h])
+    require(bool(doors),'门须位于墙体内并连接底边',{'door_bounds_mm':doors})
+    return {'status':'partial','coverage':'triangle_roof_house_structural_relations_only',
+            'requirements':requirements,'checks':checks,'review_required':False}
+
+
+def _verify_capital_a_channel(gs,requirements):
+    from shapely.geometry import LineString
+    from shapely.ops import polygonize
+    lines,polys,network=_build_linework(gs)
+    checks=[];tolerance=.5
+    def require(ok,name,measurements=None):
+        if not ok:raise StructureContractError('图形语义结构验收失败：'+name,
+            {'authority':'backend_measured_geometry','check':name,'measurements':measurements})
+        checks.append({'name':name,'status':'passed','authority':'backend_measured_geometry',
+            'geometry_ids':[g['id'] for g in gs],'measurements':measurements})
+    minx,miny,maxx,maxy=network.bounds
+    triangles=[];triangle_diagnostics=[]
+    for polygon in polygonize(network):
+        pts=_corners(polygon.exterior.coords)
+        if len(pts)!=3:continue
+        diagnostic={'corners_mm':[list(p) for p in pts]}
+        for j in range(3):
+            a,b,tip=pts[j],pts[(j+1)%3],pts[(j+2)%3]
+            if abs(a[1]-b[1])<=tolerance:
+                diagnostic.update(horizontal_base_y_mm=(a[1]+b[1])/2,tip_y_mm=tip[1],
+                                  tip_above_base=tip[1]>(a[1]+b[1])/2+tolerance)
+                break
+        triangle_diagnostics.append(diagnostic)
+        apex=max(pts,key=lambda p:p[1]);base=[p for p in pts if p!=apex]
+        if (abs(base[0][1]-base[1][1])<=tolerance and miny+tolerance<base[0][1]<apex[1]-tolerance
+                and min(p[0] for p in base)+tolerance<apex[0]<max(p[0] for p in base)-tolerance):triangles.append(polygon)
+    require(bool(triangles),'大写A缺少由两斜笔与横笔围成的上部三角区域',
+            {'required_relation':'triangle_tip_above_horizontal_base',
+             'observed_triangular_regions':triangle_diagnostics[:16]})
+    outer=max(polys,key=lambda p:p.area) if polys else None
+    nested=bool(outer and any(outer.area>t.area+.25 and outer.buffer(tolerance).covers(t) for t in triangles))
+    if not nested:
+        connected={0}
+        while True:
+            expanded=connected|{i for i,line in enumerate(lines) if any(line.distance(lines[j])<=tolerance for j in connected)}
+            if expanded==connected:break
+            connected=expanded
+        require(len(connected)==len(lines),'大写A的三角区域须属于同一笔画结构，不能用游离三角形代替')
+    bottom_probe=LineString([(minx-1,miny),(maxx+1,miny)])
+    feet=network.intersection(bottom_probe)
+    parts=list(feet.geoms) if hasattr(feet,'geoms') else [feet]
+    contacts=[]
+    for geometry,line in zip(gs,lines):
+        intersection=line.intersection(bottom_probe)
+        if not intersection.is_empty:
+            contacts.append({'geometry_id':geometry.get('id'),'intersection_bounds_mm':list(intersection.bounds)})
+    require(len(parts)==2 and parts[0].distance(parts[1])>tolerance,'大写A底部须保留分离的左右支脚',
+            {'required_bottom_components':2,'actual_bottom_components':len(parts),
+             'probe_y_mm':miny,'bottom_component_bounds_mm':[list(p.bounds) for p in parts if not p.is_empty],
+             'affected_geometries':contacts,'previously_passed_checks':[{'check':c['name'],'status':'passed'} for c in checks],
+             'verified_structure':{'upper_triangle_present':True,'triangle_associated_with_letter':True},
+             'repair_guidance':'检查与底部探测线相交的路径，保留上部三角区域和原始整体宽高。脚底水平线与图形应只相交成两段互不连接的脚底；脚间内边界必须离开底线并沿上方绕过开口，不能用一条底边横跨两脚，也不能把底边移到顶端来逃避检查。'})
+    top=network.intersection(LineString([(minx-1,maxy),(maxx+1,maxy)]))
+    require(top.bounds[2]-top.bounds[0]<maxx-minx-tolerance,'大写A须具有向上收拢的斜笔结构')
+    return {'status':'partial','coverage':'straight_capital_a_structural_relations_only',
+            'requirements':requirements,'checks':checks,'review_required':False}
+
+
+def verify_semantic_requirements(source,geometries,logical_objects=None,topology=None):
+    """Public acceptance entry; attaches the applicability marker.
+
+    The raw verifier keeps every inherited terminal status word unchanged.
+    This wrapper only records ``applicable_requirement_kinds`` so the summary
+    layer can distinguish "no mandatory requirement" from "mandatory
+    requirement left unverified / partial", even when the whole report is
+    ``not_checked``.  It never promotes a gap to a PASS.
+    """
+    report = _verify_semantic_requirements_raw(source,geometries,logical_objects,topology)
+    if isinstance(report, dict):
+        report['applicable_requirement_kinds'] = collect_applicable_requirement_kinds(report, source)
+        report['ambiguous_requirement_kinds'] = collect_ambiguous_requirement_kinds(report, source)
+        report['applicability_decision'] = derive_applicability_decision(report, source)
+    return report

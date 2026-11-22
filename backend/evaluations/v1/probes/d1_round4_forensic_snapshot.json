@@ -1,0 +1,55 @@
+{
+  "captured_at_local": "2026-11-17T16:31:58+08:00",
+  "captured_at_utc": "2026-11-17T08:31:58+00:00",
+  "backend": "C:\\Users\\29924\\Codes\\worktrees\\tmp\\a11-b12-c12-combo\\backend",
+  "owner": "d1-round4-a9",
+  "isolation_dir": "xline-d1-round4",
+  "env_overrides": {
+    "DEEPSEEK_CAD_PLANNING_MODEL": "deepseek-flash",
+    "DEEPSEEK_BASE_MODEL": "deepseek-flash",
+    "DEEPSEEK_ADVANCED_MODEL": "deepseek-flash",
+    "XLINE_CREATIVE_PROJECT_STORE": "C:\\Users\\29924\\AppData\\Local\\Temp\\xline-d1-round4\\projects.json",
+    "XLINE_AGENT_PLAN_STORE": "C:\\Users\\29924\\AppData\\Local\\Temp\\xline-d1-round4\\agent_plans.sqlite3",
+    "XLINE_AGENT_USER_CONFIG_PATH": "C:\\Users\\29924\\AppData\\Local\\Temp\\xline-d1-round4\\users.json"
+  },
+  "config_redacted": {
+    "mode": "deepseek",
+    "model_legacy": "deepseek-chat",
+    "base_model": "deepseek-flash",
+    "advanced_model": "deepseek-flash",
+    "cad_planning_model": "deepseek-flash",
+    "configured": true,
+    "api_key_configured": true,
+    "configured_providers": [
+      "deepseek"
+    ]
+  },
+  "payload": {
+    "model": "deepseek-flash",
+    "thinking": {
+      "type": "disabled"
+    },
+    "max_tokens": 8192,
+    "response_format": {
+      "type": "json_object"
+    },
+    "messages_count": 2
+  },
+  "checks": {
+    "cad_planning_model_is_flash": true,
+    "base_model_is_flash": true,
+    "advanced_model_is_flash": true,
+    "payload_model_is_flash": true,
+    "thinking_disabled_in_payload": true,
+    "payload_max_tokens_is_8192": true,
+    "json_object_response_format": true
+  },
+  "flags": {
+    "live_model_calls": 0,
+    "network_client_opened": false,
+    "transport_stubbed": true,
+    "production_module_imported": true,
+    "ledger_calls": 0
+  },
+  "all_checks_pass": true
+}

@@ -1659,3 +1659,43 @@ def test_service_experimental_alternatives_uses_sketch_graph_schema() -> None:
     assert result["candidate_mode"] is True
     assert result["evaluation"]["candidate_count"] == 2
     assert result["persisted"] is False
+
+
+def test_multi_rectangle_source_dimensions_do_not_become_overall_error():
+    from copy import deepcopy
+    from app.cad_construction_interpreter import interpret_construction_request
+
+    source='画两个矩形并排，宽2米高2米'
+    def rectangle(ref,x,y,width=2,height=2):
+        return {'op':'add_polyline','step_id':ref,'output_ref':ref,
+                'semantic':{'label':'矩形'},'closed':True,
+                'vertices':[{'x':x,'y':y},{'x':x+width,'y':y},
+                            {'x':x+width,'y':y+height},{'x':x,'y':y+height}]}
+    steps=[rectangle('rect-1',-3,-1),rectangle('rect-2',0,-1)]
+    payload={'schema_version':'cad.construction-interpretation.v1',
+             'is_construction_request':True,'confidence':.95,
+             'evidence_text':[source],'assumptions':[],
+             'plan':{'units':'m','steps':steps}}
+    result=interpret_construction_request(source,lambda *_:deepcopy(payload),
+                                          force_structured_model=True)
+    assert result['status']=='ready',result.get('error')
+    final=result['source_acceptance']['final_source_acceptance']
+    assert final['status']=='unverified'
+    assert final['review_required'] is True
+    assert len(final['unknown_requirements'])==2
+    assert all('多对象尺寸范围不明确' in item['reason']
+               for item in final['unknown_requirements'])
+    identity=result['source_acceptance']['object_identity_acceptance']
+    assert identity['status']=='passed'
+    assert [m['object_ids'] for m in identity['matched_entries']]==[['rect-1','rect-2']]
+    assert result['acceptance_summary']['review_required'] is True
+    overall_source=source.replace('宽2米高2米','整体宽5米，整体高2米')
+    overall_payload={**deepcopy(payload),'evidence_text':[overall_source]}
+    assert interpret_construction_request(
+        overall_source,lambda *_:deepcopy(overall_payload),
+        force_structured_model=True)['status']=='ready'
+    wrong_source=source.replace('宽2米高2米','整体宽6米，整体高2米')
+    wrong_payload={**deepcopy(payload),'evidence_text':[wrong_source]}
+    assert interpret_construction_request(
+        wrong_source,lambda *_:deepcopy(wrong_payload),
+        force_structured_model=True)['status']!='ready'

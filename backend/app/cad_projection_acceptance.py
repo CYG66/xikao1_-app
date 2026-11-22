@@ -9,13 +9,28 @@ from .cad_creation_intent import local_creation_objects
 
 def verify_projection_requirements(source, geometries):
     source=source.split('\n后端试算反馈：',1)[0]
-    if len(local_creation_objects(source))>1:
-        return {'status':'not_checked','checks':[]}
-    if not re.search(r'立方体|正方体',source) or not re.search(r'等轴|等距投影',source):
-        return {'status':'not_checked','checks':[]}
+    box=re.search(r'立方体|正方体',source)
+    projection=re.search(r'等轴|等距投影',source)
     # Only an explicit complete edge inventory authorizes exact cardinality.
-    if not re.search(r'(?:12|十二)\s*条.*?(?:棱|边)',source):
+    edges=re.search(r'(?:12|十二)\s*条.*?(?:棱|边)',source)
+    objects=local_creation_objects(source)
+    # A. No applicable projection requirement in the source: keep the prior
+    # non-blocking discard. Object count alone never creates a requirement.
+    if not (box and projection and edges):
         return {'status':'not_checked','checks':[]}
+    # B. Requirement recognized from the source, but multiple creation objects
+    # leave the check scope unresolved. Record the unverified clause instead
+    # of dropping it; scope is derived from source objects only, never from
+    # geometry appearance, and no new requirement is synthesized here.
+    if len(objects)>1:
+        evidence=[match.group(0) for match in (box,projection,edges) if match]
+        return {'status':'unverified','coverage':'unscoped_multiple_objects',
+            'review_required':True,'checks':[],
+            'unknown_requirements':[{
+                'source_requirement_id':'projection_isometric_edges',
+                'reason':'unscoped_multiple_objects',
+                'evidence':evidence,
+                'object_count':len(objects)}]}
     lines=[g for g in geometries if g.get('role') not in {'annotation','reference','ignored'}
            and g.get('selected') is not False]
     def fail(reason):

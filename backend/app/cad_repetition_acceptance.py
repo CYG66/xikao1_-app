@@ -87,8 +87,45 @@ def validate_repetition_plan(source, plan):
 def verify_repetition_requirements(source,geometries):
     source=source.split('\n后端试算反馈：',1)[0]
     checks=[]
-    if len(local_creation_objects(source))>1:
-        return {'status':'not_checked','coverage':'unscoped_multiple_objects','checks':[]}
+    objects=local_creation_objects(source)
+    teeth=tooth_boundary_requirements(source)
+    strips=parallel_strip_requirements(source)
+    stair=re.search(rf'(\d+)\s*级.*?每级\s*宽\s*({NUMBER})\s*({UNIT})\s*高\s*({NUMBER})\s*({UNIT})',source,re.I)
+    grid=re.search(r'(\d+)\s*列\s*(\d+)\s*行',source)
+    side=re.search(rf'边长\s*({NUMBER})\s*({UNIT})',source,re.I)
+    grid_match=bool(grid and side and re.search(r'六边形',source) and re.search(r'无缝|共边',source))
+    branch_clause=bool(re.search(r'(\d+)\s*条对称分支',source)
+        and re.search(r'每条分支带\s*(\d+)\s*个侧枝',source))
+    recognized=[]
+    if teeth:
+        recognized.append(('tooth_boundary',[m.group(0) for m in
+            (re.search(r'(\d+)个齿',source),re.search(rf'外径\s*({NUMBER})\s*({UNIT})',source,re.I)) if m]))
+    if strips:
+        recognized.append(('parallel_strip',[m.group(0) for m in
+            (re.search(r'(\d+)条平行(?:横线|条带)',source),
+             re.search(rf'每条长\s*({NUMBER})\s*({UNIT})\s*宽\s*({NUMBER})\s*({UNIT})',source,re.I),
+             re.search(rf'(中心距|净间距|间距)\s*({NUMBER})\s*({UNIT})',source,re.I)) if m]))
+    if stair:
+        recognized.append(('stair_step',[stair.group(0)]))
+    if grid_match:
+        recognized.append(('hexagonal_tiling',[grid.group(0),side.group(0)]))
+    if branch_clause:
+        recognized.append(('branch_network',[
+            re.search(r'(\d+)\s*条对称分支',source).group(0),
+            re.search(r'每条分支带\s*(\d+)\s*个侧枝',source).group(0)]))
+    # B. The source carries a recognized repetition/tiling/branch clause, but
+    # multiple creation objects leave the check scope unresolved. Keep the
+    # clause auditable as unverified instead of dropping it as not_checked.
+    # Scope comes from source objects only; geometry appearance never adds a
+    # requirement, and no new requirement is synthesized here.
+    if recognized and len(objects)>1:
+        return {'status':'unverified','coverage':'unscoped_multiple_objects',
+            'review_required':True,'checks':[],
+            'unknown_requirements':[{
+                'source_requirement_id':'repetition_'+kind,
+                'reason':'unscoped_multiple_objects',
+                'evidence':evidence,
+                'object_count':len(objects)} for kind,evidence in recognized]}
     gs=[g for g in geometries if g.get('selected') is not False
         and g.get('role') not in {'reference','annotation','ignored'}]
     def require(ok,name,measurements=None):
@@ -98,7 +135,6 @@ def verify_repetition_requirements(source,geometries):
                  'repair_instruction':'按原文局部尺寸和关系修正相关部件，保留无关正确部件；不得改变用户尺寸来绕过关系验收。'}
                 if isinstance(measurements,dict) and 'cells' in measurements else {})})
         checks.append({'name':name,'status':'passed','authority':'backend_measured_geometry'})
-    teeth=tooth_boundary_requirements(source)
     if teeth:
         from shapely.affinity import rotate
         from .cad_path_relation_acceptance import assemble_closed_boundary
@@ -129,7 +165,6 @@ def verify_repetition_requirements(source,geometries):
             require(abs(min(radii)-teeth['root_radius_mm'])<=.5,'齿根圆半径',{'cells':tooth_cells,'actual_mm':min(radii),'expected_mm':teeth['root_radius_mm']})
         error=polygon.boundary.hausdorff_distance(rotate(polygon,360/teeth['count'],origin=(cx,cy)).boundary)
         require(error<=.5,'齿形旋转重复关系',{'cells':tooth_cells,'hausdorff_error_mm':error})
-    strips=parallel_strip_requirements(source)
     if strips:
         from .cad_semantic_acceptance import _corners
         require(len(gs)==strips['count'],'平行条带数量',{'actual':len(gs),'expected':strips['count']})
@@ -151,7 +186,6 @@ def verify_repetition_requirements(source,geometries):
                 'cells':[a[4],b[4]],'actual_mm':actual,'expected_mm':strips['spacing_mm'],
                 'spacing_reference':strips['spacing_reference']})
     # Width/height scoped by “每级” cannot be interpreted as whole bounds.
-    stair=re.search(rf'(\d+)\s*级.*?每级\s*宽\s*({NUMBER})\s*({UNIT})\s*高\s*({NUMBER})\s*({UNIT})',source,re.I)
     if stair:
         count=int(stair[1]);width=mm(stair[2],stair[3]);height=mm(stair[4],stair[5])
         require(len(gs)==1 and gs[0].get('type')=='polyline','单一台阶轮廓')
@@ -174,9 +208,7 @@ def verify_repetition_requirements(source,geometries):
             valid=valid or (valid_steps and valid_base)
         require(valid,
             '每级尺寸及交替数量',{'segments_mm':segments,'step_width_mm':width,'step_height_mm':height})
-    grid=re.search(r'(\d+)\s*列\s*(\d+)\s*行',source)
-    side=re.search(rf'边长\s*({NUMBER})\s*({UNIT})',source,re.I)
-    if grid and side and re.search(r'六边形',source) and re.search(r'无缝|共边',source):
+    if grid_match:
         from shapely.geometry import Polygon
         count=int(grid[1])*int(grid[2]);length=mm(side[1],side[2]);polygons=[]
         require(len(gs)==count,'阵列单元数量',{'expected':count,'actual':len(gs)})

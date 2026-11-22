@@ -32,6 +32,7 @@ from .config import (
     services,
     topics,
 )
+from .integration_profile import robot_execution_permitted
 from .state import (
     enable_demo_state,
     load_virtual_mission_segments,
@@ -219,6 +220,12 @@ class RobotRosAdapter:
         self.virtual_sim_stop = threading.Event()
 
     def start(self) -> None:
+        if not robot_execution_permitted():
+            robot_state.ros_available = False
+            robot_state.bridge_mode = "integration_disabled"
+            robot_state.online = False
+            robot_state.add_log("integration profile: robot execution disabled")
+            return
         if RUNTIME_PROFILE == "virtual_sim":
             enable_demo_state()
             self.virtual_sim_stop.clear()
@@ -521,6 +528,9 @@ class RobotRosAdapter:
 
     def ensure_hardware_runtime(self, timeout: float = 15.0) -> bool:
         """Start the configured xline_ws3 runtime once and wait for readiness."""
+        if not robot_execution_permitted():
+            robot_state.add_log("integration profile: hardware runtime disabled")
+            return False
         with self.hardware_start_lock:
             if RUNTIME_PROFILE == "virtual_sim":
                 ready = (

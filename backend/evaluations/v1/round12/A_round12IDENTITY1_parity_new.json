@@ -1,0 +1,239 @@
+{
+  "S1_box_2_of_1": {
+    "source": "两个立方体并排，画等轴投影",
+    "inventory": {
+      "state": "complete",
+      "count": 2,
+      "entries": [
+        {
+          "object_noun": "立方体",
+          "quantity": 2,
+          "evidence": "两个立方体并排",
+          "span": [
+            0,
+            7
+          ]
+        }
+      ]
+    },
+    "count_status": "failed",
+    "actual_object_count": 1,
+    "expected_object_count": 2,
+    "baseline_source": "object_inventory",
+    "mismatch": "missing_object",
+    "checks": [
+      {
+        "status": "failed",
+        "expected": 2,
+        "actual": 1
+      }
+    ]
+  },
+  "S2_box_2_of_2": {
+    "source": "两个立方体并排，画等轴投影",
+    "inventory": {
+      "state": "complete",
+      "count": 2,
+      "entries": [
+        {
+          "object_noun": "立方体",
+          "quantity": 2,
+          "evidence": "两个立方体并排",
+          "span": [
+            0,
+            7
+          ]
+        }
+      ]
+    },
+    "count_status": "passed",
+    "actual_object_count": 2,
+    "expected_object_count": 2,
+    "baseline_source": "object_inventory",
+    "mismatch": null,
+    "checks": [
+      {
+        "status": "passed",
+        "expected": 2,
+        "actual": 2
+      }
+    ]
+  },
+  "S3_circle_2_of_2": {
+    "source": "画两个圆，半径1米",
+    "inventory": null,
+    "count_status": "passed",
+    "actual_object_count": 2,
+    "expected_object_count": 2,
+    "baseline_source": "explicit_composition",
+    "mismatch": null,
+    "checks": [
+      {
+        "status": "passed",
+        "expected": 2,
+        "actual": 2
+      }
+    ]
+  },
+  "S4_circle_2_of_3": {
+    "source": "画两个圆，半径1米",
+    "inventory": null,
+    "count_status": "failed",
+    "actual_object_count": 3,
+    "expected_object_count": 2,
+    "baseline_source": "explicit_composition",
+    "mismatch": "extra_object",
+    "checks": [
+      {
+        "status": "failed",
+        "expected": 2,
+        "actual": 3
+      }
+    ]
+  },
+  "S5_one_object_four_segments": {
+    "source": "画一个矩形轮廓",
+    "inventory": null,
+    "count_status": "not_checked",
+    "actual_object_count": 1,
+    "expected_object_count": null,
+    "baseline_source": null,
+    "mismatch": null,
+    "checks": []
+  },
+  "S6_shared_two_owners": {
+    "source": "画两个圆，半径1米",
+    "inventory": null,
+    "count_status": "passed",
+    "actual_object_count": 2,
+    "expected_object_count": 2,
+    "baseline_source": "explicit_composition",
+    "mismatch": null,
+    "checks": [
+      {
+        "status": "passed",
+        "expected": 2,
+        "actual": 2
+      }
+    ]
+  },
+  "S7a_edges": {
+    "source": "一个立方体有 12 条棱",
+    "inventory": null,
+    "count_status": "not_checked",
+    "actual_object_count": null,
+    "expected_object_count": null,
+    "baseline_source": null,
+    "mismatch": null,
+    "checks": []
+  },
+  "S7b_teeth": {
+    "source": "8 个齿的齿轮轮廓",
+    "inventory": null,
+    "count_status": "not_checked",
+    "actual_object_count": null,
+    "expected_object_count": null,
+    "baseline_source": null,
+    "mismatch": null,
+    "checks": []
+  },
+  "S7c_length": {
+    "source": "长度 20 mm",
+    "inventory": null,
+    "count_status": "not_checked",
+    "actual_object_count": null,
+    "expected_object_count": null,
+    "baseline_source": null,
+    "mismatch": null,
+    "checks": []
+  },
+  "S7d_angle": {
+    "source": "角度 90 度",
+    "inventory": null,
+    "count_status": "not_checked",
+    "actual_object_count": null,
+    "expected_object_count": null,
+    "baseline_source": null,
+    "mismatch": null,
+    "checks": []
+  },
+  "S7e_lines": {
+    "source": "3 条平行横线",
+    "inventory": null,
+    "count_status": "not_checked",
+    "actual_object_count": null,
+    "expected_object_count": null,
+    "baseline_source": null,
+    "mismatch": null,
+    "checks": []
+  },
+  "S7f_pentagon": {
+    "source": "正五边形",
+    "inventory": null,
+    "count_status": "not_checked",
+    "actual_object_count": null,
+    "expected_object_count": null,
+    "baseline_source": null,
+    "mismatch": null,
+    "checks": []
+  },
+  "S7g_outer_dia": {
+    "source": "外径 2 米",
+    "inventory": null,
+    "count_status": "not_checked",
+    "actual_object_count": null,
+    "expected_object_count": null,
+    "baseline_source": null,
+    "mismatch": null,
+    "checks": []
+  },
+  "S7h_side": {
+    "source": "边长 50 毫米",
+    "inventory": null,
+    "count_status": "not_checked",
+    "actual_object_count": null,
+    "expected_object_count": null,
+    "baseline_source": null,
+    "mismatch": null,
+    "checks": []
+  },
+  "S8_repeated_4": {
+    "source": "生成两个立方体和两个立方体",
+    "inventory": {
+      "state": "complete",
+      "count": 4,
+      "entries": [
+        {
+          "object_noun": "立方体",
+          "quantity": 2,
+          "evidence": "两个立方体",
+          "span": [
+            2,
+            7
+          ]
+        },
+        {
+          "object_noun": "立方体",
+          "quantity": 2,
+          "evidence": "两个立方体",
+          "span": [
+            8,
+            13
+          ]
+        }
+      ]
+    },
+    "count_status": "passed",
+    "actual_object_count": 4,
+    "expected_object_count": 4,
+    "baseline_source": "object_inventory",
+    "mismatch": null,
+    "checks": [
+      {
+        "status": "passed",
+        "expected": 4,
+        "actual": 4
+      }
+    ]
+  }
+}

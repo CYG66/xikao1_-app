@@ -137,9 +137,15 @@ from .cad_construction_interpreter import (
 from .cad_structure_contract import reference_contract, explicit_composition
 from .cad_generation_recovery import (
     should_repair, recovery_record, confidence_only_repair,
-    bounded_repair_available,
+    bounded_repair_available, evaluate_repair_progress, classify_feature_failure,
+    M3_PROGRESS_GATE_ENABLED, M2_SCOPE_CLASSIFIER_ENABLED,
 )
 from .cad_requirement_ledger import project_requirement_ledger
+from .integration_profile import (
+    IntegrationProfileError,
+    integration_profile_enabled,
+    require_external_model_calls_permitted,
+)
 from .cad_creation_intent import has_compound_primitives
 from .cad_creation_intent import local_creation_objects
 from .cad_construction_commit import (
@@ -293,11 +299,15 @@ class PendingAction:
 class RobotAgentService:
     @property
     def _active_user_profile(self) -> dict[str, Any] | None:
+        if integration_profile_enabled():
+            return None
         owner = current_agent_user_id()
         return None if owner == "local-default" else user_model_config.get(owner)
 
     @property
     def mode(self) -> str:
+        if integration_profile_enabled():
+            return "local"
         profile = self._active_user_profile
         return str(profile.get("mode")) if profile and profile.get("mode") else getattr(self, "_mode", "deepseek")
 
@@ -311,6 +321,8 @@ class RobotAgentService:
 
     @property
     def model(self) -> str:
+        if integration_profile_enabled():
+            return "local"
         profile = self._active_user_profile
         return str(profile.get("model")) if profile and profile.get("model") else getattr(self, "_model", "deepseek-chat")
 
@@ -324,6 +336,8 @@ class RobotAgentService:
 
     @property
     def base_model(self) -> str:
+        if integration_profile_enabled():
+            return "local"
         profile = self._active_user_profile
         return str(profile.get("base_model")) if profile and profile.get("base_model") else getattr(self, "_base_model", self.model)
 
@@ -337,6 +351,8 @@ class RobotAgentService:
 
     @property
     def advanced_model(self) -> str:
+        if integration_profile_enabled():
+            return "local"
         profile = self._active_user_profile
         return str(profile.get("advanced_model")) if profile and profile.get("advanced_model") else getattr(self, "_advanced_model", self.model)
 
@@ -350,12 +366,16 @@ class RobotAgentService:
 
     @property
     def cad_planning_model(self) -> str:
+        if integration_profile_enabled():
+            return "local"
         profile = self._active_user_profile
         value = str((profile or {}).get("cad_planning_model") or getattr(self, "_cad_planning_model", "deepseek-chat"))
         return value if value in {"deepseek-chat", "deepseek-reasoner", "deepseek-flash"} else "deepseek-chat"
 
     @property
     def api_keys(self) -> dict[str, str]:
+        if integration_profile_enabled():
+            return {}
         profile = self._active_user_profile
         if profile is not None:
             return profile.setdefault("api_keys", {})
@@ -407,11 +427,22 @@ class RobotAgentService:
         self._deepseek_request_timeout = self._env_timeout(
             "XLINE_AGENT_DEEPSEEK_REQUEST_TIMEOUT_SECONDS", 90.0, maximum=900.0
         )
-        for provider, env_name in PROVIDER_API_KEY_ENV.items():
-            value = os.getenv(env_name, "").strip()
-            if value:
-                self.api_keys[provider] = value
-        self._load_config()
+        if integration_profile_enabled():
+            # Never read the local production config or provider-key
+            # environment inside the offline integration profile.  The
+            # property layer also forces local mode for every request owner.
+            self.mode = "local"
+            self.model = "local"
+            self.base_model = "local"
+            self.advanced_model = "local"
+            self._cad_planning_model = "local"
+            self.api_keys = {}
+        else:
+            for provider, env_name in PROVIDER_API_KEY_ENV.items():
+                value = os.getenv(env_name, "").strip()
+                if value:
+                    self.api_keys[provider] = value
+            self._load_config()
         if restore_pending_actions:
             self._restore_pending_actions()
 
@@ -486,6 +517,10 @@ class RobotAgentService:
         clear_api_key: bool = False,
         cad_planning_model: str | None = None,
     ) -> dict[str, Any]:
+        if integration_profile_enabled():
+            raise IntegrationProfileError(
+                "集成验证 profile 禁止修改或启用外部模型配置"
+            )
         owner = current_agent_user_id()
         if owner != "local-default":
             user_model_config.update(
@@ -552,6 +587,11 @@ class RobotAgentService:
             pass
 
     def test_connection(self) -> dict[str, Any]:
+        if integration_profile_enabled():
+            return {
+                "ok": True,
+                "message": "集成验证 profile 已强制本地模式，不发起外部连接。",
+            }
         if self.mode == "local":
             return {"ok": True, "message": "本地诊断助手可用，无需 API Key。"}
         if not self.api_key:
@@ -1599,6 +1639,7 @@ class RobotAgentService:
         each vendor's response to plain text; raises RuntimeError on API
         failure so callers can fall back to conservative rules.
         """
+        require_external_model_calls_permitted()
         if self.mode == "local" or not self.configured:
             raise RuntimeError("结构化复核 API 未配置")
         max_tokens = (
@@ -2825,6 +2866,7 @@ class RobotAgentService:
     def _deepseek_response(
         self, payload: dict[str, Any]
     ) -> tuple[http.client.HTTPSConnection, http.client.HTTPResponse]:
+        require_external_model_calls_permitted()
         return self._deepseek_transport().open(payload)
 
     @staticmethod
@@ -4206,6 +4248,7 @@ class RobotAgentService:
         route: dict[str, Any] | None = None,
         context_message: str | None = None,
     ) -> dict[str, Any]:
+        require_external_model_calls_permitted()
         provider_name, base_url = PROVIDERS[self.mode]
         adapter = provider_adapter(self.mode)
         system = self._system_context(
@@ -6229,6 +6272,8 @@ class RobotAgentService:
                     source + '\n后端部件合并协议：本次仅输出 affected_output_refs 对应的步骤，'
                     + ('本次仅修复重复身份：保持每个output_ref，给出semantic.object_id的互不重复标识，不得重新规划几何。后端只采用object_id，其他字段全部使用原计划。' if identity_only else '') +
                     '其他部件、布局和断言由后端保留，禁止重新生成；不要添加辅助占位图形。'
+                    '保留失败步骤原有的 junction_constraints、continuity、tangent_tolerance_deg 等有效约束，不得清空或放宽；'
+                    '若改变段结构，必须输出与新段结构匹配的完整连接约束集合。'
                     'plan.units必须保持原单位。此精简计划仅用于合并，合并后仍执行全部验收。'
                     + (f'唯一允许同步修正的模型自拟错误断言是{failed_assertion}，放入assertions并保持原ID及target_ref；不可修改其他断言或用户原始要求。' if failed_assertion else '') + '\n'
                     + json.dumps({'affected_output_refs': affected,
@@ -6476,12 +6521,34 @@ class RobotAgentService:
         construction_attempts = [deepcopy(interpretation)]
         while (should_repair(interpretation)
                and bounded_repair_available(construction_attempts, max_repairs=2)):
+            # M3: stall guard between consecutive attempts. The first repair
+            # (single attempt) is never gated. Block only on a proven stall;
+            # every undetermined or missing-snapshot path releases.
+            if M3_PROGRESS_GATE_ENABLED and len(construction_attempts) >= 2:
+                progress=evaluate_repair_progress(construction_attempts[-2], construction_attempts[-1])
+                if progress['decision']=='block':
+                    interpretation={
+                        'schema':'cad.construction-interpretation-result.v1',
+                        'status':'invalid','parser':interpretation.get('parser'),
+                        'provider_attempted':interpretation.get('provider_attempted'),
+                        'rejected_plan':deepcopy(interpretation.get('plan')),
+                        'progress':deepcopy(progress),
+                        'error':{'code':'no_progress','message':'连续两次修复在失败特征与几何上均无实质进展，已停止无效重试；可重新生成整体方案。'}}
+                    break
             failed_attempt=deepcopy(interpretation)
             repair_details=(failed_attempt.get('construction_error') or {}).get('details') or {}
             failed_refs=set(repair_details.get('affected_output_refs') or [])
             plan_refs={s.get('output_ref') for s in (failed_attempt.get('plan') or failed_attempt.get('rejected_plan') or {}).get('steps',[])}
-            structural_replan=bool(repair_details.get('requires_structural_replan')
+            failed_error=failed_attempt.get('construction_error') or failed_attempt.get('error') or {}
+            if M2_SCOPE_CLASSIFIER_ENABLED:
+                classification=classify_feature_failure(repair_details, failed_error.get('code') or '')
+            else:
+                classification={'repair_class':'unspecified',
+                    'requires_structural_replan':bool(repair_details.get('requires_structural_replan')),
+                    'reason':'classifier disabled'}
+            legacy_replan=bool(repair_details.get('requires_structural_replan')
                 and plan_refs and plan_refs.issubset(failed_refs))
+            structural_replan=legacy_replan or classification['requires_structural_replan']
             failure = interpretation.get("error") or {}
             feedback = str(failure.get("message") or "构造计划未通过验证")
             if isinstance(interpretation.get("construction_error"), dict):
@@ -6490,6 +6557,15 @@ class RobotAgentService:
                 )
                 if (interpretation['construction_error'].get('details') or {}).get('local_repair_scope'):
                     feedback += "\n本次是受保护的局部修复：仅可修改editable_fields_by_ref列出的坐标字段。必须保留全部步骤及其顺序、标识、语义和全局参数；不得增删步骤、重命名或改变其他部件。修复后会逐项比较并校验受保护几何。"
+                expected_feature=(repair_details.get('required_features')
+                    or {k:v for k,v in repair_details.items() if str(k).startswith('expected')})
+                measured_feature=(repair_details.get('measured_features')
+                    or repair_details.get('measurements') or repair_details.get('measured_center_mm'))
+                feedback += "\n修复范围判定：" + json.dumps(
+                    {'repair_class':classification['repair_class'],'requires_structural_replan':structural_replan,
+                     'expected_feature':expected_feature,'measured_feature':measured_feature,
+                     'difference':repair_details.get('failed_features') or []},
+                    ensure_ascii=False)
             rejected_plan = interpretation.get("plan") or interpretation.get("rejected_plan")
             previous_plan = (
                 "\n前次未通过的计划（仅供修正，禁止当成用户要求）："
@@ -6696,6 +6772,7 @@ class RobotAgentService:
                             "alternative_selection": deepcopy(interpretation.get("alternative_selection")),
                             "status": interpretation.get("status"),
                             "error": deepcopy(error),
+                            "progress": deepcopy(interpretation.get("progress")),
                             "provider_attempted": interpretation.get("provider_attempted", False),
                         },
                     }

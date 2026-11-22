@@ -1,0 +1,655 @@
+{
+  "entry": {
+    "two_circles_passed": {
+      "status": "passed",
+      "identity_state": "bound",
+      "evidence_grade": "measured_geometry",
+      "matched_entries": [
+        {
+          "requirement_id": "legacy-count:circle:2",
+          "noun": "圆",
+          "quantity": 2,
+          "category": "circle",
+          "object_ids": [
+            "circle-1",
+            "circle-2"
+          ],
+          "geometry_ids": [
+            [
+              1
+            ],
+            [
+              2
+            ]
+          ],
+          "bindings": [
+            {
+              "object_id": "circle-1",
+              "geometry_ids": [
+                1
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "测量到圆几何（圆心/半径由执行器产出）"
+            },
+            {
+              "object_id": "circle-2",
+              "geometry_ids": [
+                2
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "测量到圆几何（圆心/半径由执行器产出）"
+            }
+          ],
+          "evidence": "两个圆",
+          "evidence_grade": "measured_geometry",
+          "justification": "条目「圆」要求 2 个测量类别为circle的对象；对象 circle-1, circle-2 归属活动几何并通过后端图校验，测量类别与条目一致；依据为执行器产出几何与归属图，未采用模型标签。 同规格同类对象集合匹配成立，个体配对顺序不唯一。"
+        }
+      ],
+      "unmatched_entries": [],
+      "unmatched_objects": [],
+      "ambiguous_bindings": [],
+      "note": "全部适用条目已通过测量几何/既有适用通道绑定到后端对象。",
+      "layers": {
+        "identity_status": "passed",
+        "identity_state": "bound",
+        "identity_evidence_grade": "measured_geometry",
+        "summary_status": "review_required",
+        "summary_review_required": true,
+        "summary_coverage": "unknown",
+        "summary_unknown_requirements": [
+          {
+            "source": "source_acceptance",
+            "reason": "需求清单或完整覆盖证据缺失"
+          }
+        ],
+        "top_status": "ready",
+        "geometry_count": 2,
+        "logical_object_count": 2,
+        "candidate_is_accepted": null,
+        "views": null
+      }
+    },
+    "two_circles_label_tampered": {
+      "status": "passed",
+      "identity_state": "bound",
+      "evidence_grade": "measured_geometry",
+      "matched_entries": [
+        {
+          "requirement_id": "legacy-count:circle:2",
+          "noun": "圆",
+          "quantity": 2,
+          "category": "circle",
+          "object_ids": [
+            "circle-1",
+            "circle-2"
+          ],
+          "geometry_ids": [
+            [
+              1
+            ],
+            [
+              2
+            ]
+          ],
+          "bindings": [
+            {
+              "object_id": "circle-1",
+              "geometry_ids": [
+                1
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "测量到圆几何（圆心/半径由执行器产出）"
+            },
+            {
+              "object_id": "circle-2",
+              "geometry_ids": [
+                2
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "测量到圆几何（圆心/半径由执行器产出）"
+            }
+          ],
+          "evidence": "两个圆",
+          "evidence_grade": "measured_geometry",
+          "justification": "条目「圆」要求 2 个测量类别为circle的对象；对象 circle-1, circle-2 归属活动几何并通过后端图校验，测量类别与条目一致；依据为执行器产出几何与归属图，未采用模型标签。 同规格同类对象集合匹配成立，个体配对顺序不唯一。"
+        }
+      ],
+      "unmatched_entries": [],
+      "unmatched_objects": [],
+      "ambiguous_bindings": [],
+      "note": "全部适用条目已通过测量几何/既有适用通道绑定到后端对象。",
+      "layers": {
+        "identity_status": "passed",
+        "identity_state": "bound",
+        "identity_evidence_grade": "measured_geometry",
+        "summary_status": "review_required",
+        "summary_review_required": true,
+        "summary_coverage": "unknown",
+        "summary_unknown_requirements": [
+          {
+            "source": "source_acceptance",
+            "reason": "需求清单或完整覆盖证据缺失"
+          }
+        ],
+        "top_status": "ready",
+        "geometry_count": 2,
+        "logical_object_count": 2,
+        "candidate_is_accepted": null,
+        "views": null
+      }
+    },
+    "circle_and_rectangle_ready": {
+      "status": "passed",
+      "identity_state": "bound",
+      "evidence_grade": "measured_geometry",
+      "matched_entries": [
+        {
+          "requirement_id": "legacy-name:圆",
+          "noun": "圆",
+          "quantity": 1,
+          "category": "circle",
+          "object_ids": [
+            "circle-1"
+          ],
+          "geometry_ids": [
+            [
+              1
+            ]
+          ],
+          "bindings": [
+            {
+              "object_id": "circle-1",
+              "geometry_ids": [
+                1
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "测量到圆几何（圆心/半径由执行器产出）"
+            }
+          ],
+          "evidence": "画一个圆和一个矩形，圆半径1米，矩形宽2米高2米",
+          "evidence_grade": "measured_geometry",
+          "justification": "条目「圆」要求 1 个测量类别为circle的对象；对象 circle-1 归属活动几何并通过后端图校验，测量类别与条目一致；依据为执行器产出几何与归属图，未采用模型标签。"
+        },
+        {
+          "requirement_id": "legacy-name:矩形",
+          "noun": "矩形",
+          "quantity": 1,
+          "category": "rectangle",
+          "object_ids": [
+            "rect-1"
+          ],
+          "geometry_ids": [
+            [
+              2
+            ]
+          ],
+          "bindings": [
+            {
+              "object_id": "rect-1",
+              "geometry_ids": [
+                2
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "测量到闭合矩形框"
+            }
+          ],
+          "evidence": "画一个圆和一个矩形，圆半径1米，矩形宽2米高2米",
+          "evidence_grade": "measured_geometry",
+          "justification": "条目「矩形」要求 1 个测量类别为rectangle的对象；对象 rect-1 归属活动几何并通过后端图校验，测量类别与条目一致；依据为执行器产出几何与归属图，未采用模型标签。"
+        }
+      ],
+      "unmatched_entries": [],
+      "unmatched_objects": [],
+      "ambiguous_bindings": [],
+      "note": "全部适用条目已通过测量几何/既有适用通道绑定到后端对象。",
+      "layers": {
+        "identity_status": "passed",
+        "identity_state": "bound",
+        "identity_evidence_grade": "measured_geometry",
+        "summary_status": "review_required",
+        "summary_review_required": true,
+        "summary_coverage": "unknown",
+        "summary_unknown_requirements": [
+          {
+            "source": "source_acceptance",
+            "reason": "需求清单或完整覆盖证据缺失"
+          }
+        ],
+        "top_status": "ready",
+        "geometry_count": 2,
+        "logical_object_count": 2,
+        "candidate_is_accepted": null,
+        "views": null
+      }
+    },
+    "rectangle_only_baseline_gap": {
+      "composition_contract": null,
+      "identity_status": null,
+      "top_status": "invalid",
+      "note": "既有结构化契约未捕获纯矩形数量短语；入口身份通道未建立基线，缺口留证。"
+    },
+    "cube_projection_two_circles": {
+      "status": "unverified",
+      "identity_state": "unbound",
+      "evidence_grade": "insufficient",
+      "matched_entries": [],
+      "unmatched_entries": [
+        {
+          "requirement_id": "request-0:object-1:object",
+          "noun": "立方体的等轴",
+          "quantity": 2,
+          "category": "box_projection",
+          "reason": "insufficient_evidence",
+          "detail": "当前通道缺少可作用于该条目的可信类别证据；身份对应保留不确定性。",
+          "evidence": "两个立方体的等轴"
+        }
+      ],
+      "unmatched_objects": [
+        {
+          "object_id": "circle-1",
+          "measured_category": "circle",
+          "evidence_grade": "measured_geometry"
+        },
+        {
+          "object_id": "circle-2",
+          "measured_category": "circle",
+          "evidence_grade": "measured_geometry"
+        }
+      ],
+      "ambiguous_bindings": [],
+      "note": "部分条目缺少可信类别证据或对应未定；未产生伪造的通过或失败结论。",
+      "layers": {
+        "identity_status": "unverified",
+        "identity_state": "unbound",
+        "identity_evidence_grade": "insufficient",
+        "summary_status": "review_required",
+        "summary_review_required": true,
+        "summary_coverage": "unknown",
+        "summary_unknown_requirements": [
+          {
+            "source": "source_acceptance",
+            "reason": "需求清单或完整覆盖证据缺失"
+          }
+        ],
+        "top_status": "ready",
+        "geometry_count": 2,
+        "logical_object_count": 2,
+        "candidate_is_accepted": null,
+        "views": null
+      }
+    }
+  },
+  "direct": {
+    "self_report_only_unverified": {
+      "status": "unverified",
+      "identity_state": "unbound",
+      "evidence_grade": "insufficient",
+      "matched_entries": [],
+      "unmatched_entries": [
+        {
+          "requirement_id": "request-0:object-1:object",
+          "noun": "圆",
+          "quantity": 2,
+          "category": "circle",
+          "reason": "insufficient_evidence",
+          "detail": "仅 0 个对象有自身可信分类证据，其余对象分类未判明；缺少可信几何证据，未按模型标签补齐，也未判为类型错误。",
+          "evidence": "两个圆",
+          "unmatched_object_ids": [
+            "obj-1"
+          ]
+        }
+      ],
+      "unmatched_objects": [
+        {
+          "object_id": "obj-1",
+          "measured_category": "unclassified",
+          "evidence_grade": "insufficient"
+        }
+      ],
+      "ambiguous_bindings": [],
+      "note": "部分条目缺少可信类别证据或对应未定；未产生伪造的通过或失败结论。"
+    },
+    "rectangle_expressions_both_recognized": {
+      "status": "passed",
+      "identity_state": "bound",
+      "evidence_grade": "measured_geometry",
+      "matched_entries": [
+        {
+          "requirement_id": "request-0:object-1:object",
+          "noun": "矩形",
+          "quantity": 2,
+          "category": "rectangle",
+          "object_ids": [
+            "rect-loop",
+            "rect-poly"
+          ],
+          "geometry_ids": [
+            [
+              1,
+              2,
+              3,
+              4
+            ],
+            [
+              5
+            ]
+          ],
+          "bindings": [
+            {
+              "object_id": "rect-loop",
+              "geometry_ids": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "线段闭合正交四边形（四条线段表达），测量类别为矩形"
+            },
+            {
+              "object_id": "rect-poly",
+              "geometry_ids": [
+                5
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "测量到闭合矩形框"
+            }
+          ],
+          "evidence": "两个矩形",
+          "evidence_grade": "measured_geometry",
+          "justification": "条目「矩形」要求 2 个测量类别为rectangle的对象；对象 rect-loop, rect-poly 归属活动几何并通过后端图校验，测量类别与条目一致；依据为执行器产出几何与归属图，未采用模型标签。 同规格同类对象集合匹配成立，个体配对顺序不唯一。"
+        }
+      ],
+      "unmatched_entries": [],
+      "unmatched_objects": [],
+      "ambiguous_bindings": [],
+      "note": "全部适用条目已通过测量几何/既有适用通道绑定到后端对象。"
+    },
+    "reused_object_not_passed": {
+      "status": "unverified",
+      "identity_state": "partial",
+      "evidence_grade": "insufficient",
+      "matched_entries": [
+        {
+          "requirement_id": "request-0:object-1:object",
+          "noun": "圆",
+          "quantity": 1,
+          "category": "circle",
+          "object_ids": [
+            "obj-1"
+          ],
+          "geometry_ids": [
+            [
+              1
+            ]
+          ],
+          "bindings": [
+            {
+              "object_id": "obj-1",
+              "geometry_ids": [
+                1
+              ],
+              "evidence_grade": "measured_geometry",
+              "detail": "测量到圆几何（圆心/半径由执行器产出）"
+            }
+          ],
+          "evidence": "第一个圆",
+          "evidence_grade": "measured_geometry",
+          "justification": "条目「圆」要求 1 个测量类别为circle的对象；对象 obj-1 归属活动几何并通过后端图校验，测量类别与条目一致；依据为执行器产出几何与归属图，未采用模型标签。"
+        }
+      ],
+      "unmatched_entries": [
+        {
+          "requirement_id": "request-0:object-2:object",
+          "noun": "圆",
+          "quantity": 1,
+          "category": "circle",
+          "reason": "insufficient_evidence",
+          "detail": "现有测量通道未能为该条目凑齐足够的可信对象；缺少可信几何证据，未按模型标签补齐。",
+          "evidence": "第二个圆"
+        }
+      ],
+      "unmatched_objects": [],
+      "ambiguous_bindings": [],
+      "note": "部分条目缺少可信类别证据或对应未定；未产生伪造的通过或失败结论。"
+    },
+    "rebuild_bad": {
+      "status": "unverified",
+      "note": "部分条目缺少可信类别证据或对应未定；未产生伪造的通过或失败结论。"
+    },
+    "rebuild_good": {
+      "status": "unverified",
+      "note": "部分条目缺少可信类别证据或对应未定；未产生伪造的通过或失败结论。"
+    },
+    "three_d_solid_unverified": {
+      "status": "unverified",
+      "identity_state": "unbound",
+      "evidence_grade": "insufficient",
+      "matched_entries": [],
+      "unmatched_entries": [
+        {
+          "requirement_id": "request-0:object-1:object",
+          "noun": "实体",
+          "quantity": 2,
+          "category": "solid_entity",
+          "reason": "missing_3d_channel",
+          "detail": "当前仅有二维投影/轮廓测量，缺少三维实体可操作性证据；不得由投影外观反推实体类型。",
+          "evidence": "两个可操作的三维实体"
+        }
+      ],
+      "unmatched_objects": [
+        {
+          "object_id": "solid-1",
+          "measured_category": "rectangle",
+          "evidence_grade": "measured_geometry"
+        },
+        {
+          "object_id": "solid-2",
+          "measured_category": "rectangle",
+          "evidence_grade": "measured_geometry"
+        }
+      ],
+      "ambiguous_bindings": [],
+      "note": "部分条目缺少可信类别证据或对应未定；未产生伪造的通过或失败结论。"
+    }
+  },
+  "count_regression": {
+    "b2_missing_object": {
+      "status": "failed",
+      "unknown": [
+        {
+          "source": "object_inventory",
+          "reason": "来源契约要求 2 个对象，后端归属台账为 1 个对象（missing_object）",
+          "expected_object_count": 2,
+          "actual_object_count": 1,
+          "mismatch": "missing_object",
+          "baseline": {
+            "source": "object_inventory",
+            "contract_kind": "object_inventory",
+            "expected_object_count": 2,
+            "evidence": [
+              "两个立方体并排"
+            ],
+            "entries": [
+              {
+                "requirement_id": "request-0:object-1:object",
+                "object_noun": "立方体",
+                "quantity": 2,
+                "measure_word": "个",
+                "expected_category": "object",
+                "evidence": "两个立方体并排",
+                "evidence_span": [
+                  1,
+                  8
+                ],
+                "source_clause_index": 0,
+                "source_id": "request-0",
+                "evidence_occurrences": [
+                  [
+                    1,
+                    8
+                  ]
+                ]
+              }
+            ],
+            "grouping": "object"
+          },
+          "grouping": "object",
+          "shared_geometry_owners": {}
+        }
+      ],
+      "layers": {
+        "identity_status": "unverified",
+        "identity_state": "unbound",
+        "identity_evidence_grade": "insufficient",
+        "summary_status": "review_required",
+        "summary_review_required": true,
+        "summary_coverage": "unknown",
+        "summary_unknown_requirements": [
+          {
+            "source": "object_inventory",
+            "reason": "来源契约要求 2 个对象，后端归属台账为 1 个对象（missing_object）",
+            "expected_object_count": 2,
+            "actual_object_count": 1,
+            "mismatch": "missing_object",
+            "baseline": {
+              "source": "object_inventory",
+              "contract_kind": "object_inventory",
+              "expected_object_count": 2,
+              "evidence": [
+                "两个立方体并排"
+              ],
+              "entries": [
+                {
+                  "requirement_id": "request-0:object-1:object",
+                  "object_noun": "立方体",
+                  "quantity": 2,
+                  "measure_word": "个",
+                  "expected_category": "object",
+                  "evidence": "两个立方体并排",
+                  "evidence_span": [
+                    1,
+                    8
+                  ],
+                  "source_clause_index": 0,
+                  "source_id": "request-0",
+                  "evidence_occurrences": [
+                    [
+                      1,
+                      8
+                    ]
+                  ]
+                }
+              ],
+              "grouping": "object"
+            },
+            "grouping": "object",
+            "shared_geometry_owners": {}
+          }
+        ],
+        "top_status": "ready",
+        "geometry_count": 1,
+        "logical_object_count": 1,
+        "candidate_is_accepted": null,
+        "views": null
+      }
+    },
+    "attribute_numbers": {
+      "count_status": "not_checked",
+      "identity_status": "not_checked"
+    }
+  },
+  "round2": {
+    "one_classified_one_unclassified": {
+      "status": "unverified",
+      "unmatched": [
+        {
+          "requirement_id": "request-0:object-1:object",
+          "noun": "圆",
+          "quantity": 2,
+          "category": "circle",
+          "reason": "insufficient_evidence",
+          "detail": "仅 1 个对象有自身可信分类证据，其余对象分类未判明；缺少可信几何证据，未按模型标签补齐，也未判为类型错误。",
+          "evidence": "两个圆",
+          "unmatched_object_ids": [
+            "obj-2"
+          ]
+        }
+      ]
+    },
+    "two_classified_circles": {
+      "status": "passed",
+      "geometry_ids": [
+        [
+          1
+        ],
+        [
+          2
+        ]
+      ]
+    },
+    "channel_partial_coverage": {
+      "status": "unverified",
+      "unmatched": [
+        {
+          "requirement_id": "request-0:object-1:object",
+          "noun": "立方体",
+          "quantity": 2,
+          "category": "box_projection",
+          "reason": "channel_partial_coverage",
+          "detail": "通道结论仅覆盖 1 个对象，缺少 1 个对象的对象级通道证据；未覆盖对象不建立身份绑定。",
+          "evidence": "两个立方体的等轴投影",
+          "covered_object_ids": [
+            "obj-1"
+          ],
+          "uncovered_object_ids": [
+            "obj-2"
+          ]
+        }
+      ]
+    },
+    "proven_mismatch_both_classified": {
+      "status": "failed",
+      "unmatched": [
+        {
+          "requirement_id": "request-0:object-1:object",
+          "noun": "矩形",
+          "quantity": 2,
+          "category": "rectangle",
+          "reason": "category_mismatch",
+          "detail": "作用域完整，测量证据证明已分类对象类别为 ['circle']，与来源要求的 rectangle 不一致。",
+          "evidence": "两个矩形",
+          "matched_object_ids": [],
+          "other_object_ids": [
+            "obj-1",
+            "obj-2"
+          ]
+        }
+      ]
+    },
+    "three_circles_require_two": {
+      "identity_status": "passed",
+      "matched_object_ids": [
+        "obj-1",
+        "obj-2"
+      ],
+      "unmatched_objects": [
+        {
+          "object_id": "obj-3",
+          "measured_category": "circle",
+          "evidence_grade": "measured_geometry"
+        }
+      ],
+      "count_status": "failed",
+      "count_mismatch": "extra_object"
+    },
+    "shared_both_evidenced": {
+      "status": "passed"
+    },
+    "shared_only_no_own_evidence": {
+      "status": "unverified",
+      "unmatched": []
+    }
+  },
+  "failures": []
+}

@@ -27,6 +27,7 @@ from .cad_constraint_solver import (
 from .logical_topology import validate_logical_object_graph
 from .tooling import CadGeometry
 from .cad_parametric import ParametricError, expression, sample_curve
+from .cad_topology_safety import analyze_composite_segments
 
 
 MAX_CONSTRUCTION_STEPS = 100
@@ -784,10 +785,16 @@ def execute_construction_plan(
             backend=validated.constraint_backend,
         )
     except ConstraintSolveError as exc:
+        diagnostics = {"category": exc.category}
+        if getattr(exc, "reports", None):
+            diagnostics["reports"] = exc.reports
+        if getattr(exc, "failed_constraints", None):
+            diagnostics["failed_constraints"] = exc.failed_constraints
         raise ConstructionPlanError(
             exc.code,
             exc.message,
             constraint_id=exc.constraint_id,
+            details=diagnostics,
         ) from exc
     _refresh_logical_object_bounds(objects, geometries)
     if len(objects)==1 and not objects[0].get('assembly_id') and set(objects[0].get('geometry_refs') or [])=={g['id'] for g in geometries}:
@@ -1158,6 +1165,12 @@ def _validate_composite_path_quality(
     self_intersection_count = _self_intersection_count(
         edges, closed=step.closed, tolerance=step.connection_tolerance,details=intersection_pairs,
     )
+    safety_report = analyze_composite_segments(
+        [segment.model_dump(mode="json") for segment in step.segments],
+        tolerance=step.connection_tolerance,
+        closed=step.closed,
+    )
+    curve_contacts = [contact.as_dict() for contact in safety_report.contacts]
     continuity = _composite_continuity(step)
     effective = step.effective_junction_constraints()
     required_by_joint = {item['junction_index']: item['required_continuity'] for item in effective}
@@ -1184,14 +1197,38 @@ def _validate_composite_path_quality(
             step_id=step.step_id,
             details=conflict_details(duplicate_pairs),
         )
-    if self_intersection_count and not step.allow_self_intersection:
+    affected_segments = {i for pair in intersection_pairs for i in pair}
+    for contact in curve_contacts:
+        affected_segments.update(contact["segment_indices"])
+    verified_contacts = [
+        contact for contact in curve_contacts
+        if contact["kind"] != "near_contact"
+    ]
+    has_contact = bool(self_intersection_count) or bool(curve_contacts)
+    if (has_contact or safety_report.unresolved) and not step.allow_self_intersection:
+        unresolved_only = safety_report.unresolved and not has_contact
+        safety_details = {
+            **conflict_details(intersection_pairs),
+            "curve_contacts": curve_contacts,
+            "affected_segment_indices": sorted(affected_segments),
+            "failure_scope": (
+                "unresolved_topology" if unresolved_only
+                else "intersecting_segments_only"
+            ),
+        }
+        if safety_report.unresolved:
+            safety_details["unresolved_topology"] = True
+            safety_details["escalation"] = "replan_or_human_review"
         raise ConstructionPlanError(
             "self_intersecting_composite_path",
-            f"复合路径包含 {self_intersection_count} 处自相交",
+            (
+                f"复合路径包含 {self_intersection_count + len(verified_contacts)} "
+                "处已确认自相交或接触"
+                if not unresolved_only
+                else "复合路径拓扑尚未判定，需重规划或人工复核"
+            ),
             step_id=step.step_id,
-            details={**conflict_details(intersection_pairs),
-                'affected_segment_indices': sorted({i for pair in intersection_pairs for i in pair}),
-                'failure_scope': 'intersecting_segments_only'},
+            details=safety_details,
         )
     if failed_required:
         raise ConstructionPlanError(
@@ -1243,6 +1280,9 @@ def _validate_composite_path_quality(
         ),
         "self_intersection_count": self_intersection_count,
         "duplicate_segment_count": duplicate_count,
+        "curve_contact_count": len(curve_contacts),
+        "curve_contacts": curve_contacts,
+        "topology_unresolved": safety_report.unresolved,
         "maximum_curvature": round(maximum_curvature, 9),
         "maximum_sampling_error": round(maximum_sampling_error, 9),
         "max_sampling_error": step.max_sampling_error,

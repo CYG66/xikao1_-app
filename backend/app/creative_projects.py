@@ -14,6 +14,7 @@ from .task_store import utc_now
 from .cad_candidate_state import candidate_is_accepted
 from .project_ownership import owner_conversation
 from .database import xline_database
+from .integration_profile import integration_profile_enabled
 from .drawing_store import (
     geometry_preview_paths,
     preview_paths as build_preview_paths,
@@ -74,6 +75,7 @@ class CreativeProjectStore:
             / "xline-agent"
         )
         self.path = path or (Path(configured) if configured else default_root / "creative_projects.json")
+        self._json_fallback_enabled = not integration_profile_enabled()
         self._lock = threading.RLock()
         self._projects: dict[str, dict[str, Any]] = {}
         self._load()
@@ -1142,6 +1144,12 @@ class CreativeProjectStore:
                     str(item["id"]): item for item in stored
                     if isinstance(item, dict) and isinstance(item.get("id"), str)
                 }
+                return
+            if not self._json_fallback_enabled:
+                # Integration verification uses the isolated SQLite database
+                # as the sole project source.  An empty database must not
+                # import a historical JSON file, even when one is present.
+                self._projects = {}
                 return
         try:
             payload = json.loads(self.path.read_text(encoding="utf-8"))

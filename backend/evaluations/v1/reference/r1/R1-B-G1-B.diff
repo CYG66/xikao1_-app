@@ -1,0 +1,737 @@
+commit 215f2eafb7f39e36c4230576905b3b403c6d1c4d
+Author:     cyg <2992453411@qq.com>
+AuthorDate: Mon Nov 16 22:33:58 2026 +0800
+Commit:     cyg <2992453411@qq.com>
+CommitDate: Mon Nov 16 22:33:58 2026 +0800
+
+    R1-B：建立 CubicBezier 一等几何类型与 legacy spline 可靠映射
+---
+ app/agent_skills.py                   |  23 ++-
+ app/cad_topology_types.py             | 349 ++++++++++++++++++++++++++++++++++
+ app/drawing_store.py                  |  24 +++
+ app/tooling.py                        |  17 +-
+ tests/test_geometry_topology_types.py | 211 ++++++++++++++++++++
+ 5 files changed, 619 insertions(+), 5 deletions(-)
+
+diff --git a/app/agent_skills.py b/app/agent_skills.py
+index d90d8ab4..5925b5f9 100644
+--- a/app/agent_skills.py
++++ b/app/agent_skills.py
+@@ -10,6 +10,7 @@ from typing import Any
+ 
+ from .config import MAX_TASK_LINEAR_VELOCITY, WHEEL_BASE_M
+ from .cad_import import PATH_SEMANTIC_TO_ROLE, ROLE_TO_PATH_SEMANTIC
++from .cad_topology_types import normalize_curve_types
+ from .drawing_commands import (
+     build_command_rollback_evidence,
+     build_drawing_command_batch,
+@@ -2144,7 +2145,10 @@ def _path_points_mm(item: dict[str, Any]) -> list[tuple[float, float]]:
+     ]
+ 
+ 
+-def _build_geometry_graph(path_items: list[dict[str, Any]]) -> dict[str, Any]:
++def _build_geometry_graph(
++    path_items: list[dict[str, Any]],
++    topology_types_by_geometry_id: dict[int, str] | None = None,
++) -> dict[str, Any]:
+     """Build a path-edge graph using true Euclidean endpoint distance.
+ 
+     The legacy topology counters keep their grid-based semantics.  This graph
+@@ -2241,10 +2245,11 @@ def _build_geometry_graph(path_items: list[dict[str, Any]]) -> dict[str, Any]:
+             node_by_record[index] = node_id
+ 
+     edges: list[dict[str, Any]] = []
++    topology_types = topology_types_by_geometry_id or {}
+     for edge_index, record in enumerate(path_records):
+         start_node = node_by_record[record["start_record"]]
+         end_node = node_by_record[record["end_record"]]
+-        edges.append({
++        edge = {
+             "edge_id": f"e{edge_index + 1}",
+             "geometry_id": record["geometry_id"],
+             "path_index": record["path_index"],
+@@ -2254,7 +2259,10 @@ def _build_geometry_graph(path_items: list[dict[str, Any]]) -> dict[str, Any]:
+             "closed": start_node == end_node,
+             "point_count": len(record["points"]),
+             "length_mm": round(float(record["length_mm"]), 9),
+-        })
++        }
++        if record["geometry_id"] in topology_types:
++            edge["topology_type"] = topology_types[record["geometry_id"]]
++        edges.append(edge)
+ 
+     degree = {node["node_id"]: 0 for node in nodes}
+     incident: dict[str, list[dict[str, Any]]] = {node["node_id"]: [] for node in nodes}
+@@ -2386,6 +2394,12 @@ def analyze_geometry_topology(geometries: list[dict[str, Any]], tolerance_mm: fl
+     """Analyze endpoint connectivity and sampled-curve intersections."""
+     path_items = geometry_preview_paths({"lines": geometries})
+     paths = [item["points"] for item in path_items]
++    curve_types = normalize_curve_types(geometries)
++    topology_types_by_geometry_id = {
++        item["geometry_id"]: item["topology_type"]
++        for item in curve_types
++        if item["geometry_id"] is not None
++    }
+     segments: list[tuple[tuple[float, float], tuple[float, float], int, int]] = []
+     endpoints: list[tuple[float, float]] = []
+     closed_loop_count = 0
+@@ -2495,7 +2509,8 @@ def analyze_geometry_topology(geometries: list[dict[str, Any]], tolerance_mm: fl
+         "duplicate_geometry_count": duplicate_geometry_count,
+         "disconnected_component_count": components,
+         "endpoint_count": len(endpoints),
+-        "graph": _build_geometry_graph(path_items),
++        "curve_types": curve_types,
++        "graph": _build_geometry_graph(path_items, topology_types_by_geometry_id),
+     }
+ 
+ 
+diff --git a/app/cad_topology_types.py b/app/cad_topology_types.py
+new file mode 100644
+index 00000000..71423c27
+--- /dev/null
++++ b/app/cad_topology_types.py
+@@ -0,0 +1,349 @@
++"""Topology-level curve identity normalization.
++
++This module is deliberately separate from the geometry engine.  It only
++classifies existing geometry dictionaries into the topology contract:
++Line, CubicBezier, GenericSpline and UnknownCurve.  A legacy ``spline`` is
++never promoted merely because it has four control points or degree three.
++
++CubicBezier is defined here as the cubic Bernstein form
++
++    B(t) = (1-t)^3 P0 + 3(1-t)^2 t P1 + 3(1-t)t^2 P2 + t^3 P3
++
++with exactly four ordered control points and t in the canonical domain
++[0.0, 1.0].  The order P0..P3 is preserved in all normalized output.
++"""
++
++from __future__ import annotations
++
++from typing import Any
++
++
++TOPOLOGY_LINE = "Line"
++TOPOLOGY_CUBIC_BEZIER = "CubicBezier"
++TOPOLOGY_GENERIC_SPLINE = "GenericSpline"
++TOPOLOGY_UNKNOWN_CURVE = "UnknownCurve"
++
++CUBIC_BEZIER_CONTROL_POINT_COUNT = 4
++CUBIC_BEZIER_DEGREE = 3
++CUBIC_BEZIER_BASIS = "bernstein"
++CUBIC_BEZIER_PARAMETER_DOMAIN = (0.0, 1.0)
++
++_NATIVE_CUBIC_TYPES = {"cubic_bezier", "cubic-bezier", "cubicbezier"}
++_GENERIC_SPLINE_TYPES = {"spline", "bspline", "b_spline"}
++_UNKNOWN_CURVE_TYPES = {"curve", "unknown_curve", "bezier", "quadratic_bezier"}
++_CUBIC_EVIDENCE_SOURCES = {
++    "add_bezier",
++    "cubic_bezier",
++    "cubic-bezier",
++    "cubicbezier",
++    "bezier_cubic",
++}
++_CURVE_SCOPE_TYPES = (
++    _NATIVE_CUBIC_TYPES
++    | _GENERIC_SPLINE_TYPES
++    | _UNKNOWN_CURVE_TYPES
++    | {"line"}
++)
++
++
++def _lower(value: Any) -> str:
++    return str(value or "").strip().lower()
++
++
++def _geometry_id(geometry: dict[str, Any]) -> int | None:
++    value = geometry.get("id")
++    if isinstance(value, int) and value > 0:
++        return value
++    return None
++
++
++def _control_points(geometry: dict[str, Any]) -> list[dict[str, float]]:
++    raw = geometry.get("control_points")
++    if raw is None:
++        raw = geometry.get("controlPoints")
++    if not isinstance(raw, list):
++        return []
++    points: list[dict[str, float]] = []
++    for item in raw:
++        if not isinstance(item, dict):
++            continue
++        try:
++            points.append({
++                "x": float(item["x"]),
++                "y": float(item["y"]),
++                "z": float(item.get("z", 0.0)),
++            })
++        except (KeyError, TypeError, ValueError):
++            continue
++    return points
++
++
++def _parameter_domain(value: Any) -> tuple[float, float] | None:
++    if not isinstance(value, (list, tuple)) or len(value) != 2:
++        return None
++    try:
++        start, end = float(value[0]), float(value[1])
++    except (TypeError, ValueError):
++        return None
++    return (start, end)
++
++
++def _int_or_none(value: Any) -> int | None:
++    try:
++        return int(value)
++    except (TypeError, ValueError):
++        return None
++
++
++def _legacy_evidence(geometry: dict[str, Any]) -> dict[str, Any] | None:
++    provenance = geometry.get("bezier_provenance")
++    if isinstance(provenance, dict):
++        evidence = dict(provenance)
++        for key in (
++            "source",
++            "degree",
++            "control_point_count",
++            "basis",
++            "parameter_domain",
++        ):
++            if evidence.get(key) in (None, ""):
++                evidence[key] = geometry.get(key)
++        source = (
++            evidence.get("source")
++            or geometry.get("curve_kind")
++            or geometry.get("curve_type")
++            or geometry.get("construction_op")
++        )
++        evidence["source"] = source
++        if _lower(source) not in _CUBIC_EVIDENCE_SOURCES:
++            return None
++        if evidence.get("control_point_count") in (None, ""):
++            evidence["control_point_count"] = len(_control_points(geometry))
++        return evidence
++    source = (
++        geometry.get("curve_kind")
++        or geometry.get("curve_type")
++        or geometry.get("construction_op")
++    )
++    if _lower(source) not in _CUBIC_EVIDENCE_SOURCES:
++        return None
++    return {
++        "source": source,
++        "degree": geometry.get("degree"),
++        "control_point_count": len(_control_points(geometry)),
++        "basis": geometry.get("basis"),
++        "parameter_domain": geometry.get("parameter_domain"),
++    }
++
++
++def _curve_result(
++    geometry: dict[str, Any],
++    input_index: int,
++    *,
++    topology_type: str,
++    supported: bool,
++    fail_closed: bool,
++    evidence_source: str,
++    control_points: list[dict[str, float]],
++    degree: int | None,
++    basis: str | None,
++    parameter_domain: tuple[float, float] | None,
++    issues: list[str],
++    status: str,
++) -> dict[str, Any]:
++    return {
++        "input_index": input_index,
++        "geometry_id": _geometry_id(geometry),
++        "source_type": _lower(geometry.get("type") or "line"),
++        "topology_type": topology_type,
++        "status": status,
++        "supported": supported,
++        "fail_closed": fail_closed,
++        "evidence_source": evidence_source,
++        "control_points": control_points,
++        "control_point_count": len(control_points),
++        "degree": degree,
++        "basis": basis,
++        "parameter_domain": list(parameter_domain) if parameter_domain else None,
++        "issues": issues,
++    }
++
++
++def normalize_curve_geometry(
++    geometry: dict[str, Any], input_index: int = 0
++) -> dict[str, Any] | None:
++    """Normalize one geometry dictionary without mutating it.
++
++    Returns ``None`` for geometry families outside the curve contract.
++    """
++    if not isinstance(geometry, dict):
++        return None
++    source_type = _lower(geometry.get("type") or "line")
++    if source_type not in _CURVE_SCOPE_TYPES:
++        return None
++
++    if source_type == "line":
++        return _curve_result(
++            geometry,
++            input_index,
++            topology_type=TOPOLOGY_LINE,
++            supported=True,
++            fail_closed=False,
++            evidence_source="native_type",
++            control_points=[],
++            degree=None,
++            basis=None,
++            parameter_domain=None,
++            issues=[],
++            status="line",
++        )
++
++    control_points = _control_points(geometry)
++    if source_type in _NATIVE_CUBIC_TYPES:
++        basis = _lower(geometry.get("basis") or CUBIC_BEZIER_BASIS)
++        domain = _parameter_domain(
++            geometry.get("parameter_domain", list(CUBIC_BEZIER_PARAMETER_DOMAIN))
++        )
++        degree_value = geometry.get("degree", CUBIC_BEZIER_DEGREE)
++        try:
++            degree = int(degree_value)
++        except (TypeError, ValueError):
++            degree = -1
++        issues: list[str] = []
++        if len(control_points) != CUBIC_BEZIER_CONTROL_POINT_COUNT:
++            issues.append("cubic_bezier_requires_four_control_points")
++        if degree != CUBIC_BEZIER_DEGREE:
++            issues.append("cubic_bezier_requires_degree_three")
++        if basis != CUBIC_BEZIER_BASIS:
++            issues.append("cubic_bezier_requires_bernstein_basis")
++        if domain != CUBIC_BEZIER_PARAMETER_DOMAIN:
++            issues.append("cubic_bezier_requires_unit_parameter_domain")
++        if issues:
++            return _curve_result(
++                geometry,
++                input_index,
++                topology_type=TOPOLOGY_UNKNOWN_CURVE,
++                supported=False,
++                fail_closed=True,
++                evidence_source="native_type_rejected",
++                control_points=control_points,
++                degree=degree if degree >= 0 else None,
++                basis=basis,
++                parameter_domain=domain,
++                issues=issues,
++                status="unknown_curve",
++            )
++        return _curve_result(
++            geometry,
++            input_index,
++            topology_type=TOPOLOGY_CUBIC_BEZIER,
++            supported=True,
++            fail_closed=False,
++            evidence_source="native_type",
++            control_points=control_points,
++            degree=CUBIC_BEZIER_DEGREE,
++            basis=CUBIC_BEZIER_BASIS,
++            parameter_domain=CUBIC_BEZIER_PARAMETER_DOMAIN,
++            issues=[],
++            status="native_cubic_bezier",
++        )
++
++    evidence = _legacy_evidence(geometry)
++    if evidence is not None:
++        basis = _lower(evidence.get("basis"))
++        domain = _parameter_domain(evidence.get("parameter_domain"))
++        degree_value = evidence.get("degree", geometry.get("degree"))
++        try:
++            degree = int(degree_value)
++        except (TypeError, ValueError):
++            degree = -1
++        try:
++            declared_count = int(
++                evidence.get(
++                    "control_point_count",
++                    geometry.get("control_point_count", len(control_points)),
++                )
++            )
++        except (TypeError, ValueError):
++            declared_count = -1
++        issues: list[str] = []
++        if len(control_points) != CUBIC_BEZIER_CONTROL_POINT_COUNT:
++            issues.append("legacy_bezier_requires_four_control_points")
++        if declared_count != CUBIC_BEZIER_CONTROL_POINT_COUNT:
++            issues.append("legacy_bezier_declared_count_mismatch")
++        if degree != CUBIC_BEZIER_DEGREE:
++            issues.append("legacy_bezier_requires_degree_three")
++        if basis != CUBIC_BEZIER_BASIS:
++            issues.append("legacy_bezier_requires_bernstein_basis")
++        if domain != CUBIC_BEZIER_PARAMETER_DOMAIN:
++            issues.append("legacy_bezier_requires_unit_parameter_domain")
++        if issues:
++            return _curve_result(
++                geometry,
++                input_index,
++                topology_type=TOPOLOGY_UNKNOWN_CURVE,
++                supported=False,
++                fail_closed=True,
++                evidence_source="legacy_provenance_rejected",
++                control_points=control_points,
++                degree=degree if degree >= 0 else None,
++                basis=basis or None,
++                parameter_domain=domain,
++                issues=issues,
++                status="unknown_curve",
++            )
++        return _curve_result(
++            geometry,
++            input_index,
++            topology_type=TOPOLOGY_CUBIC_BEZIER,
++            supported=True,
++            fail_closed=False,
++            evidence_source="legacy_provenance",
++            control_points=control_points,
++            degree=CUBIC_BEZIER_DEGREE,
++            basis=CUBIC_BEZIER_BASIS,
++            parameter_domain=CUBIC_BEZIER_PARAMETER_DOMAIN,
++            issues=[],
++            status="legacy_cubic_bezier",
++        )
++
++    if source_type in _UNKNOWN_CURVE_TYPES:
++        return _curve_result(
++            geometry,
++            input_index,
++            topology_type=TOPOLOGY_UNKNOWN_CURVE,
++            supported=False,
++            fail_closed=True,
++            evidence_source="unconfirmed_curve_semantics",
++            control_points=control_points,
++            degree=None,
++            basis=None,
++            parameter_domain=None,
++            issues=["curve_semantics_not_proven"],
++            status="unknown_curve",
++        )
++
++    return _curve_result(
++        geometry,
++        input_index,
++        topology_type=TOPOLOGY_GENERIC_SPLINE,
++        supported=False,
++        fail_closed=False,
++        evidence_source="generic_spline",
++        control_points=control_points,
++        degree=_int_or_none(geometry.get("degree")),
++        basis=None,
++        parameter_domain=None,
++        issues=[],
++        status="generic_spline",
++    )
++
++
++def normalize_curve_types(geometries: list[dict[str, Any]]) -> list[dict[str, Any]]:
++    """Normalize all curve-bearing geometries in input order."""
++    result: list[dict[str, Any]] = []
++    for input_index, geometry in enumerate(geometries):
++        normalized = normalize_curve_geometry(geometry, input_index)
++        if normalized is not None:
++            result.append(normalized)
++    return result
+diff --git a/app/drawing_store.py b/app/drawing_store.py
+index 81dc6c65..2c29ad57 100644
+--- a/app/drawing_store.py
++++ b/app/drawing_store.py
+@@ -184,6 +184,8 @@ def _geometry_points(geometry: dict[str, Any]) -> list[list[float]]:
+         return _sample_ellipse(geometry)
+     if geometry_type == "spline":
+         return _sample_spline(geometry)
++    if geometry_type in {"cubic_bezier", "cubic-bezier", "cubicbezier"}:
++        return _sample_cubic_bezier(geometry)
+     if geometry_type == "text":
+         return _sample_text_bounds(geometry)
+     return []
+@@ -282,6 +284,28 @@ def _sample_ellipse(geometry: dict[str, Any]) -> list[list[float]]:
+     return result
+ 
+ 
++def _sample_cubic_bezier(geometry: dict[str, Any]) -> list[list[float]]:
++    control_points = _valid_points(
++        geometry.get("control_points") or geometry.get("controlPoints") or []
++    )
++    if len(control_points) != 4:
++        return []
++    p0, p1, p2, p3 = control_points
++    points: list[list[float]] = []
++    for sample in range(CURVE_SAMPLES + 1):
++        t = sample / CURVE_SAMPLES
++        one_minus_t = 1.0 - t
++        b0 = one_minus_t ** 3
++        b1 = 3.0 * one_minus_t ** 2 * t
++        b2 = 3.0 * one_minus_t * t ** 2
++        b3 = t ** 3
++        points.append([
++            b0 * p0[0] + b1 * p1[0] + b2 * p2[0] + b3 * p3[0],
++            b0 * p0[1] + b1 * p1[1] + b2 * p2[1] + b3 * p3[1],
++        ])
++    return points
++
++
+ def _sample_spline(geometry: dict[str, Any]) -> list[list[float]]:
+     vertices = _valid_points(
+         geometry.get("vertices")
+diff --git a/app/tooling.py b/app/tooling.py
+index 339f6b05..f7bdd443 100644
+--- a/app/tooling.py
++++ b/app/tooling.py
+@@ -78,6 +78,12 @@ class CadSpline(CadGeometryBase):
+     periodic: bool = False
+ 
+ 
++class CadCubicBezier(CadGeometryBase):
++    type: Literal["cubic_bezier"]
++    control_points: list[CadPoint] = Field(min_length=4, max_length=4)
++    degree: Literal[3] = 3
++
++
+ class CadTextAlign(BaseModel):
+     model_config = ConfigDict(extra="forbid")
+     horizontal: Literal["left", "center", "right"] = "left"
+@@ -98,7 +104,16 @@ class CadText(CadGeometryBase):
+ 
+ 
+ CadGeometry = Annotated[
+-    Union[CadLine, CadPolyline, CadCircle, CadArc, CadEllipse, CadSpline, CadText],
++    Union[
++        CadLine,
++        CadPolyline,
++        CadCircle,
++        CadArc,
++        CadEllipse,
++        CadSpline,
++        CadCubicBezier,
++        CadText,
++    ],
+     Field(discriminator="type"),
+ ]
+ 
+diff --git a/tests/test_geometry_topology_types.py b/tests/test_geometry_topology_types.py
+new file mode 100644
+index 00000000..71a4960e
+--- /dev/null
++++ b/tests/test_geometry_topology_types.py
+@@ -0,0 +1,211 @@
++from __future__ import annotations
++
++import pytest
++
++from app.agent_skills import analyze_geometry_topology
++from app.drawing_store import geometry_preview_paths
++from app.tooling import CadCubicBezier, CadSpline
++
++
++def point(x: float, y: float) -> dict[str, float]:
++    return {"x": x, "y": y, "z": 0.0}
++
++
++@pytest.fixture
++def cubic_control_points() -> list[dict[str, float]]:
++    return [
++        point(0.0, 0.0),
++        point(300.0, 1000.0),
++        point(700.0, 1000.0),
++        point(1000.0, 0.0),
++    ]
++
++
++def _normalized(result: dict) -> dict:
++    assert len(result["curve_types"]) == 1
++    return result["curve_types"][0]
++
++
++def test_native_cubic_bezier_is_first_class(cubic_control_points):
++    geometry = CadCubicBezier(
++        id=7,
++        type="cubic_bezier",
++        control_points=cubic_control_points,
++    ).model_dump()
++
++    result = analyze_geometry_topology([geometry])
++    record = _normalized(result)
++
++    assert record["topology_type"] == "CubicBezier"
++    assert record["supported"] is True
++    assert record["fail_closed"] is False
++    assert record["evidence_source"] == "native_type"
++    assert record["geometry_id"] == 7
++    assert [item["x"] for item in record["control_points"]] == [0.0, 300.0, 700.0, 1000.0]
++    assert [item["y"] for item in record["control_points"]] == [0.0, 1000.0, 1000.0, 0.0]
++    assert record["degree"] == 3
++    assert record["basis"] == "bernstein"
++    assert record["parameter_domain"] == [0.0, 1.0]
++
++    edge = result["graph"]["edges"][0]
++    assert edge["geometry_id"] == 7
++    assert edge["topology_type"] == "CubicBezier"
++    assert edge["point_count"] == 65
++
++
++def test_legacy_spline_with_explicit_provenance_maps_to_cubic_bezier(cubic_control_points):
++    geometry = {
++        "id": 8,
++        "type": "spline",
++        "degree": 3,
++        "control_points": cubic_control_points,
++        "closed": False,
++        "bezier_provenance": {
++            "source": "add_bezier",
++            "degree": 3,
++            "control_point_count": 4,
++            "basis": "bernstein",
++            "parameter_domain": [0.0, 1.0],
++        },
++    }
++
++    result = analyze_geometry_topology([geometry])
++    record = _normalized(result)
++
++    assert record["topology_type"] == "CubicBezier"
++    assert record["supported"] is True
++    assert record["fail_closed"] is False
++    assert record["evidence_source"] == "legacy_provenance"
++    assert record["geometry_id"] == 8
++    assert record["control_point_count"] == 4
++    assert record["parameter_domain"] == [0.0, 1.0]
++
++
++def test_legacy_spline_without_evidence_is_generic_not_cubic(cubic_control_points):
++    geometry = {
++        "id": 9,
++        "type": "spline",
++        "degree": 3,
++        "control_points": cubic_control_points,
++        "closed": False,
++    }
++
++    result = analyze_geometry_topology([geometry])
++    record = _normalized(result)
++
++    assert record["topology_type"] == "GenericSpline"
++    assert record["topology_type"] != "CubicBezier"
++    assert record["supported"] is False
++    assert record["fail_closed"] is False
++    assert record["geometry_id"] == 9
++    assert record["control_point_count"] == 4
++    assert record["degree"] == 3
++    assert record["parameter_domain"] is None
++
++
++def test_non_cubic_curve_is_not_promoted(cubic_control_points):
++    geometry = {
++        "id": 10,
++        "type": "spline",
++        "degree": 2,
++        "control_points": cubic_control_points[:3],
++        "curve_kind": "cubic_bezier",
++        "basis": "bernstein",
++        "parameter_domain": [0.0, 1.0],
++    }
++
++    result = analyze_geometry_topology([geometry])
++    record = _normalized(result)
++
++    assert record["topology_type"] == "UnknownCurve"
++    assert record["fail_closed"] is True
++    assert record["supported"] is False
++    assert "legacy_bezier_requires_four_control_points" in record["issues"]
++    assert "legacy_bezier_requires_degree_three" in record["issues"]
++
++
++def test_native_cubic_bezier_with_wrong_control_count_fails_closed(cubic_control_points):
++    geometry = {
++        "id": 11,
++        "type": "cubic_bezier",
++        "control_points": cubic_control_points + [point(1200.0, 0.0)],
++    }
++
++    result = analyze_geometry_topology([geometry])
++    record = _normalized(result)
++
++    assert record["topology_type"] == "UnknownCurve"
++    assert record["fail_closed"] is True
++    assert "cubic_bezier_requires_four_control_points" in record["issues"]
++
++
++def test_ambiguous_curve_type_fails_closed(cubic_control_points):
++    geometry = {
++        "id": 12,
++        "type": "bezier",
++        "control_points": cubic_control_points,
++    }
++
++    result = analyze_geometry_topology([geometry])
++    record = _normalized(result)
++
++    assert record["topology_type"] == "UnknownCurve"
++    assert record["fail_closed"] is True
++    assert record["issues"] == ["curve_semantics_not_proven"]
++
++
++def test_legacy_cubic_claim_without_complete_evidence_fails_closed(cubic_control_points):
++    geometry = {
++        "id": 13,
++        "type": "spline",
++        "degree": 3,
++        "control_points": cubic_control_points,
++        "curve_kind": "cubic_bezier",
++    }
++
++    result = analyze_geometry_topology([geometry])
++    record = _normalized(result)
++
++    assert record["topology_type"] == "UnknownCurve"
++    assert record["fail_closed"] is True
++    assert "legacy_bezier_requires_bernstein_basis" in record["issues"]
++    assert "legacy_bezier_requires_unit_parameter_domain" in record["issues"]
++
++
++def test_legacy_and_native_serialization_preserves_identity_and_order(cubic_control_points):
++    native = CadCubicBezier(
++        id=21,
++        type="cubic_bezier",
++        control_points=cubic_control_points,
++    )
++    payload = native.model_dump()
++    restored = CadCubicBezier.model_validate(payload)
++
++    assert restored.id == 21
++    assert [item.x for item in restored.control_points] == [0.0, 300.0, 700.0, 1000.0]
++    assert [item.y for item in restored.control_points] == [0.0, 1000.0, 1000.0, 0.0]
++
++    legacy = CadSpline(
++        id=22,
++        type="spline",
++        degree=3,
++        control_points=cubic_control_points,
++    )
++    assert legacy.type == "spline"
++    assert legacy.degree == 3
++    assert legacy.id == 22
++
++
++def test_native_cubic_bezier_preview_uses_bernstein_evaluation(cubic_control_points):
++    geometry = CadCubicBezier(
++        id=31,
++        type="cubic_bezier",
++        control_points=cubic_control_points,
++    ).model_dump()
++
++    paths = geometry_preview_paths({"lines": [geometry]})
++
++    assert len(paths) == 1
++    points = paths[0]["points"]
++    assert len(points) == 65
++    assert points[32] == pytest.approx([0.5, 0.75], abs=1e-12)
+\ No newline at end of file

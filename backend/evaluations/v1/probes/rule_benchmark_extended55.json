@@ -1,0 +1,2892 @@
+{
+  "schema": "cad.construction-benchmark-report.v1",
+  "corpus_version": "2026-10-19.1",
+  "read_only": true,
+  "project_persistence": false,
+  "providers": [
+    "rules"
+  ],
+  "case_count": 55,
+  "results": [
+    {
+      "provider": "rules",
+      "case_id": "l_shaped_workshop",
+      "category": "freeform_outline",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.485,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "warehouse_with_aisles",
+      "category": "composite_layout",
+      "passed": false,
+      "status": "ready",
+      "checks": {
+        "expected_status": true,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": true,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 49.995,
+        "schema_valid": true,
+        "trial_executed": true,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 6,
+        "logical_object_count": 1,
+        "assertion_count": 0
+      },
+      "parser": "parameterized_template",
+      "provider_attempted": false,
+      "error": "",
+      "diagnostic_plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "mm",
+        "project_id": null,
+        "source_version": null,
+        "steps": [
+          {
+            "step_id": "template-1",
+            "output_ref": "template-design",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "drawing_part",
+              "label": "参数化模板",
+              "role": null
+            },
+            "op": "add_template",
+            "matches": [
+              {
+                "template": "warehouse",
+                "width_m": 20.0,
+                "height_m": 12.0,
+                "radius_m": null,
+                "quantity": 1,
+                "spacing_m": 0.0,
+                "arrangement": null,
+                "spacing_reference": null,
+                "peer_placement": null,
+                "placement": [],
+                "placement_inferred": false,
+                "layout_override": false,
+                "grid_columns": 4,
+                "grid_rows": 4
+              }
+            ],
+            "circumscribed_circle": false,
+            "origin": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "rotation_deg": 0.0
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 5000
+        },
+        "free_outline_layout": []
+      }
+    },
+    {
+      "provider": "rules",
+      "case_id": "parking_rows_and_driveway",
+      "category": "repeated_layout",
+      "passed": false,
+      "status": "ready",
+      "checks": {
+        "expected_status": true,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 48.358,
+        "schema_valid": true,
+        "trial_executed": true,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 1,
+        "logical_object_count": 1,
+        "assertion_count": 0
+      },
+      "parser": "parameterized_template",
+      "provider_attempted": false,
+      "error": "",
+      "diagnostic_plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "mm",
+        "project_id": null,
+        "source_version": null,
+        "steps": [
+          {
+            "step_id": "template-1",
+            "output_ref": "template-design",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "drawing_part",
+              "label": "参数化模板",
+              "role": null
+            },
+            "op": "add_template",
+            "matches": [
+              {
+                "template": "parking",
+                "width_m": 2.5,
+                "height_m": 5.0,
+                "radius_m": null,
+                "quantity": 1,
+                "spacing_m": 0.0,
+                "arrangement": null,
+                "spacing_reference": null,
+                "peer_placement": null,
+                "placement": [],
+                "placement_inferred": false,
+                "layout_override": false,
+                "grid_columns": 4,
+                "grid_rows": 4
+              }
+            ],
+            "circumscribed_circle": false,
+            "origin": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "rotation_deg": 0.0
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 5000
+        },
+        "free_outline_layout": []
+      }
+    },
+    {
+      "provider": "rules",
+      "case_id": "circular_plaza_radial_paths",
+      "category": "radial_geometry",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.643,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "stepped_foundation",
+      "category": "nested_geometry",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.384,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "irregular_closed_boundary",
+      "category": "coordinate_geometry",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.338,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "u_shaped_open_yard",
+      "category": "freeform_outline",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 0.087,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "rules",
+      "provider_attempted": false,
+      "error": "已收到控制点或顶点坐标，请说明坐标单位（米、厘米或毫米）；不需要重复提供外包宽高。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "pentagon_plot",
+      "category": "freeform_outline",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 0.094,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "rules",
+      "provider_attempted": false,
+      "error": "你要生成什么图形？请直接说明对象，例如“生成一个闭合爱心轮廓”。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "right_triangle_boundary",
+      "category": "freeform_outline",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 0.076,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "rules",
+      "provider_attempted": false,
+      "error": "你要生成什么图形？请直接说明对象，例如“生成一个闭合爱心轮廓”。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "irregular_plot_with_entrance",
+      "category": "freeform_outline",
+      "passed": true,
+      "status": "ready",
+      "checks": {
+        "expected_status": true,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": true,
+        "maximum_entities": true,
+        "minimum_logical_objects": true,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 51.361,
+        "schema_valid": true,
+        "trial_executed": true,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 1,
+        "logical_object_count": 1,
+        "assertion_count": 1
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "",
+      "diagnostic_plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "project_id": null,
+        "source_version": null,
+        "steps": [
+          {
+            "step_id": "step-1",
+            "output_ref": "shape-1",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "polyline",
+              "label": "多段线1",
+              "role": null
+            },
+            "op": "add_polyline",
+            "vertices": [
+              {
+                "x": 0.0,
+                "y": 0.0
+              },
+              {
+                "x": 10.0,
+                "y": 0.0
+              },
+              {
+                "x": 12.0,
+                "y": 4.0
+              },
+              {
+                "x": 8.0,
+                "y": 9.0
+              },
+              {
+                "x": 3.0,
+                "y": 7.0
+              },
+              {
+                "x": 0.0,
+                "y": 3.0
+              }
+            ],
+            "closed": true
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "closed-1",
+            "target_ref": "shape-1"
+          }
+        ],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 500
+        },
+        "free_outline_layout": []
+      }
+    },
+    {
+      "provider": "rules",
+      "case_id": "hexagon_pad",
+      "category": "freeform_outline",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 0.125,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "rules",
+      "provider_attempted": false,
+      "error": "你要生成什么图形？请直接说明对象，例如“生成一个闭合爱心轮廓”。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "free_polygon_outline",
+      "category": "freeform_outline",
+      "passed": true,
+      "status": "ready",
+      "checks": {
+        "expected_status": true,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": true,
+        "maximum_entities": true,
+        "minimum_logical_objects": true,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 52.613,
+        "schema_valid": true,
+        "trial_executed": true,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 1,
+        "logical_object_count": 1,
+        "assertion_count": 1
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "",
+      "diagnostic_plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "project_id": null,
+        "source_version": null,
+        "steps": [
+          {
+            "step_id": "step-1",
+            "output_ref": "shape-1",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "polyline",
+              "label": "多段线1",
+              "role": null
+            },
+            "op": "add_polyline",
+            "vertices": [
+              {
+                "x": 0.0,
+                "y": 0.0
+              },
+              {
+                "x": 5.0,
+                "y": 0.0
+              },
+              {
+                "x": 7.0,
+                "y": 2.0
+              },
+              {
+                "x": 5.0,
+                "y": 4.0
+              },
+              {
+                "x": 1.0,
+                "y": 4.0
+              },
+              {
+                "x": -1.0,
+                "y": 2.0
+              }
+            ],
+            "closed": true
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "closed-1",
+            "target_ref": "shape-1"
+          }
+        ],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 500
+        },
+        "free_outline_layout": []
+      }
+    },
+    {
+      "provider": "rules",
+      "case_id": "workshop_with_machine_pads",
+      "category": "composite_layout",
+      "passed": false,
+      "status": "ready",
+      "checks": {
+        "expected_status": true,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 52.449,
+        "schema_valid": true,
+        "trial_executed": true,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 1,
+        "logical_object_count": 1,
+        "assertion_count": 2
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "",
+      "diagnostic_plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "project_id": null,
+        "source_version": null,
+        "steps": [
+          {
+            "step_id": "step-1",
+            "output_ref": "shape-1",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "rectangle",
+              "label": "矩形1",
+              "role": null
+            },
+            "op": "add_rectangle",
+            "origin": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "width": 3.0,
+            "height": 2.0,
+            "rotation_deg": 0.0
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [
+          {
+            "kind": "bounds_size",
+            "assertion_id": "size-1",
+            "target_ref": "shape-1",
+            "width": 3.0,
+            "height": 2.0,
+            "tolerance": 0.001
+          },
+          {
+            "kind": "closed",
+            "assertion_id": "closed-1",
+            "target_ref": "shape-1"
+          }
+        ],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 500
+        },
+        "free_outline_layout": []
+      }
+    },
+    {
+      "provider": "rules",
+      "case_id": "factory_hall_two_aisles",
+      "category": "composite_layout",
+      "passed": false,
+      "status": "ready",
+      "checks": {
+        "expected_status": true,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 50.223,
+        "schema_valid": true,
+        "trial_executed": true,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 1,
+        "logical_object_count": 1,
+        "assertion_count": 0
+      },
+      "parser": "parameterized_template",
+      "provider_attempted": false,
+      "error": "",
+      "diagnostic_plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "mm",
+        "project_id": null,
+        "source_version": null,
+        "steps": [
+          {
+            "step_id": "template-1",
+            "output_ref": "template-design",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "drawing_part",
+              "label": "参数化模板",
+              "role": null
+            },
+            "op": "add_template",
+            "matches": [
+              {
+                "template": "corridor",
+                "width_m": 12.0,
+                "height_m": 2.0,
+                "radius_m": null,
+                "quantity": 1,
+                "spacing_m": 0.0,
+                "arrangement": null,
+                "spacing_reference": null,
+                "peer_placement": null,
+                "placement": [],
+                "placement_inferred": false,
+                "layout_override": false,
+                "grid_columns": 4,
+                "grid_rows": 4
+              }
+            ],
+            "circumscribed_circle": false,
+            "origin": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "rotation_deg": 0.0
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 5000
+        },
+        "free_outline_layout": []
+      }
+    },
+    {
+      "provider": "rules",
+      "case_id": "office_floor_rooms",
+      "category": "composite_layout",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.687,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "campus_lawn_with_path",
+      "category": "composite_layout",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.387,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "factory_zone_grid",
+      "category": "composite_layout",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.388,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "parking_lot_single_row",
+      "category": "repeated_layout",
+      "passed": true,
+      "status": "ready",
+      "checks": {
+        "expected_status": true,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": true,
+        "maximum_entities": true,
+        "minimum_logical_objects": true,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 52.699,
+        "schema_valid": true,
+        "trial_executed": true,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 19,
+        "logical_object_count": 6,
+        "assertion_count": 0
+      },
+      "parser": "parameterized_template",
+      "provider_attempted": false,
+      "error": "",
+      "diagnostic_plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "mm",
+        "project_id": null,
+        "source_version": null,
+        "steps": [
+          {
+            "step_id": "template-1",
+            "output_ref": "template-design",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "drawing_part",
+              "label": "参数化模板",
+              "role": null
+            },
+            "op": "add_template",
+            "matches": [
+              {
+                "template": "parking",
+                "width_m": 2.5,
+                "height_m": 5.0,
+                "radius_m": null,
+                "quantity": 6,
+                "spacing_m": 0.0,
+                "arrangement": null,
+                "spacing_reference": null,
+                "peer_placement": null,
+                "placement": [],
+                "placement_inferred": false,
+                "layout_override": false,
+                "grid_columns": 4,
+                "grid_rows": 4
+              }
+            ],
+            "circumscribed_circle": false,
+            "origin": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "rotation_deg": 0.0
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 5000
+        },
+        "free_outline_layout": []
+      }
+    },
+    {
+      "provider": "rules",
+      "case_id": "bus_stop_shelter",
+      "category": "composite_layout",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.64,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "loading_dock",
+      "category": "composite_layout",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.52,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "tennis_court_marking",
+      "category": "composite_layout",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.556,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "stadium_bleacher_rows",
+      "category": "repeated_layout",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.663,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "pipe_rack_rows_rules",
+      "category": "repeated_layout",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.743,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "fence_posts_line",
+      "category": "repeated_layout",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.487,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "solar_panel_rows",
+      "category": "repeated_layout",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.479,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "cable_trench_segments",
+      "category": "repeated_layout",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.423,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "roundabout_with_arms",
+      "category": "radial_geometry",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.359,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "radar_site_rings",
+      "category": "radial_geometry",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.417,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "fountain_circle_paths",
+      "category": "radial_geometry",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.53,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "water_tower_footprint",
+      "category": "radial_geometry",
+      "passed": false,
+      "status": "ready",
+      "checks": {
+        "expected_status": true,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 49.383,
+        "schema_valid": true,
+        "trial_executed": true,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 1,
+        "logical_object_count": 1,
+        "assertion_count": 0
+      },
+      "parser": "parameterized_template",
+      "provider_attempted": false,
+      "error": "",
+      "diagnostic_plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "mm",
+        "project_id": null,
+        "source_version": null,
+        "steps": [
+          {
+            "step_id": "template-1",
+            "output_ref": "template-design",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "drawing_part",
+              "label": "参数化模板",
+              "role": null
+            },
+            "op": "add_template",
+            "matches": [
+              {
+                "template": "corridor",
+                "width_m": 12.0,
+                "height_m": 2.0,
+                "radius_m": null,
+                "quantity": 1,
+                "spacing_m": 0.0,
+                "arrangement": null,
+                "spacing_reference": null,
+                "peer_placement": null,
+                "placement": [],
+                "placement_inferred": false,
+                "layout_override": false,
+                "grid_columns": 4,
+                "grid_rows": 4
+              }
+            ],
+            "circumscribed_circle": false,
+            "origin": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "rotation_deg": 0.0
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 5000
+        },
+        "free_outline_layout": []
+      }
+    },
+    {
+      "provider": "rules",
+      "case_id": "helipad_circle",
+      "category": "radial_geometry",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.477,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "cul_de_sac",
+      "category": "radial_geometry",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.904,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "concentric_square_rings_rules",
+      "category": "nested_geometry",
+      "passed": true,
+      "status": "ready",
+      "checks": {
+        "expected_status": true,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": true,
+        "maximum_entities": true,
+        "minimum_logical_objects": true,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 50.317,
+        "schema_valid": true,
+        "trial_executed": true,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 3,
+        "logical_object_count": 3,
+        "assertion_count": 6
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "",
+      "diagnostic_plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "project_id": null,
+        "source_version": null,
+        "steps": [
+          {
+            "step_id": "step-1",
+            "output_ref": "shape-1",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "rectangle",
+              "label": "矩形1",
+              "role": null
+            },
+            "op": "add_centered_rectangle",
+            "center": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "width": 12.0,
+            "height": 12.0,
+            "rotation_deg": 0.0
+          },
+          {
+            "step_id": "step-2",
+            "output_ref": "shape-2",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "rectangle",
+              "label": "矩形2",
+              "role": null
+            },
+            "op": "add_centered_rectangle",
+            "center": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "width": 8.0,
+            "height": 8.0,
+            "rotation_deg": 0.0
+          },
+          {
+            "step_id": "step-3",
+            "output_ref": "shape-3",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "rectangle",
+              "label": "矩形3",
+              "role": null
+            },
+            "op": "add_centered_rectangle",
+            "center": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "width": 4.0,
+            "height": 4.0,
+            "rotation_deg": 0.0
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [
+          {
+            "kind": "bounds_size",
+            "assertion_id": "size-1",
+            "target_ref": "shape-1",
+            "width": 12.0,
+            "height": 12.0,
+            "tolerance": 0.001
+          },
+          {
+            "kind": "closed",
+            "assertion_id": "closed-1",
+            "target_ref": "shape-1"
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "size-2",
+            "target_ref": "shape-2",
+            "width": 8.0,
+            "height": 8.0,
+            "tolerance": 0.001
+          },
+          {
+            "kind": "closed",
+            "assertion_id": "closed-2",
+            "target_ref": "shape-2"
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "size-3",
+            "target_ref": "shape-3",
+            "width": 4.0,
+            "height": 4.0,
+            "tolerance": 0.001
+          },
+          {
+            "kind": "closed",
+            "assertion_id": "closed-3",
+            "target_ref": "shape-3"
+          }
+        ],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 500
+        },
+        "free_outline_layout": []
+      }
+    },
+    {
+      "provider": "rules",
+      "case_id": "foundation_pit_layers",
+      "category": "nested_geometry",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.665,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "podium_stages",
+      "category": "nested_geometry",
+      "passed": true,
+      "status": "ready",
+      "checks": {
+        "expected_status": true,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": true,
+        "maximum_entities": true,
+        "minimum_logical_objects": true,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 51.248,
+        "schema_valid": true,
+        "trial_executed": true,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 2,
+        "logical_object_count": 2,
+        "assertion_count": 4
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "",
+      "diagnostic_plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "project_id": null,
+        "source_version": null,
+        "steps": [
+          {
+            "step_id": "step-1",
+            "output_ref": "shape-1",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "rectangle",
+              "label": "矩形1",
+              "role": null
+            },
+            "op": "add_rectangle",
+            "origin": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "width": 20.0,
+            "height": 10.0,
+            "rotation_deg": 0.0
+          },
+          {
+            "step_id": "step-2",
+            "output_ref": "shape-2",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "rectangle",
+              "label": "矩形2",
+              "role": null
+            },
+            "op": "add_rectangle",
+            "origin": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "width": 10.0,
+            "height": 5.0,
+            "rotation_deg": 0.0
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [
+          {
+            "kind": "bounds_size",
+            "assertion_id": "size-1",
+            "target_ref": "shape-1",
+            "width": 20.0,
+            "height": 10.0,
+            "tolerance": 0.001
+          },
+          {
+            "kind": "closed",
+            "assertion_id": "closed-1",
+            "target_ref": "shape-1"
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "size-2",
+            "target_ref": "shape-2",
+            "width": 10.0,
+            "height": 5.0,
+            "tolerance": 0.001
+          },
+          {
+            "kind": "closed",
+            "assertion_id": "closed-2",
+            "target_ref": "shape-2"
+          }
+        ],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 500
+        },
+        "free_outline_layout": []
+      }
+    },
+    {
+      "provider": "rules",
+      "case_id": "temple_base_tiers",
+      "category": "nested_geometry",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.706,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "l_shape_beam_path",
+      "category": "coordinate_geometry",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 0.103,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "rules",
+      "provider_attempted": false,
+      "error": "你要生成什么图形？请直接说明对象，例如“生成一个闭合爱心轮廓”。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "z_axis_route",
+      "category": "coordinate_geometry",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 0.076,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "rules",
+      "provider_attempted": false,
+      "error": "你要生成什么图形？请直接说明对象，例如“生成一个闭合爱心轮廓”。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "offset_rectangle_pair",
+      "category": "coordinate_geometry",
+      "passed": true,
+      "status": "ready",
+      "checks": {
+        "expected_status": true,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": true,
+        "maximum_entities": true,
+        "minimum_logical_objects": true,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 49.115,
+        "schema_valid": true,
+        "trial_executed": true,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 2,
+        "logical_object_count": 2,
+        "assertion_count": 4
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "",
+      "diagnostic_plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "project_id": null,
+        "source_version": null,
+        "steps": [
+          {
+            "step_id": "step-1",
+            "output_ref": "shape-1",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "rectangle",
+              "label": "矩形1",
+              "role": null
+            },
+            "op": "add_rectangle",
+            "origin": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "width": 10.0,
+            "height": 6.0,
+            "rotation_deg": 0.0
+          },
+          {
+            "step_id": "step-2",
+            "output_ref": "shape-2",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "rectangle",
+              "label": "矩形2",
+              "role": null
+            },
+            "op": "add_rectangle",
+            "origin": {
+              "x": 12.0,
+              "y": 0.0
+            },
+            "width": 10.0,
+            "height": 6.0,
+            "rotation_deg": 0.0
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [
+          {
+            "kind": "bounds_size",
+            "assertion_id": "size-1",
+            "target_ref": "shape-1",
+            "width": 10.0,
+            "height": 6.0,
+            "tolerance": 0.001
+          },
+          {
+            "kind": "closed",
+            "assertion_id": "closed-1",
+            "target_ref": "shape-1"
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "size-2",
+            "target_ref": "shape-2",
+            "width": 10.0,
+            "height": 6.0,
+            "tolerance": 0.001
+          },
+          {
+            "kind": "closed",
+            "assertion_id": "closed-2",
+            "target_ref": "shape-2"
+          }
+        ],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 500
+        },
+        "free_outline_layout": []
+      }
+    },
+    {
+      "provider": "rules",
+      "case_id": "diagonal_cross_lines",
+      "category": "coordinate_geometry",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.47,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "arc_segment_road",
+      "category": "coordinate_geometry",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.42,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "basketball_court",
+      "category": "sports_field",
+      "passed": false,
+      "status": "ready",
+      "checks": {
+        "expected_status": true,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": true,
+        "maximum_entities": false,
+        "minimum_logical_objects": false,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 80.129,
+        "schema_valid": true,
+        "trial_executed": true,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 19,
+        "logical_object_count": 1,
+        "assertion_count": 0
+      },
+      "parser": "parameterized_template",
+      "provider_attempted": false,
+      "error": "",
+      "diagnostic_plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "mm",
+        "project_id": null,
+        "source_version": null,
+        "steps": [
+          {
+            "step_id": "template-1",
+            "output_ref": "template-design",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "drawing_part",
+              "label": "参数化模板",
+              "role": null
+            },
+            "op": "add_template",
+            "matches": [
+              {
+                "template": "basketball",
+                "width_m": 28.0,
+                "height_m": 15.0,
+                "radius_m": null,
+                "quantity": 1,
+                "spacing_m": 0.0,
+                "arrangement": null,
+                "spacing_reference": null,
+                "peer_placement": null,
+                "placement": [],
+                "placement_inferred": false,
+                "layout_override": false,
+                "grid_columns": 4,
+                "grid_rows": 4
+              }
+            ],
+            "circumscribed_circle": false,
+            "origin": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "rotation_deg": 0.0
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 5000
+        },
+        "free_outline_layout": []
+      }
+    },
+    {
+      "provider": "rules",
+      "case_id": "basketball_court_rules",
+      "category": "sports_field",
+      "passed": false,
+      "status": "ready",
+      "checks": {
+        "expected_status": true,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": true,
+        "maximum_entities": false,
+        "minimum_logical_objects": false,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 87.079,
+        "schema_valid": true,
+        "trial_executed": true,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 19,
+        "logical_object_count": 1,
+        "assertion_count": 0
+      },
+      "parser": "parameterized_template",
+      "provider_attempted": false,
+      "error": "",
+      "diagnostic_plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "mm",
+        "project_id": null,
+        "source_version": null,
+        "steps": [
+          {
+            "step_id": "template-1",
+            "output_ref": "template-design",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "drawing_part",
+              "label": "参数化模板",
+              "role": null
+            },
+            "op": "add_template",
+            "matches": [
+              {
+                "template": "basketball",
+                "width_m": 28.0,
+                "height_m": 15.0,
+                "radius_m": null,
+                "quantity": 1,
+                "spacing_m": 0.0,
+                "arrangement": null,
+                "spacing_reference": null,
+                "peer_placement": null,
+                "placement": [],
+                "placement_inferred": false,
+                "layout_override": false,
+                "grid_columns": 4,
+                "grid_rows": 4
+              }
+            ],
+            "circumscribed_circle": false,
+            "origin": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "rotation_deg": 0.0
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 5000
+        },
+        "free_outline_layout": []
+      }
+    },
+    {
+      "provider": "rules",
+      "case_id": "badminton_court",
+      "category": "sports_field",
+      "passed": false,
+      "status": "ready",
+      "checks": {
+        "expected_status": true,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": true,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 51.476,
+        "schema_valid": true,
+        "trial_executed": true,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 9,
+        "logical_object_count": 1,
+        "assertion_count": 0
+      },
+      "parser": "parameterized_template",
+      "provider_attempted": false,
+      "error": "",
+      "diagnostic_plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "mm",
+        "project_id": null,
+        "source_version": null,
+        "steps": [
+          {
+            "step_id": "template-1",
+            "output_ref": "template-design",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "drawing_part",
+              "label": "参数化模板",
+              "role": null
+            },
+            "op": "add_template",
+            "matches": [
+              {
+                "template": "badminton",
+                "width_m": 13.4,
+                "height_m": 6.1,
+                "radius_m": null,
+                "quantity": 1,
+                "spacing_m": 0.0,
+                "arrangement": null,
+                "spacing_reference": null,
+                "peer_placement": null,
+                "placement": [],
+                "placement_inferred": false,
+                "layout_override": false,
+                "grid_columns": 4,
+                "grid_rows": 4
+              }
+            ],
+            "circumscribed_circle": false,
+            "origin": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "rotation_deg": 0.0
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 5000
+        },
+        "free_outline_layout": []
+      }
+    },
+    {
+      "provider": "rules",
+      "case_id": "running_track_oval",
+      "category": "sports_field",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.52,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "football_field",
+      "category": "sports_field",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.616,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "volleyball_court",
+      "category": "sports_field",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.355,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "basketball_three_point",
+      "category": "sports_field",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.373,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "parking_lot_rules",
+      "category": "utility_layout",
+      "passed": false,
+      "status": "ready",
+      "checks": {
+        "expected_status": true,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 51.156,
+        "schema_valid": true,
+        "trial_executed": true,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 1,
+        "logical_object_count": 1,
+        "assertion_count": 0
+      },
+      "parser": "parameterized_template",
+      "provider_attempted": false,
+      "error": "",
+      "diagnostic_plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "mm",
+        "project_id": null,
+        "source_version": null,
+        "steps": [
+          {
+            "step_id": "template-1",
+            "output_ref": "template-design",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "drawing_part",
+              "label": "参数化模板",
+              "role": null
+            },
+            "op": "add_template",
+            "matches": [
+              {
+                "template": "parking",
+                "width_m": 2.5,
+                "height_m": 5.0,
+                "radius_m": null,
+                "quantity": 1,
+                "spacing_m": 0.0,
+                "arrangement": null,
+                "spacing_reference": null,
+                "peer_placement": null,
+                "placement": [],
+                "placement_inferred": false,
+                "layout_override": false,
+                "grid_columns": 4,
+                "grid_rows": 4
+              }
+            ],
+            "circumscribed_circle": false,
+            "origin": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "rotation_deg": 0.0
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 5000
+        },
+        "free_outline_layout": []
+      }
+    },
+    {
+      "provider": "rules",
+      "case_id": "driveway_line",
+      "category": "utility_layout",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.583,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "manhole_covers",
+      "category": "utility_layout",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.519,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "transformer_pad",
+      "category": "utility_layout",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.409,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "road_intersection",
+      "category": "utility_layout",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.37,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "equipment_zone",
+      "category": "utility_layout",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": true,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.568,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    },
+    {
+      "provider": "rules",
+      "case_id": "greenbelt_strip",
+      "category": "utility_layout",
+      "passed": false,
+      "status": "clarification_required",
+      "checks": {
+        "expected_status": false,
+        "schema_valid": true,
+        "trial_executed": true,
+        "feasible": true,
+        "minimum_entities": false,
+        "maximum_entities": true,
+        "minimum_logical_objects": false,
+        "required_types": false,
+        "required_parser": true,
+        "provider_attempted": true,
+        "no_runner_error": true
+      },
+      "metrics": {
+        "latency_ms": 1.628,
+        "schema_valid": false,
+        "trial_executed": false,
+        "request_attempts": 0,
+        "structured_retry_used": false,
+        "deterministic_repair_count": 0,
+        "entity_count": 0,
+        "logical_object_count": 0,
+        "assertion_count": 0
+      },
+      "parser": "deterministic_rules",
+      "provider_attempted": false,
+      "error": "当前规则无法完整解析该构造要求，需要补充明确坐标和尺寸，或交给结构化模型解释。",
+      "diagnostic_plan": null
+    }
+  ],
+  "summaries": {
+    "rules": {
+      "provider": "rules",
+      "total": 55,
+      "passed": 6,
+      "pass_rate": 0.10909090909090909,
+      "ready_rate": 0.2727272727272727,
+      "clarification_rate": 0.7272727272727273,
+      "structured_retry_rate": 0.0,
+      "deterministic_repair_count": 0,
+      "average_latency_ms": 15.997709090909087,
+      "schema_valid_rate": 0.2727272727272727,
+      "trial_success_rate": 0.2727272727272727
+    }
+  },
+  "evidence_mode": "rule_parser_zero_cost",
+  "model_callback": null,
+  "corpus_path": "evaluations/cad_construction_model_benchmark_extended.json"
+}

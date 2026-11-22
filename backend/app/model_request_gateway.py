@@ -14,6 +14,7 @@ import urllib.request
 from typing import Any
 
 from .agent_service_config import PROVIDERS
+from .integration_profile import require_external_model_calls_permitted
 from .model_providers import provider_adapter
 from .request_context import current_agent_user_id
 from .user_request_limits import user_request_limiter
@@ -28,6 +29,7 @@ def request_provider_tool_json(
     timeout: float,
 ) -> dict[str, Any]:
     """Send one tool-capable request under the current user's request lease."""
+    require_external_model_calls_permitted()
     if provider not in PROVIDERS:
         raise ValueError(f"Unsupported model provider: {provider}")
     _provider_name, base_url = PROVIDERS[provider]
@@ -52,6 +54,7 @@ def request_openai_responses_json(
     timeout: float,
 ) -> dict[str, Any]:
     """Send one OpenAI Responses request under the shared user limit."""
+    require_external_model_calls_permitted()
     request = urllib.request.Request(
         "https://api.openai.com/v1/responses",
         data=json.dumps(payload).encode("utf-8"),

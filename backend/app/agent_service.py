@@ -141,6 +141,7 @@ from .cad_generation_recovery import (
     M3_PROGRESS_GATE_ENABLED, M2_SCOPE_CLASSIFIER_ENABLED,
 )
 from .cad_requirement_ledger import project_requirement_ledger
+from .integration_profile import integration_profile_enabled
 from .cad_creation_intent import has_compound_primitives
 from .cad_creation_intent import local_creation_objects
 from .cad_construction_commit import (
@@ -413,6 +414,14 @@ class RobotAgentService:
             if value:
                 self.api_keys[provider] = value
         self._load_config()
+        if integration_profile_enabled():
+            # Never inherit a user's real provider mode or stored credentials
+            # inside the offline integration profile.
+            self.mode = "local"
+            self.model = "local"
+            self.base_model = "local"
+            self.advanced_model = "local"
+            self.api_keys = {}
         if restore_pending_actions:
             self._restore_pending_actions()
 
@@ -487,6 +496,8 @@ class RobotAgentService:
         clear_api_key: bool = False,
         cad_planning_model: str | None = None,
     ) -> dict[str, Any]:
+        if integration_profile_enabled():
+            raise RuntimeError("集成验证 profile 禁止修改或启用外部模型配置")
         owner = current_agent_user_id()
         if owner != "local-default":
             user_model_config.update(

@@ -38,6 +38,16 @@ from app.cad_generation_recovery import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _explicit_m2_m3_opt_in(monkeypatch):
+    """Integration default is OFF; this suite exercises the original M2/M3
+    behaviour, so it must opt in explicitly rather than rely on a default."""
+    monkeypatch.setattr("app.cad_generation_recovery.M3_PROGRESS_GATE_ENABLED", True)
+    monkeypatch.setattr("app.cad_generation_recovery.M2_SCOPE_CLASSIFIER_ENABLED", True)
+    monkeypatch.setattr("app.agent_service.M3_PROGRESS_GATE_ENABLED", True)
+    monkeypatch.setattr("app.agent_service.M2_SCOPE_CLASSIFIER_ENABLED", True)
+
+
 SOURCE = "新建CAD图纸，生成一个闭合轮廓，整体宽4米高4米，坐标单位米"
 REF = "outline"
 

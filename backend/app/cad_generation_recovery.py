@@ -12,12 +12,13 @@ def _env_flag(name, default=True):
     return value.strip().lower() not in {"0", "false", "off", "no"}
 
 
-# Rollback switches. Default ON: the M3 gate only blocks when the stall is
-# proven by BOTH an unchanged failure vector AND determined-equivalent
-# geometry; every undetermined or missing-evidence path releases. Setting the
-# env var to "off" restores the pre-M3 behaviour unchanged.
-M3_PROGRESS_GATE_ENABLED = _env_flag("CAD_C1_M3_PROGRESS_GATE", True)
-M2_SCOPE_CLASSIFIER_ENABLED = _env_flag("CAD_C1_M2_SCOPE_CLASSIFIER", True)
+# Integration switches. Default OFF: each capability must be explicitly
+# opted in. The M3 gate only blocks when the stall is proven by BOTH an
+# unchanged failure vector AND determined-equivalent geometry; every
+# undetermined or missing-evidence path releases. Setting the env var to
+# "on"/"1"/"true"/"yes" preserves the original M2/M3 behaviour.
+M3_PROGRESS_GATE_ENABLED = _env_flag("CAD_C1_M3_PROGRESS_GATE", False)
+M2_SCOPE_CLASSIFIER_ENABLED = _env_flag("CAD_C1_M2_SCOPE_CLASSIFIER", False)
 
 
 def recovery_category(result):

@@ -141,7 +141,11 @@ from .cad_generation_recovery import (
     M3_PROGRESS_GATE_ENABLED, M2_SCOPE_CLASSIFIER_ENABLED,
 )
 from .cad_requirement_ledger import project_requirement_ledger
-from .integration_profile import integration_profile_enabled
+from .integration_profile import (
+    IntegrationProfileError,
+    integration_profile_enabled,
+    require_external_model_calls_permitted,
+)
 from .cad_creation_intent import has_compound_primitives
 from .cad_creation_intent import local_creation_objects
 from .cad_construction_commit import (
@@ -295,11 +299,15 @@ class PendingAction:
 class RobotAgentService:
     @property
     def _active_user_profile(self) -> dict[str, Any] | None:
+        if integration_profile_enabled():
+            return None
         owner = current_agent_user_id()
         return None if owner == "local-default" else user_model_config.get(owner)
 
     @property
     def mode(self) -> str:
+        if integration_profile_enabled():
+            return "local"
         profile = self._active_user_profile
         return str(profile.get("mode")) if profile and profile.get("mode") else getattr(self, "_mode", "deepseek")
 
@@ -313,6 +321,8 @@ class RobotAgentService:
 
     @property
     def model(self) -> str:
+        if integration_profile_enabled():
+            return "local"
         profile = self._active_user_profile
         return str(profile.get("model")) if profile and profile.get("model") else getattr(self, "_model", "deepseek-chat")
 
@@ -326,6 +336,8 @@ class RobotAgentService:
 
     @property
     def base_model(self) -> str:
+        if integration_profile_enabled():
+            return "local"
         profile = self._active_user_profile
         return str(profile.get("base_model")) if profile and profile.get("base_model") else getattr(self, "_base_model", self.model)
 
@@ -339,6 +351,8 @@ class RobotAgentService:
 
     @property
     def advanced_model(self) -> str:
+        if integration_profile_enabled():
+            return "local"
         profile = self._active_user_profile
         return str(profile.get("advanced_model")) if profile and profile.get("advanced_model") else getattr(self, "_advanced_model", self.model)
 
@@ -352,12 +366,16 @@ class RobotAgentService:
 
     @property
     def cad_planning_model(self) -> str:
+        if integration_profile_enabled():
+            return "local"
         profile = self._active_user_profile
         value = str((profile or {}).get("cad_planning_model") or getattr(self, "_cad_planning_model", "deepseek-chat"))
         return value if value in {"deepseek-chat", "deepseek-reasoner", "deepseek-flash"} else "deepseek-chat"
 
     @property
     def api_keys(self) -> dict[str, str]:
+        if integration_profile_enabled():
+            return {}
         profile = self._active_user_profile
         if profile is not None:
             return profile.setdefault("api_keys", {})
@@ -409,19 +427,22 @@ class RobotAgentService:
         self._deepseek_request_timeout = self._env_timeout(
             "XLINE_AGENT_DEEPSEEK_REQUEST_TIMEOUT_SECONDS", 90.0, maximum=900.0
         )
-        for provider, env_name in PROVIDER_API_KEY_ENV.items():
-            value = os.getenv(env_name, "").strip()
-            if value:
-                self.api_keys[provider] = value
-        self._load_config()
         if integration_profile_enabled():
-            # Never inherit a user's real provider mode or stored credentials
-            # inside the offline integration profile.
+            # Never read the local production config or provider-key
+            # environment inside the offline integration profile.  The
+            # property layer also forces local mode for every request owner.
             self.mode = "local"
             self.model = "local"
             self.base_model = "local"
             self.advanced_model = "local"
+            self._cad_planning_model = "local"
             self.api_keys = {}
+        else:
+            for provider, env_name in PROVIDER_API_KEY_ENV.items():
+                value = os.getenv(env_name, "").strip()
+                if value:
+                    self.api_keys[provider] = value
+            self._load_config()
         if restore_pending_actions:
             self._restore_pending_actions()
 
@@ -497,7 +518,9 @@ class RobotAgentService:
         cad_planning_model: str | None = None,
     ) -> dict[str, Any]:
         if integration_profile_enabled():
-            raise RuntimeError("集成验证 profile 禁止修改或启用外部模型配置")
+            raise IntegrationProfileError(
+                "集成验证 profile 禁止修改或启用外部模型配置"
+            )
         owner = current_agent_user_id()
         if owner != "local-default":
             user_model_config.update(
@@ -564,6 +587,11 @@ class RobotAgentService:
             pass
 
     def test_connection(self) -> dict[str, Any]:
+        if integration_profile_enabled():
+            return {
+                "ok": True,
+                "message": "集成验证 profile 已强制本地模式，不发起外部连接。",
+            }
         if self.mode == "local":
             return {"ok": True, "message": "本地诊断助手可用，无需 API Key。"}
         if not self.api_key:
@@ -1611,6 +1639,7 @@ class RobotAgentService:
         each vendor's response to plain text; raises RuntimeError on API
         failure so callers can fall back to conservative rules.
         """
+        require_external_model_calls_permitted()
         if self.mode == "local" or not self.configured:
             raise RuntimeError("结构化复核 API 未配置")
         max_tokens = (
@@ -2837,6 +2866,7 @@ class RobotAgentService:
     def _deepseek_response(
         self, payload: dict[str, Any]
     ) -> tuple[http.client.HTTPSConnection, http.client.HTTPResponse]:
+        require_external_model_calls_permitted()
         return self._deepseek_transport().open(payload)
 
     @staticmethod
@@ -4218,6 +4248,7 @@ class RobotAgentService:
         route: dict[str, Any] | None = None,
         context_message: str | None = None,
     ) -> dict[str, Any]:
+        require_external_model_calls_permitted()
         provider_name, base_url = PROVIDERS[self.mode]
         adapter = provider_adapter(self.mode)
         system = self._system_context(

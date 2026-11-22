@@ -10,6 +10,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from .agent_service_config import PROVIDERS
+from .integration_profile import require_external_model_calls_permitted
 
 
 class DeepSeekTransport:
@@ -84,6 +85,7 @@ class DeepSeekTransport:
     def open(
         self, payload: dict[str, Any]
     ) -> tuple[http.client.HTTPSConnection, http.client.HTTPResponse]:
+        require_external_model_calls_permitted()
         parsed = urlparse(PROVIDERS["deepseek"][1])
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         headers = {

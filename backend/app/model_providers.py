@@ -7,6 +7,8 @@ import urllib.error
 import urllib.request
 from urllib.request import Request
 
+from .integration_profile import require_external_model_calls_permitted
+
 
 @dataclass(frozen=True)
 class ProviderReply:
@@ -71,6 +73,7 @@ class ModelProviderAdapter:
 
     def send_json(self, request: Request, *, timeout: float) -> dict[str, Any]:
         """Send a previously built provider request and decode its JSON body."""
+        require_external_model_calls_permitted()
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 raw = response.read().decode("utf-8")

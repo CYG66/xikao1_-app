@@ -167,5 +167,13 @@ def external_model_calls_permitted(environ: Mapping[str, str] | None = None) -> 
     return not integration_profile_enabled(environ)
 
 
+def require_external_model_calls_permitted(
+    environ: Mapping[str, str] | None = None,
+) -> None:
+    """Fail closed before any provider socket, request or credential use."""
+    if integration_profile_enabled(environ):
+        raise IntegrationProfileError("集成验证 profile 禁止外部模型请求")
+
+
 def robot_execution_permitted(environ: Mapping[str, str] | None = None) -> bool:
     return not integration_profile_enabled(environ)

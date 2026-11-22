@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from .audit_store import agent_audit
+from .startup_guard import assert_startup_admitted, startup_recovery_authorized
 from .agent_skills import (
     DRAWING_TEMPLATE_SKILLS,
     _template_layout_requirements,
@@ -394,9 +395,13 @@ class RobotAgentService:
         return "advanced" if mode in {"advanced", "work"} else "base"
 
     def __init__(self, *, restore_pending_actions: bool = True) -> None:
+        assert_startup_admitted()
         self.pending: dict[str, PendingAction] = {}
         self._pending_lock = threading.RLock()
-        self.config_path = Path.home() / ".config" / "xline-agent.json"
+        self.config_path = Path(
+            os.getenv("XLINE_AGENT_MODEL_CONFIG_PATH", "").strip()
+            or (Path.home() / ".config" / "xline-agent.json")
+        ).expanduser()
         self.mode = os.getenv("XLINE_AGENT_PROVIDER", "deepseek").strip()
         if self.mode not in {*PROVIDERS, "local"}:
             self.mode = "deepseek"
@@ -447,6 +452,10 @@ class RobotAgentService:
             self._restore_pending_actions()
 
     def _restore_pending_actions(self) -> None:
+        if not startup_recovery_authorized():
+            # A read-only production start must not rewrite tasks.json or
+            # silently expire confirmations whose timing cannot be audited.
+            return
         for task in agent_tasks.recoverable_pending():
             try:
                 name = str(task["tool"])

@@ -13,6 +13,7 @@ from typing import Any
 
 from .agent_skills import _template_layout_requirements
 from .cad_creation_intent import has_local_plural_reference
+from .startup_guard import assert_startup_admitted
 
 
 OBJECT_TYPES = ("project", "drawing", "variant", "mission", "printer", "task", "action")
@@ -75,6 +76,7 @@ class ConversationMemoryStore:
     """Small project-object memory isolated by the App's conversation id."""
 
     def __init__(self, path: Path | None = None) -> None:
+        assert_startup_admitted()
         configured = os.getenv("XLINE_AGENT_MEMORY_STORE", "").strip()
         root = (
             Path(tempfile.gettempdir()) / "xline-agent"

@@ -15,6 +15,7 @@ from .cad_candidate_state import candidate_is_accepted
 from .project_ownership import owner_conversation
 from .database import xline_database
 from .integration_profile import integration_profile_enabled
+from .startup_guard import assert_startup_admitted, production_profile
 from .drawing_store import (
     geometry_preview_paths,
     preview_paths as build_preview_paths,
@@ -66,6 +67,7 @@ ALLOWED_TRANSITIONS = {
 
 class CreativeProjectStore:
     def __init__(self, path: Path | None = None) -> None:
+        assert_startup_admitted()
         self._database_enabled = path is None
         configured = os.getenv("XLINE_CREATIVE_PROJECT_STORE", "").strip()
         default_root = (
@@ -75,7 +77,16 @@ class CreativeProjectStore:
             / "xline-agent"
         )
         self.path = path or (Path(configured) if configured else default_root / "creative_projects.json")
-        self._json_fallback_enabled = not integration_profile_enabled()
+        json_import = os.getenv("XLINE_CREATIVE_PROJECT_JSON_IMPORT", "").strip().lower()
+        if integration_profile_enabled():
+            self._json_fallback_enabled = False
+        elif production_profile():
+            # Production may never silently import a historical JSON file into
+            # an empty database.  An explicitly authorized offline migration is
+            # a separate program, not a service-start side effect.
+            self._json_fallback_enabled = json_import == "enabled"
+        else:
+            self._json_fallback_enabled = json_import != "disabled"
         self._lock = threading.RLock()
         self._projects: dict[str, dict[str, Any]] = {}
         self._load()
@@ -251,10 +262,24 @@ class CreativeProjectStore:
                     if not item.get("deleted_at"):
                         return {"ok": False, "message": "请先移入回收站"}
             if action == "purge":
+                removed_ids = [item["id"] for item in items]
+                if self._database_enabled and persist:
+                    # One transaction: upsert the survivors and explicitly
+                    # delete only the requested projects.  A failed write
+                    # leaves both memory and database unchanged.
+                    survivors = {
+                        key: value for key, value in self._projects.items()
+                        if key not in removed_ids
+                    }
+                    xline_database.save_project_bundle(
+                        list(survivors.values()),
+                        deleted_project_ids=removed_ids,
+                    )
+                    self._projects = survivors
+                    self._durable_projects = deepcopy(self._projects)
+                    return {"ok": True, "project_count": len(items)}
                 for item in items:
                     self._projects.pop(item["id"])
-                    if self._database_enabled and persist:
-                        xline_database.delete_project(item["id"])
             else:
                 for item in items:
                     item["updated_at"] = utc_now()
@@ -286,6 +311,13 @@ class CreativeProjectStore:
             project = self._projects.get(project_id)
             if project is None or project.get("deleted_at") or project.get("status") in {"pending_execution", "executing", "paused"}:
                 return False
+            # Deletion is an explicit business operation.  Do not rely on a
+            # full-snapshot save to infer that this project disappeared.
+            if self._database_enabled:
+                xline_database.delete_project(project_id)
+                self._projects.pop(project_id)
+                self._durable_projects = deepcopy(self._projects)
+                return True
             self._projects.pop(project_id)
             self._save()
             return True
@@ -1169,7 +1201,7 @@ class CreativeProjectStore:
             for project in self._projects.values():
                 project['requirement_state'] = project_requirement_state(project)
             if self._database_enabled:
-                xline_database.save_project_snapshots(list(self._projects.values()))
+                xline_database.save_project_upserts(list(self._projects.values()))
             else:
                 self.path.parent.mkdir(parents=True, exist_ok=True)
                 temporary = self.path.with_suffix(self.path.suffix + ".tmp")

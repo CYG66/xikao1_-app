@@ -17,6 +17,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .startup_guard import assert_startup_admitted
+
 
 def _platform_default_path(*, platform_name: str | None = None,
                            temp_dir: str | Path | None = None,
@@ -55,6 +57,10 @@ def _default_path() -> Path:
 
 class XLineDatabase:
     def __init__(self, path: Path | None = None) -> None:
+        # Production may only reach this constructor after the external
+        # read-only preflight has passed.  Tests and development keep their
+        # explicit path behaviour.
+        assert_startup_admitted()
         self.path = path or _default_path()
         self._lock = threading.RLock()
         self._last_telemetry_monotonic = 0.0
@@ -574,51 +580,105 @@ class XLineDatabase:
             )
 
     def save_project_snapshots(self, projects) -> None:
-        """Replace project snapshots and dependent planning rows atomically."""
-        self.save_project_bundle(projects)
+        """Persist the supplied snapshots without replacing the whole table.
 
-    def save_project_bundle(self, projects, design_versions=()) -> None:
-        """Commit projects, candidates, planning and saved drawings together.
-
-        Candidate versions live inside the project snapshot.  A drawing
-        version is supplied as ``{"item": ..., "payload": ...}`` and is
-        written in the same SQLite transaction as that snapshot.
+        This name is retained for callers that historically passed the full
+        in-memory store.  It is now an upsert only: projects absent from
+        ``projects`` are left untouched.  Destructive replacement requires the
+        explicit ``replace_all=True`` migration path on ``save_project_bundle``.
         """
+        self.save_project_upserts(projects)
+
+    def save_project_upserts(self, projects, design_versions=()) -> None:
+        """Upsert the supplied projects and leave all other project rows intact."""
+        self.save_project_bundle(projects, design_versions, replace_all=False)
+
+    def save_project_bundle(
+        self,
+        projects,
+        design_versions=(),
+        *,
+        replace_all: bool = False,
+        allow_empty_replace: bool = False,
+        deleted_project_ids=(),
+    ) -> None:
+        """Commit explicit project updates, deletions and drawings atomically.
+
+        The normal path is upsert only.  A project row is deleted only when its
+        identifier is supplied in ``deleted_project_ids`` or when a caller
+        explicitly opts into a full-table migration replacement.  An empty
+        default call is a no-op; it never means ``DELETE FROM projects``.
+        """
+        deleted_ids = {str(value) for value in deleted_project_ids if str(value)}
+        project_ids = [str(project["id"]) for project in projects]
+        overlap = deleted_ids.intersection(project_ids)
+        if overlap:
+            raise ValueError(
+                "a project cannot be both upserted and deleted in one bundle: "
+                + ", ".join(sorted(overlap))
+            )
         with self._lock, self._session() as connection:
-            project_ids = [str(project['id']) for project in projects]
             for project in projects:
-                pid = str(project['id'])
-                status = str(project.get('status', 'draft'))
-                updated = str(project.get('updated_at', ''))
+                pid = str(project["id"])
+                status = str(project.get("status", "draft"))
+                updated = str(project.get("updated_at", ""))
                 connection.execute(
-                    'INSERT OR REPLACE INTO projects (project_id, vehicle_id, status, payload_json, updated_at) VALUES (?, ?, ?, ?, ?)',
-                    (pid, str(project.get('vehicle_id', '')), status, self._json(project), updated))
-                if isinstance(project.get('planning'), dict):
-                    planning_id = 'project:' + pid
+                    "INSERT OR REPLACE INTO projects "
+                    "(project_id, vehicle_id, status, payload_json, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (pid, str(project.get("vehicle_id", "")), status,
+                     self._json(project), updated),
+                )
+                if isinstance(project.get("planning"), dict):
+                    planning_id = "project:" + pid
                     connection.execute(
-                        'INSERT OR REPLACE INTO planning_tasks (planning_id, project_id, status, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?, COALESCE((SELECT created_at FROM planning_tasks WHERE planning_id = ?), ?), ?)',
-                        (planning_id, pid, status, self._json(project['planning']), planning_id, updated, updated))
+                        "INSERT OR REPLACE INTO planning_tasks "
+                        "(planning_id, project_id, status, payload_json, created_at, updated_at) "
+                        "VALUES (?, ?, ?, ?, COALESCE((SELECT created_at FROM planning_tasks "
+                        "WHERE planning_id = ?), ?), ?)",
+                        (planning_id, pid, status, self._json(project["planning"]),
+                         planning_id, updated, updated),
+                    )
                 else:
                     connection.execute(
-                        'DELETE FROM planning_tasks WHERE planning_id = ?',
-                        ('project:' + pid,),
+                        "DELETE FROM planning_tasks WHERE planning_id = ?",
+                        ("project:" + pid,),
                     )
-            # CreativeProjectStore is the authoritative owner of this table.
-            # Deletions therefore belong to the same transaction as updates.
-            if project_ids:
-                placeholders = ','.join('?' for _ in project_ids)
+
+            for project_id in sorted(deleted_ids):
                 connection.execute(
-                    f'DELETE FROM planning_tasks WHERE project_id NOT IN ({placeholders}) '
-                    "AND planning_id LIKE 'project:%'",
-                    project_ids,
+                    "DELETE FROM planning_tasks WHERE project_id = ?", (project_id,)
                 )
                 connection.execute(
-                    f'DELETE FROM projects WHERE project_id NOT IN ({placeholders})',
-                    project_ids,
+                    "DELETE FROM planning_tasks WHERE planning_id = ?",
+                    ("project:" + project_id,),
                 )
-            else:
-                connection.execute("DELETE FROM planning_tasks WHERE planning_id LIKE 'project:%'")
-                connection.execute('DELETE FROM projects')
+                connection.execute(
+                    "DELETE FROM projects WHERE project_id = ?", (project_id,)
+                )
+
+            if replace_all:
+                if not project_ids:
+                    if not allow_empty_replace:
+                        raise ValueError(
+                            "empty project replacement requires allow_empty_replace=True"
+                        )
+                    connection.execute(
+                        "DELETE FROM planning_tasks WHERE planning_id LIKE 'project:%'"
+                    )
+                    connection.execute("DELETE FROM projects")
+                else:
+                    placeholders = ",".join("?" for _ in project_ids)
+                    connection.execute(
+                        f"DELETE FROM planning_tasks WHERE project_id NOT IN ({placeholders}) "
+                        "AND planning_id LIKE 'project:%'",
+                        project_ids,
+                    )
+                    connection.execute(
+                        f"DELETE FROM projects WHERE project_id NOT IN ({placeholders})",
+                        project_ids,
+                    )
+
             for entry in design_versions or ():
                 if not isinstance(entry, dict):
                     continue
@@ -653,6 +713,13 @@ class XLineDatabase:
 
     def delete_project(self, project_id: str) -> None:
         with self._lock, self._session() as connection:
+            connection.execute(
+                "DELETE FROM planning_tasks WHERE project_id = ?", (project_id,)
+            )
+            connection.execute(
+                "DELETE FROM planning_tasks WHERE planning_id = ?",
+                ("project:" + project_id,),
+            )
             connection.execute("DELETE FROM projects WHERE project_id = ?", (project_id,))
 
     def project_timeline(self, project_id: str) -> dict[str, list[dict[str, Any]]]:

@@ -5,6 +5,7 @@ from datetime import datetime
 from fastapi import APIRouter
 
 from ..agent_service import robot_agent
+from ..audit_store import agent_audit
 from ..database import xline_database
 from ..discovery import rover_discovery
 from ..network_manager import network_manager
@@ -24,11 +25,14 @@ router = APIRouter()
 
 @router.get("/health")
 def health() -> dict[str, object]:
+    audit_health = agent_audit.health_status()
     return {
         "ok": True,
         "device_id": rover_discovery.device_id,
         "discovery": rover_discovery.payload(),
         "status": build_status_packet(robot_state.snapshot()),
+        "audit": audit_health,
+        "audit_degraded": bool(audit_health.get("degraded")),
     }
 
 

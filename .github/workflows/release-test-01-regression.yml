@@ -1,4 +1,4 @@
-# RELEASE-TEST-01 regression gate (drafted, NOT yet landed in the worktree).
+# RELEASE-TEST-01 regression gate (landed on branch release-test-01).
 #
 # Design goals: minimal, stable, repeatable, isolated and honest.
 # * Every test job runs against an isolated SQLite/JSON/file layout created

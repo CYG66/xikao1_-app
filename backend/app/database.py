@@ -256,6 +256,16 @@ class XLineDatabase:
                 records.append(value)
         return records
 
+    def audit_event_ids(self) -> list[str]:
+        """Return all audit event ids for read-only ledger reconciliation.
+
+        This deliberately does not repair, backfill or delete rows.  The
+        caller decides whether the gap is acceptable and records evidence.
+        """
+        with self._lock, self._session() as connection:
+            rows = connection.execute("SELECT event_id FROM audit_logs").fetchall()
+        return [str(row[0]) for row in rows if row and row[0]]
+
     def backup(self, destination: Path) -> dict[str, Any]:
         """Create a consistent SQLite backup, including WAL contents."""
         destination = Path(destination)

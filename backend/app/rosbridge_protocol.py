@@ -8,11 +8,18 @@ from .state import robot_state
 from .tooling import authorize_emergency_stop, authorize_tool, validate_tool_arguments
 
 
-def handle_rosbridge_payload(payload: dict[str, object]) -> dict[str, object]:
+def handle_rosbridge_payload(
+    payload: dict[str, object],
+    *,
+    principal_subject: str | None = None,
+) -> dict[str, object]:
     op = payload.get("op")
     topic = payload.get("topic")
     service = payload.get("service")
-    client_id = str(payload.get("client_id", ""))
+    # The authenticated subject is the only trusted identity.  A self-declared
+    # client_id remains supported for local/virtual compatibility only when no
+    # authenticated principal exists.
+    client_id = str(principal_subject or payload.get("client_id", ""))
 
     if op == "claim_control":
         ok = ros_adapter.claim_control(client_id)

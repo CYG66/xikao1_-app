@@ -29,6 +29,13 @@ PREFLIGHT_OK_ENV = "XLINE_STARTUP_PREFLIGHT_OK"
 INTEGRATION_PROFILE_ENV = "XLINE_INTEGRATION_PROFILE"
 RECOVERY_MODE_ENV = "XLINE_STARTUP_RECOVERY_MODE"
 JSON_IMPORT_ENV = "XLINE_CREATIVE_PROJECT_JSON_IMPORT"
+AUTH_MODE_ENV = "XLINE_CONTROL_AUTH_MODE"
+AUTH_SECRET_ENV = "XLINE_AUTH_SECRET"
+AUTH_TOKEN_ENV = "XLINE_CONTROL_AUTH_TOKEN"
+AUTH_ADMIN_TOKEN_ENV = "XLINE_ADMIN_AUTH_TOKEN"
+HARDWARE_RUNTIME_ENV = "XLINE_HARDWARE_RUNTIME_ENABLE"
+PRINTER_ENV = "XLINE_ENABLE_PRINTER"
+PRINTER_AUTHORIZED_ENV = "XLINE_PRINTER_AUTHORIZED"
 
 STATE_ROOT_ENV = "XLINE_STATE_DIR"
 CONFIG_ROOT_ENV = "XLINE_CONFIG_DIR"
@@ -48,6 +55,7 @@ PLANNED_RESULTS_DIR_ENV = "XLINE_PLANNED_RESULTS_DIR"
 CAD_DIR_ENV = "XLINE_CAD_DIR"
 USER_CONFIG_ENV = "XLINE_AGENT_USER_CONFIG_PATH"
 MODEL_CONFIG_ENV = "XLINE_AGENT_MODEL_CONFIG_PATH"
+AUDIT_HEALTH_STORE_ENV = "XLINE_AGENT_AUDIT_HEALTH_STORE"
 
 # ``required_existing`` is True for stores that are expected to contain the
 # existing production history.  Optional stores may be absent on a first
@@ -62,6 +70,7 @@ PATH_SPECS: tuple[dict[str, Any], ...] = (
     {"env": RUN_STORE_ENV, "kind": "file", "root": "state", "required_existing": True},
     {"env": PLAN_STORE_ENV, "kind": "file", "root": "state", "required_existing": True, "sqlite": True},
     {"env": AUDIT_STORE_ENV, "kind": "file", "root": "state", "required_existing": True},
+    {"env": MEMORY_STORE_ENV, "kind": "file", "root": "state", "required_existing": False},
     {"env": MEMORY_STORE_ENV, "kind": "file", "root": "state", "required_existing": False},
     {"env": MISSION_LEDGER_ENV, "kind": "file", "root": "state", "required_existing": False},
     {"env": DRAWING_VERSION_ENV, "kind": "file", "root": "state", "required_existing": False},
@@ -79,6 +88,7 @@ _ENV_TITLES = {
     RUN_STORE_ENV: "agent run store",
     PLAN_STORE_ENV: "agent plan store",
     AUDIT_STORE_ENV: "agent audit store",
+    AUDIT_HEALTH_STORE_ENV: "agent audit health store",
     MEMORY_STORE_ENV: "conversation memory store",
     MISSION_LEDGER_ENV: "mission ledger store",
     DRAWING_VERSION_ENV: "drawing version store",
@@ -237,6 +247,45 @@ def build_report(
     else:
         add("PASS", "JSON_IMPORT", JSON_IMPORT_ENV,
             "历史 JSON 自动回退已禁用")
+
+    auth_mode = str(env.get(AUTH_MODE_ENV, "")).strip().lower()
+    if profile == "production" and auth_mode != "enforced":
+        add("FAIL", "AUTH_MODE", AUTH_MODE_ENV,
+            "生产启动必须显式设置 XLINE_CONTROL_AUTH_MODE=enforced")
+    else:
+        add("PASS", "AUTH_MODE", AUTH_MODE_ENV, f"auth_mode={auth_mode or 'disabled'}")
+    auth_secret = str(env.get(AUTH_SECRET_ENV, "")).strip()
+    if profile == "production" and len(auth_secret) < 32:
+        add("FAIL", "AUTH_SECRET", AUTH_SECRET_ENV,
+            "生产启动要求 XLINE_AUTH_SECRET 至少 32 字符")
+    elif auth_secret:
+        add("PASS", "AUTH_SECRET", AUTH_SECRET_ENV, "认证密钥已配置")
+    tokens = [
+        str(env.get(AUTH_TOKEN_ENV, "")).strip(),
+        str(env.get(AUTH_ADMIN_TOKEN_ENV, "")).strip(),
+    ]
+    if profile == "production" and not any(tokens):
+        add("FAIL", "AUTH_TOKEN", AUTH_TOKEN_ENV,
+            "生产启动要求至少一个签名控制令牌")
+    else:
+        add("PASS", "AUTH_TOKEN", AUTH_TOKEN_ENV, "控制令牌已配置" if any(tokens) else "未配置控制令牌")
+    if profile == "production" and not str(env.get(AUTH_ADMIN_TOKEN_ENV, "")).strip():
+        add("WARN", "AUTH_ADMIN_TOKEN", AUTH_ADMIN_TOKEN_ENV,
+            "未配置管理员令牌：数据库和 Wi-Fi 管理接口将无人可用")
+
+    hardware_runtime = _truthy(env.get(HARDWARE_RUNTIME_ENV))
+    printer_requested = _truthy(env.get(PRINTER_ENV))
+    printer_authorized = _truthy(env.get(PRINTER_AUTHORIZED_ENV))
+    if printer_requested and not printer_authorized:
+        add("FAIL", "PRINTER_AUTHORIZED", PRINTER_AUTHORIZED_ENV,
+            "XLINE_ENABLE_PRINTER=true 时必须显式设置 XLINE_PRINTER_AUTHORIZED=1")
+    elif printer_requested:
+        add("PASS", "PRINTER_AUTHORIZED", PRINTER_AUTHORIZED_ENV, "喷墨已显式授权")
+    else:
+        add("PASS", "PRINTER_DEFAULT_OFF", PRINTER_ENV, "喷墨默认关闭")
+    add("PASS", "HARDWARE_RUNTIME",
+        HARDWARE_RUNTIME_ENV,
+        "硬件 runtime 显式启用" if hardware_runtime else "硬件 runtime 默认关闭，需显式授权")
 
     root_values: dict[str, Path | None] = {"state": None, "config": None, "workspace": None}
     raw_root_values: dict[str, Path] = {}
@@ -418,6 +467,10 @@ def build_report(
             "runtime_profile": runtime_profile,
             "recovery_mode": recovery_mode,
             "json_import": json_import,
+            "auth_mode": auth_mode,
+            "hardware_runtime_enabled": hardware_runtime,
+            "printer_requested": printer_requested,
+            "printer_authorized": printer_authorized,
         },
         "resolved_paths": resolved,
         "checks": checks,

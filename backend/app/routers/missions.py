@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 import json
 import re
 from ..agent_service import robot_agent
@@ -9,6 +9,7 @@ from ..drawing_store import cad_directory as _cad_directory
 from ..drawing_store import drawing_execution_ready, resolve_drawing
 from ..ros_adapter import ros_adapter
 from ..schemas import AgentDrawingPlanRequest, ApiResult, MissionCommand
+from ..security import authenticated_client_id
 from ..state import robot_state
 from ..tooling import authorize_tool
 from ..mission_ledger import mission_ledger
@@ -167,22 +168,23 @@ def agent_request_execution(command: AgentDrawingPlanRequest) -> dict[str, objec
 
 
 @router.post("/api/mission/control", response_model=ApiResult)
-def mission(command: MissionCommand) -> ApiResult:
+def mission(command: MissionCommand, request: Request) -> ApiResult:
     action = command.action
+    client_id = authenticated_client_id(request, command.client_id)
     if command.running is not None:
         action = "start" if command.running else "cancel"
     decision = authorize_tool(
         "set_mission",
         {"running": action in {"start", "resume"}, "file_name": command.file_name},
         confirmed=True,
-        client_id=command.client_id,
+        client_id=client_id,
     )
     if action not in {"start", "resume"}:
         decision = authorize_tool(
             "set_mission",
             {"running": False, "file_name": command.file_name},
             confirmed=True,
-            client_id=command.client_id,
+            client_id=client_id,
         )
     if not decision.allowed:
         return ApiResult(ok=False, message=decision.message)

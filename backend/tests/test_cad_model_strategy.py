@@ -58,12 +58,14 @@ def test_invalid_planning_model_rejected_by_http_contract():
 
 
 def test_config_endpoint_roundtrip_scopes_optional_reasoner_to_owner(tmp_path):
+    from types import SimpleNamespace
     from app.routers.agent import update_agent_config, agent_config
     service=RobotAgentService(restore_pending_actions=False)
     store=UserModelConfigStore(tmp_path/'users.json')
+    request = SimpleNamespace(state=SimpleNamespace(auth=None))
     with patch('app.routers.agent.robot_agent',service), patch('app.agent_service.user_model_config',store):
         saved=update_agent_config(AgentConfigCommand(mode='deepseek',model='deepseek-chat',
-            cad_planning_model='deepseek-reasoner',client_id='planning-owner'))
+            cad_planning_model='deepseek-reasoner',client_id='planning-owner'), request)
         assert saved['advanced_model']=='deepseek-chat' and saved['cad_planning_model']=='deepseek-reasoner'
         assert agent_config('planning-owner')['cad_planning_model']=='deepseek-reasoner'
         assert agent_config('other-owner')['cad_planning_model']=='deepseek-chat'

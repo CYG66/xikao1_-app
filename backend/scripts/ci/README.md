@@ -74,8 +74,14 @@ pytest cache. Never point `XLINE_DATABASE_PATH` at the production database.
 ## Reproducibility notes
 
 * Python target: 3.13 (locally validated on 3.13.18, pytest 9.2.0).
-* Core dependencies: `backend/requirements.txt`. The optional native CAD
-  backends (`requirements-native-cad.txt`) are not required for this gate; the
-  builtin deterministic backend must work without them.
+* Dependency split:
+  * `backend/requirements.txt` — runtime dependencies only.
+  * `backend/requirements-dev.txt` — test-only dependencies: `pytest` and
+    `httpx` (the TestClient backend used by three HTTP test modules). No pytest
+    async plugin is required: async cases use stdlib `asyncio.run` /
+    `unittest.IsolatedAsyncioTestCase`.
+* The optional native CAD backends (`requirements-native-cad.txt`) are not
+  required for this gate; the builtin deterministic backend must work without
+  them.
 * JUnit paths are assigned to a variable first on PowerShell before being
   passed to `--junitxml`.

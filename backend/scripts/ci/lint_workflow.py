@@ -1,9 +1,10 @@
 """Static lint for the RELEASE-TEST-01 GitHub Actions workflow.
 
 A plain YAML loader only proves the file parses; it cannot check GitHub
-Actions context-scope rules. This lint complements it with the rules that
-already broke the first real CI run (CI-R4). It runs locally and is **not**
-invoked by the gate jobs, to avoid the workflow linting itself under test.
+Actions context-scope rules or job/dependency pairing. This lint complements
+it with the rules that already broke the real CI runs (CI-R4, CI-R5). It runs
+locally and is **not** invoked by the gate jobs, to avoid the workflow linting
+itself under test.
 
 Checks
 ------
@@ -16,6 +17,10 @@ Checks
 3. Every job declares ``runs-on``.
 4. Every ``needs:`` reference resolves to an existing job in this workflow.
 5. No ``continue-on-error: true`` and no bare ``|| true`` in run commands.
+6. A job that invokes pytest directly (``python -m pytest`` / ``pytest``) or
+   via ``check_manual_collection.py`` (which shells out to pytest) must install
+   ``requirements-dev.txt`` (or pytest directly), and must export
+   ``XLINE_DATABASE_PATH``; conftest aborts collection without the latter.
 
 Usage
 -----
@@ -53,6 +58,12 @@ _USES_REF_RE = re.compile(
 
 _BARE_TRUE_RE = re.compile(r"\|\|\s*true\b")
 
+# pytest invocation, direct or through the manual-inventory helper.
+_PYTEST_DIRECT_RE = re.compile(r"(?:python\s+-m\s+pytest|(?:^|\s)pytest\s)")
+_MANUAL_HELPER_RE = re.compile(r"check_manual_collection\.py")
+_DEV_INSTALL_RE = re.compile(r"requirements-dev\.txt|pip\s+install[^\n]*\bpytest\b")
+_DB_PATH_RE = re.compile(r"XLINE_DATABASE_PATH")
+
 
 def _iter_dicts(node):
     """Yield every dict node in a nested YAML structure."""
@@ -63,6 +74,18 @@ def _iter_dicts(node):
     elif isinstance(node, list):
         for item in node:
             yield from _iter_dicts(item)
+
+
+def _job_steps_text(job: dict) -> str:
+    """Concatenate run commands and step names for one job."""
+    parts: list[str] = []
+    for step in job.get("steps", []) or []:
+        if isinstance(step, dict):
+            if isinstance(step.get("run"), str):
+                parts.append(step["run"])
+            if isinstance(step.get("name"), str):
+                parts.append(step["name"])
+    return "\n".join(parts)
 
 
 def check_top_level_env(workflow: dict, findings: list[tuple[str, str]]) -> None:
@@ -129,6 +152,37 @@ def check_honest_failure_policy(workflow: dict, findings: list[tuple[str, str]])
             )
 
 
+def check_pytest_pairing(workflow: dict, findings: list[tuple[str, str]]) -> None:
+    """Pair pytest-consuming jobs with a dev install step and the DB path."""
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, dict):
+        return
+
+    for job_id, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        text = _job_steps_text(job)
+        needs_pytest = bool(_PYTEST_DIRECT_RE.search(text)) or bool(
+            _MANUAL_HELPER_RE.search(text)
+        )
+        if not needs_pytest:
+            continue
+
+        if not _DEV_INSTALL_RE.search(text):
+            findings.append(
+                ("ERROR",
+                 f"job '{job_id}' invokes pytest but installs neither "
+                 "requirements-dev.txt nor pytest directly; add a dev-dependency "
+                 "install step.")
+            )
+        if not _DB_PATH_RE.search(text):
+            findings.append(
+                ("ERROR",
+                 f"job '{job_id}' runs pytest but does not export "
+                 "XLINE_DATABASE_PATH; conftest aborts collection without it.")
+            )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Lint the regression workflow.")
     parser.add_argument("--workflow", type=Path, required=True)
@@ -149,6 +203,7 @@ def main() -> int:
     check_uses_refs(workflow, findings)
     check_jobs(workflow, findings)
     check_honest_failure_policy(workflow, findings)
+    check_pytest_pairing(workflow, findings)
 
     errors = [msg for level, msg in findings if level == "ERROR"]
     for level, msg in findings:
@@ -158,7 +213,7 @@ def main() -> int:
         print(f"LINT FAILED: {len(errors)} error(s).")
         return 1
     print("LINT PASSED: top-level env contexts, action refs, runs-on, needs, "
-          "and failure policy are clean.")
+          "failure policy, and pytest/dev-install pairing are clean.")
     return 0
 
 

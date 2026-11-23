@@ -17,6 +17,12 @@
 # isolated paths are therefore exported per job from the shell via
 # ``$RUNNER_TEMP`` into ``$GITHUB_ENV``; they are not declared in the top-level
 # env block.
+#
+# Dependency note (CI-R5): requirements.txt holds runtime dependencies only.
+# pytest lives in requirements-dev.txt. Every job that collects or executes the
+# pytest suite -- including report-diff, which invokes check_manual_collection.py
+# and that helper shells out to ``python -m pytest`` -- installs both files.
+# import-check is the only job that does not need pytest (pure importlib probe).
 
 name: release-test-01-regression
 
@@ -65,11 +71,13 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
 
-      - name: Install core dependencies
+      - name: Install runtime dependencies
         # Optional native 2D backends (requirements-native-cad.txt) are kept out
         # of this gate: the builtin deterministic backend must work without them.
         # Enable a separate native-cad job only after wheel availability on
         # ubuntu-latest is verified; do not mask install failures here.
+        # This job does NOT install requirements-dev.txt: check_imports.py is a
+        # pure importlib probe and never invokes pytest.
         run: pip install -r requirements.txt
 
       - name: Offline import gate
@@ -87,10 +95,12 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
 
-      - name: Install core dependencies
-        run: pip install -r requirements.txt
+      - name: Install runtime and test-only dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Export isolated state paths to job environment
         run: |
@@ -146,10 +156,12 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
 
-      - name: Install core dependencies
-        run: pip install -r requirements.txt
+      - name: Install runtime and test-only dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Export isolated state paths to job environment
         run: |
@@ -213,10 +225,12 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
 
-      - name: Install core dependencies
-        run: pip install -r requirements.txt
+      - name: Install runtime and test-only dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Export isolated state paths to job environment
         run: |
@@ -282,6 +296,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install runtime and test-only dependencies
+        # check_manual_collection.py shells out to `python -m pytest` for marker
+        # registration and collect-only, so pytest must be installed here too.
+        run: pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Export isolated state paths to job environment
         run: |
@@ -335,6 +358,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install runtime and test-only dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Export isolated state paths to job environment
         run: |
@@ -401,6 +431,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install runtime and test-only dependencies
+        # diff_failures.py itself needs only the stdlib, but this job also runs
+        # check_manual_collection.py, which shells out to `python -m pytest`
+        # (marker check + collect-only). pytest and the runtime app modules
+        # imported during collection are therefore required here as well.
+        run: pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Export isolated state paths to job environment
         run: |

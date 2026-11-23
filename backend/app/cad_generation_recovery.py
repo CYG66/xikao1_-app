@@ -431,6 +431,12 @@ def classify_feature_failure(details, code=''):
     elif subtype in {'cusp', 'notch', 'extremum', 'symmetry', 'boundary_feature'}:
         repair_class = 'feature_replan'
         reason = f"failure_subtype={details.get('failure_subtype')}"
+    elif any(
+        str(feat).lower() in {'cusp', 'notch', 'extremum', 'symmetry', 'boundary_feature'}
+        for feat in (details.get('failed_features') or [])
+    ):
+        repair_class = 'feature_replan'
+        reason = f"failed_features boundary token: {details.get('failed_features')}"
     elif any(k in details for k in _TOPOLOGY_DETAIL_KEYS) or count_mismatch:
         repair_class = 'topology_replan'
         reason = 'topology evidence fields present: ' + ','.join(

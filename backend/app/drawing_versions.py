@@ -13,6 +13,7 @@ from typing import Any
 
 from .task_store import utc_now
 from .database import xline_database
+from .startup_guard import assert_startup_admitted
 from .geometry_diff import build_geometry_diff, build_path_impact
 
 
@@ -24,9 +25,15 @@ class DuplicateDrawingOperationError(RuntimeError):
 
 class DrawingVersionStore:
     def __init__(self, path: Path | None = None) -> None:
+        assert_startup_admitted()
         self._database_enabled = path is None
         configured = os.getenv("XLINE_DRAWING_VERSION_STORE", "").strip()
-        root = Path(tempfile.gettempdir()) / "xline-agent"
+        root = (
+            Path(tempfile.gettempdir()) / "xline-agent"
+            if os.name == "nt"
+            else Path(os.getenv("XDG_STATE_HOME", Path.home() / ".local" / "state"))
+            / "xline-agent"
+        )
         self.path = path or (Path(configured) if configured else root / "drawing_versions.json")
         self._lock = threading.RLock()
         self._items: list[dict[str, Any]] = []

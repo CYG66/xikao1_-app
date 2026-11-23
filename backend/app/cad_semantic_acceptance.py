@@ -52,7 +52,8 @@ def semantic_requirements(source):
     text='\n'.join(source_texts(source))
     if re.search(r'astroid|星形线',text,re.I):
         return [{'kind':'astroid_identity','instruction':'星形线astroid具有四个内禀尖点，按用户数学关系和最大半径构造；不要添加要求处处无尖角的radial_pattern profile=smooth断言。不能用直边四角星替代。'}]
-    if re.search(r'爱心|心形',text) and len(local_creation_objects(text)) <= 2:
+    if (re.search(r'爱心|心形',text) and len(local_creation_objects(text)) <= 2
+            and not re.search(r'大写字母\s*A',text,re.I)):
         return [{'kind':'heart_outline_features','instruction':'爱心必须是单一闭合外轮廓，顶部左右两个凸瓣、中间凹口、底部中央尖点；参数曲线的坐标轴方向要保持该拓扑，不能用椭圆、单瓣曲线或上下颠倒的曲线替代。尺寸和中心由需求契约绑定。'}]
     nested=nested_frame_requirement(text)
     if nested:return [nested]

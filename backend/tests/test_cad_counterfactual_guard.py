@@ -16,6 +16,8 @@ from app.cad_edit_contract import build_cad_edit_contract
 from app.creative_projects import CreativeProjectStore
 from app.drawing_store import preview_paths
 
+ACCEPTED = {"status": "passed", "review_required": False, "authority": "test_fixture"}
+
 
 def _contract(
     *,
@@ -140,6 +142,7 @@ class CadCounterfactualGuardTest(unittest.TestCase):
                 project["id"], "初始", geometries, "初始候选",
                 score_design_variant(geometries),
                 preview_paths({"lines": geometries}),
+                acceptance_summary=ACCEPTED,
             )
             store.begin_design_iteration(project["id"], parent["id"])
             route = robot_agent.resolve_intent(
@@ -181,6 +184,7 @@ class CadCounterfactualGuardTest(unittest.TestCase):
                 project["id"], "初始", geometries, "初始候选",
                 score_design_variant(geometries),
                 preview_paths({"lines": geometries}),
+                acceptance_summary=ACCEPTED,
             )
             store.begin_design_iteration(project["id"], parent["id"])
             previous = build_cad_edit_contract({

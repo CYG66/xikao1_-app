@@ -10,7 +10,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
-from app.agent_service import PendingAction, robot_agent
+from app.agent_service import (
+    PendingAction,
+    robot_agent,
+    set_request_execution_context,
+    reset_request_execution_context,
+)
+from app.agent_http_service import build_execution_context
 from app.agent_skills import calculate_geometry_bounds, parameterize_design
 from app.cad_project_candidates import (
     template_instance_assessment,
@@ -1428,6 +1434,8 @@ class AgentDrawingTest(unittest.TestCase):
             parent = store.add_variant(
                 project["id"], "旧单场方案", single, "旧候选",
                 score_design_variant(single), preview_paths({"lines": single}),
+                acceptance_summary={"status": "passed", "review_required": False,
+                                    "authority": "test_fixture"},
             )
             store.begin_design_iteration(project["id"], parent["id"])
             route = {
@@ -1657,9 +1665,13 @@ class AgentDrawingTest(unittest.TestCase):
                 json.dumps(source), encoding="utf-8"
             )
 
-            pending = robot_agent._register_pending(
-                "modify_drawing", arguments, mode="advanced"
-            )
+            token = set_request_execution_context(build_execution_context())
+            try:
+                pending = robot_agent._register_pending(
+                    "modify_drawing", arguments, mode="advanced"
+                )
+            finally:
+                reset_request_execution_context(token)
             saved_before_confirm = list(Path(directory).glob("*_v*.json"))
 
             self.assertEqual(pending["preview_status"], "ready")
@@ -1702,14 +1714,18 @@ class AgentDrawingTest(unittest.TestCase):
             Path(directory, source_name).write_text(
                 json.dumps(source), encoding="utf-8"
             )
-            pending = robot_agent._register_pending(
-                "modify_drawing",
-                {
-                    "source_file_name": source_name,
-                    "operations": [{"op": "remove", "id": 1}],
-                },
-                mode="advanced",
-            )
+            token = set_request_execution_context(build_execution_context())
+            try:
+                pending = robot_agent._register_pending(
+                    "modify_drawing",
+                    {
+                        "source_file_name": source_name,
+                        "operations": [{"op": "remove", "id": 1}],
+                    },
+                    mode="advanced",
+                )
+            finally:
+                reset_request_execution_context(token)
 
             result = robot_agent.confirm(pending["id"], False)
 

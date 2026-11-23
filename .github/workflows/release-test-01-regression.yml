@@ -1,0 +1,556 @@
+# RELEASE-TEST-01 regression gate (landed on branch release-test-01).
+#
+# Design goals: minimal, stable, repeatable, isolated and honest.
+# * Every test job runs against an isolated SQLite/JSON/file layout created
+#   under the runner temp dir; no production data is touched.
+# * No job uses ``continue-on-error``; a red test keeps the job red.
+# * No ``-k`` silent exclusion, no assertion rewrite, no lowered acceptance
+#   threshold. Known baseline reds are tracked in scripts/ci/baseline_failures.json
+#   and surfaced by the diff report, not hidden.
+# * Real on-device / live-session tests are tagged ``manual_field``; CI only
+#   collects them for inventory and never executes them offline.
+# * No model provider credentials are referenced by this workflow.
+#
+# Context-scope note (CI-R4): workflow-level ``env`` may only reference the
+# limited top-level contexts (github / inputs / vars / secrets); it MUST NOT
+# use ``runner``, ``needs``, ``steps``, ``job`` or ``secrets``. Runner-derived
+# isolated paths are therefore exported per job from the shell via
+# ``$RUNNER_TEMP`` into ``$GITHUB_ENV``; they are not declared in the top-level
+# env block.
+#
+# Dependency note (CI-R5): requirements.txt holds runtime dependencies only.
+# pytest lives in requirements-dev.txt. Every job that collects or executes the
+# pytest suite -- including report-diff, which invokes check_manual_collection.py
+# and that helper shells out to ``python -m pytest`` -- installs both files.
+# import-check is the only job that does not need pytest (pure importlib probe).
+
+name: release-test-01-regression
+
+on:
+  pull_request:
+    branches: [main, release-test-01]
+  push:
+    branches: [release-test-01]
+  workflow_dispatch:
+
+# Read-only by default; the workflow never writes back to the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: release-test-01-${{ github.ref }}
+  cancel-in-progress: true
+
+# Top-level env holds only constants with no runner/needs/steps/job context.
+# Runner-derived isolated paths are exported per job in the init step below.
+env:
+  XLINE_STARTUP_RECOVERY_MODE: disabled
+  XLINE_CREATIVE_PROJECT_JSON_IMPORT: disabled
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Dependency install + offline application import check (no model calls).
+  # ---------------------------------------------------------------------------
+  import-check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install runtime dependencies
+        # Optional native 2D backends (requirements-native-cad.txt) are kept out
+        # of this gate: the builtin deterministic backend must work without them.
+        # Enable a separate native-cad job only after wheel availability on
+        # ubuntu-latest is verified; do not mask install failures here.
+        # This job does NOT install requirements-dev.txt: check_imports.py is a
+        # pure importlib probe and never invokes pytest.
+        run: pip install -r requirements.txt
+
+      - name: Offline import gate
+        run: python scripts/ci/check_imports.py --root .
+
+  # ---------------------------------------------------------------------------
+  # 2. Startup / storage / audit / isolation safety subset.
+  # ---------------------------------------------------------------------------
+  security-isolation:
+    runs-on: ubuntu-latest
+    needs: import-check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install runtime and test-only dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Export isolated state paths to job environment
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci-state" "$RUNNER_TEMP/ci-config" "$RUNNER_TEMP/ci-workspace" "$RUNNER_TEMP/junit"
+          {
+            echo "XLINE_STATE_DIR=$RUNNER_TEMP/ci-state"
+            echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
+            echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
+            echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
+            echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
+            echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
+            echo "XLINE_AGENT_PLAN_STORE=$RUNNER_TEMP/ci-state/agent_plans.sqlite3"
+            echo "XLINE_AGENT_AUDIT_STORE=$RUNNER_TEMP/ci-state/agent_audit.jsonl"
+            echo "XLINE_AGENT_MEMORY_STORE=$RUNNER_TEMP/ci-state/conversation_memory.json"
+            echo "XLINE_MISSION_LEDGER_STORE=$RUNNER_TEMP/ci-state/mission_ledger.json"
+            echo "XLINE_DRAWING_VERSION_STORE=$RUNNER_TEMP/ci-state/drawing_versions.json"
+            echo "XLINE_AGENT_ATTACHMENTS_DIR=$RUNNER_TEMP/ci-state/attachments"
+            echo "XLINE_PLANNED_RESULTS_DIR=$RUNNER_TEMP/ci-workspace/planned_results"
+            echo "XLINE_CAD_DIR=$RUNNER_TEMP/ci-workspace/cad"
+            echo "XLINE_AGENT_USER_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent-users.json"
+            echo "XLINE_AGENT_MODEL_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent.json"
+          } >> "$GITHUB_ENV"
+
+      - name: Run storage / isolation / lifespan / audit safety tests
+        run: >-
+          python -m pytest
+          tests/test_release_fix_01_storage_safety.py
+          tests/test_database_isolation.py
+          tests/test_main_lifespan.py
+          tests/test_audit_store.py
+          -m "not manual_field"
+          --junitxml=${{ runner.temp }}/junit/security.xml
+
+      - name: Upload security JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-security
+          path: ${{ runner.temp }}/junit/security.xml
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 3. CAD positive/negative acceptance gate. Uses the existing acceptance
+  #    test modules; no separate acceptance harness is introduced.
+  #    Positives must keep passing; negatives must still be rejected.
+  # ---------------------------------------------------------------------------
+  cad-acceptance-gate:
+    runs-on: ubuntu-latest
+    needs: import-check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install runtime and test-only dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Export isolated state paths to job environment
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci-state" "$RUNNER_TEMP/ci-config" "$RUNNER_TEMP/ci-workspace" "$RUNNER_TEMP/junit"
+          {
+            echo "XLINE_STATE_DIR=$RUNNER_TEMP/ci-state"
+            echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
+            echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
+            echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
+            echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
+            echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
+            echo "XLINE_AGENT_PLAN_STORE=$RUNNER_TEMP/ci-state/agent_plans.sqlite3"
+            echo "XLINE_AGENT_AUDIT_STORE=$RUNNER_TEMP/ci-state/agent_audit.jsonl"
+            echo "XLINE_AGENT_MEMORY_STORE=$RUNNER_TEMP/ci-state/conversation_memory.json"
+            echo "XLINE_MISSION_LEDGER_STORE=$RUNNER_TEMP/ci-state/mission_ledger.json"
+            echo "XLINE_DRAWING_VERSION_STORE=$RUNNER_TEMP/ci-state/drawing_versions.json"
+            echo "XLINE_AGENT_ATTACHMENTS_DIR=$RUNNER_TEMP/ci-state/attachments"
+            echo "XLINE_PLANNED_RESULTS_DIR=$RUNNER_TEMP/ci-workspace/planned_results"
+            echo "XLINE_CAD_DIR=$RUNNER_TEMP/ci-workspace/cad"
+            echo "XLINE_AGENT_USER_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent-users.json"
+            echo "XLINE_AGENT_MODEL_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent.json"
+          } >> "$GITHUB_ENV"
+
+      - name: Run CAD acceptance / gate / topology safety tests
+        run: >-
+          python -m pytest
+          tests/test_cad_assertions.py
+          tests/test_cad_stroke_acceptance.py
+          tests/test_cad_relation_acceptance.py
+          tests/test_cad_source_acceptance.py
+          tests/test_cad_path_relation_acceptance.py
+          tests/test_cad_projection_acceptance.py
+          tests/test_cad_repetition_acceptance.py
+          tests/test_cad_semantic_acceptance.py
+          tests/test_cad_edit_gate.py
+          tests/test_cad_p0_trust_boundary.py
+          tests/test_cad_topology_safety_b1.py
+          tests/test_cad_topology_safety_b11.py
+          tests/test_cad_topology_safety_b12.py
+          tests/test_cad_counterfactual_guard.py
+          -m "not manual_field"
+          --junitxml=${{ runner.temp }}/junit/cad.xml
+
+      - name: Upload CAD JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-cad
+          path: ${{ runner.temp }}/junit/cad.xml
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 4. Directed offline mock/stub regression set (no real model call).
+  # ---------------------------------------------------------------------------
+  offline-mock-regression:
+    runs-on: ubuntu-latest
+    needs: import-check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install runtime and test-only dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Export isolated state paths to job environment
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci-state" "$RUNNER_TEMP/ci-config" "$RUNNER_TEMP/ci-workspace" "$RUNNER_TEMP/junit"
+          {
+            echo "XLINE_STATE_DIR=$RUNNER_TEMP/ci-state"
+            echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
+            echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
+            echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
+            echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
+            echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
+            echo "XLINE_AGENT_PLAN_STORE=$RUNNER_TEMP/ci-state/agent_plans.sqlite3"
+            echo "XLINE_AGENT_AUDIT_STORE=$RUNNER_TEMP/ci-state/agent_audit.jsonl"
+            echo "XLINE_AGENT_MEMORY_STORE=$RUNNER_TEMP/ci-state/conversation_memory.json"
+            echo "XLINE_MISSION_LEDGER_STORE=$RUNNER_TEMP/ci-state/mission_ledger.json"
+            echo "XLINE_DRAWING_VERSION_STORE=$RUNNER_TEMP/ci-state/drawing_versions.json"
+            echo "XLINE_AGENT_ATTACHMENTS_DIR=$RUNNER_TEMP/ci-state/attachments"
+            echo "XLINE_PLANNED_RESULTS_DIR=$RUNNER_TEMP/ci-workspace/planned_results"
+            echo "XLINE_CAD_DIR=$RUNNER_TEMP/ci-workspace/cad"
+            echo "XLINE_AGENT_USER_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent-users.json"
+            echo "XLINE_AGENT_MODEL_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent.json"
+          } >> "$GITHUB_ENV"
+
+      - name: Run directed offline mock regression tests
+        run: >-
+          python -m pytest
+          tests/test_c1_integration_mock.py
+          tests/test_c11_service_two_round_mock.py
+          tests/test_c12_production_loop_mock.py
+          tests/test_c13_m2m3_loop_mock.py
+          tests/test_final01_model_isolation.py
+          tests/test_model_request_gateway.py
+          tests/test_model_providers.py
+          tests/test_deepseek_transport.py
+          tests/test_agent_failure_policy.py
+          tests/test_agent_interruption_policy.py
+          tests/test_mission_safety.py
+          tests/test_user_request_limits.py
+          tests/test_answer_validation.py
+          -m "not manual_field"
+          --junitxml=${{ runner.temp }}/junit/offline.xml
+
+      - name: Upload offline regression JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-offline
+          path: ${{ runner.temp }}/junit/offline.xml
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 5. Manual field-test inventory: collect only, never execute.
+  #    manual_field is reserved for real hardware / field-live tests. Offline
+  #    deterministic subprocess/HTTP tests (e.g. test_cad_copy_http_identity,
+  #    test_p12_eval_budget worker cases) are NOT tagged. The inventory may be
+  #    empty; the marker must still register, and no manual test is executed.
+  # ---------------------------------------------------------------------------
+  manual-collection:
+    runs-on: ubuntu-latest
+    needs: import-check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install runtime and test-only dependencies
+        # check_manual_collection.py shells out to `python -m pytest` for marker
+        # registration and collect-only, so pytest must be installed here too.
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Export isolated state paths to job environment
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci-state" "$RUNNER_TEMP/ci-config" "$RUNNER_TEMP/ci-workspace"
+          {
+            echo "XLINE_STATE_DIR=$RUNNER_TEMP/ci-state"
+            echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
+            echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
+            echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
+            echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
+            echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
+            echo "XLINE_AGENT_PLAN_STORE=$RUNNER_TEMP/ci-state/agent_plans.sqlite3"
+            echo "XLINE_AGENT_AUDIT_STORE=$RUNNER_TEMP/ci-state/agent_audit.jsonl"
+            echo "XLINE_AGENT_MEMORY_STORE=$RUNNER_TEMP/ci-state/conversation_memory.json"
+            echo "XLINE_MISSION_LEDGER_STORE=$RUNNER_TEMP/ci-state/mission_ledger.json"
+            echo "XLINE_DRAWING_VERSION_STORE=$RUNNER_TEMP/ci-state/drawing_versions.json"
+            echo "XLINE_AGENT_ATTACHMENTS_DIR=$RUNNER_TEMP/ci-state/attachments"
+            echo "XLINE_PLANNED_RESULTS_DIR=$RUNNER_TEMP/ci-workspace/planned_results"
+            echo "XLINE_CAD_DIR=$RUNNER_TEMP/ci-workspace/cad"
+            echo "XLINE_AGENT_USER_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent-users.json"
+            echo "XLINE_AGENT_MODEL_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent.json"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify marker registration and collect manual inventory
+        run: >-
+          python scripts/ci/check_manual_collection.py
+          --root .
+          --tests-dir tests
+          --output ${{ runner.temp }}/manual-inventory.json
+
+      - name: Upload manual inventory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-inventory
+          path: ${{ runner.temp }}/manual-inventory.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 6. Full-suite collection audit (diagnostic, honest red).
+  #    Surfaces collection errors that the directed subset jobs never open.
+  #    This job does NOT use continue-on-error: a collection break stays red
+  #    until the missing helpers are restored. It is intentionally not a
+  #    required merge gate until the baseline collection errors are triaged.
+  # ---------------------------------------------------------------------------
+  collect-audit:
+    runs-on: ubuntu-latest
+    needs: import-check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install runtime and test-only dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Export isolated state paths to job environment
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci-state" "$RUNNER_TEMP/ci-config" "$RUNNER_TEMP/ci-workspace"
+          {
+            echo "XLINE_STATE_DIR=$RUNNER_TEMP/ci-state"
+            echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
+            echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
+            echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
+            echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
+            echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
+            echo "XLINE_AGENT_PLAN_STORE=$RUNNER_TEMP/ci-state/agent_plans.sqlite3"
+            echo "XLINE_AGENT_AUDIT_STORE=$RUNNER_TEMP/ci-state/agent_audit.jsonl"
+            echo "XLINE_AGENT_MEMORY_STORE=$RUNNER_TEMP/ci-state/conversation_memory.json"
+            echo "XLINE_MISSION_LEDGER_STORE=$RUNNER_TEMP/ci-state/mission_ledger.json"
+            echo "XLINE_DRAWING_VERSION_STORE=$RUNNER_TEMP/ci-state/drawing_versions.json"
+            echo "XLINE_AGENT_ATTACHMENTS_DIR=$RUNNER_TEMP/ci-state/attachments"
+            echo "XLINE_PLANNED_RESULTS_DIR=$RUNNER_TEMP/ci-workspace/planned_results"
+            echo "XLINE_CAD_DIR=$RUNNER_TEMP/ci-workspace/cad"
+            echo "XLINE_AGENT_USER_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent-users.json"
+            echo "XLINE_AGENT_MODEL_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent.json"
+          } >> "$GITHUB_ENV"
+
+      - name: Collect full test suite (no execution)
+        run: |
+          set +e
+          python -m pytest tests --collect-only -q 2>&1 | tee "${{ runner.temp }}/collect-stdout.txt"
+          COLLECT_RC=${PIPESTATUS[0]}
+          python scripts/ci/extract_collect_errors.py \
+            --collect-stdout "${{ runner.temp }}/collect-stdout.txt" \
+            --output "${{ runner.temp }}/collect-errors.txt"
+          printf "%s" "$COLLECT_RC" > "${{ runner.temp }}/collect-rc.txt"
+          # Preserve the real pytest exit code: collection breaks stay red.
+          exit $COLLECT_RC
+
+      - name: Upload collection audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: collect-audit
+          path: |
+            ${{ runner.temp }}/collect-errors.txt
+            ${{ runner.temp }}/collect-rc.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 7. Failure diff against the reviewed baseline manifest.
+  #    Consumes JUnit artifacts; reports new / resolved / unchanged reds.
+  # ---------------------------------------------------------------------------
+  report-diff:
+    runs-on: ubuntu-latest
+    # Minimal permissions: read checkout sources and read this run's uploaded
+    # artifacts. The actions: read scope is defensive redundancy; v4 normally
+    # downloads same-run artifacts via the runtime token, but pinning it here
+    # removes any token-scope ambiguity without broadening other jobs.
+    permissions:
+      contents: read
+      actions: read
+    # Always evaluate the diff honestly: upstream reds are classified against
+    # the baseline rather than skipping this job. The collect-audit raw exit
+    # code and error list are consumed below as gate inputs.
+    if: always()
+    needs:
+      - security-isolation
+      - cad-acceptance-gate
+      - offline-mock-regression
+      - manual-collection
+      - collect-audit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install runtime and test-only dependencies
+        # diff_failures.py itself needs only the stdlib, but this job also runs
+        # check_manual_collection.py, which shells out to `python -m pytest`
+        # (marker check + collect-only). pytest and the runtime app modules
+        # imported during collection are therefore required here as well.
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Export isolated state paths to job environment
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci-state" "$RUNNER_TEMP/ci-config" "$RUNNER_TEMP/ci-workspace"
+          {
+            echo "XLINE_STATE_DIR=$RUNNER_TEMP/ci-state"
+            echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
+            echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
+            echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
+            echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
+            echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
+            echo "XLINE_AGENT_PLAN_STORE=$RUNNER_TEMP/ci-state/agent_plans.sqlite3"
+            echo "XLINE_AGENT_AUDIT_STORE=$RUNNER_TEMP/ci-state/agent_audit.jsonl"
+            echo "XLINE_AGENT_MEMORY_STORE=$RUNNER_TEMP/ci-state/conversation_memory.json"
+            echo "XLINE_MISSION_LEDGER_STORE=$RUNNER_TEMP/ci-state/mission_ledger.json"
+            echo "XLINE_DRAWING_VERSION_STORE=$RUNNER_TEMP/ci-state/drawing_versions.json"
+            echo "XLINE_AGENT_ATTACHMENTS_DIR=$RUNNER_TEMP/ci-state/attachments"
+            echo "XLINE_PLANNED_RESULTS_DIR=$RUNNER_TEMP/ci-workspace/planned_results"
+            echo "XLINE_CAD_DIR=$RUNNER_TEMP/ci-workspace/cad"
+            echo "XLINE_AGENT_USER_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent-users.json"
+            echo "XLINE_AGENT_MODEL_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent.json"
+          } >> "$GITHUB_ENV"
+
+      # Download each upstream artifact by exact name (no glob). A `pattern`
+      # multi-line block scalar is parsed as one pattern containing newlines
+      # and matches nothing; per-name download removes that ambiguity. With v4
+      # the artifact is extracted into path/<name>/, matching the script
+      # inputs below. manual-inventory is not downloaded: it is written locally
+      # by check_manual_collection.py in this job and is not read back.
+      - name: Download security JUnit report
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          name: junit-security
+          # With an explicit `name`, download-artifact@v4 extracts straight into
+          # `path` and does NOT create a `<name>/` subdirectory (unlike `pattern`,
+          # which does). Each step therefore targets the exact directory the
+          # scripts below expect, otherwise every report lands flat in one place.
+          path: ${{ runner.temp }}/reports/junit-security
+
+      - name: Download CAD JUnit report
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          name: junit-cad
+          path: ${{ runner.temp }}/reports/junit-cad
+
+      - name: Download offline JUnit report
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          name: junit-offline
+          path: ${{ runner.temp }}/reports/junit-offline
+
+      - name: Download collection audit evidence
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          name: collect-audit
+          path: ${{ runner.temp }}/reports/collect-audit
+
+      - name: Cross-check manual tests were not executed offline
+        run: >-
+          python scripts/ci/check_manual_collection.py
+          --root .
+          --tests-dir tests
+          --junit-report ${{ runner.temp }}/reports/junit-offline/offline.xml
+          --output ${{ runner.temp }}/manual-inventory.json
+
+      - name: Compute failure diff against baseline
+        run: >-
+          python scripts/ci/diff_failures.py
+          --junit ${{ runner.temp }}/reports/junit-security/security.xml
+          ${{ runner.temp }}/reports/junit-cad/cad.xml
+          ${{ runner.temp }}/reports/junit-offline/offline.xml
+          --baseline scripts/ci/baseline_failures.json
+          --collect-errors ${{ runner.temp }}/reports/collect-audit/collect-errors.txt
+          --collect-rc ${{ runner.temp }}/reports/collect-audit/collect-rc.txt
+          --output-json ${{ runner.temp }}/diff-report.json
+          --output-md ${{ runner.temp }}/diff-report.md
+
+      # The diff report is the gate's conclusion evidence: if it was not
+      # produced, this job must fail rather than finish green on a missing
+      # artifact, hence `error`. Upstream JUnit / inventory / audit uploads
+      # keep `warn`: their owning job is already red when those reports are
+      # missing, so a warn there cannot mask a green-on-red situation.
+      - name: Upload diff report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diff-report
+          path: ${{ runner.temp }}/diff-report.*
+          if-no-files-found: error
+          retention-days: 7

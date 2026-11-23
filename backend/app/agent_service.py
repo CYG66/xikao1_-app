@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from .audit_store import agent_audit
+from .startup_guard import assert_startup_admitted, startup_recovery_authorized
 from .agent_skills import (
     DRAWING_TEMPLATE_SKILLS,
     _template_layout_requirements,
@@ -394,9 +395,13 @@ class RobotAgentService:
         return "advanced" if mode in {"advanced", "work"} else "base"
 
     def __init__(self, *, restore_pending_actions: bool = True) -> None:
+        assert_startup_admitted()
         self.pending: dict[str, PendingAction] = {}
         self._pending_lock = threading.RLock()
-        self.config_path = Path.home() / ".config" / "xline-agent.json"
+        self.config_path = Path(
+            os.getenv("XLINE_AGENT_MODEL_CONFIG_PATH", "").strip()
+            or (Path.home() / ".config" / "xline-agent.json")
+        ).expanduser()
         self.mode = os.getenv("XLINE_AGENT_PROVIDER", "deepseek").strip()
         if self.mode not in {*PROVIDERS, "local"}:
             self.mode = "deepseek"
@@ -447,6 +452,10 @@ class RobotAgentService:
             self._restore_pending_actions()
 
     def _restore_pending_actions(self) -> None:
+        if not startup_recovery_authorized():
+            # A read-only production start must not rewrite tasks.json or
+            # silently expire confirmations whose timing cannot be audited.
+            return
         for task in agent_tasks.recoverable_pending():
             try:
                 name = str(task["tool"])
@@ -1117,6 +1126,17 @@ class RobotAgentService:
         statement (``_parse_units_followup``), e.g. "坐标单位为米".
         """
         if self.normalize_agent_mode(str(route.get("mode") or "advanced")) != "advanced":
+            return None
+        # A route that already selected a dedicated geometry-rearrangement
+        # branch is owned by that handler. The parameter-merge parser must not
+        # misread a layout gap (e.g. "一个停车位大小") as a new component and
+        # overwrite the persisted shape / quantity contract.
+        dedicated_source = str(route.get("decision_source") or "")
+        if dedicated_source in {
+            "drawing_layout_followup",
+            "drawing_relative_template_addition",
+            "project_addition_plan",
+        }:
             return None
         if local_creation_objects(message):
             return None
@@ -3725,12 +3745,14 @@ class RobotAgentService:
 
     @staticmethod
     def _is_fresh_design_request(route: dict[str, Any]) -> bool:
-        """Return true only for a new design brief, not candidate confirmation."""
-        # An explicit project id from the App owns the conversation, even if
-        # the follow-up text still contains creation words such as “新建” or
-        # “画一个”. Do not drop it during requirement merge or confirmation.
-        if str(route.get("selected_project_id") or "").strip():
-            return False
+        """Return true only for a new design brief, not candidate confirmation.
+
+        A fresh brief is routed by operation/stage/decision_source rather than
+        by whether a selected project id is attached: a create request at the
+        requirements stage starts a new design even if an older project is
+        still selected, while a candidate-generation confirmation keeps the
+        selected project.
+        """
         if (
             route.get("name") != "drawing_design"
             or route.get("operation") != "create"
@@ -4294,6 +4316,42 @@ class RobotAgentService:
             )
         return self._result(text, usage)
 
+    @staticmethod
+    def _measured_geometry_acceptance_summary(
+        assessment: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Produce the variant acceptance summary from measured geometry checks.
+
+        Reuses the same backend feasibility/topology/boundary evaluation already
+        embedded in ``score_design_variant``. A candidate is marked accepted only
+        when every measured check passes; otherwise it stays honestly
+        ``review_required`` and the durable write boundary keeps rejecting it.
+        No evidence is inferred from project status or the presence of
+        geometries alone.
+        """
+        feasibility = assessment.get("feasibility") or {}
+        topology = feasibility.get("topology") or {}
+        boundary = feasibility.get("boundary_check") or {}
+        checks = [
+            feasibility.get("ok") is True,
+            topology.get("ok") is True,
+            boundary.get("ok") is True,
+        ]
+        if all(checks):
+            return {
+                "status": "passed",
+                "review_required": False,
+                "authority": "backend_measured_geometry",
+                "source": "candidate_geometry_validation",
+                "verified_checks": len(checks),
+            }
+        return {
+            "status": "review_required",
+            "review_required": True,
+            "authority": "backend_measured_geometry",
+            "source": "missing_acceptance_evidence",
+        }
+
     def _local_intent(
         self,
         message: str,
@@ -4503,6 +4561,7 @@ class RobotAgentService:
                 add_variant=get_creative_project_store().add_variant,
                 get_project=get_creative_project_store().get,
                 stored_preview=preview_paths({"lines": geometries}),
+                acceptance_summary=self._measured_geometry_acceptance_summary(assessment),
             )
             variant = persisted_variant.get("variant") if isinstance(persisted_variant, dict) else None
             if variant is not None:
@@ -4574,6 +4633,7 @@ class RobotAgentService:
             add_variant=get_creative_project_store().add_variant,
             get_project=get_creative_project_store().get,
             stored_preview=preview_paths({"lines": geometries}),
+            acceptance_summary=self._measured_geometry_acceptance_summary(assessment),
         )
         variant = persisted_variant.get("variant") if isinstance(persisted_variant, dict) else None
         if variant is not None:
@@ -4982,14 +5042,14 @@ class RobotAgentService:
             if isinstance(persisted, dict) and persisted.get("state") == "pending_confirmation":
                 # The persisted server snapshot is authoritative across process
                 # boundaries; never trust the in-memory copy over it.
-                if not isinstance(persisted.get("execution_context"), dict):
+                if approved and not isinstance(persisted.get("execution_context"), dict):
                     return {"ok": False, "message": "待确认任务缺少原始请求上下文，已拒绝恢复，请重新发起请求。", "task_id": action_id}
                 if action is not None:
-                    action.execution_context = deepcopy(persisted["execution_context"])
+                    action.execution_context = deepcopy(persisted["execution_context"]) if isinstance(persisted.get("execution_context"), dict) else None
                     action.arguments = dict(persisted.get("arguments") or action.arguments)
                     action.name = str(persisted.get("tool") or action.name)
             if action is None and isinstance(persisted, dict) and persisted.get("state") == "pending_confirmation":
-                if not isinstance(persisted.get("execution_context"), dict):
+                if approved and not isinstance(persisted.get("execution_context"), dict):
                     return {"ok": False, "message": "待确认任务缺少原始请求上下文，已拒绝恢复，请重新发起请求。", "task_id": action_id}
                 action = PendingAction(
                     name=str(persisted.get("tool") or ""),
@@ -5048,18 +5108,21 @@ class RobotAgentService:
         # Legacy in-memory adapters may not have a persisted task at all; keep
         # their existing confirmation behavior. Once a task is persisted,
         # however, a missing snapshot is never recoverable.
-        if not isinstance(action.execution_context, dict) and isinstance(persisted, dict):
+        # Context integrity guards the approved execution path only. A pure
+        # cancellation does not execute anything; it still writes a cancelled
+        # audit record below, so no request context is silently skipped.
+        if approved and not isinstance(action.execution_context, dict) and isinstance(persisted, dict):
             agent_tasks.transition(action_id, "failed", "缺少原始请求上下文")
             return {"ok": False, "message": "待确认任务缺少原始请求上下文，已拒绝执行，请重新发起请求。", "task_id": action_id}
         expected_hash = action.execution_context.get("sha256") if isinstance(action.execution_context, dict) else None
         unsigned = {k: v for k, v in action.execution_context.items() if k != "sha256"} if isinstance(action.execution_context, dict) else {}
         actual_hash = hashlib.sha256(json.dumps(unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest() if isinstance(action.execution_context, dict) else None
-        if isinstance(action.execution_context, dict) and (not isinstance(expected_hash, str) or expected_hash != actual_hash):
+        if approved and isinstance(action.execution_context, dict) and (not isinstance(expected_hash, str) or expected_hash != actual_hash):
             agent_tasks.transition(action_id, "failed", "请求上下文完整性校验失败")
             return {"ok": False, "message": "待确认请求上下文已损坏或被篡改，已拒绝执行。", "task_id": action_id}
         if not approved:
             agent_tasks.transition(action_id, "cancelled", "用户取消操作")
-            return {"ok": True, "message": "已取消操作。"}
+            return {"ok": True, "message": "已取消操作。", "task_id": action_id, "task_state": "cancelled"}
         policy = agent_tool_policy(action.name, action.mode)
         if not policy["allowed"]:
             message = policy["reason"]
@@ -6540,12 +6603,7 @@ class RobotAgentService:
             failed_refs=set(repair_details.get('affected_output_refs') or [])
             plan_refs={s.get('output_ref') for s in (failed_attempt.get('plan') or failed_attempt.get('rejected_plan') or {}).get('steps',[])}
             failed_error=failed_attempt.get('construction_error') or failed_attempt.get('error') or {}
-            if M2_SCOPE_CLASSIFIER_ENABLED:
-                classification=classify_feature_failure(repair_details, failed_error.get('code') or '')
-            else:
-                classification={'repair_class':'unspecified',
-                    'requires_structural_replan':bool(repair_details.get('requires_structural_replan')),
-                    'reason':'classifier disabled'}
+            classification=classify_feature_failure(repair_details, failed_error.get('code') or '')
             legacy_replan=bool(repair_details.get('requires_structural_replan')
                 and plan_refs and plan_refs.issubset(failed_refs))
             structural_replan=legacy_replan or classification['requires_structural_replan']

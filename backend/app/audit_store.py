@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 import threading
 import uuid
@@ -11,10 +12,24 @@ from typing import Any
 
 from .task_store import utc_now
 from .database import xline_database
+from .startup_guard import assert_startup_admitted
 
 
 class AgentAuditStore:
+    """Audit writer with a transactional SQLite authority and JSONL mirror.
+
+    SQLite ``audit_logs`` is the authoritative ledger for new events.  JSONL
+    remains a recoverable mirror/export.  Persistence failures are never
+    swallowed: they increment visible counters, set a degraded health state,
+    and write a one-line warning to stderr.  The degraded state stays visible
+    across later successful appends until reconciliation is explicitly
+    acknowledged.  Safety actions still proceed.
+    """
+
+    authority = "sqlite"
+
     def __init__(self, path: Path | None = None) -> None:
+        assert_startup_admitted()
         configured = os.getenv("XLINE_AGENT_AUDIT_STORE", "").strip()
         default_root = (
             Path(tempfile.gettempdir()) / "xline-agent"
@@ -26,6 +41,20 @@ class AgentAuditStore:
             Path(configured) if configured else default_root / "agent_audit.jsonl"
         )
         self._lock = threading.RLock()
+        self._health: dict[str, Any] = {
+            "authority": self.authority,
+            "degraded": False,
+            "degraded_since": None,
+            "reconciliation_required": False,
+            "sqlite_failures": 0,
+            "jsonl_failures": 0,
+            "append_count": 0,
+            "last_record_id": None,
+            "last_success_at": None,
+            "last_reconciled_at": None,
+            "reconciliation_note": None,
+            "last_error": None,
+        }
 
     def append(
         self,
@@ -44,19 +73,75 @@ class AgentAuditStore:
             "message": str(result.get("message", "")),
         }
         with self._lock:
+            sqlite_ok = False
+            jsonl_ok = False
+            try:
+                xline_database.record_audit(record)
+                sqlite_ok = True
+            except Exception as error:  # noqa: BLE001 - surface, never swallow
+                self._mark_failure("sqlite", record, error)
             try:
                 self.path.parent.mkdir(parents=True, exist_ok=True)
                 with self.path.open("a", encoding="utf-8") as stream:
                     stream.write(json.dumps(record, ensure_ascii=False) + "\n")
-                os.chmod(self.path, 0o600)
-            except OSError:
-                pass
-            try:
-                xline_database.record_audit(record)
-            except Exception:
-                # Audit persistence must never block a tool or safety action.
-                pass
+                jsonl_ok = True
+                try:
+                    os.chmod(self.path, 0o600)
+                except OSError as error:
+                    jsonl_ok = False
+                    self._mark_failure("jsonl", record, error)
+            except OSError as error:
+                self._mark_failure("jsonl", record, error)
+
+            self._health["append_count"] += 1
+            self._health["last_record_id"] = record["id"]
+            if sqlite_ok and jsonl_ok:
+                self._health["last_success_at"] = record["at"]
+                # A successful append does not prove the earlier failed event
+                # was repaired.  ``degraded`` stays sticky until an explicit
+                # reconciliation acknowledgement.
+            else:
+                self._health["degraded"] = True
         return deepcopy(record)
+
+    def mark_reconciled(self, note: str) -> None:
+        """Clear the degraded state only after an explicit reconciliation.
+
+        The note is mandatory and retained in health status.  Failure counters
+        remain cumulative so an acknowledgement cannot erase the history.
+        """
+        cleaned = str(note).strip()
+        if not cleaned:
+            raise ValueError("reconciliation note is required")
+        with self._lock:
+            self._health["degraded"] = False
+            self._health["degraded_since"] = None
+            self._health["reconciliation_required"] = False
+            self._health["last_reconciled_at"] = utc_now()
+            self._health["reconciliation_note"] = cleaned
+
+    def health_status(self) -> dict[str, Any]:
+        with self._lock:
+            return deepcopy(self._health)
+
+    def _mark_failure(self, ledger: str, record: dict[str, Any], error: BaseException) -> None:
+        counter = f"{ledger}_failures"
+        self._health[counter] = int(self._health.get(counter, 0)) + 1
+        self._health["degraded"] = True
+        self._health["reconciliation_required"] = True
+        if not self._health.get("degraded_since"):
+            self._health["degraded_since"] = utc_now()
+        self._health["last_error"] = {
+            "ledger": ledger,
+            "error": f"{type(error).__name__}: {error}",
+            "record_id": record["id"],
+            "at": utc_now(),
+        }
+        print(
+            f"[audit] {ledger} persistence failed for {record['id']}: "
+            f"{type(error).__name__}: {error}",
+            file=sys.stderr,
+        )
 
     def list(self, limit: int = 100) -> list[dict[str, Any]]:
         maximum = max(1, min(limit, 500))

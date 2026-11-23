@@ -15,6 +15,7 @@ from .cad_candidate_state import candidate_is_accepted
 from .project_ownership import owner_conversation
 from .database import xline_database
 from .integration_profile import integration_profile_enabled
+from .startup_guard import assert_startup_admitted, production_profile
 from .drawing_store import (
     geometry_preview_paths,
     preview_paths as build_preview_paths,
@@ -66,6 +67,7 @@ ALLOWED_TRANSITIONS = {
 
 class CreativeProjectStore:
     def __init__(self, path: Path | None = None) -> None:
+        assert_startup_admitted()
         self._database_enabled = path is None
         configured = os.getenv("XLINE_CREATIVE_PROJECT_STORE", "").strip()
         default_root = (
@@ -75,7 +77,16 @@ class CreativeProjectStore:
             / "xline-agent"
         )
         self.path = path or (Path(configured) if configured else default_root / "creative_projects.json")
-        self._json_fallback_enabled = not integration_profile_enabled()
+        json_import = os.getenv("XLINE_CREATIVE_PROJECT_JSON_IMPORT", "").strip().lower()
+        if integration_profile_enabled():
+            self._json_fallback_enabled = False
+        elif production_profile():
+            # Production may never silently import a historical JSON file into
+            # an empty database.  An explicitly authorized offline migration is
+            # a separate program, not a service-start side effect.
+            self._json_fallback_enabled = json_import == "enabled"
+        else:
+            self._json_fallback_enabled = json_import != "disabled"
         self._lock = threading.RLock()
         self._projects: dict[str, dict[str, Any]] = {}
         self._load()
@@ -251,10 +262,24 @@ class CreativeProjectStore:
                     if not item.get("deleted_at"):
                         return {"ok": False, "message": "请先移入回收站"}
             if action == "purge":
+                removed_ids = [item["id"] for item in items]
+                if self._database_enabled and persist:
+                    # One transaction: upsert the survivors and explicitly
+                    # delete only the requested projects.  A failed write
+                    # leaves both memory and database unchanged.
+                    survivors = {
+                        key: value for key, value in self._projects.items()
+                        if key not in removed_ids
+                    }
+                    xline_database.save_project_bundle(
+                        list(survivors.values()),
+                        deleted_project_ids=removed_ids,
+                    )
+                    self._projects = survivors
+                    self._durable_projects = deepcopy(self._projects)
+                    return {"ok": True, "project_count": len(items)}
                 for item in items:
                     self._projects.pop(item["id"])
-                    if self._database_enabled and persist:
-                        xline_database.delete_project(item["id"])
             else:
                 for item in items:
                     item["updated_at"] = utc_now()
@@ -286,6 +311,13 @@ class CreativeProjectStore:
             project = self._projects.get(project_id)
             if project is None or project.get("deleted_at") or project.get("status") in {"pending_execution", "executing", "paused"}:
                 return False
+            # Deletion is an explicit business operation.  Do not rely on a
+            # full-snapshot save to infer that this project disappeared.
+            if self._database_enabled:
+                xline_database.delete_project(project_id)
+                self._projects.pop(project_id)
+                self._durable_projects = deepcopy(self._projects)
+                return True
             self._projects.pop(project_id)
             self._save()
             return True
@@ -324,30 +356,8 @@ class CreativeProjectStore:
             project = self._projects.get(project_id)
             if project is None or project.get("deleted_at"):
                 return None
-            # Content identity is scoped to the parent and requirement revision.
-            # Random titles, scores and recovery diagnostics are not new work.
-            identity_payload={"geometries":geometries,"logical_objects":logical_objects or [],
-                "topology":topology or {},"parent":parent_variant_id or project.get("design_base_variant_id") or project.get("selected_variant_id"),
-                "edit_contract":edit_contract,"source_revision":((construction_record or {}).get("requirement_ledger") or {}).get("revision_sha256")}
-            write_key=hashlib.sha256(json.dumps(identity_payload,sort_keys=True,ensure_ascii=False).encode('utf-8')).hexdigest()
-            incoming_accepted = candidate_is_accepted({
-                'acceptance_summary': acceptance_summary,
-                'construction_record': construction_record,
-            })
-            for existing in project.get('variants') or []:
-                # Reuse only a candidate that is already eligible everywhere.
-                # An earlier review-required write must not suppress a later
-                # run that supplies real acceptance evidence for the same
-                # geometry.
-                if existing.get('write_key')==write_key:
-                    if candidate_is_accepted(existing) or not incoming_accepted:
-                        return deepcopy(existing)
-            if project is None or project.get("deleted_at") or project.get("status") not in {
-                "ready_for_design", "designing", "ready_for_planning", "planning_failed"
-            }:
-                return None
-            if expected_quantity is not None and not 1 <= expected_quantity <= 50:
-                return None
+            # Normalize the editable contract and geometry before deriving the
+            # content identity, so identical work hashes to the same key.
             if isinstance(edit_contract, dict):
                 try:
                     edit_contract = CadEditCommand.model_validate(
@@ -367,6 +377,58 @@ class CreativeProjectStore:
             if normalized_geometries is None:
                 return None
             geometries = normalized_geometries
+            # Content-only idempotency key: geometry, stable logical-object
+            # identity, topology and edit contract. Parent lineage, random
+            # titles, scores, timestamps and derived assembly labels are
+            # excluded, so the same request produces the same key. The volatile
+            # ledger revision hash is a project-level requirement gate and is
+            # deliberately not part of variant content identity.
+            stable_logical_objects = []
+            for obj in logical_objects or []:
+                if not isinstance(obj, dict):
+                    continue
+                stable_logical_objects.append({
+                    "object_id": obj.get("object_id"),
+                    "object_type": obj.get("object_type"),
+                    "geometry_refs": obj.get("geometry_refs"),
+                    "bounds": obj.get("bounds"),
+                    "identity_key": obj.get("identity_key"),
+                    "spatial_anchor": obj.get("spatial_anchor"),
+                })
+            identity_payload = {
+                "geometries": geometries,
+                "logical_objects": stable_logical_objects,
+                "topology": topology or {},
+                "edit_contract": edit_contract,
+            }
+            write_key=hashlib.sha256(json.dumps(identity_payload,sort_keys=True,ensure_ascii=False).encode('utf-8')).hexdigest()
+            incoming_accepted = candidate_is_accepted({
+                'acceptance_summary': acceptance_summary,
+                'construction_record': construction_record,
+            })
+            # Idempotent reuse/supersede applies only to a plain creation
+            # regeneration (no edit contract, no bound parent). A parent-bound
+            # edit is always a new revision even when the geometry is unchanged.
+            is_creation = not isinstance(edit_contract, dict) and not parent_variant_id
+            superseded_ids: list[str] = []
+            if is_creation:
+                for existing in project.get('variants') or []:
+                    # Reuse only a candidate that is already eligible everywhere.
+                    # An earlier review-required write must not suppress a later
+                    # run that supplies real acceptance evidence for the same
+                    # geometry; that later evidence supersedes the weak candidate
+                    # instead of appending a duplicate.
+                    if existing.get('write_key') != write_key:
+                        continue
+                    if candidate_is_accepted(existing) or not incoming_accepted:
+                        return deepcopy(existing)
+                    superseded_ids.append(existing.get('id'))
+            if project is None or project.get("deleted_at") or project.get("status") not in {
+                "ready_for_design", "designing", "ready_for_planning", "planning_failed"
+            }:
+                return None
+            if expected_quantity is not None and not 1 <= expected_quantity <= 50:
+                return None
             effective_parent_id = (
                 parent_variant_id
                 or project.get("design_base_variant_id")
@@ -613,6 +675,15 @@ class CreativeProjectStore:
                 variant["diff_preview_paths"] = diff_paths
             from .cad_candidate_state import bind_creation_history
             variant.setdefault('reference_mapping',{}).update(bind_creation_history(parent_variant,variant,project_id,edit_contract))
+            if superseded_ids:
+                project["variants"] = [
+                    item for item in project["variants"]
+                    if item.get("id") not in superseded_ids
+                ]
+                if project.get("design_base_variant_id") in superseded_ids:
+                    project.pop("design_base_variant_id", None)
+                if project.get("selected_variant_id") in superseded_ids:
+                    project.pop("selected_variant_id", None)
             project["variants"].append(variant)
             if not self._transition(project, "designing"):
                 project["variants"].pop()
@@ -1169,7 +1240,7 @@ class CreativeProjectStore:
             for project in self._projects.values():
                 project['requirement_state'] = project_requirement_state(project)
             if self._database_enabled:
-                xline_database.save_project_snapshots(list(self._projects.values()))
+                xline_database.save_project_upserts(list(self._projects.values()))
             else:
                 self.path.parent.mkdir(parents=True, exist_ok=True)
                 temporary = self.path.with_suffix(self.path.suffix + ".tmp")

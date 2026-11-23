@@ -546,15 +546,6 @@ def interpret_construction_request(
     from .cad_semantic_acceptance import semantic_requirements
     user_text='\n'.join(source_texts(original_requirement))
     semantics=semantic_requirements(original_requirement)
-    if (semantics and not coordinate_scale(user_text)['has_scale']
-            and not re.search(rf'{_NUMBER}\s*{_UNIT}',user_text,re.I)
-            and _requested_area_square_metres(user_text) is None
-            and not re.search(r'(?:尺寸|大小)(?:随意|由你决定)|自行决定尺寸',user_text)):
-        names=local_creation_objects(user_text);name=names[0] if names else '该图形'
-        question=f'已识别为{name}。请提供实际整体宽度和高度；模型不会自行编造实际尺寸。'
-        return {**_failure('missing_dimensions',question,'source_requirements',clarification_required=True),
-            'clarification':{'status':'clarification_required','question_key':'size','question':question,
-                'recognized_shape':name,'recognized_size':False,'suggested_prompt':question},'provider_attempted':False}
     structure_contract = reference_contract(original_requirement)
     legacy_contract = explicit_composition(original_requirement)
     inventory_sidecar = object_inventory_sidecar(original_requirement)
@@ -567,7 +558,9 @@ def interpret_construction_request(
     # Inventory side-cars feed only the ownership reconciliation below; legacy
     # composition guards must not treat them as an explicit component contract.
     legacy_composition = legacy_composition_contract(composition_contract)
-    width_m, height_m = explicit_dimensions(original_requirement)
+    # Multi-object named-component dimension guard runs ahead of the single
+    # subject semantics guard so a compound request is challenged for every
+    # component size before any single-subject "missing_dimensions" reply.
     if composition_contract and composition_contract.get("kind") == "named_components":
         shared = composition_contract.get("dimensions") or {}
         scoped = composition_contract.get("component_dimensions") or {}
@@ -629,6 +622,16 @@ def interpret_construction_request(
                 },
                 "provider_attempted": False,
             }
+    width_m, height_m = explicit_dimensions(original_requirement)
+    if (semantics and not coordinate_scale(user_text)['has_scale']
+            and not re.search(rf'{_NUMBER}\s*{_UNIT}',user_text,re.I)
+            and _requested_area_square_metres(user_text) is None
+            and not re.search(r'(?:尺寸|大小)(?:随意|由你决定)|自行决定尺寸',user_text)):
+        names=local_creation_objects(user_text);name=names[0] if names else '该图形'
+        question=f'已识别为{name}。请提供实际整体宽度和高度；模型不会自行编造实际尺寸。'
+        return {**_failure('missing_dimensions',question,'source_requirements',clarification_required=True),
+            'clarification':{'status':'clarification_required','question_key':'size','question':question,
+                'recognized_shape':name,'recognized_size':False,'suggested_prompt':question},'provider_attempted':False}
     if structure_contract and (width_m is None or height_m is None):
         name = structure_contract["matched_object"]
         question = f"已识别为{name}，将按已核验的制图依据保留全部组成和布局。请提供实际宽度和高度；标准比例不是唯一的实际尺寸。"
@@ -3118,7 +3121,10 @@ def _request_construction_schema(text: str) -> dict[str, Any]:
         # Canonical profiles can contain counters, doors or separate strokes.
         # A single-boundary restriction would make valid plans impossible.
         minimum = max((r.get('representation_contract',{}).get('minimum_path_count',1) for r in semantics),default=1)
-        schema['$defs']['CadConstructionPlan']['properties']['steps']['minItems'] = minimum
+        steps_props = schema['$defs']['CadConstructionPlan']['properties']['steps']
+        steps_props['minItems'] = minimum
+        if minimum == 1:
+            steps_props['maxItems'] = 1
         return schema
     if not ("轮廓" in text and "闭合" in text) or re.search(
         r"坐标|控制点|顶点|半径|直径|相切|平行|垂直|阵列|多个轮廓|两个轮廓", text

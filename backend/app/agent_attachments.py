@@ -7,6 +7,8 @@ import tempfile
 from pathlib import Path
 from uuid import uuid4
 
+from .startup_guard import assert_startup_admitted
+
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 IMAGE_TYPES = {
     ".jpg": "image/jpeg",
@@ -18,6 +20,7 @@ IMAGE_TYPES = {
 
 class AgentAttachmentStore:
     def __init__(self, root: Path | None = None) -> None:
+        assert_startup_admitted()
         configured = os.getenv("XLINE_AGENT_ATTACHMENTS_DIR", "").strip()
         default_root = (
             Path(tempfile.gettempdir()) / "xline-agent" / "attachments"

@@ -13,6 +13,7 @@ from .integration_profile import (
     IntegrationProfileError,
     integration_profile_enabled,
 )
+from .startup_guard import assert_startup_admitted
 
 
 class UserModelConfigStore:
@@ -23,6 +24,7 @@ class UserModelConfigStore:
     """
 
     def __init__(self, path: Path | None = None) -> None:
+        assert_startup_admitted()
         profile_enabled = integration_profile_enabled()
         if profile_enabled:
             # Integration verification must not read the production user store

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import time
 import unittest
@@ -98,18 +99,22 @@ class MissionLedgerTest(unittest.TestCase):
     def test_segment_completion_persists_and_restart_interrupts_running(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "ledger.json"
-            store = MissionLedgerStore(path)
-            mission = store.create(
-                "drawing.json", {"segment_count": 1},
-                [line(1, printing=True, start_x=0, end_x=1000)],
-                classify_planned_segment,
-            )
-            mission_id = mission["id"]
-            store.set_mission_state(mission_id, "executing")
-            store.start_segment(mission_id, 0)
-            restored = MissionLedgerStore(path).get(mission_id)
-            self.assertEqual(restored["state"], "interrupted")
-            self.assertEqual(restored["segments"][0]["state"], "interrupted")
+            # Recovery authorization is an explicit test prerequisite: the
+            # restart-interrupt behaviour must not depend on the ambient
+            # XLINE_STARTUP_RECOVERY_MODE default (non-production enables it).
+            with patch.dict(os.environ, {"XLINE_STARTUP_RECOVERY_MODE": "authorized"}):
+                store = MissionLedgerStore(path)
+                mission = store.create(
+                    "drawing.json", {"segment_count": 1},
+                    [line(1, printing=True, start_x=0, end_x=1000)],
+                    classify_planned_segment,
+                )
+                mission_id = mission["id"]
+                store.set_mission_state(mission_id, "executing")
+                store.start_segment(mission_id, 0)
+                restored = MissionLedgerStore(path).get(mission_id)
+                self.assertEqual(restored["state"], "interrupted")
+                self.assertEqual(restored["segments"][0]["state"], "interrupted")
 
             completed = MissionLedgerStore(Path(directory) / "completed.json")
             item = completed.create(
@@ -121,6 +126,25 @@ class MissionLedgerTest(unittest.TestCase):
                 MissionLedgerStore(completed.path).get(item["id"])["segments"][0]["state"],
                 "completed",
             )
+
+    def test_restart_leaves_running_mission_when_recovery_disabled(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "ledger.json"
+            # Dual coverage: with recovery explicitly disabled, a running
+            # mission must survive the reload untouched (no interrupt rewrite).
+            with patch.dict(os.environ, {"XLINE_STARTUP_RECOVERY_MODE": "disabled"}):
+                store = MissionLedgerStore(path)
+                mission = store.create(
+                    "drawing.json", {"segment_count": 1},
+                    [line(1, printing=True, start_x=0, end_x=1000)],
+                    classify_planned_segment,
+                )
+                mission_id = mission["id"]
+                store.set_mission_state(mission_id, "executing")
+                store.start_segment(mission_id, 0)
+                restored = MissionLedgerStore(path).get(mission_id)
+                self.assertEqual(restored["state"], "executing")
+                self.assertEqual(restored["segments"][0]["state"], "executing")
 
 
 class SegmentVerificationTest(unittest.TestCase):

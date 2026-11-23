@@ -10,6 +10,13 @@
 # * Real on-device / live-session tests are tagged ``manual_field``; CI only
 #   collects them for inventory and never executes them offline.
 # * No model provider credentials are referenced by this workflow.
+#
+# Context-scope note (CI-R4): workflow-level ``env`` may only reference the
+# limited top-level contexts (github / inputs / vars / secrets); it MUST NOT
+# use ``runner``, ``needs``, ``steps``, ``job`` or ``secrets``. Runner-derived
+# isolated paths are therefore exported per job from the shell via
+# ``$RUNNER_TEMP`` into ``$GITHUB_ENV``; they are not declared in the top-level
+# env block.
 
 name: release-test-01-regression
 
@@ -28,25 +35,9 @@ concurrency:
   group: release-test-01-${{ github.ref }}
   cancel-in-progress: true
 
+# Top-level env holds only constants with no runner/needs/steps/job context.
+# Runner-derived isolated paths are exported per job in the init step below.
 env:
-  # --- Isolated CI storage (runner temp dir only) ---------------------------
-  XLINE_STATE_DIR: ${{ runner.temp }}/ci-state
-  XLINE_CONFIG_DIR: ${{ runner.temp }}/ci-config
-  XLINE_WS_ROOT: ${{ runner.temp }}/ci-workspace
-  XLINE_DATABASE_PATH: ${{ runner.temp }}/ci-state/xline-test.db
-  XLINE_CREATIVE_PROJECT_STORE: ${{ runner.temp }}/ci-state/creative_projects.json
-  XLINE_AGENT_TASK_STORE: ${{ runner.temp }}/ci-state/tasks.json
-  XLINE_AGENT_RUN_STORE: ${{ runner.temp }}/ci-state/agent_runs.json
-  XLINE_AGENT_PLAN_STORE: ${{ runner.temp }}/ci-state/agent_plans.sqlite3
-  XLINE_AGENT_AUDIT_STORE: ${{ runner.temp }}/ci-state/agent_audit.jsonl
-  XLINE_AGENT_MEMORY_STORE: ${{ runner.temp }}/ci-state/conversation_memory.json
-  XLINE_MISSION_LEDGER_STORE: ${{ runner.temp }}/ci-state/mission_ledger.json
-  XLINE_DRAWING_VERSION_STORE: ${{ runner.temp }}/ci-state/drawing_versions.json
-  XLINE_AGENT_ATTACHMENTS_DIR: ${{ runner.temp }}/ci-state/attachments
-  XLINE_PLANNED_RESULTS_DIR: ${{ runner.temp }}/ci-workspace/planned_results
-  XLINE_CAD_DIR: ${{ runner.temp }}/ci-workspace/cad
-  XLINE_AGENT_USER_CONFIG_PATH: ${{ runner.temp }}/ci-config/xline-agent-users.json
-  XLINE_AGENT_MODEL_CONFIG_PATH: ${{ runner.temp }}/ci-config/xline-agent.json
   XLINE_STARTUP_RECOVERY_MODE: disabled
   XLINE_CREATIVE_PROJECT_JSON_IMPORT: disabled
 
@@ -101,8 +92,28 @@ jobs:
       - name: Install core dependencies
         run: pip install -r requirements.txt
 
-      - name: Prepare isolated state directories
-        run: mkdir -p "$XLINE_STATE_DIR" "$XLINE_CONFIG_DIR" "$XLINE_WS_ROOT" "${{ runner.temp }}/junit"
+      - name: Export isolated state paths to job environment
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci-state" "$RUNNER_TEMP/ci-config" "$RUNNER_TEMP/ci-workspace" "$RUNNER_TEMP/junit"
+          {
+            echo "XLINE_STATE_DIR=$RUNNER_TEMP/ci-state"
+            echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
+            echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
+            echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
+            echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
+            echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
+            echo "XLINE_AGENT_PLAN_STORE=$RUNNER_TEMP/ci-state/agent_plans.sqlite3"
+            echo "XLINE_AGENT_AUDIT_STORE=$RUNNER_TEMP/ci-state/agent_audit.jsonl"
+            echo "XLINE_AGENT_MEMORY_STORE=$RUNNER_TEMP/ci-state/conversation_memory.json"
+            echo "XLINE_MISSION_LEDGER_STORE=$RUNNER_TEMP/ci-state/mission_ledger.json"
+            echo "XLINE_DRAWING_VERSION_STORE=$RUNNER_TEMP/ci-state/drawing_versions.json"
+            echo "XLINE_AGENT_ATTACHMENTS_DIR=$RUNNER_TEMP/ci-state/attachments"
+            echo "XLINE_PLANNED_RESULTS_DIR=$RUNNER_TEMP/ci-workspace/planned_results"
+            echo "XLINE_CAD_DIR=$RUNNER_TEMP/ci-workspace/cad"
+            echo "XLINE_AGENT_USER_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent-users.json"
+            echo "XLINE_AGENT_MODEL_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent.json"
+          } >> "$GITHUB_ENV"
 
       - name: Run storage / isolation / lifespan / audit safety tests
         run: >-
@@ -140,8 +151,28 @@ jobs:
       - name: Install core dependencies
         run: pip install -r requirements.txt
 
-      - name: Prepare isolated state directories
-        run: mkdir -p "$XLINE_STATE_DIR" "$XLINE_CONFIG_DIR" "$XLINE_WS_ROOT" "${{ runner.temp }}/junit"
+      - name: Export isolated state paths to job environment
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci-state" "$RUNNER_TEMP/ci-config" "$RUNNER_TEMP/ci-workspace" "$RUNNER_TEMP/junit"
+          {
+            echo "XLINE_STATE_DIR=$RUNNER_TEMP/ci-state"
+            echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
+            echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
+            echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
+            echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
+            echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
+            echo "XLINE_AGENT_PLAN_STORE=$RUNNER_TEMP/ci-state/agent_plans.sqlite3"
+            echo "XLINE_AGENT_AUDIT_STORE=$RUNNER_TEMP/ci-state/agent_audit.jsonl"
+            echo "XLINE_AGENT_MEMORY_STORE=$RUNNER_TEMP/ci-state/conversation_memory.json"
+            echo "XLINE_MISSION_LEDGER_STORE=$RUNNER_TEMP/ci-state/mission_ledger.json"
+            echo "XLINE_DRAWING_VERSION_STORE=$RUNNER_TEMP/ci-state/drawing_versions.json"
+            echo "XLINE_AGENT_ATTACHMENTS_DIR=$RUNNER_TEMP/ci-state/attachments"
+            echo "XLINE_PLANNED_RESULTS_DIR=$RUNNER_TEMP/ci-workspace/planned_results"
+            echo "XLINE_CAD_DIR=$RUNNER_TEMP/ci-workspace/cad"
+            echo "XLINE_AGENT_USER_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent-users.json"
+            echo "XLINE_AGENT_MODEL_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent.json"
+          } >> "$GITHUB_ENV"
 
       - name: Run CAD acceptance / gate / topology safety tests
         run: >-
@@ -187,8 +218,28 @@ jobs:
       - name: Install core dependencies
         run: pip install -r requirements.txt
 
-      - name: Prepare isolated state directories
-        run: mkdir -p "$XLINE_STATE_DIR" "$XLINE_CONFIG_DIR" "$XLINE_WS_ROOT" "${{ runner.temp }}/junit"
+      - name: Export isolated state paths to job environment
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci-state" "$RUNNER_TEMP/ci-config" "$RUNNER_TEMP/ci-workspace" "$RUNNER_TEMP/junit"
+          {
+            echo "XLINE_STATE_DIR=$RUNNER_TEMP/ci-state"
+            echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
+            echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
+            echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
+            echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
+            echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
+            echo "XLINE_AGENT_PLAN_STORE=$RUNNER_TEMP/ci-state/agent_plans.sqlite3"
+            echo "XLINE_AGENT_AUDIT_STORE=$RUNNER_TEMP/ci-state/agent_audit.jsonl"
+            echo "XLINE_AGENT_MEMORY_STORE=$RUNNER_TEMP/ci-state/conversation_memory.json"
+            echo "XLINE_MISSION_LEDGER_STORE=$RUNNER_TEMP/ci-state/mission_ledger.json"
+            echo "XLINE_DRAWING_VERSION_STORE=$RUNNER_TEMP/ci-state/drawing_versions.json"
+            echo "XLINE_AGENT_ATTACHMENTS_DIR=$RUNNER_TEMP/ci-state/attachments"
+            echo "XLINE_PLANNED_RESULTS_DIR=$RUNNER_TEMP/ci-workspace/planned_results"
+            echo "XLINE_CAD_DIR=$RUNNER_TEMP/ci-workspace/cad"
+            echo "XLINE_AGENT_USER_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent-users.json"
+            echo "XLINE_AGENT_MODEL_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent.json"
+          } >> "$GITHUB_ENV"
 
       - name: Run directed offline mock regression tests
         run: >-
@@ -232,6 +283,29 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Export isolated state paths to job environment
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci-state" "$RUNNER_TEMP/ci-config" "$RUNNER_TEMP/ci-workspace"
+          {
+            echo "XLINE_STATE_DIR=$RUNNER_TEMP/ci-state"
+            echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
+            echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
+            echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
+            echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
+            echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
+            echo "XLINE_AGENT_PLAN_STORE=$RUNNER_TEMP/ci-state/agent_plans.sqlite3"
+            echo "XLINE_AGENT_AUDIT_STORE=$RUNNER_TEMP/ci-state/agent_audit.jsonl"
+            echo "XLINE_AGENT_MEMORY_STORE=$RUNNER_TEMP/ci-state/conversation_memory.json"
+            echo "XLINE_MISSION_LEDGER_STORE=$RUNNER_TEMP/ci-state/mission_ledger.json"
+            echo "XLINE_DRAWING_VERSION_STORE=$RUNNER_TEMP/ci-state/drawing_versions.json"
+            echo "XLINE_AGENT_ATTACHMENTS_DIR=$RUNNER_TEMP/ci-state/attachments"
+            echo "XLINE_PLANNED_RESULTS_DIR=$RUNNER_TEMP/ci-workspace/planned_results"
+            echo "XLINE_CAD_DIR=$RUNNER_TEMP/ci-workspace/cad"
+            echo "XLINE_AGENT_USER_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent-users.json"
+            echo "XLINE_AGENT_MODEL_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent.json"
+          } >> "$GITHUB_ENV"
+
       - name: Verify marker registration and collect manual inventory
         run: >-
           python scripts/ci/check_manual_collection.py
@@ -261,6 +335,29 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+
+      - name: Export isolated state paths to job environment
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci-state" "$RUNNER_TEMP/ci-config" "$RUNNER_TEMP/ci-workspace"
+          {
+            echo "XLINE_STATE_DIR=$RUNNER_TEMP/ci-state"
+            echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
+            echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
+            echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
+            echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
+            echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
+            echo "XLINE_AGENT_PLAN_STORE=$RUNNER_TEMP/ci-state/agent_plans.sqlite3"
+            echo "XLINE_AGENT_AUDIT_STORE=$RUNNER_TEMP/ci-state/agent_audit.jsonl"
+            echo "XLINE_AGENT_MEMORY_STORE=$RUNNER_TEMP/ci-state/conversation_memory.json"
+            echo "XLINE_MISSION_LEDGER_STORE=$RUNNER_TEMP/ci-state/mission_ledger.json"
+            echo "XLINE_DRAWING_VERSION_STORE=$RUNNER_TEMP/ci-state/drawing_versions.json"
+            echo "XLINE_AGENT_ATTACHMENTS_DIR=$RUNNER_TEMP/ci-state/attachments"
+            echo "XLINE_PLANNED_RESULTS_DIR=$RUNNER_TEMP/ci-workspace/planned_results"
+            echo "XLINE_CAD_DIR=$RUNNER_TEMP/ci-workspace/cad"
+            echo "XLINE_AGENT_USER_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent-users.json"
+            echo "XLINE_AGENT_MODEL_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent.json"
+          } >> "$GITHUB_ENV"
 
       - name: Collect full test suite (no execution)
         run: |
@@ -304,6 +401,29 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+
+      - name: Export isolated state paths to job environment
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci-state" "$RUNNER_TEMP/ci-config" "$RUNNER_TEMP/ci-workspace"
+          {
+            echo "XLINE_STATE_DIR=$RUNNER_TEMP/ci-state"
+            echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
+            echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
+            echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
+            echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
+            echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
+            echo "XLINE_AGENT_PLAN_STORE=$RUNNER_TEMP/ci-state/agent_plans.sqlite3"
+            echo "XLINE_AGENT_AUDIT_STORE=$RUNNER_TEMP/ci-state/agent_audit.jsonl"
+            echo "XLINE_AGENT_MEMORY_STORE=$RUNNER_TEMP/ci-state/conversation_memory.json"
+            echo "XLINE_MISSION_LEDGER_STORE=$RUNNER_TEMP/ci-state/mission_ledger.json"
+            echo "XLINE_DRAWING_VERSION_STORE=$RUNNER_TEMP/ci-state/drawing_versions.json"
+            echo "XLINE_AGENT_ATTACHMENTS_DIR=$RUNNER_TEMP/ci-state/attachments"
+            echo "XLINE_PLANNED_RESULTS_DIR=$RUNNER_TEMP/ci-workspace/planned_results"
+            echo "XLINE_CAD_DIR=$RUNNER_TEMP/ci-workspace/cad"
+            echo "XLINE_AGENT_USER_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent-users.json"
+            echo "XLINE_AGENT_MODEL_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent.json"
+          } >> "$GITHUB_ENV"
 
       - name: Download test reports
         uses: actions/download-artifact@v4

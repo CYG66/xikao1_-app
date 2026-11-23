@@ -12,6 +12,7 @@ data, calls a model provider, or drives real hardware.
 | `check_manual_collection.py` | Verifies the `manual_field` marker is registered, collects tagged tests **without executing them**, and cross-checks that no manual test leaked into an offline executed report. | Exit 1 on unknown marker, collection breakage, or executed leak. |
 | `extract_collect_errors.py` | Parses a `pytest --collect-only` log and writes the collection-error file list for baseline comparison. | Evidence-only; does not alter pytest exit code. |
 | `diff_failures.py` | Compares JUnit failures against `baseline_failures.json`; classifies new / resolved / unchanged. | Exit 1 on a new failure or new collection error (unless `--no-fail-on-new`). |
+| `lint_workflow.py` | Static lint for the regression workflow: top-level env contexts, action refs, `runs-on`, `needs` resolution, and honest-failure policy. Local-only; not invoked by the gate jobs. | Exit 1 on any error-level finding. |
 | `baseline_failures.json` | Reviewed allowlist of known baseline reds. **Not** a skip list: raw jobs still fail honestly. | — |
 
 ## Marker registration

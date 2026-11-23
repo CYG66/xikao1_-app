@@ -494,28 +494,32 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: junit-security
-          path: ${{ runner.temp }}/reports
+          # With an explicit `name`, download-artifact@v4 extracts straight into
+          # `path` and does NOT create a `<name>/` subdirectory (unlike `pattern`,
+          # which does). Each step therefore targets the exact directory the
+          # scripts below expect, otherwise every report lands flat in one place.
+          path: ${{ runner.temp }}/reports/junit-security
 
       - name: Download CAD JUnit report
         if: always()
         uses: actions/download-artifact@v4
         with:
           name: junit-cad
-          path: ${{ runner.temp }}/reports
+          path: ${{ runner.temp }}/reports/junit-cad
 
       - name: Download offline JUnit report
         if: always()
         uses: actions/download-artifact@v4
         with:
           name: junit-offline
-          path: ${{ runner.temp }}/reports
+          path: ${{ runner.temp }}/reports/junit-offline
 
       - name: Download collection audit evidence
         if: always()
         uses: actions/download-artifact@v4
         with:
           name: collect-audit
-          path: ${{ runner.temp }}/reports
+          path: ${{ runner.temp }}/reports/collect-audit
 
       - name: Cross-check manual tests were not executed offline
         run: >-

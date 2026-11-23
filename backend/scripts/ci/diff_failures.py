@@ -50,22 +50,39 @@ def _case_key(classname: str, name: str) -> str:
     return f"{classname}::{name}"
 
 
-def parse_junit(junit_paths: list[Path]) -> tuple[set[str], int, int]:
-    """Return failing/errored case keys plus total skipped and total counts."""
+def parse_junit(
+    junit_paths: list[Path],
+) -> tuple[set[str], int, int, list[str], list[str]]:
+    """Return failing/errored case keys, counts, and missing/invalid reports.
+
+    A missing, unparseable, or empty report is reported explicitly rather than
+    treated as a clean zero-failure run.
+    """
     failed: set[str] = set()
     skipped = 0
     total = 0
+    missing: list[str] = []
+    invalid: list[str] = []
     for junit in junit_paths:
         if not junit.is_file():
-            raise FileNotFoundError(f"JUnit report not found: {junit}")
-        tree = ET.parse(junit)
-        for case in tree.iter("testcase"):
+            missing.append(junit.name)
+            continue
+        try:
+            tree = ET.parse(junit)
+        except (ET.ParseError, OSError) as exc:
+            invalid.append(f"{junit.name}: {exc}")
+            continue
+        cases = list(tree.iter("testcase"))
+        if not cases:
+            invalid.append(f"{junit.name}: no testcase in report")
+            continue
+        for case in cases:
             total += 1
             if case.find("skipped") is not None:
                 skipped += 1
             if case.find("failure") is not None or case.find("error") is not None:
                 failed.add(_case_key(case.get("classname", ""), case.get("name", "")))
-    return failed, skipped, total
+    return failed, skipped, total, missing, invalid
 
 
 def load_baseline(path: Path) -> dict[str, object]:
@@ -89,7 +106,7 @@ def main() -> int:
                         help="Report new failures without failing the gate (diagnostic only).")
     args = parser.parse_args()
 
-    current_failed, skipped, total = parse_junit(args.junit)
+    current_failed, skipped, total, missing_reports, invalid_reports = parse_junit(args.junit)
     baseline = load_baseline(args.baseline)
     baseline_failed: set[str] = set(baseline["known_failures"])
 
@@ -139,10 +156,20 @@ def main() -> int:
         "collect_evidence_missing": collect_evidence_missing,
         "new_collection_errors": new_collect_errors,
         "resolved_collection_errors": resolved_collect_errors,
+        "missing_reports": missing_reports,
+        "invalid_reports": invalid_reports,
         "gate_passed": True,
     }
 
-    has_new = bool(new_failures or new_collect_errors or collect_breakage_without_evidence)
+    # A missing or corrupt upstream report cannot be treated as a clean run:
+    # we have no evidence the suite stayed green.
+    has_new = bool(
+        new_failures
+        or new_collect_errors
+        or collect_breakage_without_evidence
+        or missing_reports
+        or invalid_reports
+    )
     report["gate_passed"] = not has_new or args.no_fail_on_new
 
     args.output_json.parent.mkdir(parents=True, exist_ok=True)
@@ -160,6 +187,8 @@ def main() -> int:
             f"- Resolved since baseline: {len(resolved)}",
             f"- Unchanged baseline reds: {len(unchanged)}",
             f"- New collection errors: {len(new_collect_errors)}",
+            f"- Missing reports: {len(missing_reports)}",
+            f"- Invalid reports: {len(invalid_reports)}",
             "",
         ]
         for title, items in (
@@ -167,6 +196,8 @@ def main() -> int:
             ("## Resolved", resolved),
             ("## Unchanged baseline reds", unchanged),
             ("## New collection errors", new_collect_errors),
+            ("## Missing upstream reports", missing_reports),
+            ("## Invalid upstream reports", invalid_reports),
         ):
             lines.append(title)
             if not items:
@@ -178,11 +209,17 @@ def main() -> int:
 
     print(json.dumps({k: report[k] for k in
                       ("new_failures", "resolved_failures", "unchanged_failures",
-                       "collect_rc", "new_collection_errors", "gate_passed")},
+                       "collect_rc", "new_collection_errors", "missing_reports",
+                       "invalid_reports", "gate_passed")},
                      ensure_ascii=False, indent=2))
 
     if has_new and not args.no_fail_on_new:
-        print("GATE FAILED: new failures/collection errors, or unexplained collect breakage.")
+        if missing_reports:
+            print("::error:: missing upstream JUnit reports: " + ", ".join(missing_reports))
+        if invalid_reports:
+            print("::error:: invalid upstream JUnit reports: " + "; ".join(invalid_reports))
+        print("GATE FAILED: new failures/collection errors, missing/invalid reports, "
+              "or unexplained collect breakage.")
         return 1
     print("GATE PASSED: no new failures or collection errors.")
     return 0

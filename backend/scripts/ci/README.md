@@ -9,9 +9,9 @@ data, calls a model provider, or drives real hardware.
 | Script | Purpose | Failure semantics |
 | --- | --- | --- |
 | `check_imports.py` | Pure import check over a curated module list. No app start, no I/O. | Exit 1 if any module fails to import. |
-| `check_manual_collection.py` | Verifies the `manual_field` marker is registered, collects tagged tests **without executing them**, and cross-checks that no manual test leaked into an offline executed report. | Exit 1 on unknown marker, collection breakage, or executed leak. |
+| `check_manual_collection.py` | Verifies the `manual_field` marker is registered, collects tagged tests **without executing them**, and cross-checks that no manual test leaked into an offline executed report. | Exit 1 on unknown marker, collection breakage, executed leak, or when the upstream JUnit report is missing / unparseable / empty; the report problem is reported as a clear `::error::`, never a bare traceback. |
 | `extract_collect_errors.py` | Parses a `pytest --collect-only` log and writes the collection-error file list for baseline comparison. | Evidence-only; does not alter pytest exit code. |
-| `diff_failures.py` | Compares JUnit failures against `baseline_failures.json`; classifies new / resolved / unchanged. | Exit 1 on a new failure or new collection error (unless `--no-fail-on-new`). |
+| `diff_failures.py` | Compares JUnit failures against `baseline_failures.json`; classifies new / resolved / unchanged. | Exit 1 on a new failure or new collection error, and also when an upstream report is missing or invalid (listed by name); a missing report is never treated as "no new failure". |
 | `lint_workflow.py` | Static lint for the regression workflow: top-level env contexts, action refs, `runs-on`, `needs` resolution, and honest-failure policy. Local-only; not invoked by the gate jobs. | Exit 1 on any error-level finding. |
 | `baseline_failures.json` | Reviewed allowlist of known baseline reds. **Not** a skip list: raw jobs still fail honestly. | — |
 
@@ -85,3 +85,7 @@ pytest cache. Never point `XLINE_DATABASE_PATH` at the production database.
   them.
 * JUnit paths are assigned to a variable first on PowerShell before being
   passed to `--junitxml`.
+* Every JUnit upload step uses `if: always()` so evidence survives an upstream
+  red job, plus `if-no-files-found: warn` so a missing report warns instead of
+  failing the upload step itself. The report-diff gate then fails honestly on
+  any missing/invalid report rather than reading the gap as a clean diff.

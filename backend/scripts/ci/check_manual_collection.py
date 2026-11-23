@@ -85,14 +85,24 @@ def collect_manual(backend_root: Path, tests_dir: str, marker: str) -> tuple[int
     return proc.returncode, unique, proc.stdout + proc.stderr
 
 
-def junit_report_node_ids(junit_path: Path) -> set[str]:
-    """Convert JUnit testcases to pytest-style node ids for the leak check."""
+def load_junit_report(junit_path: Path) -> tuple[set[str] | None, str | None]:
+    """Convert a JUnit report to pytest-style node ids.
+
+    Returns ``(ids, None)`` on success, or ``(None, reason)`` when the report is
+    missing, unparseable, or empty. The caller turns ``reason`` into an explicit
+    ``::error::`` gate failure; this function never raises a bare traceback.
+    """
     import xml.etree.ElementTree as ET
 
-    ids: set[str] = set()
     if not junit_path.is_file():
-        raise FileNotFoundError(f"JUnit report not found: {junit_path}")
-    tree = ET.parse(junit_path)
+        return None, f"upstream JUnit report missing: {junit_path}"
+
+    try:
+        tree = ET.parse(junit_path)
+    except (ET.ParseError, OSError) as exc:
+        return None, f"upstream JUnit report unparseable: {junit_path}: {exc}"
+
+    ids: set[str] = set()
     for case in tree.iter("testcase"):
         classname = case.get("classname", "")
         name = case.get("name", "")
@@ -110,7 +120,10 @@ def junit_report_node_ids(junit_path: Path) -> set[str]:
         else:
             node_id = f"{classname}::{name}"
         ids.add(node_id)
-    return ids
+
+    if not ids:
+        return None, f"upstream JUnit report is empty (no testcase): {junit_path}"
+    return ids, None
 
 
 def main() -> int:
@@ -155,7 +168,13 @@ def main() -> int:
           f"inventory written to {args.output}")
 
     if args.junit_report:
-        executed = junit_report_node_ids(args.junit_report)
+        executed, report_error = load_junit_report(args.junit_report)
+        if report_error is not None:
+            # Missing / unparseable / empty report is a gate failure, not an
+            # empty leak set: we cannot prove no manual test ran offline.
+            print(f"::error:: {report_error}; cannot cross-check that manual "
+                  "tests were not executed offline.")
+            return 1
         leaked = sorted(set(nodes) & executed)
         if leaked:
             print("[FAIL] manual test(s) were executed by an offline job:")

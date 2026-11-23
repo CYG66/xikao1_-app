@@ -21,6 +21,10 @@ Checks
    via ``check_manual_collection.py`` (which shells out to pytest) must install
    ``requirements-dev.txt`` (or pytest directly), and must export
    ``XLINE_DATABASE_PATH``; conftest aborts collection without the latter.
+7. Every ``upload-artifact`` step that publishes a JUnit ``.xml`` report must
+   run with ``if: always()`` so an upstream-red job still uploads whatever
+   evidence exists; otherwise a skipped report vanishes before the diff job
+   can classify it.
 
 Usage
 -----
@@ -63,6 +67,7 @@ _PYTEST_DIRECT_RE = re.compile(r"(?:python\s+-m\s+pytest|(?:^|\s)pytest\s)")
 _MANUAL_HELPER_RE = re.compile(r"check_manual_collection\.py")
 _DEV_INSTALL_RE = re.compile(r"requirements-dev\.txt|pip\s+install[^\n]*\bpytest\b")
 _DB_PATH_RE = re.compile(r"XLINE_DATABASE_PATH")
+_UPLOAD_ARTIFACT_RE = re.compile(r"upload-artifact", re.I)
 
 
 def _iter_dicts(node):
@@ -183,6 +188,33 @@ def check_pytest_pairing(workflow: dict, findings: list[tuple[str, str]]) -> Non
             )
 
 
+def check_upload_always(workflow: dict, findings: list[tuple[str, str]]) -> None:
+    """JUnit report uploads must run with ``if: always()``."""
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, dict):
+        return
+
+    for job_id, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        for step in job.get("steps", []) or []:
+            if not isinstance(step, dict):
+                continue
+            if not _UPLOAD_ARTIFACT_RE.search(str(step.get("uses", ""))):
+                continue
+            with_block = step.get("with", {}) or {}
+            path_text = str(with_block.get("path", ""))
+            if ".xml" not in path_text:
+                continue  # non-JUnit artifact (inventory JSON, evidence txt)
+            condition = str(step.get("if", ""))
+            if "always()" not in condition:
+                findings.append(
+                    ("ERROR",
+                     f"job '{job_id}' uploads a JUnit report but its upload step "
+                     "lacks 'if: always()'; an upstream-red job would skip the report.")
+                )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Lint the regression workflow.")
     parser.add_argument("--workflow", type=Path, required=True)
@@ -204,6 +236,7 @@ def main() -> int:
     check_jobs(workflow, findings)
     check_honest_failure_policy(workflow, findings)
     check_pytest_pairing(workflow, findings)
+    check_upload_always(workflow, findings)
 
     errors = [msg for level, msg in findings if level == "ERROR"]
     for level, msg in findings:
@@ -213,7 +246,8 @@ def main() -> int:
         print(f"LINT FAILED: {len(errors)} error(s).")
         return 1
     print("LINT PASSED: top-level env contexts, action refs, runs-on, needs, "
-          "failure policy, and pytest/dev-install pairing are clean.")
+          "failure policy, pytest/dev-install pairing, and JUnit upload "
+          "always-conditions are clean.")
     return 0
 
 

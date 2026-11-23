@@ -136,10 +136,12 @@ jobs:
           --junitxml=${{ runner.temp }}/junit/security.xml
 
       - name: Upload security JUnit report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: junit-security
           path: ${{ runner.temp }}/junit/security.xml
+          if-no-files-found: warn
           retention-days: 7
 
   # ---------------------------------------------------------------------------
@@ -207,10 +209,12 @@ jobs:
           --junitxml=${{ runner.temp }}/junit/cad.xml
 
       - name: Upload CAD JUnit report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: junit-cad
           path: ${{ runner.temp }}/junit/cad.xml
+          if-no-files-found: warn
           retention-days: 7
 
   # ---------------------------------------------------------------------------
@@ -275,10 +279,12 @@ jobs:
           --junitxml=${{ runner.temp }}/junit/offline.xml
 
       - name: Upload offline regression JUnit report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: junit-offline
           path: ${{ runner.temp }}/junit/offline.xml
+          if-no-files-found: warn
           retention-days: 7
 
   # ---------------------------------------------------------------------------
@@ -337,10 +343,12 @@ jobs:
           --output ${{ runner.temp }}/manual-inventory.json
 
       - name: Upload manual inventory
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: manual-inventory
           path: ${{ runner.temp }}/manual-inventory.json
+          if-no-files-found: warn
           retention-days: 7
 
   # ---------------------------------------------------------------------------
@@ -402,12 +410,14 @@ jobs:
           exit $COLLECT_RC
 
       - name: Upload collection audit evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: collect-audit
           path: |
             ${{ runner.temp }}/collect-errors.txt
             ${{ runner.temp }}/collect-rc.txt
+          if-no-files-found: warn
           retention-days: 7
 
   # ---------------------------------------------------------------------------
@@ -495,8 +505,10 @@ jobs:
           --output-md ${{ runner.temp }}/diff-report.md
 
       - name: Upload diff report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: diff-report
           path: ${{ runner.temp }}/diff-report.*
+          if-no-files-found: warn
           retention-days: 7

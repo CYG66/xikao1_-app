@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 from app.task_store import AgentTaskStore
 from app.mission_ledger import MissionLedgerStore
@@ -48,13 +50,28 @@ class AgentTaskStoreTest(unittest.TestCase):
     def test_restart_marks_executing_task_interrupted(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "tasks.json"
-            store = AgentTaskStore(path)
-            store.create_pending("task-2", "set_mission", {"running": True}, datetime.now() + timedelta(minutes=2))
-            store.transition("task-2", "executing", "confirmed")
+            # Recovery authorization is an explicit prerequisite; do not rely
+            # on the ambient non-production default enabling recovery.
+            with patch.dict(os.environ, {"XLINE_STARTUP_RECOVERY_MODE": "authorized"}):
+                store = AgentTaskStore(path)
+                store.create_pending("task-2", "set_mission", {"running": True}, datetime.now() + timedelta(minutes=2))
+                store.transition("task-2", "executing", "confirmed")
 
-            restored = AgentTaskStore(path).get("task-2")
-            self.assertEqual(restored["state"], "interrupted")
-            self.assertIn("不会自动恢复", restored["events"][-1]["message"])
+                restored = AgentTaskStore(path).get("task-2")
+                self.assertEqual(restored["state"], "interrupted")
+                self.assertIn("不会自动恢复", restored["events"][-1]["message"])
+
+    def test_restart_keeps_executing_task_when_recovery_disabled(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "tasks.json"
+            with patch.dict(os.environ, {"XLINE_STARTUP_RECOVERY_MODE": "disabled"}):
+                store = AgentTaskStore(path)
+                store.create_pending("task-2", "set_mission", {"running": True}, datetime.now() + timedelta(minutes=2))
+                store.transition("task-2", "executing", "confirmed")
+
+                restored = AgentTaskStore(path).get("task-2")
+                self.assertEqual(restored["state"], "executing")
+                self.assertNotIn("不会自动恢复", restored["events"][-1]["message"])
 
     def test_operator_can_cancel_task_while_waiting_for_verification(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

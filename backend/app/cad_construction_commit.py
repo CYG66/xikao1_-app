@@ -172,7 +172,8 @@ def _verified_candidates(
         trial = interpretation.get("trial_result")
         if not isinstance(trial, dict):
             return [], None
-        trial = {**trial, "_construction_plan": deepcopy(interpretation.get("plan") or {})}
+        committed_plan = interpretation.get("plan") or trial.get("plan") or {}
+        trial = {**trial, "_construction_plan": deepcopy(committed_plan)}
         return [{
             "candidate_id": "candidate-1",
             "title": _single_candidate_title(trial),

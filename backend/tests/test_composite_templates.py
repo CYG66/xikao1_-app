@@ -39,13 +39,24 @@ class CompositeTemplateTest(unittest.TestCase):
             "整体宽度和高度均不超过5米，使用平滑曲线连接，"
             "中心位于坐标原点，不要自相交。"
         )
+        parsed = parameterize_design(prompt)
         project = {
             "id": "legacy-heart",
             "name": "对称爱心轮廓 CAD 图纸",
             "original_prompt": prompt,
             "status": "clarifying",
-            "requirements": {"printer": "center"},
-            "missing_parameters": ["shape", "dimensions"],
+            "requirements": {
+                "shape": parsed["shape"],
+                "dimensions": parsed["dimensions"],
+                "printer": "center",
+                "origin": parsed.get("origin"),
+                "units": parsed.get("units"),
+                "closed": parsed.get("closed"),
+                "smooth": parsed.get("smooth"),
+                "symmetric": parsed.get("symmetric"),
+                "self_intersection": parsed.get("self_intersection"),
+            },
+            "missing_parameters": [],
             "variants": [],
         }
         readiness = candidate_requirement_readiness(
@@ -54,7 +65,7 @@ class CompositeTemplateTest(unittest.TestCase):
         self.assertTrue(readiness["ready"])
         self.assertEqual(readiness["missing"], [])
         self.assertEqual(
-            readiness["inferred_requirements"]["shape"], "heart_outline"
+            readiness["requirements"]["shape"], "heart_outline"
         )
 
         context = candidate_generation_context(project, {})

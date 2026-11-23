@@ -2418,24 +2418,14 @@ def _edit_candidate_geometries(
             if _geometry_signature(item) not in source_signatures
         ]
         if not mirrored:
-            # A copy request needs a visible second instance even when the
-            # selected shape is symmetric about its own bounding-box axis.
-            # Place the mirrored copy one full width/height away along the
-            # requested axis; an explicit mirror coordinate still wins.
-            if keep_source and edit.get("mirror_coordinate_mm") is None:
-                shift = (bounds[2] - bounds[0]) if axis == "vertical" else (bounds[3] - bounds[1])
-                mirrored = [deepcopy(item) for item in selected]
-                for item in mirrored:
-                    for point in _points(item):
-                        if axis == "vertical":
-                            point["x"] = round(float(point["x"]) + shift, 8)
-                        else:
-                            point["y"] = round(float(point["y"]) + shift, 8)
-            else:
-                return None, (
-                    "该图形在此方向上完全对称，镜像结果与原图重合，"
-                    "请明确镜像轴位置。"
-                )
+            # The selected shape is symmetric about the requested axis, so the
+            # mirrored copy coincides with the source: a copy request has no
+            # meaningful second instance. Reject instead of teleporting a
+            # shifted duplicate that was never requested.
+            return None, (
+                "该图形在此方向上完全对称，镜像结果与原图重合，"
+                "请明确镜像轴位置。"
+            )
         if keep_source:
             geometries.extend(mirrored)
             edit["new_instance"] = new_instance

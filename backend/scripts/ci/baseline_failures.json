@@ -1,0 +1,25 @@
+{
+  "schema": "release-test-01.baseline-failures.v1",
+  "status": "terminal",
+  "recorded_at": "2026-11-23",
+  "recorded_on": "Windows host; local venv Python 3.13.18; pytest 9.2.0; baseline HEAD d34c2dc3ca69c018d41ee9c48180822099efb262; terminal snapshot derived from D-line authoritative after JUnit 2026-11-23",
+  "key_convention": "failure keys are JUnit form '<classname>::<name>'; collection errors are test file paths relative to backend/.",
+  "derived_from": {
+    "junit": "C:\\Users\\29924\\Codes\\xikao\\release_test_01_20261123\\d_verify\\after_junit.xml",
+    "generated_by": "local-validation/refresh_baseline.py",
+    "counts": {
+      "testcases": 1998,
+      "suite_tests_with_subtests": 2060,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 7
+    }
+  },
+  "known_failures": [],
+  "known_collection_errors": [],
+  "notes": [
+    "Terminal baseline allowlist derived mechanically from the authoritative D-line after JUnit.",
+    "This manifest is not a skip list: raw pytest jobs still fail honestly on red tests.",
+    "Skipped cases are environment-only gaps (optional native CAD backends not installed; Windows symlink restriction) and are not blockers; see the landing record for attribution."
+  ]
+}

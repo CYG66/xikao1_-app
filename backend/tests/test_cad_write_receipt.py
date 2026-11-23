@@ -5,6 +5,8 @@ import pytest
 from app.creative_projects import CreativeProjectStore
 from app.cad_candidate_orchestrator import persist_candidate_variant
 
+ACCEPTED = {"status": "passed", "review_required": False, "authority": "test_fixture"}
+
 
 def setup_store(tmp_path):
     store=CreativeProjectStore(tmp_path/'projects.json')
@@ -13,6 +15,7 @@ def setup_store(tmp_path):
 
 
 def write(store,pid,**metadata):
+    metadata.setdefault('acceptance_summary', ACCEPTED)
     return persist_candidate_variant(project_id=pid,name='候选',
         geometries=[{'id':1,'type':'line','start':{'x':0,'y':0},'end':{'x':1000,'y':0}}],
         rationale='',assessment={},add_variant=store.add_variant,get_project=store.get,**metadata)
@@ -60,6 +63,7 @@ def test_failed_save_does_not_leave_an_in_memory_candidate(tmp_path,monkeypatch)
 def test_external_writer_read_failure_is_reported_as_committed():
     result=persist_candidate_variant(project_id='p',name='n',geometries=[
         {'id':1,'type':'line','start':{'x':0,'y':0},'end':{'x':1,'y':0}}],rationale='',assessment={},
+        acceptance_summary=ACCEPTED,
         add_variant=lambda *a,**kw:{'id':'v'},get_project=lambda _:None)
     assert result['ok'] and result['persisted'] and result['refresh_required']
     assert result['variant']['id']=='v'

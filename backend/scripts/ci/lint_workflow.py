@@ -25,6 +25,14 @@ Checks
    run with ``if: always()`` so an upstream-red job still uploads whatever
    evidence exists; otherwise a skipped report vanishes before the diff job
    can classify it.
+8. Every ``download-artifact`` step's ``pattern`` must be a single glob. The
+   action accepts one glob expression; a multi-line block scalar is parsed as
+   one pattern containing newlines and matches nothing, so the diff job never
+   receives the reports it expects.
+9. Upload/download artifact names must pair up: a downloaded ``name`` must be
+   published by an upload step, and every uploaded artifact that a downstream
+   job consumes must be downloaded by name. Final/local-only artifacts
+   (``diff-report``, ``manual-inventory``) are explicitly exempt.
 
 Usage
 -----
@@ -68,6 +76,12 @@ _MANUAL_HELPER_RE = re.compile(r"check_manual_collection\.py")
 _DEV_INSTALL_RE = re.compile(r"requirements-dev\.txt|pip\s+install[^\n]*\bpytest\b")
 _DB_PATH_RE = re.compile(r"XLINE_DATABASE_PATH")
 _UPLOAD_ARTIFACT_RE = re.compile(r"upload-artifact", re.I)
+_DOWNLOAD_ARTIFACT_RE = re.compile(r"download-artifact", re.I)
+
+# Artifacts that are never downloaded by a downstream step: ``diff-report`` is
+# the final gate conclusion (no consumer in this workflow), ``manual-inventory``
+# is written locally by check_manual_collection.py and not read back.
+_NON_DOWNLOADED_UPLOADS = {"diff-report", "manual-inventory"}
 
 
 def _iter_dicts(node):
@@ -215,6 +229,70 @@ def check_upload_always(workflow: dict, findings: list[tuple[str, str]]) -> None
                 )
 
 
+def check_download_pattern_single_line(workflow: dict, findings: list[tuple[str, str]]) -> None:
+    """``download-artifact`` ``pattern`` must be one glob, not a block scalar."""
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, dict):
+        return
+
+    for job_id, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        for step in job.get("steps", []) or []:
+            if not isinstance(step, dict):
+                continue
+            if not _DOWNLOAD_ARTIFACT_RE.search(str(step.get("uses", ""))):
+                continue
+            with_block = step.get("with", {}) or {}
+            if "pattern" not in with_block:
+                continue
+            pattern_text = str(with_block["pattern"]).strip()
+            if "\n" in pattern_text:
+                findings.append(
+                    ("ERROR",
+                     f"job '{job_id}' download-artifact 'pattern' is a "
+                     "multi-line block scalar; the action accepts a single "
+                     "glob, so split it into one step per pattern.")
+                )
+
+
+def check_artifact_name_pairing(workflow: dict, findings: list[tuple[str, str]]) -> None:
+    """Pair download artifact names with the upload steps that publish them."""
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, dict):
+        return
+
+    upload_names: set[str] = set()
+    download_names: set[str] = set()
+    for job in jobs.values():
+        if not isinstance(job, dict):
+            continue
+        for step in job.get("steps", []) or []:
+            if not isinstance(step, dict):
+                continue
+            with_block = step.get("with", {}) or {}
+            name = with_block.get("name")
+            if not isinstance(name, str) or not name.strip():
+                continue
+            if _UPLOAD_ARTIFACT_RE.search(str(step.get("uses", ""))):
+                upload_names.add(name.strip())
+            elif _DOWNLOAD_ARTIFACT_RE.search(str(step.get("uses", ""))):
+                download_names.add(name.strip())
+
+    for name in sorted(download_names - upload_names):
+        findings.append(
+            ("ERROR",
+             f"download-artifact fetches '{name}' but no upload step publishes it.")
+        )
+    for name in sorted(upload_names - download_names - _NON_DOWNLOADED_UPLOADS):
+        findings.append(
+            ("ERROR",
+             f"artifact '{name}' is uploaded but never downloaded by any step; "
+             "either it is consumed and needs a by-name download, or it must be "
+             "exempted explicitly.")
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Lint the regression workflow.")
     parser.add_argument("--workflow", type=Path, required=True)
@@ -237,6 +315,8 @@ def main() -> int:
     check_honest_failure_policy(workflow, findings)
     check_pytest_pairing(workflow, findings)
     check_upload_always(workflow, findings)
+    check_download_pattern_single_line(workflow, findings)
+    check_artifact_name_pairing(workflow, findings)
 
     errors = [msg for level, msg in findings if level == "ERROR"]
     for level, msg in findings:
@@ -246,8 +326,9 @@ def main() -> int:
         print(f"LINT FAILED: {len(errors)} error(s).")
         return 1
     print("LINT PASSED: top-level env contexts, action refs, runs-on, needs, "
-          "failure policy, pytest/dev-install pairing, and JUnit upload "
-          "always-conditions are clean.")
+          "failure policy, pytest/dev-install pairing, JUnit upload "
+          "always-conditions, download-artifact single-glob patterns, and "
+          "upload/download artifact name pairing are clean.")
     return 0
 
 

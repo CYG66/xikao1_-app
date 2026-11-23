@@ -89,3 +89,11 @@ pytest cache. Never point `XLINE_DATABASE_PATH` at the production database.
   red job, plus `if-no-files-found: warn` so a missing report warns instead of
   failing the upload step itself. The report-diff gate then fails honestly on
   any missing/invalid report rather than reading the gap as a clean diff.
+* Each `download-artifact` step fetches one upstream artifact by exact `name`
+  (one step per artifact); the action's `pattern` accepts only a single glob,
+  not a multi-line list. Each artifact is extracted into `path/<name>/`,
+  matching the script input paths.
+* The `diff-report` upload uses `if-no-files-found: error`: the gate conclusion
+  evidence must exist, otherwise the job fails instead of going green on a
+  missing artifact. Upstream JUnit / inventory / audit uploads keep `warn`,
+  because their owning job is already red when those reports are missing.

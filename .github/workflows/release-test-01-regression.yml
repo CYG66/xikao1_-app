@@ -426,6 +426,13 @@ jobs:
   # ---------------------------------------------------------------------------
   report-diff:
     runs-on: ubuntu-latest
+    # Minimal permissions: read checkout sources and read this run's uploaded
+    # artifacts. The actions: read scope is defensive redundancy; v4 normally
+    # downloads same-run artifacts via the runtime token, but pinning it here
+    # removes any token-scope ambiguity without broadening other jobs.
+    permissions:
+      contents: read
+      actions: read
     # Always evaluate the diff honestly: upstream reds are classified against
     # the baseline rather than skipping this job. The collect-audit raw exit
     # code and error list are consumed below as gate inputs.
@@ -476,12 +483,38 @@ jobs:
             echo "XLINE_AGENT_MODEL_CONFIG_PATH=$RUNNER_TEMP/ci-config/xline-agent.json"
           } >> "$GITHUB_ENV"
 
-      - name: Download test reports
+      # Download each upstream artifact by exact name (no glob). A `pattern`
+      # multi-line block scalar is parsed as one pattern containing newlines
+      # and matches nothing; per-name download removes that ambiguity. With v4
+      # the artifact is extracted into path/<name>/, matching the script
+      # inputs below. manual-inventory is not downloaded: it is written locally
+      # by check_manual_collection.py in this job and is not read back.
+      - name: Download security JUnit report
+        if: always()
         uses: actions/download-artifact@v4
         with:
-          pattern: |
-            junit-*
-            collect-audit
+          name: junit-security
+          path: ${{ runner.temp }}/reports
+
+      - name: Download CAD JUnit report
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          name: junit-cad
+          path: ${{ runner.temp }}/reports
+
+      - name: Download offline JUnit report
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          name: junit-offline
+          path: ${{ runner.temp }}/reports
+
+      - name: Download collection audit evidence
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          name: collect-audit
           path: ${{ runner.temp }}/reports
 
       - name: Cross-check manual tests were not executed offline
@@ -504,11 +537,16 @@ jobs:
           --output-json ${{ runner.temp }}/diff-report.json
           --output-md ${{ runner.temp }}/diff-report.md
 
+      # The diff report is the gate's conclusion evidence: if it was not
+      # produced, this job must fail rather than finish green on a missing
+      # artifact, hence `error`. Upstream JUnit / inventory / audit uploads
+      # keep `warn`: their owning job is already red when those reports are
+      # missing, so a warn there cannot mask a green-on-red situation.
       - name: Upload diff report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: diff-report
           path: ${{ runner.temp }}/diff-report.*
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7

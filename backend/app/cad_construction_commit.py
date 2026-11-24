@@ -80,6 +80,7 @@ def commit_construction_interpretation(
             owner_conversation_id=owner_conversation_id,
         )
     interpretation = deepcopy(interpretation)
+    _refresh_candidate_trials(candidates)
     _rebind_source_acceptance(
         source_text,
         interpretation,
@@ -100,7 +101,7 @@ def commit_construction_interpretation(
         for index, candidate in enumerate(candidates, start=1):
             trial = candidate["trial_result"]
             committed_plan = trial.get("_construction_plan") if isinstance(trial, dict) else None
-            if isinstance(committed_plan, dict):
+            if isinstance(committed_plan, dict) and not trial.get("_p1_plan_refreshed"):
                 refreshed = execute_construction_plan(committed_plan)
                 trial = {**trial, **refreshed}
             geometries = list(trial.get("geometries") or [])
@@ -278,6 +279,19 @@ def _construction_record(
         "graph_validation": deepcopy(trial.get("graph_validation") or {}),
         "sketch_graph": deepcopy(candidate.get("graph")),
     }
+
+
+def _refresh_candidate_trials(candidates: list[dict[str, Any]]) -> None:
+    """Execute the stored plan before binding, so evidence uses final geometry."""
+    for candidate in candidates:
+        trial = candidate.get("trial_result")
+        if not isinstance(trial, dict):
+            continue
+        plan = trial.get("_construction_plan")
+        if not isinstance(plan, dict):
+            continue
+        refreshed = execute_construction_plan(plan)
+        candidate["trial_result"] = {**trial, **refreshed, "_p1_plan_refreshed": True}
 
 
 def _rebind_source_acceptance(

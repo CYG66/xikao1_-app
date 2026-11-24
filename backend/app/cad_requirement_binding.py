@@ -28,6 +28,7 @@ _DIMENSION_WORDS = re.compile(
 )
 _OPERATION_WORDS = re.compile(r"新建|创建|生成.*图纸|画.*图纸")
 _DRAWING_WORDS = re.compile(r"图纸")
+_NEGATED_OR_EDIT = re.compile(r"不要|不需要|无需|禁止|别|取消|删除|移除|去掉|修改|编辑|移动|旋转|缩放")
 
 
 def bind_construction_coverage(
@@ -63,6 +64,10 @@ def bind_construction_coverage(
             continue
         requirement = str(clause.get("requirement") or "").strip()
         if not requirement:
+            continue
+        if _NEGATED_OR_EDIT.search(requirement):
+            # The binder proves creation/existence, never a negated or edit
+            # instruction.  Such clauses need their own executor evidence.
             continue
 
         op_binding = _operation_binding(requirement, project_evidence)
@@ -405,8 +410,26 @@ def _recompute(coverage: dict[str, Any]) -> None:
         if item.get("status") in {"unverified", "unbound", "unsupported", "unparseable"}
     )
     coverage["blocking_requirements"] = blockers
-    coverage["unresolved_fact_ids"] = [
-        clause.get("requirement_id") for clause in clauses
-        if clause.get("status") != "verified"
+    bound_fact_ids = {
+        str(item) for item in (coverage.get("binding") or {}).get("bound_fact_ids") or []
+    }
+    unresolved = [
+        item for item in coverage.get("unresolved_fact_ids") or []
+        if str(item) not in bound_fact_ids
     ]
+    for clause in clauses:
+        if clause.get("status") == "verified":
+            continue
+        for evidence in clause.get("unsupported_evidence") or []:
+            if isinstance(evidence, dict) and evidence.get("fact_id"):
+                unresolved.append(evidence["fact_id"])
+        for failure in clause.get("binding_failures") or []:
+            fact_id = (
+                failure.get("requirement_id")
+                if isinstance(failure, dict)
+                else failure
+            ) or clause.get("requirement_id")
+            if fact_id and fact_id not in unresolved:
+                unresolved.append(fact_id)
+    coverage["unresolved_fact_ids"] = unresolved
     coverage["state"] = "complete" if not blockers else "partial"

@@ -227,3 +227,29 @@ def test_missing_geometry_keeps_dimension_requirement_unbound() -> None:
     clause = next(item for item in bound["clauses"]
                   if item["requirement"] == "画一个宽5米高3米的矩形")
     assert clause["status"] == "unbound"
+
+
+def test_negated_shape_clause_is_never_promoted() -> None:
+    source = "新建图纸，画一个宽5米高3米的矩形"
+    trial = _trial(_interpret(source))
+    coverage = _minimal_coverage("不要画矩形", {
+        "requirement_id": "user:0:scalar-1:width:?",
+        "field": "width", "expected_mm": 5000.0,
+        "source_evidence": {"start": 0, "end": 5, "text": "不要画矩形"},
+        "reason": "否定要求没有执行证据",
+    })
+    bound = _bind(source, coverage, trial)
+    assert bound["state"] == "partial"
+    assert bound["clauses"][0]["status"] == "unbound"
+
+
+def test_unbound_extra_requirement_stays_a_review_draft(tmp_path: Path) -> None:
+    source = "新建图纸，画一个宽5米高3米的矩形，并检查尺寸"
+    result = _interpret(source)
+    committed = commit_construction_interpretation(
+        source, result, store=_store(tmp_path)
+    )
+    variant = committed["recommended_variant"]
+    assert variant["acceptance_summary"]["status"] == "review_required"
+    assert variant["acceptance_summary"]["review_required"] is True
+    assert candidate_is_accepted(variant) is False

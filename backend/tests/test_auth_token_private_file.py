@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import stat
+import subprocess
 import sys
 from pathlib import Path
 
@@ -21,9 +22,11 @@ def test_new_token_file_is_private_from_creation(tmp_path: Path):
     if os.name == "posix":
         assert stat.S_IMODE(target.stat().st_mode) == 0o600
     else:
-        # Windows path applies an owner-only ACL; the token file must exist and
-        # must not rely on the process umask.
-        assert target.exists()
+        # The Windows DACL is protected and contains only the current user;
+        # inherited SYSTEM/Administrators ACEs must be absent.
+        acl = subprocess.check_output(["icacls", str(target)], text=True)
+        assert "(I)" not in acl
+        assert ":(F)" in acl
 
 
 def test_existing_token_file_is_never_truncated(tmp_path: Path):

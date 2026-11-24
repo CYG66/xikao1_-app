@@ -66,7 +66,12 @@ class ControlLeaseManager {
     _state = ControlLeaseState.claiming;
     _reason = null;
     _lastAck = null;
-    send(const {'op': 'claim_control'});
+    try {
+      send(const {'op': 'claim_control'});
+    } catch (error) {
+      lock('控制权申请发送失败：$error');
+      return;
+    }
     _claimTimer = Timer(claimTimeout, () {
       if (_state == ControlLeaseState.claiming) {
         lock('控制权申请超时，后端未确认租约');
@@ -122,7 +127,12 @@ class ControlLeaseManager {
       lock('控制心跳超时，控制权已丢失');
       return false;
     }
-    send(const {'op': 'control_heartbeat'});
+    try {
+      send(const {'op': 'control_heartbeat'});
+    } catch (error) {
+      lock('控制心跳发送失败，控制权已丢失');
+      return false;
+    }
     return true;
   }
 
@@ -142,7 +152,12 @@ class ControlLeaseManager {
   void release() {
     if (_state == ControlLeaseState.granted ||
         _state == ControlLeaseState.claiming) {
-      send(const {'op': 'release_control'});
+      try {
+        send(const {'op': 'release_control'});
+      } catch (_) {
+        // A broken socket cannot carry the release frame; closing the socket
+        // still trips the backend's fail-safe stop.
+      }
     }
     _claimTimer?.cancel();
     _claimTimer = null;

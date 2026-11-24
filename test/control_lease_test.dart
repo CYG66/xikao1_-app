@@ -136,4 +136,41 @@ void main() {
     expect(reasons, hasLength(1));
     shortLease.dispose();
   });
+
+  test('claim send failure locks instead of waiting forever', () {
+    final reasons = <String>[];
+    final broken = ControlLeaseManager(
+      send: (_) => throw StateError('socket closed'),
+      clock: () => now,
+      onLock: reasons.add,
+    );
+    broken.startClaim();
+
+    expect(broken.state, ControlLeaseState.locked);
+    expect(broken.reason, contains('发送失败'));
+    expect(reasons, hasLength(1));
+    broken.dispose();
+  });
+
+  test('heartbeat send failure locks the control gate', () {
+    final reasons = <String>[];
+    var failSend = false;
+    final broken = ControlLeaseManager(
+      send: (_) {
+        if (failSend) throw StateError('socket closed');
+      },
+      clock: () => now,
+      onLock: reasons.add,
+    );
+    broken.startClaim();
+    broken.handleMessage({'op': 'control_response', 'ok': true});
+    expect(broken.granted, isTrue);
+
+    failSend = true;
+    expect(broken.heartbeat(), isFalse);
+    expect(broken.state, ControlLeaseState.locked);
+    expect(broken.reason, contains('心跳发送失败'));
+    expect(reasons, hasLength(1));
+    broken.dispose();
+  });
 }

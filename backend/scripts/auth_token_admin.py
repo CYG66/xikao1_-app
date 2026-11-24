@@ -12,12 +12,10 @@ that limitation is recorded in the RELEASE-AUTH-E2E-01 lifecycle document.
 from __future__ import annotations
 
 import argparse
-import getpass
 import hashlib
 import json
 import os
 import stat
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,63 +40,236 @@ def _fingerprint(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
 
 
-def _windows_private_acl(path: Path) -> None:
-    """Create an owner-only ACL without relying on POSIX chmod semantics.
+def _windows_current_user_sid() -> str:
+    """Return the current process token's user SID without extra dependencies."""
+    import ctypes
+    from ctypes import wintypes
 
-    The file is created with O_EXCL first, then inheritance is removed and only
-    the current user receives read/write access.  Any failure removes the new
-    file and raises, so an unsafe token file is never left behind.
-    """
-    user = getpass.getuser()
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    class SidAndAttributes(ctypes.Structure):
+        _fields_ = [("Sid", ctypes.c_void_p), ("Attributes", wintypes.DWORD)]
+
+    class TokenUser(ctypes.Structure):
+        _fields_ = [("User", SidAndAttributes)]
+
+    kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    advapi32.OpenProcessToken.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.HANDLE),
+    ]
+    advapi32.OpenProcessToken.restype = wintypes.BOOL
+    advapi32.GetTokenInformation.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_int,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    advapi32.GetTokenInformation.restype = wintypes.BOOL
+    advapi32.ConvertSidToStringSidW.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(wintypes.LPWSTR),
+    ]
+    advapi32.ConvertSidToStringSidW.restype = wintypes.BOOL
+    kernel32.LocalFree.argtypes = [wintypes.HANDLE]
+    kernel32.LocalFree.restype = wintypes.HANDLE
+
+    token = wintypes.HANDLE()
+    if not advapi32.OpenProcessToken(
+        kernel32.GetCurrentProcess(), 0x0008, ctypes.byref(token)
+    ):
+        raise PermissionError(f"cannot open process token: {ctypes.get_last_error()}")
     try:
-        subprocess.run(
-            [
-                "icacls",
-                str(path),
-                "/inheritance:r",
-                "/grant:r",
-                f"{user}:(R,W)",
-            ],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            text=True,
+        size = wintypes.DWORD()
+        advapi32.GetTokenInformation(token, 1, None, 0, ctypes.byref(size))
+        if size.value == 0:
+            raise PermissionError(f"cannot size token user: {ctypes.get_last_error()}")
+        buffer = ctypes.create_string_buffer(size.value)
+        if not advapi32.GetTokenInformation(
+            token, 1, buffer, size, ctypes.byref(size)
+        ):
+            raise PermissionError(f"cannot read token user: {ctypes.get_last_error()}")
+        user = ctypes.cast(buffer, ctypes.POINTER(TokenUser)).contents
+        sid_text = wintypes.LPWSTR()
+        if not advapi32.ConvertSidToStringSidW(
+            user.User.Sid, ctypes.byref(sid_text)
+        ):
+            raise PermissionError(f"cannot format user SID: {ctypes.get_last_error()}")
+        try:
+            return str(sid_text.value)
+        finally:
+            kernel32.LocalFree(sid_text)
+    finally:
+        kernel32.CloseHandle(token)
+
+
+def _windows_create_private_fd(path: Path) -> int:
+    """Create a new file whose protected DACL contains only the current user.
+
+    The DACL is applied to the open handle before any token bytes are written.
+    If DACL application fails, the empty file is removed and the error is
+    propagated; token content is never written under inherited permissions.
+    """
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateFileW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    kernel32.LocalFree.argtypes = [wintypes.HANDLE]
+    kernel32.LocalFree.restype = wintypes.HANDLE
+    advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW.restype = (
+        wintypes.BOOL
+    )
+    advapi32.GetSecurityDescriptorDacl.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(wintypes.BOOL),
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(wintypes.BOOL),
+    ]
+    advapi32.GetSecurityDescriptorDacl.restype = wintypes.BOOL
+    advapi32.SetSecurityInfo.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_int,
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+    ]
+    advapi32.SetSecurityInfo.restype = wintypes.DWORD
+
+    sid = _windows_current_user_sid()
+    descriptor = ctypes.c_void_p()
+    descriptor_size = wintypes.DWORD()
+    sddl = f"D:P(A;;FA;;;{sid})"
+    if not advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW(
+        sddl,
+        1,
+        ctypes.byref(descriptor),
+        ctypes.byref(descriptor_size),
+    ):
+        raise PermissionError(
+            f"cannot build private DACL: {ctypes.get_last_error()}"
         )
-    except (OSError, subprocess.SubprocessError) as exc:
-        raise PermissionError(f"cannot set private ACL on token file: {exc}") from exc
+
+    handle = wintypes.HANDLE()
+    created = False
+    try:
+        present = wintypes.BOOL()
+        dacl = ctypes.c_void_p()
+        defaulted = wintypes.BOOL()
+        if not advapi32.GetSecurityDescriptorDacl(
+            descriptor,
+            ctypes.byref(present),
+            ctypes.byref(dacl),
+            ctypes.byref(defaulted),
+        ):
+            raise PermissionError(
+                f"cannot read private DACL: {ctypes.get_last_error()}"
+            )
+
+        # CREATE_NEW + GENERIC_WRITE + WRITE_DAC.  The DACL is set while the
+        # handle is open, before fdopen/write can expose token bytes.
+        handle = kernel32.CreateFileW(
+            str(path),
+            0x40000000 | 0x00040000,
+            0,
+            None,
+            1,
+            0x80,
+            None,
+        )
+        invalid_handle = ctypes.c_void_p(-1).value
+        if handle == invalid_handle:
+            error = ctypes.get_last_error()
+            if error in (80, 183):
+                raise FileExistsError(path)
+            raise PermissionError(f"cannot create token file: {error}")
+        created = True
+
+        # PROTECTED_DACL_SECURITY_INFORMATION removes inherited ACEs.
+        rc = advapi32.SetSecurityInfo(
+            handle, 1, 0x00000004 | 0x80000000, None, None, dacl, None
+        )
+        if rc != 0:
+            raise PermissionError(f"cannot set private token DACL: {rc}")
+        fd = msvcrt.open_osfhandle(handle, os.O_WRONLY)
+        handle = wintypes.HANDLE()
+        return fd
+    except BaseException:
+        if handle and handle != ctypes.c_void_p(-1).value:
+            kernel32.CloseHandle(handle)
+        if created:
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+        raise
+    finally:
+        kernel32.LocalFree(descriptor)
 
 
 def write_private_text(path: Path, value: str) -> None:
     """Atomically create a private text file; never widen permissions first.
 
-    O_EXCL ensures an existing path is never truncated.  POSIX uses mode 0600
-    at creation, Windows applies an owner-only ACL before returning.  If any
-    permission or write step fails, the newly created file is removed and the
-    error is propagated.
+    POSIX uses mode 0600 at creation.  Windows opens the new file with WRITE_DAC,
+    applies a protected owner-only DACL on the handle before writing, and removes
+    the empty file if any permission or write step fails.  An existing path is
+    never truncated.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
-    fd = os.open(path, flags, stat.S_IRUSR | stat.S_IWUSR)
+    fd = -1
+    created = False
     try:
+        if os.name == "nt":
+            fd = _windows_create_private_fd(path)
+        else:
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+            if hasattr(os, "O_NOFOLLOW"):
+                flags |= os.O_NOFOLLOW
+            fd = os.open(path, flags, stat.S_IRUSR | stat.S_IWUSR)
+        created = True
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
             fd = -1
             stream.write(value)
             stream.flush()
             os.fsync(stream.fileno())
-        if os.name == "nt":
-            _windows_private_acl(path)
-        else:
+        if os.name != "nt":
             os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
     except BaseException:
         if fd >= 0:
             os.close(fd)
-        try:
-            path.unlink()
-        except FileNotFoundError:
-            pass
+        if created:
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
         raise
+
 
 
 def _append_audit(path: str | None, event: dict[str, object]) -> None:

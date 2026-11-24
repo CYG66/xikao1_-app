@@ -134,23 +134,41 @@ def _inside(root: Path, candidate: Path) -> bool:
         return False
 
 
-def _guard_paths(root: Path, production: Path) -> None:
+def _guard_candidate(name: str, candidate: Path, root: Path, production: Path) -> None:
     production_root = production.parent
+    if candidate == production or _inside(production_root, candidate):
+        raise pytest.UsageError(
+            f"{name} resolves into the known production state; tests must use the isolated root"
+        )
+    if not _inside(root, candidate):
+        raise pytest.UsageError(
+            f"{name} is outside the test isolation root; refusing to touch {candidate}"
+        )
+
+
+def _guard_paths(root: Path, production: Path, database: Path | None = None) -> None:
     for name in _PATH_ENVS:
-        if name == "XLINE_PRODUCTION_DATABASE_PATH":
+        if name == "XLINE_DATABASE_PATH" and database is not None:
             continue
         raw = os.getenv(name, "").strip()
         if not raw:
             continue
-        candidate = Path(raw).expanduser().resolve()
-        if candidate == production or _inside(production_root, candidate):
-            raise pytest.UsageError(
-                f"{name} resolves into the known production state; tests must use the isolated root"
-            )
-        if not _inside(root, candidate):
-            raise pytest.UsageError(
-                f"{name} is outside the test isolation root; refusing to touch {candidate}"
-            )
+        _guard_candidate(name, Path(raw).expanduser().resolve(), root, production)
+    if database is not None:
+        _guard_candidate("XLINE_DATABASE_PATH (effective)", database, root, production)
+
+
+def _guard_isolation_root(root: Path, production: Path) -> None:
+    """Reject a root inside the production state tree before any mkdir."""
+    if _inside(production.parent, root):
+        raise pytest.UsageError(
+            "XLINE_TEST_ISOLATION_ROOT resolves into the known production state; "
+            "tests must use a separate isolated root"
+        )
+    if root.exists() and not root.is_dir():
+        raise pytest.UsageError(
+            f"XLINE_TEST_ISOLATION_ROOT is not a directory: refusing to use {root}"
+        )
 
 
 def pytest_configure(config) -> None:
@@ -166,30 +184,35 @@ def pytest_configure(config) -> None:
         root = Path(raw_root).expanduser().resolve()
     else:
         root = Path(raw_database).expanduser().resolve().parent
+
+    # Compute and validate the effective database path even when the caller
+    # supplied only an isolation root.  No directory is created yet.
+    database = (
+        Path(raw_database).expanduser().resolve()
+        if raw_database
+        else root / "xline.db"
+    )
+    if database == production or _inside(production.parent, database):
+        raise pytest.UsageError(
+            "XLINE_DATABASE_PATH resolves to the known production database; "
+            "tests must use a separate isolated database."
+        )
+    _guard_isolation_root(root, production)
+    if not _inside(root, database):
+        if config is None:
+            # Legacy unit tests call this hook directly with a temporary database
+            # outside the session root; keep their explicit database check but
+            # do not redirect an already-running suite.
+            root = database.parent
+            _guard_isolation_root(root, production)
+        else:
+            raise pytest.UsageError("XLINE_DATABASE_PATH is outside the test isolation root")
+
+    # Validate every explicit store before creating anything on disk.
+    _guard_paths(root, production, database)
     root.mkdir(parents=True, exist_ok=True)
-
-    if raw_database:
-        database = Path(raw_database).expanduser().resolve()
-        if database == production or _inside(production.parent, database):
-            raise pytest.UsageError(
-                "XLINE_DATABASE_PATH resolves to the known production database; "
-                "tests must use a separate isolated database."
-            )
-        if not _inside(root, database):
-            if config is None:
-                # Legacy unit tests call this hook directly with a temporary
-                # database outside the session root; keep their explicit
-                # database check but do not redirect an already-running suite.
-                root = database.parent
-            else:
-                raise pytest.UsageError("XLINE_DATABASE_PATH is outside the test isolation root")
-    else:
-        database = root / "xline.db"
+    if not raw_database:
         os.environ["XLINE_DATABASE_PATH"] = str(database)
-
-    if config is not None:
-        _guard_paths(root, production)
-
     os.environ["XLINE_TEST_ISOLATION_ROOT"] = str(root)
     os.environ["XLINE_INTEGRATION_ISOLATION_ROOT"] = str(root)
     os.environ["XLINE_PRODUCTION_DATABASE_PATH"] = str(production)

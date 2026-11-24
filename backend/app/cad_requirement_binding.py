@@ -212,6 +212,11 @@ def _operation_binding(requirement: str, project_evidence: dict[str, Any] | None
     evidence = project_evidence if isinstance(project_evidence, dict) else {}
     if evidence.get("project_exists") is not True or not evidence.get("project_id"):
         return None
+    if evidence.get("created_in_this_commit") is not True:
+        # An existing project record proves a container, not that this request
+        # created a drawing.  Without a post-persist drawing proof the clause
+        # must stay unverified.
+        return None
     return {
         "schema": "cad.requirement-binding.v1",
         "requirement_id": None,

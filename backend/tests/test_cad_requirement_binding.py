@@ -24,7 +24,8 @@ def _trial(result: dict) -> dict:
     return result["trial_result"]
 
 
-def _bind(source: str, coverage: dict, trial: dict, *, with_project: bool = True) -> dict:
+def _bind(source: str, coverage: dict, trial: dict, *, with_project: bool = True,
+          project_created: bool = True) -> dict:
     return bind_construction_coverage(
         coverage,
         logical_objects=deepcopy(_trial_objects(trial)),
@@ -33,7 +34,8 @@ def _bind(source: str, coverage: dict, trial: dict, *, with_project: bool = True
         symbol_table=deepcopy(trial.get("symbol_table") or {}),
         project_evidence=(
             {"project_id": "project-1", "project_status": "ready_for_design",
-             "project_exists": True, "authority": "creative_project_store"}
+             "project_exists": True, "created_in_this_commit": project_created,
+             "authority": "creative_project_store"}
             if with_project else None
         ),
     )
@@ -211,6 +213,16 @@ def test_missing_project_evidence_leaves_create_clause_unverified() -> None:
     source = "新建图纸，画一个宽5米高3米的矩形"
     coverage = _coverage(_interpret(source))
     bound = _bind(source, coverage, _trial(_interpret(source)), with_project=False)
+    assert bound["state"] == "partial"
+    clauses = {item["requirement"]: item for item in bound["clauses"]}
+    assert clauses["新建图纸"]["status"] == "unverified"
+    assert clauses["画一个宽5米高3米的矩形"]["status"] == "verified"
+
+
+def test_existing_project_without_new_drawing_proof_keeps_create_clause_unverified() -> None:
+    source = "新建图纸，画一个宽5米高3米的矩形"
+    coverage = _coverage(_interpret(source))
+    bound = _bind(source, coverage, _trial(_interpret(source)), project_created=False)
     assert bound["state"] == "partial"
     clauses = {item["requirement"]: item for item in bound["clauses"]}
     assert clauses["新建图纸"]["status"] == "unverified"

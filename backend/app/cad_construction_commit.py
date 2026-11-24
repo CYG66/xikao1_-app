@@ -168,6 +168,13 @@ def commit_construction_interpretation(
                 )
             persisted.append(variant)
             by_candidate_id[str(candidate["candidate_id"])] = variant
+        # The post-write readback is part of the same transaction boundary: a
+        # project created by this call must not survive a failed final read.
+        updated = persisted_variant.get("project")
+        if not isinstance(updated, dict):
+            updated = get_project(str(project["id"]))
+        if updated is None:
+            raise ConstructionCommitError("候选已写入，但无法重新读取项目。")
     except Exception as exc:
         if not project_id and isinstance(project, dict) and project.get("id"):
             store.delete(str(project["id"]))
@@ -175,11 +182,6 @@ def commit_construction_interpretation(
             raise
         raise ConstructionCommitError(str(exc)) from exc
 
-    updated = persisted_variant.get('project')
-    if not isinstance(updated,dict):
-        updated = get_project(str(project["id"]))
-    if updated is None:
-        raise ConstructionCommitError("候选已写入，但无法重新读取项目。")
     recommended = by_candidate_id.get(str(recommended_id or "")) or persisted[0]
     return {
         "schema": "cad.construction-commit.v1",

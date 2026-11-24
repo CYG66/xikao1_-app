@@ -4,7 +4,16 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import 'auth_transport.dart';
+
 void main() => runApp(const XLineCarApp());
+
+/// Single source of truth for whether authenticated control commands may leave
+/// the App.  This is intentionally public so widget/unit tests can assert the
+/// safe-gate contract without reaching private page state.
+bool controlCommandsAllowed(BridgeState state, String? authError) {
+  return state == BridgeState.connected && authError == null;
+}
 
 class XLineCarApp extends StatelessWidget {
   const XLineCarApp({super.key});
@@ -117,7 +126,13 @@ class _RoverHomePageState extends State<RoverHomePage> {
   BridgeState bridgeState = BridgeState.disconnected;
   WebSocket? socket;
   StreamSubscription? socketSub;
+  AuthTransport? transport;
+  String controlToken = '';
+  String? authError;
+  final TextEditingController tokenController = TextEditingController();
   final List<String> bridgeLogs = ['App 已就绪，可连接小车端 ROS2 Bridge'];
+
+  bool get controlReady => controlCommandsAllowed(bridgeState, authError);
 
   final List<RoverDevice> devices = [
     const RoverDevice(
@@ -141,6 +156,8 @@ class _RoverHomePageState extends State<RoverHomePage> {
   void dispose() {
     socketSub?.cancel();
     socket?.close();
+    tokenController.dispose();
+    transport?.close();
     super.dispose();
   }
 
@@ -163,7 +180,10 @@ class _RoverHomePageState extends State<RoverHomePage> {
               device: activeDevice,
               lineRunning: lineRunning,
               bridgeState: bridgeState,
+              authError: authError,
             ),
+            if (authError != null)
+              AuthStatusBanner(message: authError!),
             Expanded(
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 220),
@@ -212,6 +232,9 @@ class _RoverHomePageState extends State<RoverHomePage> {
           message: connectionMessage,
           bridgeState: bridgeState,
           logs: bridgeLogs,
+          tokenController: tokenController,
+          authError: authError,
+          onTokenChanged: _updateControlToken,
           onAddDevice: _openAddDeviceSheet,
           onConnect: _connectDevice,
           onTestActive: _connectActiveDevice,
@@ -224,6 +247,8 @@ class _RoverHomePageState extends State<RoverHomePage> {
           onLineWidthChanged: (value) => setState(() => lineWidth = value),
           onAddDevice: _openAddDeviceSheet,
           bridgeState: bridgeState,
+          authError: authError,
+          hasToken: controlToken.isNotEmpty,
         );
       default:
         return _DashboardPage(
@@ -286,49 +311,117 @@ class _RoverHomePageState extends State<RoverHomePage> {
   }
 
   Future<void> _connectActiveDevice() async {
+    final token = tokenController.text.trim();
+    if (token.isEmpty) {
+      await socketSub?.cancel();
+      await socket?.close();
+      if (!mounted) return;
+      setState(() {
+        socket = null;
+        socketSub = null;
+        bridgeState = BridgeState.failed;
+        authError = '未配置访问令牌，已停止控制';
+        connectionMessage = '访问令牌为空，未发起连接';
+        lineRunning = false;
+        _addLog('blocked connect: missing token');
+      });
+      return;
+    }
+
     await socketSub?.cancel();
     await socket?.close();
+    final nextTransport = AuthTransport(
+      host: activeDevice.ip,
+      port: activeDevice.port,
+      token: token,
+    );
+    transport?.close();
+    transport = nextTransport;
+    controlToken = token;
     setState(() {
       bridgeState = BridgeState.connecting;
-      connectionMessage = '正在连接 ${activeDevice.bridgeUrl}';
-      _addLog('connect ${activeDevice.bridgeUrl}');
+      authError = null;
+      connectionMessage = '正在认证并连接 ${activeDevice.name}';
+      _addLog('authenticate ${activeDevice.ip}:${activeDevice.port}');
     });
 
     try {
-      final ws = await WebSocket.connect(
-        activeDevice.bridgeUrl,
-      ).timeout(const Duration(seconds: 4));
+      // Authenticate over HTTP before opening the control WebSocket.  This
+      // makes a bad/expired/forbidden token fail with a server response rather
+      // than a generic socket error.
+      await nextTransport.getJson('/api/status');
+      final ws = await nextTransport.connectWebSocket();
+      if (!mounted) {
+        await ws.close(1000, 'page disposed');
+        return;
+      }
       socket = ws;
       socketSub = ws.listen(
         _handleBridgeMessage,
         onDone: () {
           if (!mounted) return;
+          final failure = AuthTransport.fromClose(ws.closeCode, ws.closeReason);
           setState(() {
             bridgeState = BridgeState.disconnected;
-            connectionMessage = 'Bridge 已断开';
-            _addLog('bridge closed');
+            if (failure != null) {
+              authError = failure.message;
+              lineRunning = false;
+              connectionMessage = failure.message;
+            } else {
+              connectionMessage = 'Bridge 已断开';
+              lineRunning = false;
+            }
+            _addLog(failure == null ? 'bridge closed' : 'auth closed: ${failure.code}');
           });
         },
         onError: (error) {
           if (!mounted) return;
+          final failure = AuthTransport.describeError(error);
           setState(() {
             bridgeState = BridgeState.failed;
-            connectionMessage = 'Bridge 错误：$error';
-            _addLog('error $error');
+            authError = failure.message;
+            lineRunning = false;
+            connectionMessage = failure.message;
+            _addLog('error ${failure.code}');
           });
         },
       );
       setState(() {
         bridgeState = BridgeState.connected;
-        connectionMessage = '已连接 ${activeDevice.name}';
-        _addLog('connected');
+        authError = null;
+        connectionMessage = '认证成功，已连接 ${activeDevice.name}';
+        _addLog('authenticated and connected');
       });
       _subscribeCoreTopics();
     } catch (error) {
+      final failure = AuthTransport.describeError(error);
+      if (transport == nextTransport) transport = null;
+      nextTransport.close();
+      if (!mounted) return;
       setState(() {
         bridgeState = BridgeState.failed;
-        connectionMessage = '连接失败：请确认小车端 Bridge 已启动';
-        _addLog('connect failed $error');
+        authError = failure.message;
+        lineRunning = false;
+        connectionMessage = failure.message;
+        _addLog('connect rejected ${failure.code}');
+      });
+    }
+  }
+
+  void _updateControlToken(String value) {
+    final changed = value != controlToken;
+    controlToken = value;
+    if (!changed) return;
+    if (bridgeState == BridgeState.connected) {
+      unawaited(_disconnectBridge());
+      setState(() {
+        authError = '访问令牌已修改，请重新认证';
+        connectionMessage = '访问令牌已修改，当前控制会话已断开';
+        _addLog('token changed: control session closed');
+      });
+    } else {
+      setState(() {
+        if (authError != null) authError = null;
       });
     }
   }
@@ -336,10 +429,12 @@ class _RoverHomePageState extends State<RoverHomePage> {
   Future<void> _disconnectBridge() async {
     await socketSub?.cancel();
     await socket?.close();
+    if (!mounted) return;
     setState(() {
       socket = null;
       socketSub = null;
       bridgeState = BridgeState.disconnected;
+      lineRunning = false;
       connectionMessage = '已断开 Bridge';
       _addLog('disconnect');
     });
@@ -347,12 +442,36 @@ class _RoverHomePageState extends State<RoverHomePage> {
 
   void _handleBridgeMessage(dynamic data) {
     if (!mounted) return;
+    Map<String, dynamic>? payload;
+    if (data is String) {
+      try {
+        final decoded = jsonDecode(data);
+        if (decoded is Map) payload = Map<String, dynamic>.from(decoded);
+      } catch (_) {
+        payload = null;
+      }
+    }
+    final failure = payload == null
+        ? null
+        : AuthTransport.fromWsMessage(payload);
+    if (failure != null) {
+      unawaited(socket?.close(1008, failure.code));
+      setState(() {
+        authError = failure.message;
+        bridgeState = BridgeState.disconnected;
+        lineRunning = false;
+        connectionMessage = failure.message;
+        _addLog('auth rejected ${failure.code}');
+      });
+      return;
+    }
     setState(() {
       _addLog('recv ${data.toString()}');
     });
   }
 
   void _subscribeCoreTopics() {
+    if (!controlReady) return;
     for (final topic in const [
       '/imu',
       '/robot_pose',
@@ -366,7 +485,7 @@ class _RoverHomePageState extends State<RoverHomePage> {
   void _sendDriveCommand(double linear, double angular) {
     _sendBridge({
       'op': 'publish',
-      'topic': '/cmd_vel',
+      'topic': '/tablet_cmd_vel',
       'type': 'geometry_msgs/msg/Twist',
       'msg': {
         'linear': {'x': linear, 'y': 0.0, 'z': 0.0},
@@ -394,14 +513,17 @@ class _RoverHomePageState extends State<RoverHomePage> {
   }
 
   void _toggleMission() {
+    if (!controlReady) {
+      setState(() => _addLog('blocked mission: control session not authenticated'));
+      return;
+    }
     final next = !lineRunning;
-    setState(() => lineRunning = next);
     _sendBridge({
-      'op': 'publish',
-      'topic': '/xline/mission_control',
-      'type': 'std_msgs/msg/String',
-      'msg': {'data': next ? 'start_line_task' : 'stop_line_task'},
+      'op': 'mission_control',
+      'action': next ? 'start' : 'stop',
+      'running': next,
     });
+    setState(() => lineRunning = next);
     if (next) {
       _sendPrinterCommand('start_print');
     } else {
@@ -412,11 +534,11 @@ class _RoverHomePageState extends State<RoverHomePage> {
 
   void _sendBridge(Map<String, Object?> payload) {
     final text = jsonEncode(payload);
-    if (bridgeState == BridgeState.connected && socket != null) {
+    if (controlReady && socket != null) {
       socket!.add(text);
       setState(() => _addLog('send $text'));
     } else {
-      setState(() => _addLog('offline queued $text'));
+      setState(() => _addLog('blocked (auth/not connected) $text'));
     }
   }
 
@@ -432,11 +554,13 @@ class _Header extends StatelessWidget {
     required this.device,
     required this.lineRunning,
     required this.bridgeState,
+    required this.authError,
   });
 
   final RoverDevice device;
   final bool lineRunning;
   final BridgeState bridgeState;
+  final String? authError;
 
   @override
   Widget build(BuildContext context) {
@@ -476,8 +600,60 @@ class _Header extends StatelessWidget {
             ),
           ),
           _StatusChip(
-            text: lineRunning ? '划线中' : bridgeState.label,
-            color: lineRunning ? const Color(0xfff59e0b) : bridgeState.color,
+            text: authError != null
+                ? '认证失败'
+                : (lineRunning ? '划线中' : bridgeState.label),
+            color: authError != null
+                ? const Color(0xffef4444)
+                : (lineRunning ? const Color(0xfff59e0b) : bridgeState.color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Persistent, non-dismissable authentication warning shown above every page.
+/// When this is visible the control gate is closed and no motion command may be
+/// sent until the operator re-authenticates.
+class AuthStatusBanner extends StatelessWidget {
+  const AuthStatusBanner({
+    required this.message,
+    super.key,
+  });
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('auth-status-banner'),
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xff3f1d24),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xffef4444)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.gpp_bad_rounded, color: Color(0xfffecaca), size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: Color(0xfffecaca),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Text(
+            '控制已锁定',
+            style: TextStyle(color: Color(0xfffca5a5), fontSize: 12),
           ),
         ],
       ),
@@ -598,6 +774,9 @@ class _DevicePage extends StatelessWidget {
     required this.message,
     required this.bridgeState,
     required this.logs,
+    required this.tokenController,
+    required this.authError,
+    required this.onTokenChanged,
     required this.onAddDevice,
     required this.onConnect,
     required this.onTestActive,
@@ -608,6 +787,9 @@ class _DevicePage extends StatelessWidget {
   final String message;
   final BridgeState bridgeState;
   final List<String> logs;
+  final TextEditingController tokenController;
+  final String? authError;
+  final ValueChanged<String> onTokenChanged;
   final VoidCallback onAddDevice;
   final ValueChanged<int> onConnect;
   final VoidCallback onTestActive;
@@ -657,6 +839,14 @@ class _DevicePage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
+        _AuthPanel(
+          controller: tokenController,
+          authError: authError,
+          bridgeState: bridgeState,
+          onTokenChanged: onTokenChanged,
+          onConnect: onTestActive,
+        ),
+        const SizedBox(height: 14),
         _Panel(
           title: 'Bridge 通信日志',
           trailing: const Text(
@@ -704,6 +894,84 @@ class _DevicePage extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _AuthPanel extends StatelessWidget {
+  const _AuthPanel({
+    required this.controller,
+    required this.authError,
+    required this.bridgeState,
+    required this.onTokenChanged,
+    required this.onConnect,
+  });
+
+  final TextEditingController controller;
+  final String? authError;
+  final BridgeState bridgeState;
+  final ValueChanged<String> onTokenChanged;
+  final VoidCallback onConnect;
+
+  @override
+  Widget build(BuildContext context) {
+    final configured = controller.text.trim().isNotEmpty;
+    return _Panel(
+      title: '访问认证',
+      trailing: _StatusChip(
+        text: authError != null
+            ? '认证失败'
+            : (configured ? '令牌已配置' : '未配置'),
+        color: authError != null
+            ? const Color(0xffef4444)
+            : (configured ? const Color(0xff22c55e) : const Color(0xfff59e0b)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            key: const ValueKey('auth-token-field'),
+            controller: controller,
+            obscureText: true,
+            autocorrect: false,
+            enableSuggestions: false,
+            onChanged: onTokenChanged,
+            decoration: const InputDecoration(
+              labelText: '访问令牌',
+              hintText: '粘贴由管理员签发的短期令牌',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '令牌只保存在本次运行内存，不写入本地配置；认证失败时会话立即锁定并停止发送控制命令。',
+            style: TextStyle(color: Color(0xff94a3b8), fontSize: 12),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              FilledButton.icon(
+                onPressed: onConnect,
+                icon: const Icon(Icons.verified_user_rounded),
+                label: const Text('认证并连接'),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                bridgeState == BridgeState.connected && authError == null
+                    ? '控制通道已授权'
+                    : '控制通道未授权',
+                style: TextStyle(
+                  color: bridgeState == BridgeState.connected && authError == null
+                      ? const Color(0xff22c55e)
+                      : const Color(0xff94a3b8),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1183,6 +1451,8 @@ class _SettingsPage extends StatelessWidget {
     required this.onLineWidthChanged,
     required this.onAddDevice,
     required this.bridgeState,
+    required this.authError,
+    required this.hasToken,
   });
 
   final RoverDevice device;
@@ -1190,6 +1460,8 @@ class _SettingsPage extends StatelessWidget {
   final ValueChanged<double> onLineWidthChanged;
   final VoidCallback onAddDevice;
   final BridgeState bridgeState;
+  final String? authError;
+  final bool hasToken;
 
   @override
   Widget build(BuildContext context) {
@@ -1211,6 +1483,10 @@ class _SettingsPage extends StatelessWidget {
               _ConfigRow('Bridge', device.bridgeUrl),
               _ConfigRow('ROS Domain ID', '${device.domainId}'),
               _ConfigRow('连接状态', bridgeState.label),
+              _ConfigRow(
+                '访问认证',
+                authError ?? (hasToken ? '令牌已配置（仅内存）' : '未配置'),
+              ),
             ],
           ),
         ),

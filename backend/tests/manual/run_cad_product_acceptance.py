@@ -10,6 +10,26 @@ import time
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 from app.cad_source_acceptance import verify_scoped_primitives
 from tests.manual.cad_acceptance_metrics import summarize
+from tests.manual.cad_harness_acceptance import (
+    evaluate_edit_formal_delivery,
+    evaluate_formal_delivery,
+    evaluate_no_change_delivery,
+)
+
+
+def persisted_project(folder,project_id):
+    path=Path(folder)/'projects.json'
+    if not path.exists():return {}
+    data=json.loads(path.read_text(encoding='utf-8'))
+    return next((p for p in data.get('projects',[]) if str(p.get('id'))==str(project_id)),{})
+
+
+def geometry_checks_passed(checks,variant):
+    keys={'assembly_coverage','assembly_count','source_geometry','edit_ownership',
+          'edit_exact_displacement','edit_whole_target'}
+    observed=[checks[key] for key in keys if key in checks]
+    return bool((variant or {}).get('geometries')) and (all(observed) if observed else True)
+
 
 
 def verify_recording(case,folder):
@@ -30,7 +50,7 @@ def verify_recording(case,folder):
     checks['source_separation']=all(s.get('origin')=='user' for s in ledger.get('sources') or [])
     checks['assembly_coverage']=bool(objects) and all(o.get('assembly_id') and o.get('assembly_label') for o in objects)
     checks['assembly_count']=len({o.get('assembly_id') for o in objects})==case['expected_assemblies']
-    checks['export_ownership']=results[-1].get('drawing_json',{}).get('logical_objects')==objects
+    checks['export_ownership']=(results[-1].get('drawing_json') or {}).get('logical_objects')==objects
     try:checks['source_geometry']=len(verify_scoped_primitives(case['messages'][1],variant.get('geometries') or [],objects)['checks'])==case['expected_preview_count']
     except ValueError:checks['source_geometry']=False
     if case.get('test_modify'):
@@ -58,7 +78,35 @@ def verify_recording(case,folder):
         checks['edit_exact_displacement']=checks['edit_saved'] and all(g['id'] in actual and len(coords(g))==len(coords(actual[g['id']])) and all(
             abs(b['x']-a['x']-(1000 if g['id'] in selected else 0))<.1 and abs(b['y']-a['y'])<.1
             for a,b in zip(coords(g),coords(actual[g['id']]))) for g in variant.get('geometries') or [])
-    report={'case':case['id'],'passed':all(checks.values()),'checks':checks,'frontend':'not_run'}
+    final_response=results[-1];final_variant=variant
+    if case.get('test_modify'):
+        final_response=response;final_variant=revised
+    project=persisted_project(folder,results[-1].get('project_id'))
+    base=variant
+    flags={'geometry_checks':geometry_checks_passed(checks,final_variant)}
+    if final_response.get('cad_edit_outcome')=='already_satisfied':
+        checks.pop('edit_saved',None);checks.pop('edit_preview_records',None)
+        formal=evaluate_no_change_delivery(final_response,base_variant=base,
+            persisted_project=project,expected_project_id=results[-1].get('project_id'))
+        checks['no_change_verified']=formal['formal_delivery_ok'] is True
+    elif case.get('test_modify'):
+        formal=evaluate_edit_formal_delivery(final_response,base_variant=base,project=project,
+            persisted_project=project,expected_project_id=results[-1].get('project_id'),
+            expected_variant_id=final_variant.get('id'),geometry_checks=flags['geometry_checks'])
+    else:
+        formal=evaluate_formal_delivery(final_response,project=project,persisted_project=project,
+            expected_project_id=results[-1].get('project_id'),
+            expected_variant_id=final_variant.get('id'),geometry_checks=flags['geometry_checks'])
+    checks['formal_delivery']=formal['formal_delivery_ok'] is True
+    legacy_checks={key:value for key,value in checks.items()
+                   if key not in {'formal_delivery','no_change_verified'}}
+    report={'case':case['id'],'passed':all(checks.values()),
+        'legacy_passed':all(legacy_checks.values()),'checks':checks,'frontend':'not_run',
+        'generation_ok':formal['generation_ok'],'geometry_ok':formal['geometry_ok'],
+        'formal_evaluable':formal['formal_evaluable'],
+        'formal_delivery_ok':formal['formal_delivery_ok'],
+        'diagnostic_status':formal['diagnostic_status'],
+        'formal_reason':formal['formal_reason'],'formal_evidence':formal['evidence']}
     (folder/'acceptance.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     return report
 
@@ -81,6 +129,7 @@ def run(case,root):
     (folder/'ui-fixture.json').write_text(json.dumps(case,ensure_ascii=False,indent=2),encoding='utf-8')
     project=next(p for p in json.loads((folder/'projects.json').read_text(encoding='utf-8'))['projects'] if p['id']==project_id)
     variants=project.get('variants') or [];checks={}
+    final_response=results[-1];final_variant=variants[-1] if variants else {}
     checks['same_project']=len({r.get('project_id') for r in results})==1
     checks['preview_count']=len(results[-1].get('preview_paths') or [])==case['expected_preview_count']
     checks['candidate']=bool(variants) and results[-1].get('ok') is True
@@ -92,7 +141,7 @@ def run(case,root):
         ledger=variant['construction_record'].get('requirement_ledger') or {}
         checks['source_turns']=len(ledger.get('sources') or [])==2
         checks['source_separation']=all(s.get('origin')=='user' for s in ledger.get('sources') or [])
-        checks['export_ownership']=results[-1].get('drawing_json',{}).get('logical_objects')==objects
+        checks['export_ownership']=(results[-1].get('drawing_json') or {}).get('logical_objects')==objects
         try:
             acceptance=verify_scoped_primitives(case['messages'][1],variant['geometries'])
             checks['source_geometry']=len(acceptance['checks'])==case['expected_preview_count']
@@ -113,6 +162,7 @@ def run(case,root):
                 if process.returncode:raise RuntimeError(process.stderr[-2000:])
                 edit=json.loads(process.stdout);revised=edit.get('variant') or {}
                 checks['explicit_edit_confirmation']=edit.get('ok') is True
+            final_response=edit;final_variant=revised
             checks['edit_saved']=edit.get('ok') is True and revised.get('id')!=variant['id'] and bool(revised.get('geometries'))
             checks['edit_ownership']=revised.get('logical_objects')==variant.get('logical_objects') or (
                 [(o['object_id'],o.get('assembly_id'),o['geometry_refs']) for o in revised.get('logical_objects',[])]==
@@ -127,7 +177,32 @@ def run(case,root):
                 g['id'] in actual and len(coords(g))==len(coords(actual[g['id']])) and all(
                     abs(b['x']-a['x']-(1000 if g['id'] in ids else 0))<.1 and abs(b['y']-a['y'])<.1
                     for a,b in zip(coords(g),coords(actual[g['id']]))) for g in variant['geometries'])
-    report={'case':case['id'],'passed':all(checks.values()),'checks':checks,'frontend':'not_run'}
+    persisted=persisted_project(folder,project_id)
+    base=variants[0] if variants else {}
+    geometry_ok=geometry_checks_passed(checks,final_variant)
+    if final_response.get('cad_edit_outcome')=='already_satisfied':
+        checks.pop('edit_saved',None);checks.pop('edit_preview_records',None)
+        formal=evaluate_no_change_delivery(final_response,base_variant=base,
+            persisted_project=persisted,expected_project_id=project_id)
+        checks['no_change_verified']=formal['formal_delivery_ok'] is True
+    elif case.get('test_modify'):
+        formal=evaluate_edit_formal_delivery(final_response,base_variant=base,project=persisted,
+            persisted_project=persisted,expected_project_id=project_id,
+            expected_variant_id=final_variant.get('id'),geometry_checks=geometry_ok)
+    else:
+        formal=evaluate_formal_delivery(final_response,project=persisted,persisted_project=persisted,
+            expected_project_id=project_id,expected_variant_id=final_variant.get('id'),
+            geometry_checks=geometry_ok)
+    checks['formal_delivery']=formal['formal_delivery_ok'] is True
+    legacy_checks={key:value for key,value in checks.items()
+                   if key not in {'formal_delivery','no_change_verified'}}
+    report={'case':case['id'],'passed':all(checks.values()),
+        'legacy_passed':all(legacy_checks.values()),'checks':checks,'frontend':'not_run',
+        'generation_ok':formal['generation_ok'],'geometry_ok':formal['geometry_ok'],
+        'formal_evaluable':formal['formal_evaluable'],
+        'formal_delivery_ok':formal['formal_delivery_ok'],
+        'diagnostic_status':formal['diagnostic_status'],
+        'formal_reason':formal['formal_reason'],'formal_evidence':formal['evidence']}
     (folder/'acceptance.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     print(json.dumps(report,ensure_ascii=False),flush=True)
     return report
@@ -172,6 +247,10 @@ if __name__=='__main__':
             (root/case['id']/'app-test.log').write_text(process.stdout+process.stderr,encoding='utf-8')
             report['frontend']='live_passed' if args.live_app and process.returncode==0 else 'replay_passed' if process.returncode==0 else 'failed'
             report['passed']=report['passed'] and process.returncode==0
+            if process.returncode!=0:
+                report['formal_delivery_ok']=False
+                report['diagnostic_status']='frontend_failed'
+                report['formal_reason']=[*(report.get('formal_reason') or []),'frontend_failed']
         reports.append(report)
         (root/case['id']/'acceptance.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
         print(json.dumps(report,ensure_ascii=False),flush=True)

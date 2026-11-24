@@ -4,7 +4,12 @@ from tests.manual.cad_acceptance_metrics import summarize
 
 def test_unobserved_metrics_are_unknown_not_zero(tmp_path):
     result=summarize(tmp_path,[{'case':'missing','passed':False}])
-    assert result['end_to_end_pass_rate']==0
+    assert result['end_to_end_pass_rate'] is None
+    assert result['legacy_pass_rate']==0
+    assert result['full_e2e_pass_count']==0
+    assert result['full_e2e_pass_rate']==0
+    assert result['unassessable_count']==1
+    assert result['unassessable_cases']==['missing']
     for key in ('first_plan_success_rate','cost','reported_total_tokens','omission_rate','false_acceptance_rate'):
         assert result[key] is None
 

@@ -24,6 +24,20 @@ def persisted_project(folder,project_id):
     return next((p for p in data.get('projects',[]) if str(p.get('id'))==str(project_id)),{})
 
 
+def persisted_source(folder,project_id,variant_id):
+    project=persisted_project(folder,project_id)
+    variant=next((v for v in project.get('variants',[])
+                  if str(v.get('id'))==str(variant_id)),{})
+    return {
+        'authority':'projects.json',
+        'independent':True,
+        'project_id':str(project_id or ''),
+        'variant_id':str(variant_id or ''),
+        'project':project,
+        'variant':variant,
+    }
+
+
 def geometry_checks_passed(checks,variant):
     keys={'assembly_coverage','assembly_count','source_geometry','edit_ownership',
           'edit_exact_displacement','edit_whole_target'}
@@ -82,19 +96,23 @@ def verify_recording(case,folder):
     if case.get('test_modify'):
         final_response=response;final_variant=revised
     project=persisted_project(folder,results[-1].get('project_id'))
+    source=persisted_source(folder,results[-1].get('project_id'),final_variant.get('id'))
     base=variant
     flags={'geometry_checks':geometry_checks_passed(checks,final_variant)}
     if final_response.get('cad_edit_outcome')=='already_satisfied':
         checks.pop('edit_saved',None);checks.pop('edit_preview_records',None)
         formal=evaluate_no_change_delivery(final_response,base_variant=base,
-            persisted_project=project,expected_project_id=results[-1].get('project_id'))
+            persisted_project=project,persisted_source=source,
+            expected_project_id=results[-1].get('project_id'))
         checks['no_change_verified']=formal['formal_delivery_ok'] is True
     elif case.get('test_modify'):
         formal=evaluate_edit_formal_delivery(final_response,base_variant=base,project=project,
-            persisted_project=project,expected_project_id=results[-1].get('project_id'),
+            persisted_project=project,persisted_source=source,
+            expected_project_id=results[-1].get('project_id'),
             expected_variant_id=final_variant.get('id'),geometry_checks=flags['geometry_checks'])
     else:
         formal=evaluate_formal_delivery(final_response,project=project,persisted_project=project,
+            persisted_source=source,
             expected_project_id=results[-1].get('project_id'),
             expected_variant_id=final_variant.get('id'),geometry_checks=flags['geometry_checks'])
     checks['formal_delivery']=formal['formal_delivery_ok'] is True

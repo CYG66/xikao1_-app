@@ -72,12 +72,29 @@ def _response(variant, *, visibility="visible", binding="ok", ok=True, project_i
     return result
 
 
+def _persisted_source(variant, project=None):
+    variant = deepcopy(variant)
+    project = deepcopy(project) if project is not None else _project(variant)
+    return {
+        "authority": "projects.json",
+        "independent": True,
+        "project_id": "p1",
+        "variant_id": variant["id"],
+        "project": project,
+        "variant": variant,
+    }
+
+
 def _evaluate(response, project, **kwargs):
     checks = kwargs.pop("geometry_checks", True)
+    variant = response.get("variant") or {}
     return evaluate_formal_delivery(
         response,
         project=project,
         persisted_project=project,
+        persisted_source=kwargs.pop(
+            "persisted_source", _persisted_source(variant, project)
+        ),
         expected_project_id="p1",
         expected_variant_id=response.get("variant", {}).get("id") or "v1",
         run_id="r1",
@@ -95,6 +112,76 @@ def test_formal_positive_requires_visibility_binding_reload_and_coverage():
     assert result["formal_delivery_ok"] is True
     assert result["diagnostic_status"] == "formal_accepted"
     assert result["formal_reason"] == []
+
+
+def test_formal_positive_requires_independent_persisted_source():
+    variant = _variant()
+    project = _project(variant)
+    result = evaluate_formal_delivery(
+        _response(variant),
+        project=project,
+        persisted_project=project,
+        reloaded_variant=variant,
+        expected_project_id="p1",
+        expected_variant_id="v1",
+        run_id="r1",
+        geometry_checks=True,
+    )
+    assert result["formal_delivery_ok"] is False
+    assert result["persisted_source_ok"] is False
+    assert "persisted_source_missing" in result["formal_reason"]
+
+
+def test_persisted_source_identity_and_geometry_are_checked():
+    variant = _variant()
+    project = _project(variant)
+    wrong_identity = _persisted_source(variant, project)
+    wrong_identity["project_id"] = "p2"
+    identity_result = evaluate_formal_delivery(
+        _response(variant), project=project, persisted_project=project,
+        persisted_source=wrong_identity, expected_project_id="p1",
+        expected_variant_id="v1", run_id="r1", geometry_checks=True,
+    )
+    assert identity_result["formal_delivery_ok"] is False
+    assert "persisted_source_project_mismatch" in identity_result["formal_reason"]
+
+    wrong_geometry = _persisted_source(variant, project)
+    wrong_geometry["project"]["variants"][0]["geometries"][0]["end"]["x"] = 2000
+    geometry_result = evaluate_formal_delivery(
+        _response(variant), project=project, persisted_project=project,
+        persisted_source=wrong_geometry, expected_project_id="p1",
+        expected_variant_id="v1", run_id="r1", geometry_checks=True,
+    )
+    assert geometry_result["formal_delivery_ok"] is False
+    assert "persisted_source_geometry_mismatch" in geometry_result["formal_reason"]
+
+
+def test_persisted_source_variant_alone_is_not_persistence_proof():
+    variant = _variant()
+    project = _project(variant)
+    source = _persisted_source(variant, project)
+    source.pop("project")
+    result = evaluate_formal_delivery(
+        _response(variant), project=project, persisted_project=project,
+        persisted_source=source, expected_project_id="p1",
+        expected_variant_id="v1", run_id="r1", geometry_checks=True,
+    )
+    assert result["formal_delivery_ok"] is False
+    assert "persisted_source_project_missing" in result["formal_reason"]
+
+
+def test_persisted_source_must_declare_independence_and_authority():
+    variant = _variant()
+    project = _project(variant)
+    source = _persisted_source(variant, project)
+    source["independent"] = False
+    result = evaluate_formal_delivery(
+        _response(variant), project=project, persisted_project=project,
+        persisted_source=source, expected_project_id="p1",
+        expected_variant_id="v1", run_id="r1", geometry_checks=True,
+    )
+    assert result["formal_delivery_ok"] is False
+    assert "persisted_source_not_independent" in result["formal_reason"]
 
 
 def test_ok_true_draft_review_is_not_formal_delivery():
@@ -205,6 +292,7 @@ def test_edit_with_draft_base_is_blocked_even_if_edited_candidate_looks_accepted
     project = {"id": "p1", "variants": [deepcopy(base), deepcopy(revised)]}
     result = evaluate_edit_formal_delivery(
         _response(revised), base_variant=base, project=project, persisted_project=project,
+        persisted_source=_persisted_source(revised, project),
         expected_project_id="p1", expected_variant_id="v2", geometry_checks=True,
     )
     assert result["formal_delivery_ok"] is False
@@ -218,6 +306,7 @@ def test_edit_non_target_mutation_is_not_formal_delivery():
     project = {"id": "p1", "variants": [deepcopy(base), deepcopy(revised)]}
     result = evaluate_edit_formal_delivery(
         _response(revised), base_variant=base, project=project, persisted_project=project,
+        persisted_source=_persisted_source(revised, project),
         expected_project_id="p1", expected_variant_id="v2", geometry_checks=False,
     )
     assert result["formal_delivery_ok"] is False
@@ -239,7 +328,8 @@ def test_no_change_requires_source_binding_and_backend_measurement():
         },
     }
     result = evaluate_no_change_delivery(
-        response, base_variant=base, persisted_project=project, expected_project_id="p1"
+        response, base_variant=base, persisted_project=project,
+        persisted_source=_persisted_source(base, project), expected_project_id="p1"
     )
     assert result["formal_evaluable"] is True
     assert result["formal_delivery_ok"] is True
@@ -281,6 +371,15 @@ def test_metrics_excludes_unassessable_and_keeps_legacy_counts(tmp_path):
     assert metrics["formal_delivery_rate"] == 0.5
     assert metrics["legacy_pass_count"] == 3
     assert metrics["end_to_end_pass_rate"] == 0.5
+    assert metrics["new_execution_e2e_rate"] == 1 / 3
+
+    new_metrics = summarize(tmp_path, reports, cohort="new")
+    assert new_metrics["cohort"] == "new"
+    assert new_metrics["new_execution_case_count"] == 3
+    assert new_metrics["new_execution_pass_count"] == 1
+    assert new_metrics["new_execution_e2e_rate"] == 1 / 3
+    assert new_metrics["end_to_end_pass_rate"] == 1 / 3
+    assert new_metrics["formal_delivery_rate"] == 0.5
 
 
 def _recording_variant(*, draft=False):

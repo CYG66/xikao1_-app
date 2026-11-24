@@ -113,6 +113,14 @@ def persisted_project(folder,project_id):
     data=json.loads(path.read_text(encoding='utf-8'))
     return next((p for p in data.get('projects',[]) if str(p.get('id'))==str(project_id)),{})
 
+def persisted_source(folder,project_id,variant_id):
+    project=persisted_project(folder,project_id)
+    variant=next((v for v in project.get('variants',[])
+                  if str(v.get('id'))==str(variant_id)),{})
+    return {'authority':'projects.json','independent':True,
+            'project_id':str(project_id or ''),'variant_id':str(variant_id or ''),
+            'project':project,'variant':variant}
+
 def checks_geometry_ok(checks,after):
     excluded={'base_candidate_accepted','same_project','formal_delivery'}
     observed=[c['passed'] for c in checks if c.get('name') not in excluded]
@@ -404,8 +412,10 @@ def make_creation(case,prompt,root,oracle_case=None):
     created_project=response.get('project') if isinstance(response.get('project'),dict) else {}
     has_candidate=bool(response.get('variant')) or bool(created_project.get('variants'))
     project=persisted_project(folder,pid)
+    source=persisted_source(folder,pid,(response.get('variant') or {}).get('id'))
     geometry_ok=checks_geometry_ok(checks,response.get('variant') or {})
     formal=evaluate_formal_delivery(response,project=project,persisted_project=project,
+        persisted_source=source,
         expected_project_id=pid,expected_variant_id=(response.get('variant') or {}).get('id'),
         geometry_checks=geometry_ok)
     legacy_passed=all(c['passed'] for c in checks)
@@ -661,15 +671,19 @@ def make_edit(case,prompt,root,reports,base_case=None):
     checks.append({'name':'base_candidate_accepted','passed':base_acceptance['accepted'],
         'observed':base_acceptance})
     project=persisted_project(folder,copied_project_id)
+    source_variant=after or before
+    source=persisted_source(folder,copied_project_id,source_variant.get('id'))
     geometry_ok=checks_geometry_ok(checks,after)
     formal_response=response if response.get('variant') else ({**response,'variant':after} if after else response)
     if formal_response.get('cad_edit_outcome')=='already_satisfied':
         checks=[c for c in checks if c['name']!='new_saved_version']
         formal=evaluate_no_change_delivery(formal_response,base_variant=before,
-            persisted_project=project,expected_project_id=prior['project_id'])
+            persisted_project=project,persisted_source=source,
+            expected_project_id=prior['project_id'])
     else:
         formal=evaluate_edit_formal_delivery(formal_response,base_variant=before,
-            project=project,persisted_project=project,expected_project_id=prior['project_id'],
+            project=project,persisted_project=project,persisted_source=source,
+            expected_project_id=prior['project_id'],
             expected_variant_id=after.get('id'),geometry_checks=geometry_ok)
     legacy_passed=all(c['passed'] for c in checks)
     checks.append({'name':'formal_delivery','passed':formal['formal_delivery_ok'] is True,

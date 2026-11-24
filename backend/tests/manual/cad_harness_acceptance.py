@@ -152,12 +152,68 @@ def _checks_ok(geometry_checks: Any) -> bool | None:
     return bool(geometry_checks)
 
 
+def _persisted_source_evidence(
+    persisted_source: Any,
+    *,
+    project_id: str,
+    variant_id: str,
+    variant_hash: str | None,
+) -> dict:
+    """Require a separately declared, reloaded storage source.
+
+    ``persisted_project``/``reloaded_variant`` may still be response-adjacent
+    objects.  Formal delivery additionally needs an explicit source that states
+    it is independent, carries the same project/variant identity, and exposes
+    the persisted geometry read from that source.
+    """
+    source = _dict(persisted_source)
+    source_project = _dict(source.get("project"))
+    # The candidate geometry must come from the separately reloaded project
+    # record, never from a response-shaped variant copied beside it.
+    source_variant = _variant(source_project, variant_id)
+    authority = str(source.get("authority") or "").strip()
+    independent = source.get("independent") is True
+    source_project_id = str(source.get("project_id") or source_project.get("id") or "").strip()
+    source_variant_id = str(source.get("variant_id") or source_variant.get("id") or "").strip()
+    source_hash = _geometry_hash(source_variant)
+    reasons: list[str] = []
+    if not source:
+        reasons.append("persisted_source_missing")
+    else:
+        if not independent:
+            reasons.append("persisted_source_not_independent")
+        if not authority:
+            reasons.append("persisted_source_authority_missing")
+        if not source_project:
+            reasons.append("persisted_source_project_missing")
+        if not project_id or source_project_id != project_id:
+            reasons.append("persisted_source_project_mismatch")
+        if not variant_id or source_variant_id != variant_id:
+            reasons.append("persisted_source_variant_mismatch")
+        if not source_variant:
+            reasons.append("persisted_source_variant_missing")
+        elif not (source_hash and variant_hash and source_hash == variant_hash):
+            reasons.append("persisted_source_geometry_mismatch")
+    return {
+        "ok": not reasons,
+        "reason": reasons,
+        "present": bool(source),
+        "independent": independent,
+        "authority": authority or None,
+        "project_id": source_project_id or None,
+        "variant_id": source_variant_id or None,
+        "geometry_hash": source_hash,
+        "variant": source_variant,
+    }
+
+
 def evaluate_formal_delivery(
     response: Any,
     *,
     project: Any = None,
     persisted_project: Any = None,
     reloaded_variant: Any = None,
+    persisted_source: Any = None,
     expected_project_id: str | None = None,
     expected_variant_id: str | None = None,
     run_id: str | None = None,
@@ -196,7 +252,15 @@ def evaluate_formal_delivery(
     binding_variant_id = str(binding.get("variant_id") or "").strip()
 
     persisted_variant = _variant(persisted_project, variant_id)
+    source_evidence = _persisted_source_evidence(
+        persisted_source,
+        project_id=project_id,
+        variant_id=variant_id,
+        variant_hash=_geometry_hash(variant),
+    )
     reloaded = _dict(reloaded_variant) if isinstance(reloaded_variant, dict) else {}
+    if not reloaded and source_evidence["variant"]:
+        reloaded = source_evidence["variant"]
     if not reloaded and persisted_variant:
         reloaded = persisted_variant
 
@@ -273,6 +337,8 @@ def evaluate_formal_delivery(
             reasons.extend(["geometry_evidence_missing", "geometry_checks_not_passed"])
         if not persisted_ok:
             reasons.append("persisted_candidate_missing")
+        if not source_evidence["ok"]:
+            reasons.extend(source_evidence["reason"])
         if not reloaded_ok:
             reasons.append("reloaded_candidate_missing")
         if not geometry_hash_match:
@@ -303,6 +369,7 @@ def evaluate_formal_delivery(
                 binding_ok,
                 geometry_ok is True,
                 persisted_ok,
+                source_evidence["ok"],
                 reloaded_ok,
                 geometry_hash_match,
                 not draft,
@@ -330,6 +397,9 @@ def evaluate_formal_delivery(
         "visibility_status": visibility_status or None,
         "binding_ok": binding_ok,
         "persisted_ok": persisted_ok,
+        "persisted_source_ok": source_evidence["ok"],
+        "persisted_source_independent": source_evidence["independent"],
+        "persisted_source_authority": source_evidence["authority"],
         "reloaded_ok": reloaded_ok,
         "geometry_hash_match": geometry_hash_match,
         "project_id": project_id or None,
@@ -344,6 +414,10 @@ def evaluate_formal_delivery(
             "candidate_visibility": visibility,
             "variant_geometry_hash": variant_hash,
             "reloaded_geometry_hash": reload_hash,
+            "persisted_source": {
+                key: value for key, value in source_evidence.items()
+                if key not in {"variant"}
+            },
         },
     }
 
@@ -382,6 +456,7 @@ def evaluate_edit_formal_delivery(
     project: Any = None,
     persisted_project: Any = None,
     reloaded_variant: Any = None,
+    persisted_source: Any = None,
     expected_project_id: str | None = None,
     expected_variant_id: str | None = None,
     run_id: str | None = None,
@@ -394,6 +469,7 @@ def evaluate_edit_formal_delivery(
         project=project,
         persisted_project=persisted_project,
         reloaded_variant=reloaded_variant,
+        persisted_source=persisted_source,
         expected_project_id=expected_project_id,
         expected_variant_id=expected_variant_id,
         run_id=run_id,
@@ -418,6 +494,7 @@ def evaluate_no_change_delivery(
     *,
     base_variant: Any,
     persisted_project: Any = None,
+    persisted_source: Any = None,
     expected_project_id: str | None = None,
 ) -> dict:
     """A legal ``already_satisfied`` edit is a separate, evidenced outcome."""
@@ -443,6 +520,20 @@ def evaluate_no_change_delivery(
         and persisted_hash
         and base_hash == persisted_hash
     )
+    source_evidence = _persisted_source_evidence(
+        persisted_source,
+        project_id=project_id,
+        variant_id=base_id,
+        variant_hash=base_hash,
+    )
+    source_base = _dict(source_evidence.get("variant"))
+    source_hash = _geometry_hash(source_base)
+    source_unchanged = bool(
+        source_evidence["ok"]
+        and source_hash
+        and base_hash
+        and source_hash == base_hash
+    )
     reasons: list[str] = []
     if response.get("cad_edit_outcome") != "already_satisfied":
         reasons.append("edit_outcome_not_already_satisfied")
@@ -463,6 +554,10 @@ def evaluate_no_change_delivery(
         reasons.extend(base["reason"])
     if not base_unchanged:
         reasons.append("base_candidate_not_reloadable_or_changed")
+    if not source_evidence["ok"]:
+        reasons.extend(source_evidence["reason"])
+    if not source_unchanged:
+        reasons.append("persisted_source_geometry_mismatch")
 
     evaluable = bool(base_variant and persisted_project and base_id)
     ok = bool(evaluable and not reasons)
@@ -483,9 +578,12 @@ def evaluate_no_change_delivery(
             base_id
             and str(response.get("source_variant_id") or "").strip() == base_id
         ),
-        "persisted_ok": bool(persisted_base),
-        "reloaded_ok": bool(persisted_base),
-        "geometry_hash_match": base_unchanged,
+        "persisted_ok": bool(persisted_base and source_base),
+        "persisted_source_ok": source_evidence["ok"],
+        "persisted_source_independent": source_evidence["independent"],
+        "persisted_source_authority": source_evidence["authority"],
+        "reloaded_ok": bool(source_base),
+        "geometry_hash_match": bool(base_unchanged and source_unchanged),
         "project_id": project_id or None,
         "variant_id": base_id or None,
         "run_id": None,
@@ -494,5 +592,10 @@ def evaluate_no_change_delivery(
             "relation_verification": relation,
             "base_geometry_hash": base_hash,
             "persisted_geometry_hash": persisted_hash,
+            "persisted_source": {
+                key: value for key, value in source_evidence.items()
+                if key not in {"variant"}
+            },
+            "persisted_source_geometry_hash": source_hash,
         },
     }

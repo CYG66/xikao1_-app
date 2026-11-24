@@ -1,9 +1,28 @@
+import os
 from pathlib import Path
 
 import pytest
 
 import conftest
 from app.database import _default_path, _platform_default_path
+
+
+@pytest.fixture(autouse=True)
+def _restore_guard_environment():
+    """Restore env after tests call ``pytest_configure`` directly.
+
+    ``monkeypatch`` cannot undo writes performed inside the guard because the
+    guard mutates ``os.environ`` itself.  Leaving those values behind makes a
+    later isolation test see paths from a different ``tmp_path``.
+    """
+    keys = set(conftest._PATH_ENVS) | {"XLINE_TEST_ISOLATION_ROOT"}
+    saved = {key: os.environ.get(key) for key in keys}
+    yield
+    for key, value in saved.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
 
 
 def test_test_context_refuses_implicit_default_database(monkeypatch):

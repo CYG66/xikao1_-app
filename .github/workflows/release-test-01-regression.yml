@@ -110,6 +110,7 @@ jobs:
             echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
             echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
             echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_TEST_ISOLATION_ROOT=$RUNNER_TEMP"
             echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
             echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
             echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
@@ -132,6 +133,10 @@ jobs:
           tests/test_database_isolation.py
           tests/test_main_lifespan.py
           tests/test_audit_store.py
+          tests/test_release_blocker_01_security.py
+          tests/test_release_blocker_01_hardware.py
+          tests/test_release_blocker_01_backup.py
+          tests/test_release_blocker_01_isolation.py
           -m "not manual_field"
           --junitxml=${{ runner.temp }}/junit/security.xml
 
@@ -173,6 +178,7 @@ jobs:
             echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
             echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
             echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_TEST_ISOLATION_ROOT=$RUNNER_TEMP"
             echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
             echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
             echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
@@ -244,6 +250,7 @@ jobs:
             echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
             echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
             echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_TEST_ISOLATION_ROOT=$RUNNER_TEMP"
             echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
             echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
             echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
@@ -320,6 +327,7 @@ jobs:
             echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
             echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
             echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_TEST_ISOLATION_ROOT=$RUNNER_TEMP"
             echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
             echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
             echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
@@ -382,6 +390,7 @@ jobs:
             echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
             echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
             echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_TEST_ISOLATION_ROOT=$RUNNER_TEMP"
             echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
             echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
             echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
@@ -468,6 +477,7 @@ jobs:
             echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
             echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
             echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_TEST_ISOLATION_ROOT=$RUNNER_TEMP"
             echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
             echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
             echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"

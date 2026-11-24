@@ -29,10 +29,15 @@ _PATH_ENVS = (
 
 
 def test_every_persistent_store_is_inside_the_temporary_root():
-    # Derive the root from the database itself: another isolation test may
-    # legitimately replace the session root while keeping every store under the
-    # new database parent.
-    root = Path(os.environ["XLINE_DATABASE_PATH"]).resolve().parent
+    # Honour the explicit session root when CI separates state, config and
+    # workspace into sibling directories. Otherwise derive it from the database.
+    explicit_root = os.environ.get("XLINE_TEST_ISOLATION_ROOT", "").strip()
+    database = Path(os.environ["XLINE_DATABASE_PATH"]).resolve()
+    root = Path(explicit_root).resolve() if explicit_root else database.parent
+    # A prior test may replace the session database without updating the
+    # explicit root; in that case the database parent is the active root.
+    if database != root and root not in database.parents:
+        root = database.parent
     assert root.exists()
     for name in _PATH_ENVS:
         raw = os.environ.get(name, "").strip()

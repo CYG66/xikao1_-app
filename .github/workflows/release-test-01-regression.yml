@@ -84,7 +84,36 @@ jobs:
         run: python scripts/ci/check_imports.py --root .
 
   # ---------------------------------------------------------------------------
-  # 2. Startup / storage / audit / isolation safety subset.
+  # 2. Flutter App gate: control-lease state machine, transport safety and the
+  #    real page widgets.  Job-level working-directory overrides the backend
+  #    default above.  This job is intentionally independent of Python setup.
+  # ---------------------------------------------------------------------------
+  flutter-auth-gate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.50.0"
+          cache: true
+
+      - name: Resolve Dart dependencies
+        run: flutter pub get
+
+      - name: Run Flutter tests
+        run: flutter test
+
+      - name: Run Flutter analyzer
+        run: flutter analyze --no-fatal-infos
+
+  # ---------------------------------------------------------------------------
+  # 3. Startup / storage / audit / isolation safety subset.
   # ---------------------------------------------------------------------------
   security-isolation:
     runs-on: ubuntu-latest
@@ -110,6 +139,7 @@ jobs:
             echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
             echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
             echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_TEST_ISOLATION_ROOT=$RUNNER_TEMP"
             echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
             echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
             echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
@@ -132,6 +162,12 @@ jobs:
           tests/test_database_isolation.py
           tests/test_main_lifespan.py
           tests/test_audit_store.py
+          tests/test_auth_final_01.py
+          tests/test_auth_token_private_file.py
+          tests/test_release_blocker_01_security.py
+          tests/test_release_blocker_01_hardware.py
+          tests/test_release_blocker_01_backup.py
+          tests/test_release_blocker_01_isolation.py
           -m "not manual_field"
           --junitxml=${{ runner.temp }}/junit/security.xml
 
@@ -173,6 +209,7 @@ jobs:
             echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
             echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
             echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_TEST_ISOLATION_ROOT=$RUNNER_TEMP"
             echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
             echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
             echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
@@ -244,6 +281,7 @@ jobs:
             echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
             echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
             echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_TEST_ISOLATION_ROOT=$RUNNER_TEMP"
             echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
             echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
             echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
@@ -320,6 +358,7 @@ jobs:
             echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
             echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
             echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_TEST_ISOLATION_ROOT=$RUNNER_TEMP"
             echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
             echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
             echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
@@ -382,6 +421,7 @@ jobs:
             echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
             echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
             echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_TEST_ISOLATION_ROOT=$RUNNER_TEMP"
             echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
             echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
             echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"
@@ -438,6 +478,7 @@ jobs:
     # code and error list are consumed below as gate inputs.
     if: always()
     needs:
+      - flutter-auth-gate
       - security-isolation
       - cad-acceptance-gate
       - offline-mock-regression
@@ -468,6 +509,7 @@ jobs:
             echo "XLINE_CONFIG_DIR=$RUNNER_TEMP/ci-config"
             echo "XLINE_WS_ROOT=$RUNNER_TEMP/ci-workspace"
             echo "XLINE_DATABASE_PATH=$RUNNER_TEMP/ci-state/xline-test.db"
+            echo "XLINE_TEST_ISOLATION_ROOT=$RUNNER_TEMP"
             echo "XLINE_CREATIVE_PROJECT_STORE=$RUNNER_TEMP/ci-state/creative_projects.json"
             echo "XLINE_AGENT_TASK_STORE=$RUNNER_TEMP/ci-state/tasks.json"
             echo "XLINE_AGENT_RUN_STORE=$RUNNER_TEMP/ci-state/agent_runs.json"

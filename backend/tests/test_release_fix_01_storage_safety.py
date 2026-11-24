@@ -59,6 +59,10 @@ def _valid_env(tmp_path: Path) -> dict[str, str]:
         "XLINE_AGENT_MODEL_CONFIG_PATH": str(config / "xline-agent.json"),
         "XLINE_STARTUP_RECOVERY_MODE": "disabled",
         "XLINE_CREATIVE_PROJECT_JSON_IMPORT": "disabled",
+        "XLINE_CONTROL_AUTH_MODE": "enforced",
+        "XLINE_AUTH_SECRET": "test-only-auth-secret-at-least-32-characters",
+        "XLINE_CONTROL_AUTH_TOKEN": "test-operator-token",
+        "XLINE_ADMIN_AUTH_TOKEN": "test-admin-token",
     }
 
 
@@ -402,7 +406,11 @@ def test_audit_degraded_is_sticky_until_explicit_reconciliation(tmp_path, monkey
     assert len(path.read_text(encoding="utf-8").splitlines()) == 2
     with sqlite3.connect(database.path) as connection:
         assert connection.execute("SELECT COUNT(*) FROM audit_logs").fetchone()[0] == 1
-    store.mark_reconciled("reviewed JSONL/SQLite divergence and accepted the missing row")
+    store.mark_reconciled(
+        "reviewed JSONL/SQLite divergence and accepted the missing row",
+        evidence="manual review: one JSONL-only event retained for historical evidence",
+        expected_divergence={"only_jsonl": 1, "only_sqlite": 0},
+    )
     health = store.health_status()
     assert health["degraded"] is False
     assert health["reconciliation_required"] is False
@@ -410,6 +418,27 @@ def test_audit_degraded_is_sticky_until_explicit_reconciliation(tmp_path, monkey
     assert health["last_reconciled_at"]
     with pytest.raises(ValueError, match="note is required"):
         store.mark_reconciled("  ")
+
+    # Simulated process restart: the persisted health file cannot silently turn
+    # the still-unresolved one-event gap into a healthy ledger.
+    restarted = AgentAuditStore(path)
+    assert restarted.health_status()["degraded"] is True
+    assert restarted.health_status()["reconciliation_required"] is True
+    with pytest.raises(ValueError, match="evidence is required"):
+        restarted.mark_reconciled("one sentence is not evidence")
+
+
+def test_corrupted_audit_health_store_is_not_healthy(tmp_path, monkeypatch):
+    database = XLineDatabase(tmp_path / "xline.db")
+    monkeypatch.setattr("app.audit_store.xline_database", database)
+    path = tmp_path / "audit.jsonl"
+    store = AgentAuditStore(path)
+    store.health_path.write_text("{not-json", encoding="utf-8")
+    restarted = AgentAuditStore(path)
+    health = restarted.health_status()
+    assert health["degraded"] is True
+    assert health["reconciliation_required"] is True
+    assert health["last_error"]["ledger"] == "health"
 
 
 def test_audit_jsonl_failure_is_visible_but_sqlite_still_written(tmp_path, monkeypatch):

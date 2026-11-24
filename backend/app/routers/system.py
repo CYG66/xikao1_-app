@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from fastapi import APIRouter
 
 from ..agent_service import robot_agent
 from ..audit_store import agent_audit
+from ..backup_manager import backup_manager
 from ..database import xline_database
 from ..discovery import rover_discovery
 from ..network_manager import network_manager
@@ -126,12 +125,30 @@ def database_migrations() -> dict[str, object]:
 
 @router.post("/api/database/backup")
 def database_backup() -> dict[str, object]:
-    """Create a timestamped backup beside the configured database."""
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    destination = xline_database.path.with_name(
-        f"{xline_database.path.stem}.{stamp}.backup.sqlite"
-    )
-    return xline_database.backup(destination)
+    """Create a verified backup of the database and all persistent stores."""
+    return backup_manager.create_backup(database=xline_database, audit=agent_audit)
+
+
+@router.post("/api/database/backup/verify")
+def database_backup_verify(backup_dir: str) -> dict[str, object]:
+    from ..backup_manager import verify_backup
+
+    return verify_backup(backup_dir)
+
+
+@router.post("/api/database/restore")
+def database_restore(
+    backup_dir: str,
+    target_root: str,
+    dry_run: bool = True,
+    force: bool = False,
+    confirm: str = "",
+) -> dict[str, object]:
+    from ..backup_manager import restore_backup
+
+    if not dry_run and confirm != "RESTORE-ISOLATED":
+        return {"ok": False, "error": "restore requires confirm=RESTORE-ISOLATED"}
+    return restore_backup(backup_dir, target_root, dry_run=dry_run, force=force)
 
 
 @router.get("/api/database/integrity")
@@ -143,11 +160,9 @@ def database_integrity() -> dict[str, object]:
 @router.post("/api/database/cleanup")
 def database_cleanup(command: DatabaseCleanupRequest) -> dict[str, object]:
     """Clean bounded history only; projects and mission records are preserved."""
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    backup_destination = xline_database.path.with_name(
-        f"{xline_database.path.stem}.pre-cleanup.{stamp}.backup.sqlite"
+    backup = backup_manager.create_backup(
+        prefix="pre-cleanup", database=xline_database, audit=agent_audit
     )
-    backup = xline_database.backup(backup_destination)
     result = xline_database.cleanup_history(command.retention_days, command.targets)
     result["backup"] = backup
     result["integrity"] = xline_database.integrity_status()

@@ -2,6 +2,8 @@
 Description=XLine ws3 ROS2 Hardware Runtime
 Wants=network-online.target
 After=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
 
 [Service]
 Type=simple
@@ -9,12 +11,17 @@ User=qingz
 Group=qingz
 WorkingDirectory=/home/qingz/xline_ws3
 ExecStart=/home/qingz/xline_app_backend1/run_ws3_runtime.sh
-Restart=always
+# Never restart a deliberately disabled/failed hardware runtime forever.
+# The script also exits 0 when XLINE_HARDWARE_RUNTIME_ENABLE is not 1.
+Restart=on-failure
 RestartSec=3
 KillMode=control-group
 KillSignal=SIGINT
 TimeoutStopSec=20
 Environment=PYTHONUNBUFFERED=1
+Environment=XLINE_HARDWARE_RUNTIME_ENABLE=0
+Environment=XLINE_ENABLE_PRINTER=false
+Environment=XLINE_PRINTER_AUTHORIZED=0
 
 [Install]
 WantedBy=multi-user.target

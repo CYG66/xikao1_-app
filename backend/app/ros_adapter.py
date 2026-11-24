@@ -20,9 +20,11 @@ from .config import (
     EXECUTE_PLAN_ACTION,
     HARDWARE_LAUNCH_LOG,
     HARDWARE_LAUNCH_PID,
+    HARDWARE_RUNTIME_ENABLED,
     MAX_ANGULAR_VELOCITY,
     MAX_LINEAR_VELOCITY,
     PLANNED_RESULTS_DIR,
+    PRINTER_AUTHORIZED,
     RUNTIME_PROFILE,
     VIRTUAL_TOTAL_STATION,
     USE_TOTAL_STATION,
@@ -60,6 +62,33 @@ def planner_cad_path(file_name: str) -> str:
     if requested.name != file_name or requested.suffix.lower() != ".json":
         raise ValueError("任务文件必须是 cad 目录中的 JSON 文件名")
     return file_name
+
+
+def hardware_runtime_start_permitted() -> bool:
+    """Return whether this process may spawn or keep hardware nodes.
+
+    The integration profile disables robot execution.  Production additionally
+    requires the dedicated runtime authorization switch.  If the printer is
+    requested, a separate printer authorization is mandatory; otherwise the
+    runtime refuses to start rather than silently enabling ink hardware.
+    """
+    if not robot_execution_permitted():
+        return False
+    if not HARDWARE_RUNTIME_ENABLED:
+        return False
+    if ENABLE_PRINTER and not PRINTER_AUTHORIZED:
+        return False
+    return True
+
+
+def hardware_runtime_block_reason() -> str:
+    if not robot_execution_permitted():
+        return "integration profile: hardware runtime disabled"
+    if not HARDWARE_RUNTIME_ENABLED:
+        return "hardware runtime authorization missing (XLINE_HARDWARE_RUNTIME_ENABLE=1 required)"
+    if ENABLE_PRINTER and not PRINTER_AUTHORIZED:
+        return "printer authorization missing (XLINE_PRINTER_AUTHORIZED=1 required)"
+    return ""
 
 
 def hardware_runtime_command() -> str:
@@ -220,7 +249,7 @@ class RobotRosAdapter:
         self.virtual_sim_stop = threading.Event()
 
     def start(self) -> None:
-        if not robot_execution_permitted():
+        if not robot_execution_permitted() and RUNTIME_PROFILE != "virtual_sim":
             robot_state.ros_available = False
             robot_state.bridge_mode = "integration_disabled"
             robot_state.online = False
@@ -528,11 +557,8 @@ class RobotRosAdapter:
 
     def ensure_hardware_runtime(self, timeout: float = 15.0) -> bool:
         """Start the configured xline_ws3 runtime once and wait for readiness."""
-        if not robot_execution_permitted():
-            robot_state.add_log("integration profile: hardware runtime disabled")
-            return False
-        with self.hardware_start_lock:
-            if RUNTIME_PROFILE == "virtual_sim":
+        if RUNTIME_PROFILE == "virtual_sim":
+            with self.hardware_start_lock:
                 ready = (
                     robot_state.bridge_mode == "virtual_ros2"
                     and robot_state.online
@@ -545,6 +571,11 @@ class RobotRosAdapter:
                     else "virtual simulator runtime is not ready"
                 )
                 return ready
+        if not hardware_runtime_start_permitted():
+            reason = hardware_runtime_block_reason() or "hardware runtime disabled"
+            robot_state.add_log(reason)
+            return False
+        with self.hardware_start_lock:
             if self._hardware_runtime_ready():
                 robot_state.add_log("hardware runtime already ready")
                 return True

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from ..database import xline_database
 from ..agent_service import robot_agent
 from ..ros_adapter import ros_adapter
+from ..security import authenticated_client_id, require_request_scope
 from ..schemas import ApiResult, DeviceDiagnosticRequest, EmergencyStopCommand, Ln150Command, PrinterActiveCommand, PrinterCommand, VelocityCommand
 from ..state import robot_state
 from ..tooling import authorize_emergency_stop, authorize_tool
@@ -67,7 +68,8 @@ def monitor_diagnose(command: DeviceDiagnosticRequest) -> dict[str, object]:
 
 
 @router.post("/api/cmd_vel", response_model=ApiResult)
-def cmd_vel(command: VelocityCommand) -> ApiResult:
+def cmd_vel(command: VelocityCommand, request: Request) -> ApiResult:
+    client_id = authenticated_client_id(request, command.client_id)
     decision = authorize_tool(
         "drive_robot",
         {
@@ -76,7 +78,7 @@ def cmd_vel(command: VelocityCommand) -> ApiResult:
             "duration_seconds": 0.1,
         },
         confirmed=True,
-        client_id=command.client_id,
+        client_id=client_id,
     )
     if not decision.allowed and (command.linear != 0.0 or command.angular != 0.0):
         return ApiResult(ok=False, message=decision.message)
@@ -91,8 +93,9 @@ def cmd_vel(command: VelocityCommand) -> ApiResult:
 
 
 @router.post("/api/emergency-stop", response_model=ApiResult)
-def emergency_stop(command: EmergencyStopCommand) -> ApiResult:
-    decision = authorize_emergency_stop(command.active, command.client_id)
+def emergency_stop(command: EmergencyStopCommand, request: Request) -> ApiResult:
+    client_id = authenticated_client_id(request, command.client_id)
+    decision = authorize_emergency_stop(command.active, client_id)
     if not decision.allowed:
         return ApiResult(ok=False, message=decision.message)
     ok = ros_adapter.set_emergency_stop(command.active)
@@ -105,12 +108,14 @@ def emergency_stop(command: EmergencyStopCommand) -> ApiResult:
 
 
 @router.post("/api/printer/quick_command", response_model=ApiResult)
-def printer(command: PrinterCommand) -> ApiResult:
+def printer(command: PrinterCommand, request: Request) -> ApiResult:
+    require_request_scope(request, "printer")
+    client_id = authenticated_client_id(request, command.client_id)
     decision = authorize_tool(
         "control_printer",
         command.model_dump(exclude={"client_id"}),
         confirmed=True,
-        client_id=command.client_id,
+        client_id=client_id,
     )
     if not decision.allowed:
         return ApiResult(ok=False, message=decision.message)
@@ -120,12 +125,14 @@ def printer(command: PrinterCommand) -> ApiResult:
 
 
 @router.post("/api/ln150/command", response_model=ApiResult)
-def ln150(command: Ln150Command) -> ApiResult:
+def ln150(command: Ln150Command, request: Request) -> ApiResult:
+    require_request_scope(request, "hardware")
+    client_id = authenticated_client_id(request, command.client_id)
     decision = authorize_tool(
         "control_ln150",
         {"command_type": command.command_type},
         confirmed=True,
-        client_id=command.client_id,
+        client_id=client_id,
     )
     if not decision.allowed:
         return ApiResult(ok=False, message=decision.message)
@@ -135,12 +142,14 @@ def ln150(command: Ln150Command) -> ApiResult:
 
 
 @router.post("/api/printer/set_active", response_model=ApiResult)
-def printer_active(command: PrinterActiveCommand) -> ApiResult:
+def printer_active(command: PrinterActiveCommand, request: Request) -> ApiResult:
+    require_request_scope(request, "printer")
+    client_id = authenticated_client_id(request, command.client_id)
     decision = authorize_tool(
         "control_printer",
         {"printer_name": command.printer_name, "action": "beep", "param": 0},
         confirmed=True,
-        client_id=command.client_id,
+        client_id=client_id,
     )
     if not decision.allowed:
         return ApiResult(ok=False, message=decision.message)

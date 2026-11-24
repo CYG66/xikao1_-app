@@ -25,19 +25,24 @@ def _trial(result: dict) -> dict:
 
 
 def _bind(source: str, coverage: dict, trial: dict, *, with_project: bool = True,
-          project_created: bool = True) -> dict:
+          project_created: bool = True, prior_variant_count: int | None = None,
+          candidate_write: bool | None = None) -> dict:
+    evidence = {
+        "project_id": "project-1", "project_status": "ready_for_design",
+        "project_exists": True, "created_in_this_commit": project_created,
+        "authority": "creative_project_store",
+    }
+    if prior_variant_count is not None:
+        evidence["prior_variant_count"] = prior_variant_count
+    if candidate_write is not None:
+        evidence["candidate_write_in_commit"] = candidate_write
     return bind_construction_coverage(
         coverage,
         logical_objects=deepcopy(_trial_objects(trial)),
         geometries=deepcopy(trial.get("geometries") or []),
         plan_steps=deepcopy((trial.get("plan") or {}).get("steps") or []),
         symbol_table=deepcopy(trial.get("symbol_table") or {}),
-        project_evidence=(
-            {"project_id": "project-1", "project_status": "ready_for_design",
-             "project_exists": True, "created_in_this_commit": project_created,
-             "authority": "creative_project_store"}
-            if with_project else None
-        ),
+        project_evidence=evidence if with_project else None,
     )
 
 
@@ -66,6 +71,7 @@ def test_a2_ordinary_rectangle_is_bound_to_unique_object_and_measurement(tmp_pat
     assert {item["field"] for item in measurements} == {"width", "height"}
     assert {item["actual_mm"] for item in measurements} == {5000.0, 3000.0}
     assert {item["authority"] for item in measurements} == {"backend_measured_geometry"}
+    assert coverage["unresolved_fact_ids"] == []
 
     store = _store(tmp_path)
     committed = commit_construction_interpretation(source, result, store=store)
@@ -227,6 +233,42 @@ def test_existing_project_without_new_drawing_proof_keeps_create_clause_unverifi
     clauses = {item["requirement"]: item for item in bound["clauses"]}
     assert clauses["新建图纸"]["status"] == "unverified"
     assert clauses["画一个宽5米高3米的矩形"]["status"] == "verified"
+
+
+def test_existing_project_first_candidate_write_proves_new_drawing() -> None:
+    source = "新建图纸，画一个宽5米高3米的矩形"
+    bound = _bind(
+        source,
+        _coverage(_interpret(source)),
+        _trial(_interpret(source)),
+        project_created=False,
+        prior_variant_count=0,
+        candidate_write=True,
+    )
+    assert bound["state"] == "complete"
+    operation = next(
+        item for item in bound["clauses"] if item["requirement"] == "新建图纸"
+    )
+    assert operation["status"] == "verified"
+    assert operation["binding"]["project_created_in_commit"] is False
+    assert operation["binding"]["drawing_write_proof"] == "first_candidate_write_in_commit"
+
+
+def test_existing_project_with_prior_candidate_cannot_prove_new_drawing() -> None:
+    source = "新建图纸，画一个宽5米高3米的矩形"
+    bound = _bind(
+        source,
+        _coverage(_interpret(source)),
+        _trial(_interpret(source)),
+        project_created=False,
+        prior_variant_count=1,
+        candidate_write=True,
+    )
+    assert bound["state"] == "partial"
+    operation = next(
+        item for item in bound["clauses"] if item["requirement"] == "新建图纸"
+    )
+    assert operation["status"] == "unverified"
 
 
 def test_missing_geometry_keeps_dimension_requirement_unbound() -> None:

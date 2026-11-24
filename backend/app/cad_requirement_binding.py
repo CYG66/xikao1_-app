@@ -192,7 +192,6 @@ def bind_construction_coverage(
             if item.get("requirement_id")
         )
 
-    _recompute(result)
     result.setdefault("binding", {})
     result["binding"] = {
         "schema": "cad.requirement-binding.v1",
@@ -201,6 +200,9 @@ def bind_construction_coverage(
         "tolerance_mm": float(tolerance_mm),
         "authority": "backend_measured_geometry",
     }
+    # Recompute after the new binding is visible.  The previous order read the
+    # pre-binding fact list, leaving resolved facts in the unresolved ledger.
+    _recompute(result)
     return result
 
 
@@ -212,11 +214,19 @@ def _operation_binding(requirement: str, project_evidence: dict[str, Any] | None
     evidence = project_evidence if isinstance(project_evidence, dict) else {}
     if evidence.get("project_exists") is not True or not evidence.get("project_id"):
         return None
-    if evidence.get("created_in_this_commit") is not True:
-        # An existing project record proves a container, not that this request
-        # created a drawing.  Without a post-persist drawing proof the clause
-        # must stay unverified.
+    # A project record alone proves a container, not a new drawing.  The
+    # operation is proven only when this request actually writes the first
+    # candidate into the project, or when the project itself was created by
+    # the commit.  An existing project with prior candidates is a follow-up
+    # candidate revision, not a "new drawing".
+    created = evidence.get("created_in_this_commit") is True
+    first_write = (
+        evidence.get("candidate_write_in_commit") is True
+        and evidence.get("prior_variant_count") == 0
+    )
+    if not created and not first_write:
         return None
+    proof = "project_created_in_commit" if created else "first_candidate_write_in_commit"
     return {
         "schema": "cad.requirement-binding.v1",
         "requirement_id": None,
@@ -224,17 +234,21 @@ def _operation_binding(requirement: str, project_evidence: dict[str, Any] | None
         "operation": "create_drawing",
         "project_id": str(evidence["project_id"]),
         "project_status": evidence.get("project_status"),
-        "project_created_in_commit": bool(evidence.get("created_in_this_commit")),
+        "project_created_in_commit": created,
+        "prior_variant_count": evidence.get("prior_variant_count"),
+        "drawing_write_proof": proof,
         "project_store_authority": str(evidence.get("authority") or "creative_project_store"),
         "evidence": [{
             "requirement_id": None,
-            "verifier": "verify_project_creation",
+            "verifier": "verify_drawing_creation",
             "status": "verified",
             "measurement": {
                 "operation": "create_drawing",
                 "project_id": str(evidence["project_id"]),
                 "project_status": evidence.get("project_status"),
-                "project_created_in_commit": bool(evidence.get("created_in_this_commit")),
+                "project_created_in_commit": created,
+                "prior_variant_count": evidence.get("prior_variant_count"),
+                "drawing_write_proof": proof,
                 "authority": str(evidence.get("authority") or "creative_project_store"),
             },
         }],
@@ -385,7 +399,7 @@ def _promote_clause(clause: dict[str, Any], binding: dict[str, Any], bound_ids: 
         if isinstance(item, dict)
     )
     clause["verifier"] = "bind_construction_measurement" if binding.get("kind") != "operation" \
-        else "verify_project_creation"
+        else "verify_drawing_creation"
     clause["authority"] = binding.get("authority")
     if clause.get("requirement_id"):
         bound_ids.append(str(clause["requirement_id"]))
@@ -417,26 +431,48 @@ def _recompute(coverage: dict[str, Any]) -> None:
         if item.get("status") in {"unverified", "unbound", "unsupported", "unparseable"}
     )
     coverage["blocking_requirements"] = blockers
-    bound_fact_ids = {
-        str(item) for item in (coverage.get("binding") or {}).get("bound_fact_ids") or []
-    }
+    # Rebuild unresolved IDs from the post-binding clause state instead of
+    # filtering against the previous binding snapshot.  A verified clause
+    # resolves both its own clause ID and every fact it bound; unresolved clauses
+    # keep their clause ID and all still-open fact IDs.
+    resolved_refs: set[str] = set()
+    for clause in clauses:
+        if clause.get("status") != "verified":
+            continue
+        if clause.get("requirement_id"):
+            resolved_refs.add(str(clause["requirement_id"]))
+        for source in (
+            (clause.get("binding") or {}).get("resolved_unsupported_evidence") or [],
+            clause.get("resolved_unsupported_evidence") or [],
+        ):
+            for item in source:
+                if not isinstance(item, dict):
+                    continue
+                fact_id = item.get("requirement_id") or item.get("fact_id")
+                if fact_id:
+                    resolved_refs.add(str(fact_id))
     unresolved = [
         item for item in coverage.get("unresolved_fact_ids") or []
-        if str(item) not in bound_fact_ids
+        if str(item) not in resolved_refs
     ]
     for clause in clauses:
         if clause.get("status") == "verified":
             continue
+        clause_id = str(clause.get("requirement_id") or "")
+        if clause_id and clause_id not in unresolved:
+            unresolved.append(clause_id)
         for evidence in clause.get("unsupported_evidence") or []:
-            if isinstance(evidence, dict) and evidence.get("fact_id"):
-                unresolved.append(evidence["fact_id"])
+            if isinstance(evidence, dict):
+                fact_id = evidence.get("fact_id") or evidence.get("requirement_id")
+                if fact_id and str(fact_id) not in unresolved:
+                    unresolved.append(str(fact_id))
         for failure in clause.get("binding_failures") or []:
             fact_id = (
                 failure.get("requirement_id")
                 if isinstance(failure, dict)
                 else failure
             ) or clause.get("requirement_id")
-            if fact_id and fact_id not in unresolved:
-                unresolved.append(fact_id)
+            if fact_id and str(fact_id) not in unresolved:
+                unresolved.append(str(fact_id))
     coverage["unresolved_fact_ids"] = unresolved
     coverage["state"] = "complete" if not blockers else "partial"

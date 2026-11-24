@@ -49,6 +49,11 @@ def commit_construction_interpretation(
         raise ConstructionCommitError("缺少候选写入目标。")
     project = get_project(project_id) if project_id else None
     project_created_in_commit = project is None
+    prior_variant_count = len(project.get("variants") or []) if isinstance(project, dict) else 0
+    preexisting_variant_ids = {
+        str(item.get("id"))
+        for item in (project.get("variants") or []) if isinstance(item, dict)
+    } if isinstance(project, dict) else set()
     if project_id:
         if project is None:
             raise ConstructionCommitError("当前项目已不存在，未创建其他项目。")
@@ -61,45 +66,48 @@ def commit_construction_interpretation(
         # candidate sets create their own project so rollback stays isolated.
         if len(candidates) != 1:
             raise ConstructionCommitError("当前项目只接受一个已验证的生产构造计划。")
-    if project is None:
-        project = store.create(
-            _project_name(source_text),
-            source_text,
-            requirements={
-                "shape": "generic_2d_cad",
-                "construction_mode": "deterministic_ir",
-                "units": str(candidates[0]["trial_result"]["plan"].get("units") or "m"),
-                "candidate_count": len(candidates),
-                **deepcopy(interpretation.get("project_requirements") or {}),
-            },
-            constraints={
-                "validated_before_persist": True,
-                "geometry_authority": "deterministic_backend",
-            },
-            missing_parameters=[],
-            owner_conversation_id=owner_conversation_id,
-        )
-    interpretation = deepcopy(interpretation)
-    _refresh_candidate_trials(candidates)
-    _rebind_source_acceptance(
-        source_text,
-        interpretation,
-        candidates,
-        project,
-        project_created_in_commit=project_created_in_commit,
-    )
-    req = project.get("requirements") or {}
-    source_ledger = req.get("requirement_ledger") or project_requirement_ledger(
-        str(project.get("original_prompt") or source_text), req.get("source_followups") or [],
-        missing=project.get("missing_parameters") or [])
-    interpretation["requirement_ledger"] = candidate_requirement_snapshot(
-        source_ledger, {**(interpretation.get("requirement_ledger") or {}),
-                       "source_geometry_acceptance":interpretation.get("source_acceptance") or {}})
+
     persisted: list[dict[str, Any]] = []
     by_candidate_id: dict[str, dict[str, Any]] = {}
     try:
+        if project is None:
+            project = store.create(
+                _project_name(source_text),
+                source_text,
+                requirements={
+                    "shape": "generic_2d_cad",
+                    "construction_mode": "deterministic_ir",
+                    "units": str(candidates[0]["trial_result"]["plan"].get("units") or "m"),
+                    "candidate_count": len(candidates),
+                    **deepcopy(interpretation.get("project_requirements") or {}),
+                },
+                constraints={
+                    "validated_before_persist": True,
+                    "geometry_authority": "deterministic_backend",
+                },
+                missing_parameters=[],
+                owner_conversation_id=owner_conversation_id,
+            )
+        # Re-execution and binding are part of the same atomic commit boundary
+        # as project creation and candidate persistence.  Any failure here
+        # must reach the rollback below, not escape past it.
+        _refresh_candidate_trials(candidates)
+        req = project.get("requirements") or {}
+        source_ledger = req.get("requirement_ledger") or project_requirement_ledger(
+            str(project.get("original_prompt") or source_text), req.get("source_followups") or [],
+            missing=project.get("missing_parameters") or [])
+        base_interpretation = deepcopy(interpretation)
         for index, candidate in enumerate(candidates, start=1):
             trial = candidate["trial_result"]
+            candidate_interpretation = _candidate_interpretation(
+                source_text,
+                base_interpretation,
+                candidate,
+                source_ledger,
+                project,
+                project_created_in_commit=project_created_in_commit,
+                prior_variant_count=prior_variant_count,
+            )
             committed_plan = trial.get("_construction_plan") if isinstance(trial, dict) else None
             if isinstance(committed_plan, dict) and not trial.get("_p1_plan_refreshed"):
                 refreshed = execute_construction_plan(committed_plan)
@@ -133,11 +141,12 @@ def commit_construction_interpretation(
                 add_variant=add_variant,
                 get_project=get_project,
                 stored_preview=preview_paths({"lines": geometries}),
+                acceptance_summary=deepcopy(candidate_interpretation.get("acceptance_summary")),
                 logical_objects=list(metadata.get("logical_objects") or trial.get("logical_objects") or []),
                 topology=dict(metadata.get("topology") or trial.get("topology") or {}),
                 **({"instance_contract": metadata["instance_contract"]} if metadata.get("instance_contract") else {}),
                 construction_record=_construction_record(
-                    interpretation, candidate, trial
+                    candidate_interpretation, candidate, trial
                 ),
                 **({"execution_context": deepcopy(metadata["execution_context"])}
                    if isinstance(metadata.get("execution_context"), dict) else {}),
@@ -147,10 +156,20 @@ def commit_construction_interpretation(
                     str(persisted_variant.get("message") or f"结构候选 {index} 未通过项目写入校验。")
                 )
             variant = persisted_variant["variant"]
+            if (
+                str(variant.get("id")) in preexisting_variant_ids
+                and not _summary_passed(candidate_interpretation.get("acceptance_summary"))
+            ):
+                # The write boundary may reuse an older accepted candidate for
+                # an identical geometry.  That is not a new drawing and cannot
+                # satisfy this request's still-unproven operation requirement.
+                raise ConstructionCommitError(
+                    "本次请求没有创建新的可用图纸候选；不能复用已有候选满足“新建图纸”。"
+                )
             persisted.append(variant)
             by_candidate_id[str(candidate["candidate_id"])] = variant
     except Exception as exc:
-        if not project_id:
+        if not project_id and isinstance(project, dict) and project.get("id"):
             store.delete(str(project["id"]))
         if isinstance(exc, ConstructionCommitError):
             raise
@@ -203,6 +222,14 @@ def _verified_candidates(
     ]
     candidates.sort(key=lambda item: int(item.get("rank") or 999))
     return candidates, str(evaluation.get("recommended_candidate_id") or "") or None
+
+
+def _summary_passed(summary: Any) -> bool:
+    return bool(
+        isinstance(summary, dict)
+        and summary.get("status") == "passed"
+        and summary.get("review_required") is not True
+    )
 
 
 def _construction_record(
@@ -294,18 +321,49 @@ def _refresh_candidate_trials(candidates: list[dict[str, Any]]) -> None:
         candidate["trial_result"] = {**trial, **refreshed, "_p1_plan_refreshed": True}
 
 
-def _rebind_source_acceptance(
+def _candidate_interpretation(
     source_text: str,
     interpretation: dict[str, Any],
-    candidates: list[dict[str, Any]],
+    candidate: dict[str, Any],
+    source_ledger: dict[str, Any],
     project: dict[str, Any],
     *,
     project_created_in_commit: bool,
+    prior_variant_count: int,
+) -> dict[str, Any]:
+    """Return an isolated acceptance view for exactly one candidate."""
+    candidate_interpretation = deepcopy(interpretation)
+    _rebind_source_acceptance(
+        source_text,
+        candidate_interpretation,
+        candidate,
+        project,
+        project_created_in_commit=project_created_in_commit,
+        prior_variant_count=prior_variant_count,
+    )
+    construction_ledger = candidate_interpretation.get("requirement_ledger") or {}
+    candidate_interpretation["requirement_ledger"] = candidate_requirement_snapshot(
+        source_ledger,
+        {**construction_ledger,
+         "source_geometry_acceptance": candidate_interpretation.get("source_acceptance") or {}},
+    )
+    return candidate_interpretation
+
+
+def _rebind_source_acceptance(
+    source_text: str,
+    interpretation: dict[str, Any],
+    candidate: dict[str, Any],
+    project: dict[str, Any],
+    *,
+    project_created_in_commit: bool,
+    prior_variant_count: int,
 ) -> None:
     """Attach the project record and measured object binding before persistence.
 
-    The project exists at this point and is the actual durable target of the
-    create request.  Only ordinary, unique-object clauses can be promoted; all
+    The binding is computed from this candidate's final trial result only, so a
+    correct candidate cannot lend its acceptance summary to a different
+    candidate.  Only ordinary, unique-object clauses can be promoted; all
     ambiguous or missing bindings keep their original blocking state.
     """
     source_acceptance = interpretation.get("source_acceptance")
@@ -314,7 +372,7 @@ def _rebind_source_acceptance(
     coverage = source_acceptance.get("coverage_evidence")
     if not isinstance(coverage, dict):
         return
-    trial = (candidates[0] or {}).get("trial_result") if candidates else None
+    trial = candidate.get("trial_result") if isinstance(candidate, dict) else None
     trial = trial if isinstance(trial, dict) else {}
     plan = trial.get("plan") if isinstance(trial.get("plan"), dict) else interpretation.get("plan")
     plan = plan if isinstance(plan, dict) else {}
@@ -329,6 +387,8 @@ def _rebind_source_acceptance(
             "project_status": project.get("status"),
             "project_exists": bool(project.get("id")),
             "created_in_this_commit": project_created_in_commit,
+            "prior_variant_count": int(prior_variant_count),
+            "candidate_write_in_commit": True,
             "authority": "creative_project_store",
         },
     )

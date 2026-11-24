@@ -14,6 +14,7 @@ from .creative_projects import CreativeProjectStore
 from .drawing_store import preview_paths
 from .cad_requirement_ledger import project_requirement_ledger, candidate_requirement_snapshot
 from .cad_construction import execute_construction_plan
+from .cad_requirement_binding import bind_construction_coverage
 
 
 class ConstructionCommitError(ValueError):
@@ -47,6 +48,7 @@ def commit_construction_interpretation(
     if add_variant is None or get_project is None or (store is None and not project_id):
         raise ConstructionCommitError("缺少候选写入目标。")
     project = get_project(project_id) if project_id else None
+    project_created_in_commit = project is None
     if project_id:
         if project is None:
             raise ConstructionCommitError("当前项目已不存在，未创建其他项目。")
@@ -78,6 +80,13 @@ def commit_construction_interpretation(
             owner_conversation_id=owner_conversation_id,
         )
     interpretation = deepcopy(interpretation)
+    _rebind_source_acceptance(
+        source_text,
+        interpretation,
+        candidates,
+        project,
+        project_created_in_commit=project_created_in_commit,
+    )
     req = project.get("requirements") or {}
     source_ledger = req.get("requirement_ledger") or project_requirement_ledger(
         str(project.get("original_prompt") or source_text), req.get("source_followups") or [],
@@ -269,6 +278,82 @@ def _construction_record(
         "graph_validation": deepcopy(trial.get("graph_validation") or {}),
         "sketch_graph": deepcopy(candidate.get("graph")),
     }
+
+
+def _rebind_source_acceptance(
+    source_text: str,
+    interpretation: dict[str, Any],
+    candidates: list[dict[str, Any]],
+    project: dict[str, Any],
+    *,
+    project_created_in_commit: bool,
+) -> None:
+    """Attach the project record and measured object binding before persistence.
+
+    The project exists at this point and is the actual durable target of the
+    create request.  Only ordinary, unique-object clauses can be promoted; all
+    ambiguous or missing bindings keep their original blocking state.
+    """
+    source_acceptance = interpretation.get("source_acceptance")
+    if not isinstance(source_acceptance, dict):
+        return
+    coverage = source_acceptance.get("coverage_evidence")
+    if not isinstance(coverage, dict):
+        return
+    trial = (candidates[0] or {}).get("trial_result") if candidates else None
+    trial = trial if isinstance(trial, dict) else {}
+    plan = trial.get("plan") if isinstance(trial.get("plan"), dict) else interpretation.get("plan")
+    plan = plan if isinstance(plan, dict) else {}
+    bound = bind_construction_coverage(
+        coverage,
+        logical_objects=list(trial.get("logical_objects") or []),
+        geometries=list(trial.get("geometries") or []),
+        plan_steps=list(plan.get("steps") or []),
+        symbol_table=trial.get("symbol_table") if isinstance(trial.get("symbol_table"), dict) else {},
+        project_evidence={
+            "project_id": str(project.get("id") or ""),
+            "project_status": project.get("status"),
+            "project_exists": bool(project.get("id")),
+            "created_in_this_commit": project_created_in_commit,
+            "authority": "creative_project_store",
+        },
+    )
+    source_acceptance = deepcopy(source_acceptance)
+    source_acceptance["coverage_evidence"] = bound
+    if bound.get("state") == "complete":
+        source_acceptance["status"] = "passed"
+        source_acceptance["coverage"] = "complete"
+        source_acceptance["review_required"] = False
+        source_acceptance["unknown_requirements"] = []
+        interpretation["source_acceptance"] = source_acceptance
+        from .cad_construction_interpreter import construction_acceptance_summary
+        interpretation["acceptance_summary"] = construction_acceptance_summary(
+            preflight_structure=interpretation.get("preflight_structure"),
+            structure_contract=interpretation.get("structure_contract"),
+            structure_validation=interpretation.get("structure_validation"),
+            composition_contract=interpretation.get("composition_contract"),
+            composition_validation=interpretation.get("composition_validation"),
+            source_acceptance=source_acceptance,
+            trial_result=trial,
+            source=source_text,
+        )
+        return
+    interpretation["source_acceptance"] = source_acceptance
+    summary = interpretation.get("acceptance_summary")
+    if isinstance(summary, dict):
+        summary = deepcopy(summary)
+        summary["coverage_evidence"] = {
+            "state": bound.get("state"),
+            "verified_requirement_count": bound.get("verified_requirement_count"),
+            "partial_requirement_count": bound.get("partial_requirement_count"),
+            "unverified_requirement_count": bound.get("unverified_requirement_count"),
+            "blocking_requirements": deepcopy(bound.get("blocking_requirements") or []),
+        }
+        summary["status"] = "review_required"
+        summary["review_required"] = True
+        summary["requirement_coverage"] = "unknown"
+        summary["unknown_requirements"] = deepcopy(bound.get("blocking_requirements") or [])
+        interpretation["acceptance_summary"] = summary
 
 
 def _single_candidate_title(trial: dict[str, Any]) -> str:

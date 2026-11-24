@@ -173,6 +173,23 @@ def test_http_control_only_token_cannot_use_printer_or_mission(enforced):
         headers=_headers(read_control, "req-auth-final-probe"),
         json={},
     ).status_code == 403
+    # The deployed operator role remains a superset and keeps all original paths.
+    operator = issue_token("operator", secret=SECRET, role="operator")
+    assert client.post(
+        "/api/printer/quick_command",
+        headers=_headers(operator, "req-auth-final-operator-printer"),
+        json={"printer_name": "center"},
+    ).status_code == 200
+    assert client.post(
+        "/api/mission/control",
+        headers=_headers(operator, "req-auth-final-operator-mission"),
+        json={"action": "start"},
+    ).status_code == 200
+    assert client.post(
+        "/api/ln150/command",
+        headers=_headers(operator, "req-auth-final-operator-hardware"),
+        json={"command_type": 1},
+    ).status_code == 200
 
 
 def test_ws_control_lease_does_not_grant_printer_or_mission(enforced):

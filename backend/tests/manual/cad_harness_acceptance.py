@@ -173,8 +173,12 @@ def _persisted_source_evidence(
     source_variant = _variant(source_project, variant_id)
     authority = str(source.get("authority") or "").strip()
     independent = source.get("independent") is True
-    source_project_id = str(source.get("project_id") or source_project.get("id") or "").strip()
-    source_variant_id = str(source.get("variant_id") or source_variant.get("id") or "").strip()
+    declared_project_id = str(source.get("project_id") or "").strip()
+    record_project_id = str(source_project.get("id") or "").strip()
+    source_project_id = record_project_id or declared_project_id
+    declared_variant_id = str(source.get("variant_id") or "").strip()
+    record_variant_id = str(source_variant.get("id") or "").strip()
+    source_variant_id = record_variant_id or declared_variant_id
     source_hash = _geometry_hash(source_variant)
     reasons: list[str] = []
     if not source:
@@ -186,8 +190,12 @@ def _persisted_source_evidence(
             reasons.append("persisted_source_authority_missing")
         if not source_project:
             reasons.append("persisted_source_project_missing")
+        if declared_project_id and record_project_id and declared_project_id != record_project_id:
+            reasons.append("persisted_source_project_mismatch")
         if not project_id or source_project_id != project_id:
             reasons.append("persisted_source_project_mismatch")
+        if declared_variant_id and record_variant_id and declared_variant_id != record_variant_id:
+            reasons.append("persisted_source_variant_mismatch")
         if not variant_id or source_variant_id != variant_id:
             reasons.append("persisted_source_variant_mismatch")
         if not source_variant:

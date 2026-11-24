@@ -219,6 +219,7 @@ def _operation_binding(requirement: str, project_evidence: dict[str, Any] | None
         "operation": "create_drawing",
         "project_id": str(evidence["project_id"]),
         "project_status": evidence.get("project_status"),
+        "project_created_in_commit": bool(evidence.get("created_in_this_commit")),
         "project_store_authority": str(evidence.get("authority") or "creative_project_store"),
         "evidence": [{
             "requirement_id": None,
@@ -228,6 +229,7 @@ def _operation_binding(requirement: str, project_evidence: dict[str, Any] | None
                 "operation": "create_drawing",
                 "project_id": str(evidence["project_id"]),
                 "project_status": evidence.get("project_status"),
+                "project_created_in_commit": bool(evidence.get("created_in_this_commit")),
                 "authority": str(evidence.get("authority") or "creative_project_store"),
             },
         }],

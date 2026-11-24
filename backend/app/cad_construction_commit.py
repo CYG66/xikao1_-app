@@ -335,10 +335,34 @@ def _rebind_source_acceptance(
     source_acceptance = deepcopy(source_acceptance)
     source_acceptance["coverage_evidence"] = bound
     if bound.get("state") == "complete":
-        source_acceptance["status"] = "passed"
-        source_acceptance["coverage"] = "complete"
-        source_acceptance["review_required"] = False
-        source_acceptance["unknown_requirements"] = []
+        clause_ids = {
+            str(item.get("requirement_id"))
+            for item in bound.get("clauses") or []
+            if isinstance(item, dict) and item.get("requirement_id")
+        }
+        remaining_unknown = []
+        for item in source_acceptance.get("unknown_requirements") or []:
+            if not isinstance(item, dict):
+                remaining_unknown.append(item)
+                continue
+            ref = str(
+                item.get("source_requirement_id")
+                or item.get("requirement_id")
+                or ""
+            )
+            if ref and ref in clause_ids:
+                continue
+            remaining_unknown.append(item)
+        source_acceptance["unknown_requirements"] = remaining_unknown
+        if remaining_unknown:
+            # A non-clause unknown requirement is not cleared by object binding.
+            source_acceptance["status"] = "partial"
+            source_acceptance["coverage"] = "complete"
+            source_acceptance["review_required"] = True
+        else:
+            source_acceptance["status"] = "passed"
+            source_acceptance["coverage"] = "complete"
+            source_acceptance["review_required"] = False
         interpretation["source_acceptance"] = source_acceptance
         from .cad_construction_interpreter import construction_acceptance_summary
         interpretation["acceptance_summary"] = construction_acceptance_summary(

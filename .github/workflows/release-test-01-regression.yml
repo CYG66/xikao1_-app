@@ -133,6 +133,7 @@ jobs:
           tests/test_database_isolation.py
           tests/test_main_lifespan.py
           tests/test_audit_store.py
+          tests/test_auth_final_01.py
           tests/test_release_blocker_01_security.py
           tests/test_release_blocker_01_hardware.py
           tests/test_release_blocker_01_backup.py

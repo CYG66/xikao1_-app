@@ -2,8 +2,10 @@
 
 The production predicate remains the authority for candidate acceptance.  This
 adapter adds the evidence a *delivery* must carry: visible current-run binding,
-a reloadable persisted candidate, independent geometry checks, and complete
-acceptance summaries.  It never mutates production state or widens tolerances.
+a reloadable persisted candidate, independent geometry checks, and the task's
+requirement-coverage gate.  It never mutates production state or widens
+tolerances; a missing construction-record summary is a warning, not a reason to
+override production acceptance.
 """
 from __future__ import annotations
 
@@ -45,26 +47,33 @@ def _summary_state(summary: Any) -> dict:
     }
 
 
-def _strict_summary_evidence(variant: dict) -> dict:
-    """Require both the candidate and construction-record summaries.
+def _acceptance_evidence(variant: dict) -> dict:
+    """Read production acceptance authority and keep missing record as a warning.
 
-    ``candidate_is_accepted`` treats a missing record summary as no evidence
-    (and can therefore accept the candidate on the variant summary alone).
-    Formal delivery is stricter: the record summary is part of the delivery
-    contract, so its absence is a harness-visible contract gap.
+    ``candidate_is_accepted`` is the production authority: it requires the
+    variant summary and every *present* construction-record summary to be
+    passed.  A legacy variant without a record summary is therefore still
+    accepted by production, and the harness must not tighten that contract on
+    its own.  The missing record is surfaced as a diagnostic warning instead.
     """
     variant_summary = _summary_state(variant.get("acceptance_summary"))
     record = _dict(variant.get("construction_record"))
     record_summary = _summary_state(record.get("acceptance_summary"))
+    authoritative = _summary_state(authoritative_acceptance_summary(variant))
     reasons: list[str] = []
+    warnings: list[str] = []
     if not variant_summary["present"]:
         reasons.append("variant_acceptance_summary_missing")
     elif not variant_summary["passed"]:
         reasons.append("variant_acceptance_summary_not_passed")
+    if not authoritative["present"]:
+        reasons.append("authoritative_acceptance_summary_missing")
+    elif not authoritative["passed"]:
+        reasons.append("authoritative_acceptance_summary_not_passed")
     if not record_summary["present"]:
-        reasons.append("record_acceptance_summary_missing")
+        warnings.append("record_acceptance_summary_missing")
     elif not record_summary["passed"]:
-        reasons.append("record_acceptance_summary_not_passed")
+        warnings.append("record_acceptance_summary_not_passed")
     if (
         variant_summary["present"]
         and record_summary["present"]
@@ -72,13 +81,14 @@ def _strict_summary_evidence(variant: dict) -> dict:
         and record_summary["passed"]
         and variant_summary["status"] != record_summary["status"]
     ):
-        reasons.append("acceptance_summary_status_mismatch")
+        warnings.append("acceptance_summary_status_mismatch")
     return {
         "ok": not reasons,
         "reason": reasons,
+        "warnings": warnings,
         "variant_summary": variant_summary,
         "record_summary": record_summary,
-        "authoritative": _summary_state(authoritative_acceptance_summary(variant)),
+        "authoritative": authoritative,
     }
 
 
@@ -191,9 +201,10 @@ def evaluate_formal_delivery(
         reloaded = persisted_variant
 
     production_accepted = bool(candidate_is_accepted(variant)) if variant else False
-    summary = _strict_summary_evidence(variant) if variant else {
+    summary = _acceptance_evidence(variant) if variant else {
         "ok": False,
         "reason": ["candidate_missing"],
+        "warnings": [],
         "variant_summary": _summary_state(None),
         "record_summary": _summary_state(None),
         "authoritative": _summary_state(None),
@@ -312,7 +323,9 @@ def evaluate_formal_delivery(
         "formal_reason": reasons,
         "production_accepted": production_accepted,
         "candidate_is_reviewable_draft": draft,
+        "acceptance_summary_ok": summary["ok"],
         "strict_summary_ok": summary["ok"],
+        "formal_warnings": summary["warnings"],
         "coverage_ok": coverage["ok"],
         "visibility_status": visibility_status or None,
         "binding_ok": binding_ok,
@@ -338,9 +351,10 @@ def evaluate_formal_delivery(
 def evaluate_accepted_base(variant: Any) -> dict:
     """Check that an edit base is a formally accepted candidate."""
     variant = _dict(variant)
-    summary = _strict_summary_evidence(variant) if variant else {
+    summary = _acceptance_evidence(variant) if variant else {
         "ok": False,
         "reason": ["base_candidate_missing"],
+        "warnings": [],
         "variant_summary": _summary_state(None),
         "record_summary": _summary_state(None),
         "authoritative": _summary_state(None),
@@ -354,6 +368,7 @@ def evaluate_accepted_base(variant: Any) -> dict:
     return {
         "accepted": accepted,
         "reason": list(summary["reason"]) if not accepted else [],
+        "warnings": list(summary["warnings"]),
         "variant_id": str(variant.get("id") or "") or None,
         "variant_acceptance_summary": summary["variant_summary"],
         "record_acceptance_summary": summary["record_summary"],

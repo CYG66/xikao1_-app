@@ -160,14 +160,15 @@ def test_geometry_ok_but_requirement_unbound_is_not_formal_delivery():
     assert "requirement_coverage_not_complete" in result["formal_reason"]
 
 
-def test_missing_record_acceptance_is_a_visible_production_contract_gap():
+def test_missing_record_acceptance_does_not_override_production_acceptance():
     variant = _variant(record_summary=False)
     assert candidate_is_accepted(variant) is True
     result = _evaluate(_response(variant), _project(variant))
     assert result["production_accepted"] is True
-    assert result["strict_summary_ok"] is False
-    assert result["formal_delivery_ok"] is False
-    assert "record_acceptance_summary_missing" in result["formal_reason"]
+    assert result["acceptance_summary_ok"] is True
+    assert result["formal_delivery_ok"] is True
+    assert "record_acceptance_summary_missing" in result["formal_warnings"]
+    assert "record_acceptance_summary_missing" not in result["formal_reason"]
 
 
 def test_persisted_candidate_unavailable_is_not_formal_delivery():

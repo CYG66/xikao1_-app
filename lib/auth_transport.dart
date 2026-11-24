@@ -10,6 +10,7 @@ enum AuthFailureKind {
   forbidden,
   expired,
   replay,
+  insecureTransport,
   disconnected,
   network,
 }
@@ -31,7 +32,8 @@ class AuthFailure implements Exception {
       kind == AuthFailureKind.missingToken ||
       kind == AuthFailureKind.invalidToken ||
       kind == AuthFailureKind.forbidden ||
-      kind == AuthFailureKind.expired;
+      kind == AuthFailureKind.expired ||
+      kind == AuthFailureKind.insecureTransport;
 
   @override
   String toString() => message;
@@ -60,10 +62,11 @@ class AuthTransport {
     required String host,
     required this.port,
     required String token,
+    this.secure = true,
     HttpClient? httpClient,
-  })  : host = host.trim(),
-        token = token.trim(),
-        _http = httpClient ?? HttpClient() {
+  }) : host = host.trim(),
+       token = token.trim(),
+       _http = httpClient ?? HttpClient() {
     _http.connectionTimeout = const Duration(seconds: 4);
     _http.idleTimeout = const Duration(seconds: 4);
   }
@@ -71,18 +74,49 @@ class AuthTransport {
   final String host;
   final int port;
   final String token;
+
+  /// Production default is TLS.  Plain HTTP/WS is allowed only for an
+  /// explicit loopback offline drill (127.0.0.1 / ::1 / localhost).
+  final bool secure;
   final HttpClient _http;
   final Random _random = Random.secure();
 
-  Uri get httpBase => Uri(scheme: 'http', host: host, port: port);
-  Uri get websocketUri =>
-      Uri(scheme: 'ws', host: host, port: port, path: '/ws/rosbridge');
+  Uri get httpBase =>
+      Uri(scheme: secure ? 'https' : 'http', host: host, port: port);
+  Uri get websocketUri => Uri(
+    scheme: secure ? 'wss' : 'ws',
+    host: host,
+    port: port,
+    path: '/ws/rosbridge',
+  );
 
   bool get hasToken => token.isNotEmpty;
 
+  static bool isLoopbackHost(String host) {
+    final normalized = host.trim().toLowerCase();
+    return normalized == 'localhost' ||
+        normalized == '127.0.0.1' ||
+        normalized == '::1' ||
+        normalized == '[::1]';
+  }
+
+  /// Fails closed before any bearer token can be written to a plaintext
+  /// connection to a non-loopback host.
+  void validateTransport() {
+    if (!secure && !isLoopbackHost(host)) {
+      throw const AuthFailure(
+        kind: AuthFailureKind.insecureTransport,
+        message: '非本机地址禁止使用明文 HTTP/WS，请启用 HTTPS/WSS',
+        code: 'insecure_transport',
+      );
+    }
+  }
+
   String newRequestId() {
     final bytes = List<int>.generate(16, (_) => _random.nextInt(256));
-    final suffix = bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+    final suffix = bytes
+        .map((value) => value.toRadixString(16).padLeft(2, '0'))
+        .join();
     return 'xline-app-$suffix';
   }
 
@@ -98,6 +132,7 @@ class AuthTransport {
   }
 
   Future<AuthHttpResponse> getJson(String path) async {
+    validateTransport();
     final client = await _open('GET', path);
     final response = await client.close();
     return _readResponse(response);
@@ -108,6 +143,7 @@ class AuthTransport {
     Map<String, Object?> payload, {
     String? requestId,
   }) async {
+    validateTransport();
     final id = requestId ?? newRequestId();
     final client = await _open('POST', path, requestId: id);
     client.write(jsonEncode(payload));
@@ -166,6 +202,7 @@ class AuthTransport {
   Future<WebSocket> connectWebSocket({
     Duration timeout = const Duration(seconds: 4),
   }) async {
+    validateTransport();
     final headers = _authHeaders;
     try {
       return await WebSocket.connect(
@@ -181,16 +218,22 @@ class AuthTransport {
 
   AuthFailure _failureFromResponse(AuthHttpResponse response) {
     final code = str(response.body['code']);
-    final detail = str(response.body['detail'] ?? response.body['message'] ?? 'HTTP ${response.statusCode}');
+    final detail = str(
+      response.body['detail'] ??
+          response.body['message'] ??
+          'HTTP ${response.statusCode}',
+    );
     final kind = switch (response.statusCode) {
-      401 => code == 'token_expired'
-          ? AuthFailureKind.expired
-          : AuthFailureKind.invalidToken,
+      401 =>
+        code == 'token_expired'
+            ? AuthFailureKind.expired
+            : AuthFailureKind.invalidToken,
       403 => AuthFailureKind.forbidden,
       409 => AuthFailureKind.replay,
-      _ => code == 'token_expired'
-          ? AuthFailureKind.expired
-          : AuthFailureKind.network,
+      _ =>
+        code == 'token_expired'
+            ? AuthFailureKind.expired
+            : AuthFailureKind.network,
     };
     return AuthFailure(
       kind: kind,
@@ -214,12 +257,13 @@ class AuthTransport {
     if (error is WebSocketException) {
       final text = error.message;
       final status = error.httpStatusCode;
-      if (status == 401 || status == 403 || text.contains('401') || text.contains('403')) {
+      if (status == 401 ||
+          status == 403 ||
+          text.contains('401') ||
+          text.contains('403')) {
         return AuthFailure(
           kind: AuthFailureKind.invalidToken,
-          message: status == 403
-              ? '认证失败：令牌无效、已过期或权限不足'
-              : '认证失败：令牌无效或已过期',
+          message: status == 403 ? '认证失败：令牌无效、已过期或权限不足' : '认证失败：令牌无效或已过期',
           code: 'handshake_rejected',
           statusCode: status ?? (text.contains('401') ? 401 : 403),
         );

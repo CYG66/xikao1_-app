@@ -81,8 +81,15 @@ Future<void> main(List<String> argv) async {
     if (!ok) failures.add(id);
   }
 
-  AuthTransport client(String token) =>
-      AuthTransport(host: host, port: port, token: token);
+  final secure = base.scheme == 'https' || base.scheme == 'wss';
+  final wsScheme = secure ? 'wss' : 'ws';
+
+  AuthTransport client(String token) => AuthTransport(
+        host: host,
+        port: port,
+        token: token,
+        secure: secure,
+      );
 
   if (mode == 'status') {
     final old = client(_token(args['valid']!));
@@ -233,7 +240,7 @@ Future<void> main(List<String> argv) async {
   // No token: a real handshake with no Authorization header must be rejected.
   try {
     final socket = await WebSocket.connect(
-      'ws://$host:$port/ws/rosbridge',
+      '$wsScheme://$host:$port/ws/rosbridge',
     ).timeout(const Duration(seconds: 3));
     await socket.close(1000, 'unexpected');
     mark('ws_missing_token_rejected', false, {'accepted': true});

@@ -12,10 +12,12 @@ that limitation is recorded in the RELEASE-AUTH-E2E-01 lifecycle document.
 from __future__ import annotations
 
 import argparse
+import getpass
 import hashlib
 import json
 import os
 import stat
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,13 +42,63 @@ def _fingerprint(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
 
 
-def _write_private(path: Path, value: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(value, encoding="utf-8")
+def _windows_private_acl(path: Path) -> None:
+    """Create an owner-only ACL without relying on POSIX chmod semantics.
+
+    The file is created with O_EXCL first, then inheritance is removed and only
+    the current user receives read/write access.  Any failure removes the new
+    file and raises, so an unsafe token file is never left behind.
+    """
+    user = getpass.getuser()
     try:
-        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
-    except OSError:
-        pass
+        subprocess.run(
+            [
+                "icacls",
+                str(path),
+                "/inheritance:r",
+                "/grant:r",
+                f"{user}:(R,W)",
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise PermissionError(f"cannot set private ACL on token file: {exc}") from exc
+
+
+def write_private_text(path: Path, value: str) -> None:
+    """Atomically create a private text file; never widen permissions first.
+
+    O_EXCL ensures an existing path is never truncated.  POSIX uses mode 0600
+    at creation, Windows applies an owner-only ACL before returning.  If any
+    permission or write step fails, the newly created file is removed and the
+    error is propagated.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(path, flags, stat.S_IRUSR | stat.S_IWUSR)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
+            fd = -1
+            stream.write(value)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if os.name == "nt":
+            _windows_private_acl(path)
+        else:
+            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+    except BaseException:
+        if fd >= 0:
+            os.close(fd)
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def _append_audit(path: str | None, event: dict[str, object]) -> None:
@@ -100,7 +152,7 @@ def main() -> int:
             ttl_seconds=args.ttl_seconds,
             token_id=args.token_id or None,
         )
-        _write_private(Path(args.output), token + "\n")
+        write_private_text(Path(args.output), token + "\n")
         metadata = _metadata(token, secret)
         event = {
             "event": "issued",

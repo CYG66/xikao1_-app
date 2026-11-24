@@ -5,14 +5,24 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import 'auth_transport.dart';
+import 'control_lease.dart';
 
 void main() => runApp(const XLineCarApp());
 
 /// Single source of truth for whether authenticated control commands may leave
-/// the App.  This is intentionally public so widget/unit tests can assert the
-/// safe-gate contract without reaching private page state.
-bool controlCommandsAllowed(BridgeState state, String? authError) {
-  return state == BridgeState.connected && authError == null;
+/// the App.  A WebSocket connection alone is not enough: the backend must have
+/// granted a control lease, and neither a local auth error nor a lost lease may
+/// be present.
+bool controlCommandsAllowed(
+  BridgeState state,
+  String? authError, {
+  String? controlError,
+  ControlLeaseState lease = ControlLeaseState.idle,
+}) {
+  return state == BridgeState.connected &&
+      authError == null &&
+      controlError == null &&
+      lease == ControlLeaseState.granted;
 }
 
 class XLineCarApp extends StatelessWidget {
@@ -67,6 +77,7 @@ class RoverDevice {
     required this.domainId,
     required this.type,
     required this.connected,
+    this.secure = true,
   });
 
   final String name;
@@ -75,8 +86,9 @@ class RoverDevice {
   final int domainId;
   final String type;
   final bool connected;
+  final bool secure;
 
-  String get bridgeUrl => 'ws://$ip:$port';
+  String get bridgeUrl => '${secure ? 'wss' : 'ws'}://$ip:$port';
 }
 
 enum BridgeState { disconnected, connecting, connected, failed }
@@ -129,19 +141,32 @@ class _RoverHomePageState extends State<RoverHomePage> {
   AuthTransport? transport;
   String controlToken = '';
   String? authError;
+  String? controlError;
+  bool _closingIntentionally = false;
+  bool _lockInProgress = false;
+  late final ControlLeaseManager _lease;
+  Timer? _heartbeatTimer;
   final TextEditingController tokenController = TextEditingController();
   final List<String> bridgeLogs = ['App 已就绪，可连接小车端 ROS2 Bridge'];
 
-  bool get controlReady => controlCommandsAllowed(bridgeState, authError);
+  bool get controlReady => controlCommandsAllowed(
+    bridgeState,
+    authError,
+    controlError: controlError,
+    lease: _lease.state,
+  );
+
+  String? get lockReason => controlError ?? authError;
 
   final List<RoverDevice> devices = [
     const RoverDevice(
       name: 'XLine-Car-01',
       ip: '192.168.31.42',
-      port: 8765,
+      port: 8000,
       domainId: 0,
-      type: 'Foxglove Bridge',
+      type: 'FastAPI ROS Bridge',
       connected: true,
+      secure: true,
     ),
   ];
 
@@ -153,7 +178,19 @@ class _RoverHomePageState extends State<RoverHomePage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _lease = ControlLeaseManager(
+      send: _sendLeasePayload,
+      onLock: (reason) => unawaited(_lockControl(reason)),
+    );
+  }
+
+  @override
   void dispose() {
+    _heartbeatTimer?.cancel();
+    _lease.release();
+    _lease.dispose();
     socketSub?.cancel();
     socket?.close();
     tokenController.dispose();
@@ -181,9 +218,9 @@ class _RoverHomePageState extends State<RoverHomePage> {
               lineRunning: lineRunning,
               bridgeState: bridgeState,
               authError: authError,
+              lockReason: lockReason,
             ),
-            if (authError != null)
-              AuthStatusBanner(message: authError!),
+            if (lockReason != null) AuthStatusBanner(message: lockReason!),
             Expanded(
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 220),
@@ -234,6 +271,8 @@ class _RoverHomePageState extends State<RoverHomePage> {
           logs: bridgeLogs,
           tokenController: tokenController,
           authError: authError,
+          controlError: controlError,
+          controlReady: controlReady,
           onTokenChanged: _updateControlToken,
           onAddDevice: _openAddDeviceSheet,
           onConnect: _connectDevice,
@@ -283,6 +322,7 @@ class _RoverHomePageState extends State<RoverHomePage> {
           domainId: devices[index].domainId,
           type: devices[index].type,
           connected: false,
+          secure: devices[index].secure,
         );
       }
       devices.add(device);
@@ -303,6 +343,7 @@ class _RoverHomePageState extends State<RoverHomePage> {
           domainId: device.domainId,
           type: device.type,
           connected: index == selectedIndex,
+          secure: device.secure,
         );
       }
       connectionMessage = '已切换到 ${devices[selectedIndex].name}';
@@ -313,6 +354,8 @@ class _RoverHomePageState extends State<RoverHomePage> {
   Future<void> _connectActiveDevice() async {
     final token = tokenController.text.trim();
     if (token.isEmpty) {
+      _heartbeatTimer?.cancel();
+      _lease.reset();
       await socketSub?.cancel();
       await socket?.close();
       if (!mounted) return;
@@ -321,6 +364,7 @@ class _RoverHomePageState extends State<RoverHomePage> {
         socketSub = null;
         bridgeState = BridgeState.failed;
         authError = '未配置访问令牌，已停止控制';
+        controlError = null;
         connectionMessage = '访问令牌为空，未发起连接';
         lineRunning = false;
         _addLog('blocked connect: missing token');
@@ -328,21 +372,29 @@ class _RoverHomePageState extends State<RoverHomePage> {
       return;
     }
 
+    _heartbeatTimer?.cancel();
+    _lease.reset();
     await socketSub?.cancel();
     await socket?.close();
     final nextTransport = AuthTransport(
       host: activeDevice.ip,
       port: activeDevice.port,
       token: token,
+      secure: activeDevice.secure,
     );
     transport?.close();
     transport = nextTransport;
     controlToken = token;
+    _closingIntentionally = false;
     setState(() {
       bridgeState = BridgeState.connecting;
       authError = null;
+      controlError = null;
       connectionMessage = '正在认证并连接 ${activeDevice.name}';
-      _addLog('authenticate ${activeDevice.ip}:${activeDevice.port}');
+      _addLog(
+        'authenticate ${activeDevice.ip}:${activeDevice.port} '
+        '(${activeDevice.secure ? 'TLS' : 'loopback plaintext'})',
+      );
     });
 
     try {
@@ -359,40 +411,57 @@ class _RoverHomePageState extends State<RoverHomePage> {
       socketSub = ws.listen(
         _handleBridgeMessage,
         onDone: () {
-          if (!mounted) return;
+          if (!mounted || socket != ws) return;
+          _heartbeatTimer?.cancel();
           final failure = AuthTransport.fromClose(ws.closeCode, ws.closeReason);
+          final leaseReason = _lease.reason;
           setState(() {
             bridgeState = BridgeState.disconnected;
+            socket = null;
+            socketSub = null;
+            lineRunning = false;
             if (failure != null) {
               authError = failure.message;
-              lineRunning = false;
+              controlError = null;
               connectionMessage = failure.message;
-            } else {
-              connectionMessage = 'Bridge 已断开';
-              lineRunning = false;
+            } else if (!_closingIntentionally) {
+              controlError = leaseReason ?? '连接已断开，控制已锁定';
+              connectionMessage = controlError!;
             }
-            _addLog(failure == null ? 'bridge closed' : 'auth closed: ${failure.code}');
+            _heartbeatTimer = null;
+            _addLog(
+              failure == null
+                  ? 'bridge closed'
+                  : 'auth closed: ${failure.code}',
+            );
           });
+          _closingIntentionally = false;
         },
         onError: (error) {
-          if (!mounted) return;
+          if (!mounted || socket != ws) return;
+          _heartbeatTimer?.cancel();
           final failure = AuthTransport.describeError(error);
           setState(() {
             bridgeState = BridgeState.failed;
+            socket = null;
+            socketSub = null;
             authError = failure.message;
+            controlError = '连接异常，控制已锁定';
             lineRunning = false;
             connectionMessage = failure.message;
+            _heartbeatTimer = null;
             _addLog('error ${failure.code}');
           });
         },
       );
       setState(() {
-        bridgeState = BridgeState.connected;
+        bridgeState = BridgeState.connecting;
         authError = null;
-        connectionMessage = '认证成功，已连接 ${activeDevice.name}';
-        _addLog('authenticated and connected');
+        controlError = null;
+        connectionMessage = '认证成功，正在申请控制权';
+        _addLog('authenticated; claiming control lease');
       });
-      _subscribeCoreTopics();
+      _lease.startClaim();
     } catch (error) {
       final failure = AuthTransport.describeError(error);
       if (transport == nextTransport) transport = null;
@@ -401,6 +470,7 @@ class _RoverHomePageState extends State<RoverHomePage> {
       setState(() {
         bridgeState = BridgeState.failed;
         authError = failure.message;
+        controlError = null;
         lineRunning = false;
         connectionMessage = failure.message;
         _addLog('connect rejected ${failure.code}');
@@ -408,11 +478,72 @@ class _RoverHomePageState extends State<RoverHomePage> {
     }
   }
 
+  /// Lease frames bypass the control gate on purpose: the claim itself must go
+  /// out before any motion command is allowed.
+  void _sendLeasePayload(Map<String, Object?> payload) {
+    final ws = socket;
+    if (ws == null) return;
+    final text = jsonEncode(payload);
+    ws.add(text);
+    if (mounted) setState(() => _addLog('send $text'));
+  }
+
+  void _startHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(_lease.heartbeatInterval, (_) {
+      if (!_lease.heartbeat()) {
+        final reason = _lease.reason ?? '控制心跳超时，控制权已丢失';
+        unawaited(_lockControl(reason));
+      }
+    });
+  }
+
+  void _onLeaseGranted() {
+    _startHeartbeat();
+    if (!mounted) return;
+    setState(() {
+      bridgeState = BridgeState.connected;
+      authError = null;
+      controlError = null;
+      connectionMessage = '控制权已获取，控制通道已授权';
+      _addLog('control lease granted');
+    });
+    _subscribeCoreTopics();
+  }
+
+  Future<void> _lockControl(String reason) async {
+    if (!mounted || _lockInProgress) return;
+    _lockInProgress = true;
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+    _lease.lock(reason);
+    _closingIntentionally = true;
+    final ws = socket;
+    final sub = socketSub;
+    socket = null;
+    socketSub = null;
+    await sub?.cancel();
+    await ws?.close(1000, 'control lock');
+    if (!mounted) {
+      _lockInProgress = false;
+      return;
+    }
+    setState(() {
+      bridgeState = BridgeState.disconnected;
+      controlError = reason;
+      lineRunning = false;
+      connectionMessage = reason;
+      _addLog('control locked: $reason');
+    });
+    _closingIntentionally = false;
+    _lockInProgress = false;
+  }
+
   void _updateControlToken(String value) {
     final changed = value != controlToken;
     controlToken = value;
     if (!changed) return;
-    if (bridgeState == BridgeState.connected) {
+    if (bridgeState != BridgeState.disconnected) {
       unawaited(_disconnectBridge());
       setState(() {
         authError = '访问令牌已修改，请重新认证';
@@ -427,17 +558,25 @@ class _RoverHomePageState extends State<RoverHomePage> {
   }
 
   Future<void> _disconnectBridge() async {
-    await socketSub?.cancel();
-    await socket?.close();
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+    _closingIntentionally = true;
+    _lease.release();
+    final ws = socket;
+    final sub = socketSub;
+    socket = null;
+    socketSub = null;
+    await sub?.cancel();
+    await ws?.close(1000, 'app disconnect');
     if (!mounted) return;
     setState(() {
-      socket = null;
-      socketSub = null;
       bridgeState = BridgeState.disconnected;
+      controlError = null;
       lineRunning = false;
       connectionMessage = '已断开 Bridge';
-      _addLog('disconnect');
+      _addLog('disconnect; lease released');
     });
+    _closingIntentionally = false;
   }
 
   void _handleBridgeMessage(dynamic data) {
@@ -455,9 +594,12 @@ class _RoverHomePageState extends State<RoverHomePage> {
         ? null
         : AuthTransport.fromWsMessage(payload);
     if (failure != null) {
+      _heartbeatTimer?.cancel();
+      _lease.lock(failure.message);
       unawaited(socket?.close(1008, failure.code));
       setState(() {
         authError = failure.message;
+        controlError = null;
         bridgeState = BridgeState.disconnected;
         lineRunning = false;
         connectionMessage = failure.message;
@@ -465,6 +607,18 @@ class _RoverHomePageState extends State<RoverHomePage> {
       });
       return;
     }
+
+    if (payload != null) {
+      final wasGranted = _lease.granted;
+      final mustLock = _lease.handleMessage(payload);
+      if (!wasGranted && _lease.granted) {
+        _onLeaseGranted();
+      } else if (mustLock || _lease.state == ControlLeaseState.locked) {
+        final reason = _lease.reason ?? '控制租约异常，控制已锁定';
+        unawaited(_lockControl(reason));
+      }
+    }
+
     setState(() {
       _addLog('recv ${data.toString()}');
     });
@@ -514,7 +668,9 @@ class _RoverHomePageState extends State<RoverHomePage> {
 
   void _toggleMission() {
     if (!controlReady) {
-      setState(() => _addLog('blocked mission: control session not authenticated'));
+      setState(
+        () => _addLog('blocked mission: control session not authenticated'),
+      );
       return;
     }
     final next = !lineRunning;
@@ -538,7 +694,7 @@ class _RoverHomePageState extends State<RoverHomePage> {
       socket!.add(text);
       setState(() => _addLog('send $text'));
     } else {
-      setState(() => _addLog('blocked (auth/not connected) $text'));
+      setState(() => _addLog('blocked (auth/lease/not connected) $text'));
     }
   }
 
@@ -555,12 +711,14 @@ class _Header extends StatelessWidget {
     required this.lineRunning,
     required this.bridgeState,
     required this.authError,
+    required this.lockReason,
   });
 
   final RoverDevice device;
   final bool lineRunning;
   final BridgeState bridgeState;
   final String? authError;
+  final String? lockReason;
 
   @override
   Widget build(BuildContext context) {
@@ -602,10 +760,16 @@ class _Header extends StatelessWidget {
           _StatusChip(
             text: authError != null
                 ? '认证失败'
-                : (lineRunning ? '划线中' : bridgeState.label),
+                : (lockReason != null
+                      ? '控制已锁定'
+                      : (lineRunning ? '划线中' : bridgeState.label)),
             color: authError != null
                 ? const Color(0xffef4444)
-                : (lineRunning ? const Color(0xfff59e0b) : bridgeState.color),
+                : (lockReason != null
+                      ? const Color(0xffef4444)
+                      : (lineRunning
+                            ? const Color(0xfff59e0b)
+                            : bridgeState.color)),
           ),
         ],
       ),
@@ -617,10 +781,7 @@ class _Header extends StatelessWidget {
 /// When this is visible the control gate is closed and no motion command may be
 /// sent until the operator re-authenticates.
 class AuthStatusBanner extends StatelessWidget {
-  const AuthStatusBanner({
-    required this.message,
-    super.key,
-  });
+  const AuthStatusBanner({required this.message, super.key});
 
   final String message;
 
@@ -776,6 +937,8 @@ class _DevicePage extends StatelessWidget {
     required this.logs,
     required this.tokenController,
     required this.authError,
+    required this.controlError,
+    required this.controlReady,
     required this.onTokenChanged,
     required this.onAddDevice,
     required this.onConnect,
@@ -789,6 +952,8 @@ class _DevicePage extends StatelessWidget {
   final List<String> logs;
   final TextEditingController tokenController;
   final String? authError;
+  final String? controlError;
+  final bool controlReady;
   final ValueChanged<String> onTokenChanged;
   final VoidCallback onAddDevice;
   final ValueChanged<int> onConnect;
@@ -842,7 +1007,8 @@ class _DevicePage extends StatelessWidget {
         _AuthPanel(
           controller: tokenController,
           authError: authError,
-          bridgeState: bridgeState,
+          controlError: controlError,
+          controlReady: controlReady,
           onTokenChanged: onTokenChanged,
           onConnect: onTestActive,
         ),
@@ -878,7 +1044,7 @@ class _DevicePage extends StatelessWidget {
               _InfoRow(
                 Icons.edit_location_alt_rounded,
                 '手动输入 IP',
-                '适合实验室局域网，连接 ws://小车IP:8765。',
+                '适合实验室局域网，连接 wss://小车IP:8000；本机离线演练才允许显式使用明文。',
               ),
               _InfoRow(
                 Icons.qr_code_scanner_rounded,
@@ -902,14 +1068,16 @@ class _AuthPanel extends StatelessWidget {
   const _AuthPanel({
     required this.controller,
     required this.authError,
-    required this.bridgeState,
+    required this.controlError,
+    required this.controlReady,
     required this.onTokenChanged,
     required this.onConnect,
   });
 
   final TextEditingController controller;
   final String? authError;
-  final BridgeState bridgeState;
+  final String? controlError;
+  final bool controlReady;
   final ValueChanged<String> onTokenChanged;
   final VoidCallback onConnect;
 
@@ -921,10 +1089,16 @@ class _AuthPanel extends StatelessWidget {
       trailing: _StatusChip(
         text: authError != null
             ? '认证失败'
-            : (configured ? '令牌已配置' : '未配置'),
+            : (controlError != null
+                  ? '控制权未确认'
+                  : (configured ? '令牌已配置' : '未配置')),
         color: authError != null
             ? const Color(0xffef4444)
-            : (configured ? const Color(0xff22c55e) : const Color(0xfff59e0b)),
+            : (controlError != null
+                  ? const Color(0xffef4444)
+                  : (configured
+                        ? const Color(0xff22c55e)
+                        : const Color(0xfff59e0b))),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -948,6 +1122,13 @@ class _AuthPanel extends StatelessWidget {
             '令牌只保存在本次运行内存，不写入本地配置；认证失败时会话立即锁定并停止发送控制命令。',
             style: TextStyle(color: Color(0xff94a3b8), fontSize: 12),
           ),
+          if (controlError != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              controlError!,
+              style: const TextStyle(color: Color(0xfffca5a5), fontSize: 12),
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [
@@ -958,11 +1139,9 @@ class _AuthPanel extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Text(
-                bridgeState == BridgeState.connected && authError == null
-                    ? '控制通道已授权'
-                    : '控制通道未授权',
+                controlReady ? '控制通道已授权' : '控制通道未授权',
                 style: TextStyle(
-                  color: bridgeState == BridgeState.connected && authError == null
+                  color: controlReady
                       ? const Color(0xff22c55e)
                       : const Color(0xff94a3b8),
                   fontSize: 12,
@@ -986,9 +1165,10 @@ class _AddDeviceSheet extends StatefulWidget {
 class _AddDeviceSheetState extends State<_AddDeviceSheet> {
   final nameController = TextEditingController(text: 'XLine-Car-02');
   final ipController = TextEditingController(text: '192.168.31.42');
-  final portController = TextEditingController(text: '8765');
+  final portController = TextEditingController(text: '8000');
   final domainController = TextEditingController(text: '0');
-  String type = 'Foxglove Bridge';
+  String type = 'FastAPI ROS Bridge';
+  bool secure = true;
   String testStatus = '未测试';
   bool testing = false;
 
@@ -1071,8 +1251,8 @@ class _AddDeviceSheetState extends State<_AddDeviceSheet> {
               ),
               items: const [
                 DropdownMenuItem(
-                  value: 'Foxglove Bridge',
-                  child: Text('Foxglove Bridge'),
+                  value: 'FastAPI ROS Bridge',
+                  child: Text('FastAPI ROS Bridge'),
                 ),
                 DropdownMenuItem(
                   value: 'ROS2 Web Bridge',
@@ -1085,7 +1265,14 @@ class _AddDeviceSheetState extends State<_AddDeviceSheet> {
               ],
               onChanged: (value) => setState(() => type = value ?? type),
             ),
-            const SizedBox(height: 12),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: secure,
+              onChanged: (value) => setState(() => secure = value),
+              title: const Text('HTTPS / WSS 加密传输'),
+              subtitle: const Text('关闭仅允许 127.0.0.1、::1 或 localhost 的离线演练'),
+            ),
+            const SizedBox(height: 4),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
@@ -1095,7 +1282,7 @@ class _AddDeviceSheetState extends State<_AddDeviceSheet> {
                 border: Border.all(color: const Color(0xff22304a)),
               ),
               child: Text(
-                '连接地址：ws://${ipController.text}:${portController.text}\n状态：$testStatus',
+                '连接地址：${secure ? 'wss' : 'ws'}://${ipController.text}:${portController.text}\n状态：$testStatus',
                 style: const TextStyle(color: Color(0xffcbd5e1), height: 1.5),
               ),
             ),
@@ -1134,25 +1321,37 @@ class _AddDeviceSheetState extends State<_AddDeviceSheet> {
   Future<void> _testConnection() async {
     setState(() {
       testing = true;
-      testStatus = '正在测试 Foxglove / ROS2 Bridge...';
+      testStatus = '正在校验 FastAPI ROS Bridge 配置...';
     });
-    await Future<void>.delayed(const Duration(milliseconds: 900));
+    await Future<void>.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
+    final host = ipController.text.trim();
+    final port = int.tryParse(portController.text.trim());
     setState(() {
       testing = false;
-      testStatus = ipController.text.trim().isEmpty
-          ? '失败：请填写机器人 IP'
-          : '测试通过：可保存设备';
+      if (host.isEmpty) {
+        testStatus = '失败：请填写机器人 IP';
+      } else if (port == null || port < 1 || port > 65535) {
+        testStatus = '失败：端口必须为 1-65535';
+      } else if (!secure && !AuthTransport.isLoopbackHost(host)) {
+        testStatus = '失败：非本机地址禁止使用明文 HTTP/WS';
+      } else {
+        testStatus = '配置通过：${secure ? 'wss' : 'ws'}://$host:$port';
+      }
     });
   }
 
   void _saveDevice() {
     final ip = ipController.text.trim();
     final name = nameController.text.trim();
-    final port = int.tryParse(portController.text.trim()) ?? 8765;
+    final port = int.tryParse(portController.text.trim()) ?? 8000;
     final domainId = int.tryParse(domainController.text.trim()) ?? 0;
     if (ip.isEmpty || name.isEmpty) {
       setState(() => testStatus = '失败：设备名称和 IP 不能为空');
+      return;
+    }
+    if (!secure && !AuthTransport.isLoopbackHost(ip)) {
+      setState(() => testStatus = '失败：非本机地址禁止使用明文 HTTP/WS');
       return;
     }
     Navigator.pop(
@@ -1164,6 +1363,7 @@ class _AddDeviceSheetState extends State<_AddDeviceSheet> {
         domainId: domainId,
         type: type,
         connected: true,
+        secure: secure,
       ),
     );
   }

@@ -26,7 +26,9 @@ PYTHON = Path(sys.executable)
 DART = Path(r"C:\Users\29924\Softwares\flutter\bin\dart.bat")
 
 sys.path.insert(0, str(BACKEND))
+sys.path.insert(0, str(BACKEND / "scripts"))
 from app.security import decode_token, issue_token  # noqa: E402
+from auth_token_admin import write_private_text  # noqa: E402
 
 SECRET_1 = secrets.token_urlsafe(48)
 SECRET_2 = secrets.token_urlsafe(48)
@@ -56,11 +58,7 @@ def _paths(root: Path) -> dict[str, str]:
 
 
 def _write_token(path: Path, token: str) -> None:
-    path.write_text(token + "\n", encoding="utf-8")
-    try:
-        os.chmod(path, 0o600)
-    except OSError:
-        pass
+    write_private_text(path, token + "\n")
 
 
 def _free_port() -> int:

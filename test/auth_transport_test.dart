@@ -45,11 +45,13 @@ void main() {
         if (requestIds.contains(id)) {
           request.response.statusCode = 409;
           request.response.headers.contentType = ContentType.json;
-          request.response.write(jsonEncode({
-            'ok': false,
-            'code': 'duplicate_request_id',
-            'detail': 'duplicate request id',
-          }));
+          request.response.write(
+            jsonEncode({
+              'ok': false,
+              'code': 'duplicate_request_id',
+              'detail': 'duplicate request id',
+            }),
+          );
           await request.response.close();
           return;
         }
@@ -83,10 +85,72 @@ void main() {
   });
 
   AuthTransport transport(String token) => AuthTransport(
-        host: baseHost,
-        port: basePort,
-        token: token,
+    host: baseHost,
+    port: basePort,
+    token: token,
+    secure: false,
+  );
+
+  test('secure transport is the default and uses https/wss schemes', () {
+    final client = AuthTransport(
+      host: '192.168.31.42',
+      port: 8000,
+      token: 'valid-token',
+    );
+    addTearDown(client.close);
+    expect(client.httpBase.scheme, 'https');
+    expect(client.websocketUri.scheme, 'wss');
+    expect(client.websocketUri.host, '192.168.31.42');
+    expect(client.websocketUri.path, '/ws/rosbridge');
+  });
+
+  test(
+    'plaintext to a non-loopback host is rejected before network I/O',
+    () async {
+      final client = AuthTransport(
+        host: '192.168.31.42',
+        port: 8000,
+        token: 'valid-token',
+        secure: false,
       );
+      addTearDown(client.close);
+      expect(
+        () => client.getJson('/api/status'),
+        throwsA(
+          isA<AuthFailure>().having(
+            (failure) => failure.kind,
+            'kind',
+            AuthFailureKind.insecureTransport,
+          ),
+        ),
+      );
+      expect(requests, isEmpty);
+      expect(client.httpBase.scheme, 'http');
+      await expectLater(
+        client.connectWebSocket(),
+        throwsA(
+          isA<AuthFailure>().having(
+            (failure) => failure.kind,
+            'kind',
+            AuthFailureKind.insecureTransport,
+          ),
+        ),
+      );
+    },
+  );
+
+  test('local loopback plaintext is allowed for an offline drill', () {
+    for (final host in ['127.0.0.1', 'localhost', '::1']) {
+      final client = AuthTransport(
+        host: host,
+        port: 8000,
+        token: 'valid-token',
+        secure: false,
+      );
+      addTearDown(client.close);
+      expect(() => client.validateTransport(), returnsNormally);
+    }
+  });
 
   test('HTTP GET sends bearer token and never puts it in the URL', () async {
     final client = transport('valid-token');
@@ -98,40 +162,41 @@ void main() {
     expect(requests.single['host'], contains('127.0.0.1'));
   });
 
-  test('state-changing POST sends unique request ids and rejects replay',
-      () async {
-    final client = transport('valid-token');
-    addTearDown(client.close);
-    final first = await client.postJson('/api/cmd_vel', {
-      'linear': 0,
-      'angular': 0,
-    });
-    expect(first.statusCode, 200);
-    expect(first.requestId, isNotNull);
-    expect(first.requestId!.length, greaterThanOrEqualTo(8));
-    expect(first.requestId, matches(RegExp(r'^[A-Za-z0-9._:-]{8,128}$')));
+  test(
+    'state-changing POST sends unique request ids and rejects replay',
+    () async {
+      final client = transport('valid-token');
+      addTearDown(client.close);
+      final first = await client.postJson('/api/cmd_vel', {
+        'linear': 0,
+        'angular': 0,
+      });
+      expect(first.statusCode, 200);
+      expect(first.requestId, isNotNull);
+      expect(first.requestId!.length, greaterThanOrEqualTo(8));
+      expect(first.requestId, matches(RegExp(r'^[A-Za-z0-9._:-]{8,128}$')));
 
-    final second = await client.postJson('/api/cmd_vel', {
-      'linear': 0,
-      'angular': 0,
-    });
-    expect(second.requestId, isNot(equals(first.requestId)));
+      final second = await client.postJson('/api/cmd_vel', {
+        'linear': 0,
+        'angular': 0,
+      });
+      expect(second.requestId, isNot(equals(first.requestId)));
 
-    expect(
-      () => client.postJson(
-        '/api/cmd_vel',
-        {'linear': 0, 'angular': 0},
-        requestId: first.requestId,
-      ),
-      throwsA(
-        isA<AuthFailure>().having(
-          (failure) => failure.kind,
-          'kind',
-          AuthFailureKind.replay,
+      expect(
+        () => client.postJson('/api/cmd_vel', {
+          'linear': 0,
+          'angular': 0,
+        }, requestId: first.requestId),
+        throwsA(
+          isA<AuthFailure>().having(
+            (failure) => failure.kind,
+            'kind',
+            AuthFailureKind.replay,
+          ),
         ),
-      ),
-    );
-  });
+      );
+    },
+  );
 
   test('missing token fails before any network request', () async {
     final client = transport('');
@@ -185,7 +250,7 @@ void main() {
       AuthTransport.fromClose(1008, 'forbidden scope')!.kind,
       AuthFailureKind.forbidden,
     );
-    expect(AuthTransport.fromClose(1000, 'normal') , isNull);
+    expect(AuthTransport.fromClose(1000, 'normal'), isNull);
   });
 
   test('WebSocket auth errors stop the App gate', () {

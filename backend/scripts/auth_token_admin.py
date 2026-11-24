@@ -191,6 +191,10 @@ def _windows_create_private_fd(path: Path) -> int:
             raise PermissionError(
                 f"cannot read private DACL: {ctypes.get_last_error()}"
             )
+        # A NULL DACL would grant everyone access.  Refuse to create the token
+        # file unless the parsed descriptor really carries our owner-only DACL.
+        if not present.value or not dacl.value:
+            raise PermissionError("private token DACL is missing")
 
         # CREATE_NEW + GENERIC_WRITE + WRITE_DAC.  The DACL is set while the
         # handle is open, before fdopen/write can expose token bytes.

@@ -144,6 +144,7 @@ class _RoverHomePageState extends State<RoverHomePage> {
   String? controlError;
   bool _closingIntentionally = false;
   bool _lockInProgress = false;
+  int _connectionGeneration = 0;
   late final ControlLeaseManager _lease;
   Timer? _heartbeatTimer;
   final TextEditingController tokenController = TextEditingController();
@@ -352,6 +353,7 @@ class _RoverHomePageState extends State<RoverHomePage> {
   }
 
   Future<void> _connectActiveDevice() async {
+    final generation = ++_connectionGeneration;
     final token = tokenController.text.trim();
     if (token.isEmpty) {
       _heartbeatTimer?.cancel();
@@ -402,9 +404,16 @@ class _RoverHomePageState extends State<RoverHomePage> {
       // makes a bad/expired/forbidden token fail with a server response rather
       // than a generic socket error.
       await nextTransport.getJson('/api/status');
+      if (!mounted || generation != _connectionGeneration) {
+        if (transport == nextTransport) transport = null;
+        nextTransport.close();
+        return;
+      }
       final ws = await nextTransport.connectWebSocket();
-      if (!mounted) {
-        await ws.close(1000, 'page disposed');
+      if (!mounted || generation != _connectionGeneration) {
+        if (transport == nextTransport) transport = null;
+        await ws.close(1000, 'stale connection');
+        nextTransport.close();
         return;
       }
       socket = ws;
@@ -463,6 +472,10 @@ class _RoverHomePageState extends State<RoverHomePage> {
       });
       _lease.startClaim();
     } catch (error) {
+      if (!mounted || generation != _connectionGeneration) {
+        nextTransport.close();
+        return;
+      }
       final failure = AuthTransport.describeError(error);
       if (transport == nextTransport) transport = null;
       nextTransport.close();
@@ -516,6 +529,7 @@ class _RoverHomePageState extends State<RoverHomePage> {
     _lockInProgress = true;
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
+    _connectionGeneration++;
     _lease.lock(reason);
     _closingIntentionally = true;
     final ws = socket;
@@ -560,6 +574,7 @@ class _RoverHomePageState extends State<RoverHomePage> {
   Future<void> _disconnectBridge() async {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
+    _connectionGeneration++;
     _closingIntentionally = true;
     _lease.release();
     final ws = socket;

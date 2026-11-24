@@ -93,6 +93,11 @@ def _flag(value: str | None) -> bool:
     return bool(value and value.strip().lower() in _TRUE_VALUES)
 
 
+def auth_clock() -> int:
+    """Single clock source for token issue/decode and session expiry checks."""
+    return int(time.time())
+
+
 def _b64encode(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
 
@@ -103,6 +108,12 @@ def _b64decode(value: str) -> bytes:
 
 def _signing_material(secret: str, body: str) -> bytes:
     return hmac.new(secret.encode("utf-8"), f"{_TOKEN_PREFIX}.{body}".encode("ascii"), hashlib.sha256).digest()
+
+
+def principal_expired(principal: AuthPrincipal, *, now: int | None = None) -> bool:
+    """Return whether an established session is expired at the supplied clock."""
+    current = auth_clock() if now is None else int(now)
+    return principal.expires_at <= current
 
 
 def issue_token(
@@ -123,7 +134,7 @@ def issue_token(
         raise ValueError(f"unsupported role: {role}")
     if len(secret) < _MIN_SECRET_LENGTH:
         raise ValueError("auth secret must be at least 32 characters")
-    issued = int(time.time() if now is None else now)
+    issued = int(auth_clock() if now is None else now)
     ttl = max(1, min(int(ttl_seconds), 30 * 24 * 3600))
     effective_scopes = frozenset(scopes) if scopes is not None else _ROLE_SCOPES[role]
     if not effective_scopes <= _ROLE_SCOPES[role]:
@@ -167,7 +178,7 @@ def decode_token(token: str, *, secret: str, now: int | None = None) -> AuthPrin
         issued_at = int(payload["iat"])
     except (KeyError, TypeError, ValueError) as error:
         raise AuthError("invalid token lifetime", code="invalid_token") from error
-    current = int(time.time() if now is None else now)
+    current = int(auth_clock() if now is None else now)
     if expires_at <= current:
         raise AuthError("token expired", code="token_expired")
     if issued_at > current + 60:
@@ -312,6 +323,23 @@ class AuthManager:
 auth_manager = AuthManager()
 
 
+def require_request_scope(request, scope: str) -> None:
+    """Second, route-level scope check for irreversible hardware operations.
+
+    The ASGI middleware is the primary boundary.  This helper deliberately
+    repeats the scope check at the route so a future route/middleware change
+    cannot silently turn a control lease into printer, mission or hardware
+    permission.  It is a no-op only for the explicit isolated auth-disabled
+    profile.
+    """
+    if not auth_manager.enforced():
+        return
+    principal = getattr(getattr(request, "state", None), "auth", None)
+    if principal is None:
+        raise AuthError("missing authenticated principal", code="missing_token")
+    auth_manager.require_scope(principal, scope)
+
+
 def required_scope(method: str, path: str) -> str | None:
     """Return the scope required before a route can produce side effects."""
     method = str(method).upper()
@@ -329,13 +357,13 @@ def required_scope(method: str, path: str) -> str | None:
         return "wifi"
     if path.startswith("/api/database"):
         return "database"
-    if (
-        path.startswith("/api/cmd_vel")
-        or path.startswith("/api/emergency-stop")
-        or path.startswith("/api/printer")
-        or path.startswith("/api/ln150")
-        or path.startswith("/api/mission/control")
-    ):
+    if path.startswith("/api/printer"):
+        return "printer"
+    if path.startswith("/api/ln150"):
+        return "hardware"
+    if path.startswith("/api/mission/control"):
+        return "mission"
+    if path.startswith("/api/cmd_vel") or path.startswith("/api/emergency-stop"):
         return "control"
     if path.startswith("/api/monitor/diagnose"):
         return "agent"

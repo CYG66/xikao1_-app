@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request
 from ..database import xline_database
 from ..agent_service import robot_agent
 from ..ros_adapter import ros_adapter
-from ..security import authenticated_client_id
+from ..security import authenticated_client_id, require_request_scope
 from ..schemas import ApiResult, DeviceDiagnosticRequest, EmergencyStopCommand, Ln150Command, PrinterActiveCommand, PrinterCommand, VelocityCommand
 from ..state import robot_state
 from ..tooling import authorize_emergency_stop, authorize_tool
@@ -109,6 +109,7 @@ def emergency_stop(command: EmergencyStopCommand, request: Request) -> ApiResult
 
 @router.post("/api/printer/quick_command", response_model=ApiResult)
 def printer(command: PrinterCommand, request: Request) -> ApiResult:
+    require_request_scope(request, "printer")
     client_id = authenticated_client_id(request, command.client_id)
     decision = authorize_tool(
         "control_printer",
@@ -125,6 +126,7 @@ def printer(command: PrinterCommand, request: Request) -> ApiResult:
 
 @router.post("/api/ln150/command", response_model=ApiResult)
 def ln150(command: Ln150Command, request: Request) -> ApiResult:
+    require_request_scope(request, "hardware")
     client_id = authenticated_client_id(request, command.client_id)
     decision = authorize_tool(
         "control_ln150",
@@ -141,6 +143,7 @@ def ln150(command: Ln150Command, request: Request) -> ApiResult:
 
 @router.post("/api/printer/set_active", response_model=ApiResult)
 def printer_active(command: PrinterActiveCommand, request: Request) -> ApiResult:
+    require_request_scope(request, "printer")
     client_id = authenticated_client_id(request, command.client_id)
     decision = authorize_tool(
         "control_printer",

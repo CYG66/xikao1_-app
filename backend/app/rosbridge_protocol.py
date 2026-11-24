@@ -4,6 +4,7 @@ import json
 import re
 import threading
 from .ros_adapter import ros_adapter
+from .security import AuthPrincipal
 from .state import robot_state
 from .tooling import authorize_emergency_stop, authorize_tool, validate_tool_arguments
 
@@ -12,6 +13,7 @@ def handle_rosbridge_payload(
     payload: dict[str, object],
     *,
     principal_subject: str | None = None,
+    principal: AuthPrincipal | None = None,
 ) -> dict[str, object]:
     op = payload.get("op")
     topic = payload.get("topic")
@@ -19,9 +21,26 @@ def handle_rosbridge_payload(
     # The authenticated subject is the only trusted identity.  A self-declared
     # client_id remains supported for local/virtual compatibility only when no
     # authenticated principal exists.
-    client_id = str(principal_subject or payload.get("client_id", ""))
+    client_id = principal.subject if principal is not None else str(principal_subject or payload.get("client_id", ""))
+
+    def missing_scope(scope: str, response_op: str, **extra: object) -> dict[str, object] | None:
+        if principal is None or principal.has_scope(scope):
+            return None
+        return {
+            "op": response_op,
+            "ok": False,
+            "message": f"authenticated subject lacks {scope} scope",
+            **extra,
+        }
 
     if op == "claim_control":
+        if principal is not None and not principal.has_scope("control"):
+            return {
+                "op": "control_response",
+                "ok": False,
+                "owner": robot_state.control_owner,
+                "message": "authenticated subject lacks control scope",
+            }
         ok = ros_adapter.claim_control(client_id)
         return {
             "op": "control_response",
@@ -95,6 +114,9 @@ def handle_rosbridge_payload(
         }
 
     if op == "mission_control":
+        denied = missing_scope("mission", "mission_response", ok=False)
+        if denied is not None:
+            return denied
         if not ros_adapter.owns_control(client_id):
             return {"op": "mission_response", "ok": False, "message": "control lease required"}
         action = str(payload.get("action", ""))
@@ -119,6 +141,9 @@ def handle_rosbridge_payload(
         return {"op": "mission_response", "ok": ok, "message": message}
 
     if op == "call_service" and service == "/printer/quick_command":
+        denied = missing_scope("printer", "service_response", service=service, ok=False)
+        if denied is not None:
+            return denied
         args = payload.get("args")
         if isinstance(args, dict):
             if robot_state.bridge_mode == "virtual_ros2":
@@ -153,6 +178,16 @@ def handle_rosbridge_payload(
     if op == "printer_spray":
         printer_name = str(payload.get("printer_name", "center"))
         spraying = payload.get("spraying") is True
+        if spraying:
+            denied = missing_scope(
+                "printer",
+                "printer_spray_response",
+                ok=False,
+                spraying=False,
+                printer_name=printer_name,
+            )
+            if denied is not None:
+                return denied
         if f"printer_{printer_name}" not in robot_state.printer_status:
             return {
                 "op": "printer_spray_response",
@@ -240,6 +275,9 @@ def handle_rosbridge_payload(
         }
 
     if op == "call_service" and service == "/printer/set_active":
+        denied = missing_scope("printer", "service_response", service=service, ok=False)
+        if denied is not None:
+            return denied
         args = payload.get("args")
         if isinstance(args, dict):
             if robot_state.bridge_mode == "virtual_ros2":
@@ -266,6 +304,9 @@ def handle_rosbridge_payload(
             }
 
     if op == "call_service" and service == "/printer/set_enabled":
+        denied = missing_scope("printer", "service_response", service=service, ok=False)
+        if denied is not None:
+            return denied
         args = payload.get("args")
         if isinstance(args, dict):
             printer_name = str(args.get("printer_name", "center"))
@@ -286,6 +327,9 @@ def handle_rosbridge_payload(
             }
 
     if op == "call_service" and service == "/printer/send_command":
+        denied = missing_scope("printer", "service_response", service=service, ok=False)
+        if denied is not None:
+            return denied
         args = payload.get("args")
         if isinstance(args, dict):
             printer_name = str(args.get("printer_name", "center"))
@@ -317,6 +361,9 @@ def handle_rosbridge_payload(
             return {"op": "service_response", "service": service, "ok": ok}
 
     if op == "call_service" and service == "/ln_driver/command_srv":
+        denied = missing_scope("hardware", "service_response", service=service, ok=False)
+        if denied is not None:
+            return denied
         args = payload.get("args")
         if isinstance(args, dict):
             if robot_state.bridge_mode == "virtual_ros2":

@@ -9,7 +9,7 @@ from ..drawing_store import cad_directory as _cad_directory
 from ..drawing_store import drawing_execution_ready, resolve_drawing
 from ..ros_adapter import ros_adapter
 from ..schemas import AgentDrawingPlanRequest, ApiResult, MissionCommand
-from ..security import authenticated_client_id
+from ..security import authenticated_client_id, require_request_scope
 from ..state import robot_state
 from ..tooling import authorize_tool
 from ..mission_ledger import mission_ledger
@@ -169,6 +169,7 @@ def agent_request_execution(command: AgentDrawingPlanRequest) -> dict[str, objec
 
 @router.post("/api/mission/control", response_model=ApiResult)
 def mission(command: MissionCommand, request: Request) -> ApiResult:
+    require_request_scope(request, "mission")
     action = command.action
     client_id = authenticated_client_id(request, command.client_id)
     if command.running is not None:

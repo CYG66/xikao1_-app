@@ -3,13 +3,14 @@ from __future__ import annotations
 import os
 from contextlib import ExitStack, asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .creative_workflow import creative_project_sync
 from .ros_adapter import ros_adapter
 from .discovery import rover_discovery
-from .security import ControlAuthMiddleware, auth_manager
+from .security import AuthError, ControlAuthMiddleware, auth_manager
 from .routers.system import router as system_router
 from .routers.projects import router as projects_router
 from .routers.drawings import router as drawings_router
@@ -40,6 +41,17 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="XLine Rover Backend", version="0.1.0", lifespan=lifespan)
+
+
+@app.exception_handler(AuthError)
+async def _auth_error_response(_request: Request, error: AuthError) -> JSONResponse:
+    """Keep route-level defense-in-depth denials on the same API contract."""
+    return JSONResponse(
+        status_code=error.status_code,
+        content={"ok": False, "code": error.code, "detail": str(error)},
+    )
+
+
 from .web_demo import WebDemoMiddleware
 app.add_middleware(WebDemoMiddleware)
 

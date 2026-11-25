@@ -1,0 +1,384 @@
+{
+  "original": {
+    "schema_version": "cad.construction-interpretation.v1",
+    "is_construction_request": true,
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "steps": [
+        {
+          "step_id": "cap-a",
+          "output_ref": "cap_a",
+          "semantic": {
+            "assembly_id": "capsule",
+            "assembly_label": "胶囊形闭合边界",
+            "object_id": "capsule_outline",
+            "object_type": "drawing_part",
+            "label": "左端向外半圆",
+            "role": "左端帽"
+          },
+          "op": "add_arc",
+          "center": {
+            "x": "-0.64-0.0212*cos(-26*pi/180)",
+            "y": "0.83-0.0212*sin(-26*pi/180)"
+          },
+          "radius": 0.74,
+          "start_angle": -116,
+          "end_angle": 64
+        },
+        {
+          "step_id": "cap-b",
+          "output_ref": "cap_b",
+          "semantic": {
+            "assembly_id": "capsule",
+            "assembly_label": "胶囊形闭合边界",
+            "object_id": "capsule_outline",
+            "object_type": "drawing_part",
+            "label": "右端向外半圆",
+            "role": "右端帽"
+          },
+          "op": "add_arc",
+          "center": {
+            "x": "-0.64+0.0212*cos(-26*pi/180)",
+            "y": "0.83+0.0212*sin(-26*pi/180)"
+          },
+          "radius": 0.74,
+          "start_angle": 64,
+          "end_angle": 244
+        },
+        {
+          "step_id": "edge-top",
+          "output_ref": "edge_top",
+          "semantic": {
+            "assembly_id": "capsule",
+            "assembly_label": "胶囊形闭合边界",
+            "object_id": "capsule_outline",
+            "object_type": "drawing_part",
+            "label": "上侧直边（与两端半圆相切）",
+            "role": "直边"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@cap_a.x+0.74*cos(64*pi/180)",
+            "y": "@cap_a.y+0.74*sin(64*pi/180)"
+          },
+          "end": {
+            "x": "@cap_b.x+0.74*cos(64*pi/180)",
+            "y": "@cap_b.y+0.74*sin(64*pi/180)"
+          }
+        },
+        {
+          "step_id": "edge-bottom",
+          "output_ref": "edge_bottom",
+          "semantic": {
+            "assembly_id": "capsule",
+            "assembly_label": "胶囊形闭合边界",
+            "object_id": "capsule_outline",
+            "object_type": "drawing_part",
+            "label": "下侧直边（与两端半圆相切）",
+            "role": "直边"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@cap_b.x+0.74*cos(244*pi/180)",
+            "y": "@cap_b.y+0.74*sin(244*pi/180)"
+          },
+          "end": {
+            "x": "@cap_a.x+0.74*cos(244*pi/180)",
+            "y": "@cap_a.y+0.74*sin(244*pi/180)"
+          }
+        }
+      ],
+      "shared_points": {
+        "cap_a": {
+          "x": "-0.64-0.0212*cos(-26*pi/180)",
+          "y": "0.83-0.0212*sin(-26*pi/180)"
+        },
+        "cap_b": {
+          "x": "-0.64+0.0212*cos(-26*pi/180)",
+          "y": "0.83+0.0212*sin(-26*pi/180)"
+        }
+      },
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "capsule-closed",
+          "target_ref": "assembly:capsule"
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "capsule-bounds",
+          "target_ref": "assembly:capsule",
+          "width": 5.85,
+          "height": 2.631862,
+          "tolerance": 0.02
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      }
+    },
+    "evidence_text": [
+      "绘制胶囊形闭合边界，中心位于(-64,83)，长轴相对x轴正向逆时针-26度，沿长轴总长572厘米、短轴总高148厘米。两端各为向外半圆，两条直边与半圆相切；两端半径相同，总长含半圆。不添加内部线，坐标单位厘米。只生成预览，不执行小车。"
+    ],
+    "assumptions": [
+      "坐标单位厘米已换算为米：总长5.72m、短轴总高1.48m、半径0.74m、直边长4.24m。",
+      "端帽圆心位于整体中心沿线长轴方向±2.12m处；该偏移与半圆半径共同构成总长5.72m。",
+      "胶囊外轮廓由两段半圆与两段相切直边组成四条独立图元；闭合性通过端点共享与切线关系保证，闭合断言针对整体装配。",
+      "后端可对整体包围盒按实测复核对齐；world bounds不等于沿长轴的5.72m×1.48m，故不添加沿长轴的尺寸断言。"
+    ],
+    "confidence": 0.95
+  },
+  "identity_repair": {
+    "schema_version": "cad.construction-interpretation.v1",
+    "is_construction_request": true,
+    "confidence": 0.95,
+    "evidence_text": [
+      "绘制胶囊形闭合边界，中心位于(-64,83)，长轴相对x轴正向逆时针-26度，沿长轴总长572厘米、短轴总高148厘米。两端各为向外半圆，两条直边与半圆相切；两端半径相同，总长含半圆。不添加内部线，坐标单位厘米。只生成预览，不执行小车。"
+    ],
+    "assumptions": [
+      "采用确定性需求规范化换算：总长572厘米=5.72米，总高148厘米=1.48米；单位按米输出。",
+      "胶囊端帽半径=总高/2=0.74米；直边长度=总长-总高=4.24米；两端帽圆心在局部长轴上距整体中心±2.12米。",
+      "整体围绕给定中心(-0.64,0.83)米旋转-26度；先在局部坐标满足相切与闭合，再整体旋转一次。",
+      "按顺序连接：左半圆帽、上直边、右半圆帽、下直边，组成唯一闭合边界；不添加内部线。"
+    ],
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "shared_points": {
+        "cap_a": {
+          "x": "-0.64+(-2.12)*cos(-26*pi/180)",
+          "y": "0.83+(-2.12)*sin(-26*pi/180)"
+        },
+        "cap_b": {
+          "x": "-0.64+(2.12)*cos(-26*pi/180)",
+          "y": "0.83+(2.12)*sin(-26*pi/180)"
+        }
+      },
+      "steps": [
+        {
+          "step_id": "cap-a",
+          "output_ref": "cap_a",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "capsule",
+            "assembly_label": "胶囊形闭合边界",
+            "object_id": "capsule_cap_left",
+            "object_type": "drawing_part",
+            "label": "左端向外半圆",
+            "role": "左端帽"
+          },
+          "op": "add_arc",
+          "center": {
+            "x": "@cap_a.x",
+            "y": "@cap_a.y"
+          },
+          "radius": 0.74,
+          "start_angle": -116.0,
+          "end_angle": 64.0
+        },
+        {
+          "step_id": "cap-b",
+          "output_ref": "cap_b",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "capsule",
+            "assembly_label": "胶囊形闭合边界",
+            "object_id": "capsule_cap_right",
+            "object_type": "drawing_part",
+            "label": "右端向外半圆",
+            "role": "右端帽"
+          },
+          "op": "add_arc",
+          "center": {
+            "x": "@cap_b.x",
+            "y": "@cap_b.y"
+          },
+          "radius": 0.74,
+          "start_angle": 64.0,
+          "end_angle": 244.0
+        },
+        {
+          "step_id": "edge-top",
+          "output_ref": "edge_top",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "capsule",
+            "assembly_label": "胶囊形闭合边界",
+            "object_id": "capsule_edge_top",
+            "object_type": "drawing_part",
+            "label": "上侧直边（与两端半圆相切）",
+            "role": "直边"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@cap_b.x+0.74*cos(-26*pi/180+64*pi/180)",
+            "y": "@cap_b.y+0.74*sin(-26*pi/180+64*pi/180)"
+          },
+          "end": {
+            "x": "@cap_a.x+0.74*cos(-26*pi/180+64*pi/180)",
+            "y": "@cap_a.y+0.74*sin(-26*pi/180+64*pi/180)"
+          }
+        },
+        {
+          "step_id": "edge-bottom",
+          "output_ref": "edge_bottom",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "capsule",
+            "assembly_label": "胶囊形闭合边界",
+            "object_id": "capsule_edge_bottom",
+            "object_type": "drawing_part",
+            "label": "下侧直边（与两端半圆相切）",
+            "role": "直边"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@cap_a.x+0.74*cos(-26*pi/180+244*pi/180)",
+            "y": "@cap_a.y+0.74*sin(-26*pi/180+244*pi/180)"
+          },
+          "end": {
+            "x": "@cap_b.x+0.74*cos(-26*pi/180+244*pi/180)",
+            "y": "@cap_b.y+0.74*sin(-26*pi/180+244*pi/180)"
+          }
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "capsule-closed",
+          "target_ref": "assembly:capsule"
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    }
+  },
+  "geometry_repair": {
+    "schema_version": "cad.construction-interpretation.v1",
+    "is_construction_request": true,
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "steps": [
+        {
+          "step_id": "cap-a",
+          "output_ref": "cap_a",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "capsule",
+            "assembly_label": "胶囊形闭合边界",
+            "object_id": "capsule_left_cap",
+            "object_type": "drawing_part",
+            "label": "左端向外半圆",
+            "role": "左端帽"
+          },
+          "op": "add_arc",
+          "center": {
+            "x": "-0.64-2.12*cos(-26*pi/180)",
+            "y": "0.83-2.12*sin(-26*pi/180)"
+          },
+          "radius": 0.74,
+          "start_angle": 64.0,
+          "end_angle": 244.0
+        },
+        {
+          "step_id": "cap-b",
+          "output_ref": "cap_b",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "capsule",
+            "assembly_label": "胶囊形闭合边界",
+            "object_id": "capsule_right_cap",
+            "object_type": "drawing_part",
+            "label": "右端向外半圆",
+            "role": "右端帽"
+          },
+          "op": "add_arc",
+          "center": {
+            "x": "-0.64+2.12*cos(-26*pi/180)",
+            "y": "0.83+2.12*sin(-26*pi/180)"
+          },
+          "radius": 0.74,
+          "start_angle": 244.0,
+          "end_angle": 424.0
+        },
+        {
+          "step_id": "edge-top",
+          "output_ref": "edge_top",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "capsule",
+            "assembly_label": "胶囊形闭合边界",
+            "object_id": "capsule_top_edge",
+            "object_type": "drawing_part",
+            "label": "上侧直边（与两端半圆相切）",
+            "role": "直边"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "-0.64+2.12*cos(-26*pi/180)+0.74*cos(64*pi/180)",
+            "y": "0.83+2.12*sin(-26*pi/180)+0.74*sin(64*pi/180)"
+          },
+          "end": {
+            "x": "-0.64-2.12*cos(-26*pi/180)+0.74*cos(64*pi/180)",
+            "y": "0.83-2.12*sin(-26*pi/180)+0.74*sin(64*pi/180)"
+          }
+        },
+        {
+          "step_id": "edge-bottom",
+          "output_ref": "edge_bottom",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "capsule",
+            "assembly_label": "胶囊形闭合边界",
+            "object_id": "capsule_bottom_edge",
+            "object_type": "drawing_part",
+            "label": "下侧直边（与两端半圆相切）",
+            "role": "直边"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "-0.64-2.12*cos(-26*pi/180)+0.74*cos(244*pi/180)",
+            "y": "0.83-2.12*sin(-26*pi/180)+0.74*sin(244*pi/180)"
+          },
+          "end": {
+            "x": "-0.64+2.12*cos(-26*pi/180)+0.74*cos(244*pi/180)",
+            "y": "0.83+2.12*sin(-26*pi/180)+0.74*sin(244*pi/180)"
+          }
+        }
+      ],
+      "constraints": [],
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "capsule-closed",
+          "target_ref": "assembly:capsule"
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "evidence_text": [
+      "绘制胶囊形闭合边界，中心位于(-64,83)，长轴相对x轴正向逆时针-26度，沿长轴总长572厘米、短轴总高148厘米。两端各为向外半圆，两条直边与半圆相切；两端半径相同，总长含半圆。不添加内部线，坐标单位厘米。只生成预览，不执行小车。"
+    ],
+    "assumptions": [
+      "总长5.72米、总高1.48米，端帽半径0.74米，直边长4.24米，两端圆心沿长轴距整体中心±2.12米。",
+      "直边与半圆切点取垂直于长轴方向，半径0.74米；整体绕给定中心(-0.64,0.83)旋转-26度。",
+      "只输出外边界四段并首尾相接成唯一闭合边界，不添加内部线。"
+    ],
+    "confidence": 0.95
+  },
+  "provenance": ".local-dev\\frozen-release-live-_2bif8qt\\run\\holdout\\L2-r2-B"
+}

@@ -23,6 +23,8 @@ def has_compound_primitives(message: str) -> bool:
 
 def local_creation_objects(message: str) -> list[str]:
     source = re.sub(r"^\s*新建\s*CAD\s*图纸[：:]\s*", "", message.strip(), flags=re.I)
+    # Inverted construction grammar still declares a new local object.
+    source = re.sub(r'^(?:请)?以\s*[（(][^()（）]+[）)]\s*为(?:圆心|中心)作', '画', source)
     # Do not split a creation sentence at the comma inside a coordinate pair,
     # e.g. ``画一条线段从(0,0)到(5,3)``.  The old first-comma split reduced the
     # head to ``画一条线段从(0`` and made the deterministic route believe that
@@ -57,3 +59,30 @@ def has_local_plural_reference(message: str) -> bool:
     # this sentence. Mixed old/new targets still need historical resolution.
     return (len(objects) >= 2 and "它们" in message
             and not re.search(r"刚才|之前|上一|这个|那个|已有|原有|当前的", message))
+
+
+def historical_reference_text(message: str) -> str:
+    """Mask only singular references with one explicit local antecedent.
+
+    Return text for reference detection, never rewrite the user's source.
+    Historical and mixed-scope references remain available to memory lookup.
+    """
+    objects = local_creation_objects(message)
+    if len(objects) != 1:
+        return message
+    name = objects[0]
+    # Only an exact noun (not an arbitrary substring of a description) binds.
+    if not re.fullmatch(r'[\w\u4e00-\u9fff]{1,24}', name):
+        return message
+    nouns = {name}
+    if name == '圆形':
+        nouns.add('圆')
+    if name == '圆':
+        nouns.add('圆形')
+    # A reference has to occur after the creation declaration, separated by a
+    # clause boundary. A historical qualifier still triggers normal lookup.
+    cut = min((i for i, c in enumerate(message) if c in '，,。；;'), default=len(message))
+    head, tail = message[:cut], message[cut:]
+    tail = re.sub(r'这个(?:' + '|'.join(map(re.escape, sorted(nouns, key=len, reverse=True)))
+                  + r')(?=$|[，,。；;\s]|的|放|移|改|不|并|且)', '本句对象', tail)
+    return head + tail

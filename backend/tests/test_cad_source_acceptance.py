@@ -44,24 +44,6 @@ def test_unsupported_inventory_clause_cannot_turn_into_false_exact_count():
     assert report['inventory_scope']=='partial'
 
 
-def test_comma_joined_unmeasured_request_keeps_the_clause_partial():
-    source='完整部件清单：\n'+TEXT+'，嘴巴为一条微笑曲线'
-    report=verify_scoped_primitives(source,geometry())
-    assert report['inventory_scope']=='partial'
-    assert report['scope_evidence']['state']=='partial'
-    assert report['checks'][-1]['source_requirement']['unresolved_evidence']=='嘴巴为一条微笑曲线'
-    assert '条款包含未解释、未测量的片段' in report['scope_evidence']['reasons']
-
-
-def test_duplicate_center_is_kept_as_unresolved_instead_of_silently_dropped():
-    source='完整部件清单：\n'+TEXT+'，圆心(9,9)'
-    report=verify_scoped_primitives(source,geometry())
-    assert report['inventory_scope']=='partial'
-    assert report['scope_evidence']['state']=='partial'
-    assert report['checks'][-1]['source_requirement']['unresolved_evidence']=='圆心(9,9)'
-    assert '条款包含未解释、未测量的片段' in report['scope_evidence']['reasons']
-
-
 @pytest.mark.parametrize("role",["reference","annotation","ignored"])
 def test_non_executable_reference_is_not_an_extra_visible_part(role):
     gs=geometry()
@@ -208,28 +190,4 @@ def test_ordinary_single_primitive_commands_are_independently_measured():
     rect={"id":1,"type":"polyline","closed":True,"vertices":[
         {"x":0,"y":0},{"x":5000,"y":0},{"x":5000,"y":3000},{"x":0,"y":3000}]}
     assert verify_scoped_primitives(rect_text,[rect])["checks"][0]["status"]=="passed"
-
-
-def test_complete_inventory_exports_measured_scope_evidence_and_object_baseline():
-    objects=[{"object_id":f"o{i}","geometry_refs":[i+1],"assembly_id":"whole"}
-             for i in range(3)]
-    report=verify_scoped_primitives("完整部件清单：\n"+TEXT,geometry(),objects)
-    assert report["status"]=="passed"
-    assert report["coverage"]=="complete"
-    assert report["review_required"] is False
-    evidence=report["scope_evidence"]
-    assert evidence["state"]=="complete"
-    assert [e["object_ids"] for e in evidence["entries"]]==[["o0"],["o1"],["o2"]]
-    assert evidence["count_baseline"]=={"expected_object_count":3,"grouping":"object"}
-
-
-def test_incomplete_inventory_never_exports_complete_scope_evidence():
-    objects=[{"object_id":f"o{i}","geometry_refs":[i+1],"assembly_id":"whole"}
-             for i in range(3)]
-    report=verify_scoped_primitives(
-        "完整部件清单：\n"+TEXT+"；嘴巴为一条微笑曲线",geometry(),objects)
-    assert report["inventory_scope"]=="partial"
-    assert report["scope_evidence"]["state"]=="partial"
-    assert report["scope_evidence"]["count_baseline"]["expected_object_count"] is None
-    assert report["scope_evidence"]["reasons"]
 

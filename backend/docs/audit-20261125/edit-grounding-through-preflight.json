@@ -1,0 +1,183 @@
+{
+  "scope": "Offline public adapter/executor/preflight only; HTTP/store delivery not established",
+  "source": "将第1个图形向右移动1米，并向上移动2米。",
+  "parsed_edit": {
+    "operation": "translate",
+    "instance": 1,
+    "dx_mm": 2000.0,
+    "dy_mm": 1000.0,
+    "coordinate_frame": "drawing",
+    "assumptions": [],
+    "constraints": [],
+    "missing_parameters": [],
+    "auto_decisions": [],
+    "intent_schema": "cad.edit-intent.v1",
+    "intent_parser": "model_structured_fallback",
+    "intent_evidence_text": [
+      "将第1个图形向右移动1米，并向上移动2米。"
+    ],
+    "intent_grounding": {
+      "verified": true,
+      "checks": [
+        {
+          "claim": "target.resolved",
+          "verified": true,
+          "observed": "instance"
+        },
+        {
+          "claim": "target.instance_ids",
+          "verified": true,
+          "observed": [
+            1
+          ]
+        },
+        {
+          "claim": "parameters.translation_distance",
+          "verified": true,
+          "observed": [
+            1000.0,
+            2000.0
+          ]
+        },
+        {
+          "claim": "parameters.translation_direction",
+          "verified": true,
+          "observed": {
+            "dx_mm": 2000.0,
+            "dy_mm": 1000.0
+          }
+        }
+      ],
+      "failures": []
+    },
+    "intent_confidence": 0.99,
+    "project_id": "audit-project",
+    "parent_variant_id": "audit-parent",
+    "target_resolution": {
+      "status": "resolved",
+      "scope": "instance",
+      "instance_ids": [
+        1
+      ],
+      "reason": "explicit_instance_ids",
+      "confidence": 1.0,
+      "scoring": {
+        "schema": "cad.target-score.v1",
+        "decision": "authoritative",
+        "minimum_score": 0.7,
+        "minimum_margin": 0.15,
+        "winner_score": 1.0,
+        "runner_up_score": null,
+        "margin": 1.0,
+        "candidates": [
+          {
+            "instance_id": 1,
+            "score": 1.0,
+            "evidence": [
+              {
+                "kind": "explicit_id",
+                "score": 1.0
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "contract": {
+    "schema": "cad.edit.v2",
+    "operation": "translate",
+    "target": {
+      "scope": "instance",
+      "instance_ids": [
+        1
+      ],
+      "geometry_ids": []
+    },
+    "coordinate_frame": "drawing",
+    "parameters": {
+      "dx_mm": 2000.0,
+      "dy_mm": 1000.0,
+      "shared_geometry_ids": [],
+      "created_geometry_ids": [],
+      "created_object_ids": [],
+      "relative_positions": []
+    },
+    "source_text": "将第1个图形向右移动1米，并向上移动2米。",
+    "assumptions": [],
+    "intent_schema": "cad.edit-intent.v1",
+    "intent_parser": "model_structured_fallback",
+    "intent_evidence_text": [
+      "将第1个图形向右移动1米，并向上移动2米。"
+    ],
+    "intent_confidence": 0.99,
+    "intent_grounding": {
+      "verified": true,
+      "checks": [
+        {
+          "claim": "target.resolved",
+          "verified": true,
+          "observed": "instance"
+        },
+        {
+          "claim": "target.instance_ids",
+          "verified": true,
+          "observed": [
+            1
+          ]
+        },
+        {
+          "claim": "parameters.translation_distance",
+          "verified": true,
+          "observed": [
+            1000.0,
+            2000.0
+          ]
+        },
+        {
+          "claim": "parameters.translation_direction",
+          "verified": true,
+          "observed": {
+            "dx_mm": 2000.0,
+            "dy_mm": 1000.0
+          }
+        }
+      ],
+      "failures": []
+    },
+    "constraints": [],
+    "missing_parameters": [],
+    "auto_decisions": [],
+    "chain_steps": [],
+    "project_id": "audit-project",
+    "parent_variant_id": "audit-parent",
+    "execution_identity": {}
+  },
+  "candidate": [
+    {
+      "id": 1,
+      "type": "circle",
+      "center": {
+        "x": 2000.0,
+        "y": 1000.0
+      },
+      "radius": 100,
+      "template_instance": 1,
+      "template_type": "circle"
+    }
+  ],
+  "error": null,
+  "preflight_ready": true,
+  "effect_validation": {
+    "enforced": true,
+    "verified": true,
+    "reason": null,
+    "message": "实际几何结果与声明的修改参数完全一致。",
+    "operation": "translate",
+    "expected_fingerprint": "9cceb9f8712a1eb953a2c402d61dfed78a7318b270bf6369d226c9fed8776ff4",
+    "actual_fingerprint": "9cceb9f8712a1eb953a2c402d61dfed78a7318b270bf6369d226c9fed8776ff4",
+    "mismatched_geometry_ids": [],
+    "missing_geometry_ids": [],
+    "unexpected_geometry_ids": []
+  }
+}

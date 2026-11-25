@@ -1,19 +1,14 @@
 from __future__ import annotations
 
 import json
-from copy import deepcopy
+import uuid
 
 from fastapi import APIRouter, Body
 
 from ..agent_service import robot_agent
 from ..agent_skills import check_drawing_feasibility, layer_drawing_paths
 from ..creative_projects import get_creative_project_store
-from ..cad_candidate_state import (
-    accepted_project_view,
-    candidate_is_accepted,
-    candidate_is_reviewable_draft,
-    geometry_evidence_hash,
-)
+from ..cad_candidate_state import accepted_project_view, candidate_is_accepted
 from ..cad_edit_session import binding_key, pending_binding, selection_binding
 from ..conversation_memory import conversation_memory
 from ..creative_workflow import (
@@ -31,7 +26,7 @@ from ..creative_workflow import (
 )
 from ..database import xline_database
 from ..drawing_store import cad_directory as _cad_directory
-from ..drawing_store import geometry_preview_paths, resolve_drawing
+from ..drawing_store import resolve_drawing
 from ..drawing_versions import drawing_versions
 from ..ros_adapter import ros_adapter
 from ..schemas import (
@@ -219,115 +214,12 @@ def creative_project_timeline(project_id: str) -> dict[str, object]:
     }
 
 
-def _is_candidate_tool(tool: object) -> bool:
-    return isinstance(tool, dict) and (
-        tool.get("kind") == "candidate_commit"
-        or tool.get("name") == "persist_candidate_variant"
-    )
-
-
-def _drop_candidate_tools(result: dict[str, object]) -> dict[str, object]:
-    """Keep non-candidate tool output; never expose a draft through tool_results."""
-    output = dict(result)
-    tools = output.get("tool_results")
-    if isinstance(tools, list):
-        output["tool_results"] = [tool for tool in tools if not _is_candidate_tool(tool)]
-    tool = output.get("tool_result")
-    if _is_candidate_tool(tool):
-        output.pop("tool_result", None)
-    return output
-
-
-def _project_candidate_response(result: dict[str, object]) -> dict[str, object]:
-    """Apply the accepted-candidate view at the project-toolbar HTTP boundary.
-
-    The toolbar route has no agent-run id, so it cannot use the chat run-bound
-    gate.  It still uses the same candidate state and draft-preview protocol.
-    """
-    if not isinstance(result, dict):
-        return result
-    output = dict(result)
-    project = output.get("project")
-    project_view = accepted_project_view(project) if isinstance(project, dict) else project
-    output["project"] = project_view
-    variant = output.get("variant")
-    project_variants = (
-        project_view.get("variants")
-        if isinstance(project_view, dict) and isinstance(project_view.get("variants"), list)
-        else []
-    )
-    accepted_ids = {str(item.get("id")) for item in project_variants if isinstance(item, dict)}
-    variant_id = str((variant or {}).get("id") or "") if isinstance(variant, dict) else ""
-    if (isinstance(variant, dict) and candidate_is_accepted(variant)
-            and variant_id and variant_id in accepted_ids):
-        output["variants"] = list(project_variants)
-        output["candidate_visibility"] = {"status": "visible", "scope": "project"}
-        return output
-    if isinstance(variant, dict) and candidate_is_reviewable_draft(variant):
-        draft = {
-            "status": "review_required",
-            "project_id": str(output.get("project_id") or (project_view or {}).get("id") or ""),
-            "variant_id": variant_id,
-            "geometry_hash": geometry_evidence_hash(variant.get("geometries") or []),
-            "preview_paths": geometry_preview_paths({"lines": variant.get("geometries") or []}),
-            "acceptance_summary": deepcopy(variant.get("acceptance_summary") or {}),
-            "selectable": False,
-            "construction_authorized": False,
-        }
-        output = _drop_candidate_tools(output)
-        output.update({
-            "ok": True,
-            "variant": None,
-            "variants": list(project_variants),
-            "preview_paths": [],
-            "drawing_json": None,
-            "project": project_view,
-            "draft_preview": draft,
-            "candidate_visibility": {"status": "draft_review", "scope": "project"},
-            "acceptance_summary": deepcopy(variant.get("acceptance_summary") or {}),
-            "construction_commit": None,
-            "next_action": "review_cad_draft",
-            "message": "CAD草稿待复核：未通过需求自动验收，不可选择为正式候选或用于施工。",
-        })
-        return output
-    if not isinstance(variant, dict):
-        output = _drop_candidate_tools(output)
-        output.update({
-            "variant": None,
-            "variants": [],
-            "preview_paths": [],
-            "drawing_json": None,
-            "construction_commit": None,
-        })
-        if output.get("next_action") == "select_design_variant":
-            output["ok"] = False
-            output["next_action"] = "review_acceptance"
-            output["message"] = "候选尚未通过几何验收，暂不展示。已保留需求，请重新生成。"
-        return output
-    output = _drop_candidate_tools(output)
-    output.update({
-        "ok": False,
-        "variant": None,
-        "variants": [],
-        "preview_paths": [],
-        "drawing_json": None,
-        "project": {**project_view, "variants": []} if isinstance(project_view, dict) else project_view,
-        "candidate_visibility": {
-            "status": "hidden",
-            "scope": "project",
-            "reason": ["acceptance_summary.status_not_passed"],
-        },
-        "construction_commit": None,
-        "next_action": "review_acceptance",
-        "message": "候选尚未通过几何验收，暂不展示。已保留需求，请重新生成。",
-    })
-    return output
-
-
 @router.post("/api/agent/projects/{project_id}/generate-candidate")
 def generate_creative_project_candidate(project_id: str) -> dict[str, object]:
     result=robot_agent.generate_project_candidate(project_id)
-    return _project_candidate_response(result) if isinstance(result, dict) else result
+    if isinstance(result,dict) and isinstance(result.get('project'),dict):
+        result={**result,'project':accepted_project_view(result['project'])}
+    return result
 
 
 @router.patch("/api/agent/projects/{project_id}")
@@ -377,7 +269,8 @@ def save_candidate_drawing(
     if not feasibility.get("ok"):
         return {"ok": False, "message": "候选未通过保存检查", "feasibility": feasibility}
     digest = hashlib.sha256(json.dumps(geometries, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
-    operation_id = f"save-candidate:{project_id}:{variant_id}:{digest}"
+    operation_id = (f"save-copy:{project_id}:{variant_id}:{command.request_id}:{digest}"
+                    if command.save_as else f"save-candidate:{project_id}:{variant_id}:{digest}")
     previous = drawing_versions.find_by_operation_id(operation_id)
     if previous:
         project_store.record_saved_drawing(project_id, variant_id, previous)
@@ -389,7 +282,10 @@ def save_candidate_drawing(
     try:
         version = drawing_versions.save_project_candidate(
             _cad_directory(), name, payload, "candidate_save", "保存候选方案",
-            {"operation_id": operation_id, "source_variant_id": variant_id},
+            {"operation_id": operation_id, "source_variant_id": variant_id,
+             "save_as": command.save_as,
+             **({"drawing_id": str(uuid.uuid5(uuid.NAMESPACE_URL, operation_id))}
+                if command.save_as else {})},
             project_store=project_store, project_id=project_id, variant_id=variant_id,
         )
     except DuplicateDrawingOperationError as exc:

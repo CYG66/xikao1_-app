@@ -2,18 +2,10 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 import threading
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
-
-from .integration_profile import (
-    ISOLATION_ROOT_ENV,
-    IntegrationProfileError,
-    integration_profile_enabled,
-)
-from .startup_guard import assert_startup_admitted
 
 
 class UserModelConfigStore:
@@ -24,20 +16,6 @@ class UserModelConfigStore:
     """
 
     def __init__(self, path: Path | None = None) -> None:
-        assert_startup_admitted()
-        profile_enabled = integration_profile_enabled()
-        if profile_enabled:
-            # Integration verification must not read the production user store
-            # or inherit its historical provider credentials.  An explicitly
-            # injected path is treated as test-owned isolation input.
-            root = os.getenv(ISOLATION_ROOT_ENV, "").strip()
-            base = Path(root) if root else Path(tempfile.gettempdir()) / "xline-agent"
-            self.path = path or (base / "xline-agent-users.json")
-            self._lock = threading.RLock()
-            self._profiles: dict[str, dict[str, Any]] = {}
-            if path is not None:
-                self._load()
-            return
         configured = os.getenv("XLINE_AGENT_USER_CONFIG_PATH", "").strip()
         self.path = path or Path(configured or (Path.home() / ".config" / "xline-agent-users.json"))
         self._lock = threading.RLock()
@@ -76,10 +54,6 @@ class UserModelConfigStore:
         clear_api_key: bool = False,
         cad_planning_model: str | None = None,
     ) -> dict[str, Any]:
-        if integration_profile_enabled():
-            raise IntegrationProfileError(
-                "集成验证 profile 禁止修改用户级模型配置"
-            )
         with self._lock:
             profile = self._profiles.setdefault(owner_id, {"api_keys": {}})
             profile["mode"] = mode

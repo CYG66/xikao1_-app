@@ -1,0 +1,364 @@
+[
+  {
+    "case": "C5",
+    "source": "生成一个正五边形，外接圆半径1.5米\n正五边形，外接圆半径1.5米。",
+    "original": "生成一个正五边形，外接圆半径1.5米",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "pentagon.outline",
+          "output_ref": "pentagon_outline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "regular_pentagon",
+            "assembly_label": "正五边形",
+            "object_id": "pentagon.outline",
+            "object_type": "drawing_part",
+            "label": "正五边形外轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 9.184850993605148e-17,
+              "y": 1.5
+            },
+            {
+              "x": -1.4265847744427302,
+              "y": 0.4635254915624213
+            },
+            {
+              "x": -0.8816778784387098,
+              "y": -1.213525491562421
+            },
+            {
+              "x": 0.8816778784387094,
+              "y": -1.2135254915624214
+            },
+            {
+              "x": 1.4265847744427305,
+              "y": 0.46352549156242073
+            }
+          ],
+          "closed": true
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "pentagon_closed",
+          "target_ref": "pentagon_outline"
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "pentagon_entity_count",
+          "target_ref": null,
+          "equals": 1
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": "C:\\Users\\29924\\Codes\\cad-eval-20261117\\run\\C5\\step-3.json.variants[0].construction_record.plan"
+  },
+  {
+    "case": "C13",
+    "source": "生成一个正六边形，边长1米\n正六边形，边长1米，中心(0,0)，坐标单位米。",
+    "original": "生成一个正六边形，边长1米",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "hexagon.main",
+          "output_ref": "regular_hexagon",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "regular_hexagon",
+            "assembly_label": "正六边形",
+            "object_id": "hexagon_outline",
+            "object_type": "closed_outline",
+            "label": "正六边形外轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 0.5,
+              "y": 0.0
+            },
+            {
+              "x": 0.25,
+              "y": 0.4330127018922193
+            },
+            {
+              "x": -0.25,
+              "y": 0.4330127018922193
+            },
+            {
+              "x": -0.5,
+              "y": 0.0
+            },
+            {
+              "x": -0.25,
+              "y": -0.4330127018922193
+            },
+            {
+              "x": 0.25,
+              "y": -0.4330127018922193
+            }
+          ],
+          "closed": true
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "hexagon_closed",
+          "target_ref": "regular_hexagon"
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "hexagon_entity_count",
+          "target_ref": null,
+          "equals": 1
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "hexagon_bounds",
+          "target_ref": "regular_hexagon",
+          "width": 1.0,
+          "height": 0.8660254037844386,
+          "tolerance": 0.001
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": "C:\\Users\\29924\\Codes\\cad-eval-20261117\\run\\C13\\step-2.json.project.variants[0].construction_record.plan"
+  },
+  {
+    "case": "C29",
+    "source": "画一个回字形（嵌套正方形），外框边长3米，内框边长2米，内框居中",
+    "original": "画一个回字形（嵌套正方形），外框边长3米，内框边长2米，内框居中",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "outer-square",
+          "output_ref": "outer_square",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "hui_frame",
+            "assembly_label": "回字形",
+            "object_id": "outer_square",
+            "object_type": "closed_profile",
+            "label": "外框正方形边长3米",
+            "role": "outer_frame"
+          },
+          "op": "add_centered_rectangle",
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "width": 3.0,
+          "height": 3.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "step_id": "inner-square",
+          "output_ref": "inner_square",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "hui_frame",
+            "assembly_label": "回字形",
+            "object_id": "inner_square",
+            "object_type": "closed_profile",
+            "label": "内框正方形边长2米居中",
+            "role": "inner_frame"
+          },
+          "op": "add_centered_rectangle",
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "width": 2.0,
+          "height": 2.0,
+          "rotation_deg": 0.0
+        }
+      ],
+      "constraints": [
+        {
+          "constraint_id": "concentric-frames",
+          "target_ref": "inner_square",
+          "reference_ref": "outer_square",
+          "tolerance": 0.001,
+          "kind": "concentric"
+        }
+      ],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "bounds_size",
+          "assertion_id": "outer-bounds",
+          "target_ref": "outer_square",
+          "width": 3.0,
+          "height": 3.0,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "inner-bounds",
+          "target_ref": "inner_square",
+          "width": 2.0,
+          "height": 2.0,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "outer-closed",
+          "target_ref": "outer_square"
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "inner-closed",
+          "target_ref": "inner_square"
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": "C:\\Users\\29924\\Codes\\cad-eval-20261117\\run\\C29\\step-2.json.construction_commit.recovery.attempts[0].plan"
+  },
+  {
+    "case": "C32",
+    "source": "画一个六角螺母轮廓，外六角外接圆半径1.5米，中心圆孔半径0.8米",
+    "original": "画一个六角螺母轮廓，外六角外接圆半径1.5米，中心圆孔半径0.8米",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "step.hex.outline",
+          "output_ref": "hex_nut.outer_hex",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "hex_nut",
+            "assembly_label": "六角螺母轮廓",
+            "object_id": "hex_nut.outer_hex",
+            "object_type": "outline",
+            "label": "外六角轮廓（外接圆半径1.5米）",
+            "role": "outer_boundary"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 1.5,
+              "y": 0.0
+            },
+            {
+              "x": 0.75,
+              "y": 1.299038105677
+            },
+            {
+              "x": -0.75,
+              "y": 1.299038105677
+            },
+            {
+              "x": -1.5,
+              "y": 0.0
+            },
+            {
+              "x": -0.75,
+              "y": -1.299038105677
+            },
+            {
+              "x": 0.75,
+              "y": -1.299038105677
+            }
+          ],
+          "closed": true
+        },
+        {
+          "step_id": "step.hex.hole",
+          "output_ref": "hex_nut.center_hole",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "hex_nut",
+            "assembly_label": "六角螺母轮廓",
+            "object_id": "hex_nut.center_hole",
+            "object_type": "hole",
+            "label": "中心圆孔（半径0.8米）",
+            "role": "inner_boundary"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 0.8
+        }
+      ],
+      "constraints": [
+        {
+          "constraint_id": "con.center",
+          "target_ref": "hex_nut.center_hole",
+          "reference_ref": "hex_nut.outer_hex",
+          "tolerance": 0.001,
+          "kind": "concentric"
+        }
+      ],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "assert.outer.closed",
+          "target_ref": "hex_nut.outer_hex"
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "assert.hole.closed",
+          "target_ref": "hex_nut.center_hole"
+        },
+        {
+          "kind": "center_distance",
+          "assertion_id": "assert.concentric",
+          "target_ref": "hex_nut.center_hole",
+          "reference_ref": "hex_nut.outer_hex",
+          "distance": 0.0,
+          "tolerance": 0.001
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": "C:\\Users\\29924\\Codes\\cad-eval-20261117\\run\\C32\\step-2.json.construction_commit.recovery.attempts[0].plan"
+  }
+]

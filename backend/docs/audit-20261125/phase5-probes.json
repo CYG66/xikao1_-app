@@ -1,0 +1,1052 @@
+{
+  "scope": "Actual deterministic edit, graph evolution, revision, target resolver and partition functions. No HTTP finalization, candidate store, model or hardware calls.",
+  "copy_bounds": {
+    "executor_ok": true,
+    "error": null,
+    "contract": {
+      "schema": "cad.edit.v2",
+      "operation": "duplicate",
+      "target": {
+        "scope": "geometry",
+        "instance_ids": [],
+        "geometry_ids": [
+          1
+        ]
+      },
+      "coordinate_frame": "drawing",
+      "parameters": {
+        "direction": "右",
+        "distance_mm": 3000.0,
+        "placement": "offset",
+        "shared_geometry_ids": [],
+        "created_geometry_ids": [
+          2
+        ],
+        "created_object_ids": [],
+        "relative_positions": []
+      },
+      "assumptions": [],
+      "intent_evidence_text": [],
+      "intent_grounding": {},
+      "constraints": [],
+      "missing_parameters": [],
+      "auto_decisions": [],
+      "chain_steps": [],
+      "execution_identity": {
+        "source_hash": "8242acec700f593c997b12b75644a93b274cae7b755ed84358b5be0c5cca1b1f",
+        "result_hash": "ab36de39de922dc0707a5844bf514fc727567e6187056d515e9df4346ad23b14",
+        "members": [
+          {
+            "operation_id": "410e141beba3363b77942be1e9742ec2684e8150165ff9e7590f89de716537c1",
+            "operation": "duplicate",
+            "source_geometry_id": 1,
+            "geometry_id": 2
+          }
+        ]
+      }
+    },
+    "target": [
+      {
+        "id": 1,
+        "type": "circle",
+        "layer_id": 1,
+        "template_instance": 1,
+        "center": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "radius": 500
+      },
+      {
+        "id": 2,
+        "type": "circle",
+        "layer_id": 1,
+        "template_instance": 1,
+        "center": {
+          "x": 3000.0,
+          "y": 0.0,
+          "z": 0
+        },
+        "radius": 500
+      }
+    ],
+    "objects": [
+      {
+        "object_id": "circle-1",
+        "object_type": "circle",
+        "label": "圆形",
+        "geometry_refs": [
+          1
+        ],
+        "bounds": {
+          "min_x": -500,
+          "max_x": 500,
+          "min_y": -500,
+          "max_y": 500
+        },
+        "assembly_id": "drawing",
+        "assembly_label": "图形",
+        "confirmed": true,
+        "identity_key": "circle-1"
+      },
+      {
+        "object_id": "circle-1.copy.2",
+        "object_type": "circle",
+        "label": "圆形 副本",
+        "geometry_refs": [
+          2
+        ],
+        "bounds": {
+          "min_x": -500,
+          "max_x": 500,
+          "min_y": -500,
+          "max_y": 500
+        },
+        "assembly_id": "drawing.copy.2",
+        "assembly_label": "图形 副本",
+        "confirmed": true,
+        "identity_key": "circle-1.copy.2",
+        "derived_from_object_id": "circle-1"
+      }
+    ],
+    "topology": {
+      "schema_version": "cad.topology.v1",
+      "shared_geometries": [],
+      "relations": []
+    },
+    "graph_validation": {
+      "schema": "cad.logical-validation.v1",
+      "verified": true,
+      "errors": [],
+      "object_count": 2,
+      "shared_geometry_count": 0,
+      "relation_count": 0,
+      "fingerprint": "7bf25018d665718783d5c01a4c1094e7a415aae6d98ec07036566995327288ae"
+    },
+    "revision_status": "verified",
+    "revision_logical_validation": {
+      "schema": "cad.logical-continuity.v1",
+      "verified": true,
+      "errors": [],
+      "source_validation": {
+        "schema": "cad.logical-validation.v1",
+        "verified": true,
+        "errors": [],
+        "object_count": 1,
+        "shared_geometry_count": 0,
+        "relation_count": 0,
+        "fingerprint": "1b5c032e7cf1bd7c263532f6afeddab646412f64e7729a4815ef8e56fc699136"
+      },
+      "target_validation": {
+        "schema": "cad.logical-validation.v1",
+        "verified": true,
+        "errors": [],
+        "object_count": 2,
+        "shared_geometry_count": 0,
+        "relation_count": 0,
+        "fingerprint": "7bf25018d665718783d5c01a4c1094e7a415aae6d98ec07036566995327288ae"
+      },
+      "diff": {
+        "schema": "cad.logical-diff.v1",
+        "added_object_ids": [
+          "circle-1.copy.2"
+        ],
+        "removed_object_ids": [],
+        "modified_object_ids": [],
+        "shared_geometry_changes": [],
+        "added_relations": [],
+        "removed_relations": []
+      }
+    },
+    "source_inputs_unchanged": true,
+    "actual_copy_bounds_mm": {
+      "min_x": 2500.0,
+      "min_y": -500.0,
+      "max_x": 3500.0,
+      "max_y": 500.0
+    },
+    "rightmost_resolution": {
+      "status": "needs_clarification",
+      "reason": "equal_logical_position",
+      "question": "多个对象位置相同，请在右侧画布点选目标。",
+      "candidate_object_ids": [
+        "circle-1",
+        "circle-1.copy.2"
+      ],
+      "confidence": 0.0,
+      "scoring": {
+        "schema": "cad.target-score.v1",
+        "decision": "clarify",
+        "minimum_score": 0.7,
+        "minimum_margin": 0.15,
+        "winner_score": 0.5,
+        "runner_up_score": 0.5,
+        "margin": 0.0,
+        "selection_count": 1,
+        "candidates": [
+          {
+            "object_id": "circle-1",
+            "score": 0.5,
+            "evidence": [
+              {
+                "kind": "spatial_position",
+                "position": "right",
+                "coordinate": 0.0,
+                "drawing_span": 1000.0,
+                "score": 0.5
+              }
+            ]
+          },
+          {
+            "object_id": "circle-1.copy.2",
+            "score": 0.5,
+            "evidence": [
+              {
+                "kind": "spatial_position",
+                "position": "right",
+                "coordinate": 0.0,
+                "drawing_span": 1000.0,
+                "score": 0.5
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "delete_bounds": {
+    "executor_ok": true,
+    "error": null,
+    "contract": {
+      "schema": "cad.edit.v2",
+      "operation": "delete",
+      "target": {
+        "scope": "geometry",
+        "instance_ids": [],
+        "geometry_ids": [
+          2
+        ]
+      },
+      "coordinate_frame": "drawing",
+      "parameters": {
+        "shared_geometry_ids": [],
+        "created_geometry_ids": [],
+        "created_object_ids": [],
+        "relative_positions": []
+      },
+      "assumptions": [],
+      "intent_evidence_text": [],
+      "intent_grounding": {},
+      "constraints": [],
+      "missing_parameters": [],
+      "auto_decisions": [],
+      "chain_steps": [],
+      "execution_identity": {}
+    },
+    "target": [
+      {
+        "id": 1,
+        "type": "polyline",
+        "closed": true,
+        "layer_id": 1,
+        "template_instance": 1,
+        "vertices": [
+          {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          {
+            "x": 1000,
+            "y": 0,
+            "z": 0
+          },
+          {
+            "x": 1000,
+            "y": 1000,
+            "z": 0
+          },
+          {
+            "x": 0,
+            "y": 1000,
+            "z": 0
+          }
+        ]
+      }
+    ],
+    "objects": [
+      {
+        "object_id": "pair",
+        "object_type": "drawing",
+        "label": "组合",
+        "geometry_refs": [
+          1
+        ],
+        "confirmed": true,
+        "bounds": {
+          "min_x": 0,
+          "max_x": 4000,
+          "min_y": 0,
+          "max_y": 1000
+        },
+        "identity_key": "pair"
+      }
+    ],
+    "topology": {
+      "schema_version": "cad.topology.v1",
+      "shared_geometries": [],
+      "relations": []
+    },
+    "graph_validation": {
+      "schema": "cad.logical-validation.v1",
+      "verified": true,
+      "errors": [],
+      "object_count": 1,
+      "shared_geometry_count": 0,
+      "relation_count": 0,
+      "fingerprint": "fd6ac8453e48ba4bf9aa1bf0617ac367476cb11cbe940d11a662d23bf6e09fee"
+    },
+    "revision_status": "verified",
+    "revision_logical_validation": {
+      "schema": "cad.logical-continuity.v1",
+      "verified": true,
+      "errors": [],
+      "source_validation": {
+        "schema": "cad.logical-validation.v1",
+        "verified": true,
+        "errors": [],
+        "object_count": 1,
+        "shared_geometry_count": 0,
+        "relation_count": 0,
+        "fingerprint": "b9b4cf6438d492bab035554fa1a81d653ce06d791334903c0f3d7e59de9b3b91"
+      },
+      "target_validation": {
+        "schema": "cad.logical-validation.v1",
+        "verified": true,
+        "errors": [],
+        "object_count": 1,
+        "shared_geometry_count": 0,
+        "relation_count": 0,
+        "fingerprint": "fd6ac8453e48ba4bf9aa1bf0617ac367476cb11cbe940d11a662d23bf6e09fee"
+      },
+      "diff": {
+        "schema": "cad.logical-diff.v1",
+        "added_object_ids": [],
+        "removed_object_ids": [],
+        "modified_object_ids": [
+          "pair"
+        ],
+        "shared_geometry_changes": [],
+        "added_relations": [],
+        "removed_relations": []
+      }
+    },
+    "source_inputs_unchanged": true,
+    "actual_remaining_bounds_mm": {
+      "min_x": 0.0,
+      "min_y": 0.0,
+      "max_x": 1000.0,
+      "max_y": 1000.0
+    }
+  },
+  "shared_boundary_copy": [
+    {
+      "scope": "instance",
+      "executor_ok": true,
+      "error": null,
+      "contract": {
+        "schema": "cad.edit.v2",
+        "operation": "duplicate",
+        "target": {
+          "scope": "instance",
+          "instance_ids": [
+            1
+          ],
+          "geometry_ids": []
+        },
+        "coordinate_frame": "drawing",
+        "parameters": {
+          "direction": "右",
+          "distance_mm": 4000.0,
+          "placement": "offset",
+          "shared_geometry_ids": [],
+          "created_geometry_ids": [],
+          "created_object_ids": [],
+          "relative_positions": []
+        },
+        "created_instance_id": 2,
+        "assumptions": [],
+        "intent_evidence_text": [],
+        "intent_grounding": {},
+        "constraints": [],
+        "missing_parameters": [],
+        "auto_decisions": [],
+        "chain_steps": [],
+        "execution_identity": {
+          "source_hash": "811bc38e0559299525db228e8044c10617b052cde7ba3e218bda0062259ccee1",
+          "result_hash": "52f3c04f228218c8d1682f6b8fb076dc0004787988ac2b6dc3a852296307d161",
+          "members": [
+            {
+              "operation_id": "faa2315675fafca2cab39e49c56cae5c6d2728bca5ba3e899be7f69bd66cb413",
+              "operation": "duplicate",
+              "source_geometry_id": 1,
+              "geometry_id": 4
+            },
+            {
+              "operation_id": "faa2315675fafca2cab39e49c56cae5c6d2728bca5ba3e899be7f69bd66cb413",
+              "operation": "duplicate",
+              "source_geometry_id": 2,
+              "geometry_id": 5
+            },
+            {
+              "operation_id": "faa2315675fafca2cab39e49c56cae5c6d2728bca5ba3e899be7f69bd66cb413",
+              "operation": "duplicate",
+              "source_geometry_id": 3,
+              "geometry_id": 6
+            }
+          ]
+        }
+      },
+      "target": [
+        {
+          "id": 1,
+          "type": "line",
+          "layer_id": 1,
+          "template_instance": 1,
+          "start": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "end": {
+            "x": 0,
+            "y": 1000,
+            "z": 0
+          }
+        },
+        {
+          "id": 2,
+          "type": "line",
+          "layer_id": 1,
+          "template_instance": 1,
+          "start": {
+            "x": 1000,
+            "y": 0,
+            "z": 0
+          },
+          "end": {
+            "x": 1000,
+            "y": 1000,
+            "z": 0
+          }
+        },
+        {
+          "id": 3,
+          "type": "line",
+          "layer_id": 1,
+          "template_instance": 1,
+          "start": {
+            "x": 2000,
+            "y": 0,
+            "z": 0
+          },
+          "end": {
+            "x": 2000,
+            "y": 1000,
+            "z": 0
+          }
+        },
+        {
+          "id": 4,
+          "type": "line",
+          "layer_id": 1,
+          "template_instance": 2,
+          "start": {
+            "x": 4000.0,
+            "y": 0.0,
+            "z": 0
+          },
+          "end": {
+            "x": 4000.0,
+            "y": 1000.0,
+            "z": 0
+          }
+        },
+        {
+          "id": 5,
+          "type": "line",
+          "layer_id": 1,
+          "template_instance": 2,
+          "start": {
+            "x": 5000.0,
+            "y": 0.0,
+            "z": 0
+          },
+          "end": {
+            "x": 5000.0,
+            "y": 1000.0,
+            "z": 0
+          }
+        },
+        {
+          "id": 6,
+          "type": "line",
+          "layer_id": 1,
+          "template_instance": 2,
+          "start": {
+            "x": 6000.0,
+            "y": 0.0,
+            "z": 0
+          },
+          "end": {
+            "x": 6000.0,
+            "y": 1000.0,
+            "z": 0
+          }
+        }
+      ],
+      "objects": [
+        {
+          "object_id": "room-a",
+          "object_type": "room",
+          "label": "room-a",
+          "geometry_refs": [
+            1,
+            2
+          ],
+          "assembly_id": "whole",
+          "assembly_label": "组合",
+          "confirmed": true,
+          "bounds": {
+            "min_x": 0,
+            "max_x": 1000,
+            "min_y": 0,
+            "max_y": 1000
+          },
+          "identity_key": "room-a"
+        },
+        {
+          "object_id": "room-b",
+          "object_type": "room",
+          "label": "room-b",
+          "geometry_refs": [
+            2,
+            3
+          ],
+          "assembly_id": "whole",
+          "assembly_label": "组合",
+          "confirmed": true,
+          "bounds": {
+            "min_x": 1000,
+            "max_x": 2000,
+            "min_y": 0,
+            "max_y": 1000
+          },
+          "identity_key": "room-b"
+        },
+        {
+          "object_id": "room-a-2",
+          "object_type": "room",
+          "label": "room-a 2",
+          "geometry_refs": [
+            4,
+            5
+          ],
+          "assembly_id": "whole-2",
+          "assembly_label": "组合 2",
+          "confirmed": true,
+          "bounds": {
+            "min_x": 4000.0,
+            "min_y": 0.0,
+            "max_x": 5000.0,
+            "max_y": 1000.0
+          },
+          "identity_key": "room-a-2",
+          "derived_from_object_id": "room-a"
+        },
+        {
+          "object_id": "room-b-2",
+          "object_type": "room",
+          "label": "room-b 2",
+          "geometry_refs": [
+            5,
+            6
+          ],
+          "assembly_id": "whole-2",
+          "assembly_label": "组合 2",
+          "confirmed": true,
+          "bounds": {
+            "min_x": 5000.0,
+            "min_y": 0.0,
+            "max_x": 6000.0,
+            "max_y": 1000.0
+          },
+          "identity_key": "room-b-2",
+          "derived_from_object_id": "room-b"
+        }
+      ],
+      "topology": {
+        "schema_version": "cad.topology.v1",
+        "shared_geometries": [
+          {
+            "geometry_id": 2,
+            "object_ids": [
+              "room-a",
+              "room-b"
+            ],
+            "relation": "shared_boundary"
+          }
+        ],
+        "relations": []
+      },
+      "graph_validation": {
+        "schema": "cad.logical-validation.v1",
+        "verified": false,
+        "errors": [
+          {
+            "code": "missing_shared_declaration",
+            "message": "多个对象共用的图元缺少共享拓扑声明",
+            "geometry_ids": [
+              5
+            ]
+          }
+        ],
+        "object_count": 4,
+        "shared_geometry_count": 1,
+        "relation_count": 0,
+        "fingerprint": "f6bcb5ab128c0c42b8cbd135ca2418ae26d8c18f0f495fd2be1bb44ca5686ec3"
+      },
+      "revision_status": "invalid",
+      "revision_logical_validation": {
+        "schema": "cad.logical-continuity.v1",
+        "verified": false,
+        "errors": [
+          {
+            "code": "missing_shared_declaration",
+            "message": "多个对象共用的图元缺少共享拓扑声明",
+            "geometry_ids": [
+              5
+            ]
+          }
+        ],
+        "source_validation": {
+          "schema": "cad.logical-validation.v1",
+          "verified": true,
+          "errors": [],
+          "object_count": 2,
+          "shared_geometry_count": 1,
+          "relation_count": 0,
+          "fingerprint": "d9e0e948f523be39560ac53b8c4e953d17fc6917aa27fe60f5b6b5817104b4ca"
+        },
+        "target_validation": {
+          "schema": "cad.logical-validation.v1",
+          "verified": false,
+          "errors": [
+            {
+              "code": "missing_shared_declaration",
+              "message": "多个对象共用的图元缺少共享拓扑声明",
+              "geometry_ids": [
+                5
+              ]
+            }
+          ],
+          "object_count": 4,
+          "shared_geometry_count": 1,
+          "relation_count": 0,
+          "fingerprint": "f6bcb5ab128c0c42b8cbd135ca2418ae26d8c18f0f495fd2be1bb44ca5686ec3"
+        },
+        "diff": {
+          "schema": "cad.logical-diff.v1",
+          "added_object_ids": [
+            "room-a-2",
+            "room-b-2"
+          ],
+          "removed_object_ids": [],
+          "modified_object_ids": [],
+          "shared_geometry_changes": [],
+          "added_relations": [],
+          "removed_relations": []
+        }
+      },
+      "source_inputs_unchanged": true
+    },
+    {
+      "scope": "geometry",
+      "executor_ok": true,
+      "error": null,
+      "contract": {
+        "schema": "cad.edit.v2",
+        "operation": "duplicate",
+        "target": {
+          "scope": "geometry",
+          "instance_ids": [],
+          "geometry_ids": [
+            1,
+            2,
+            3
+          ]
+        },
+        "coordinate_frame": "drawing",
+        "parameters": {
+          "direction": "右",
+          "distance_mm": 4000.0,
+          "placement": "offset",
+          "shared_geometry_ids": [],
+          "created_geometry_ids": [
+            4,
+            5,
+            6
+          ],
+          "created_object_ids": [],
+          "relative_positions": []
+        },
+        "assumptions": [],
+        "intent_evidence_text": [],
+        "intent_grounding": {},
+        "constraints": [],
+        "missing_parameters": [],
+        "auto_decisions": [],
+        "chain_steps": [],
+        "execution_identity": {
+          "source_hash": "811bc38e0559299525db228e8044c10617b052cde7ba3e218bda0062259ccee1",
+          "result_hash": "4454153569ccd401772150e00f0feac80d23f655d078adab8e052e960f83f8d6",
+          "members": [
+            {
+              "operation_id": "9def3df78a2a0d7bbe461b794673370cf3b16e5c1e9defcc0bd8d62affaae944",
+              "operation": "duplicate",
+              "source_geometry_id": 1,
+              "geometry_id": 4
+            },
+            {
+              "operation_id": "9def3df78a2a0d7bbe461b794673370cf3b16e5c1e9defcc0bd8d62affaae944",
+              "operation": "duplicate",
+              "source_geometry_id": 2,
+              "geometry_id": 5
+            },
+            {
+              "operation_id": "9def3df78a2a0d7bbe461b794673370cf3b16e5c1e9defcc0bd8d62affaae944",
+              "operation": "duplicate",
+              "source_geometry_id": 3,
+              "geometry_id": 6
+            }
+          ]
+        }
+      },
+      "target": [
+        {
+          "id": 1,
+          "type": "line",
+          "layer_id": 1,
+          "template_instance": 1,
+          "start": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "end": {
+            "x": 0,
+            "y": 1000,
+            "z": 0
+          }
+        },
+        {
+          "id": 2,
+          "type": "line",
+          "layer_id": 1,
+          "template_instance": 1,
+          "start": {
+            "x": 1000,
+            "y": 0,
+            "z": 0
+          },
+          "end": {
+            "x": 1000,
+            "y": 1000,
+            "z": 0
+          }
+        },
+        {
+          "id": 3,
+          "type": "line",
+          "layer_id": 1,
+          "template_instance": 1,
+          "start": {
+            "x": 2000,
+            "y": 0,
+            "z": 0
+          },
+          "end": {
+            "x": 2000,
+            "y": 1000,
+            "z": 0
+          }
+        },
+        {
+          "id": 4,
+          "type": "line",
+          "layer_id": 1,
+          "template_instance": 1,
+          "start": {
+            "x": 4000.0,
+            "y": 0.0,
+            "z": 0
+          },
+          "end": {
+            "x": 4000.0,
+            "y": 1000.0,
+            "z": 0
+          }
+        },
+        {
+          "id": 5,
+          "type": "line",
+          "layer_id": 1,
+          "template_instance": 1,
+          "start": {
+            "x": 5000.0,
+            "y": 0.0,
+            "z": 0
+          },
+          "end": {
+            "x": 5000.0,
+            "y": 1000.0,
+            "z": 0
+          }
+        },
+        {
+          "id": 6,
+          "type": "line",
+          "layer_id": 1,
+          "template_instance": 1,
+          "start": {
+            "x": 6000.0,
+            "y": 0.0,
+            "z": 0
+          },
+          "end": {
+            "x": 6000.0,
+            "y": 1000.0,
+            "z": 0
+          }
+        }
+      ],
+      "objects": [
+        {
+          "object_id": "room-a",
+          "object_type": "room",
+          "label": "room-a",
+          "geometry_refs": [
+            1,
+            2
+          ],
+          "assembly_id": "whole",
+          "assembly_label": "组合",
+          "confirmed": true,
+          "bounds": {
+            "min_x": 0,
+            "max_x": 1000,
+            "min_y": 0,
+            "max_y": 1000
+          },
+          "identity_key": "room-a"
+        },
+        {
+          "object_id": "room-b",
+          "object_type": "room",
+          "label": "room-b",
+          "geometry_refs": [
+            2,
+            3
+          ],
+          "assembly_id": "whole",
+          "assembly_label": "组合",
+          "confirmed": true,
+          "bounds": {
+            "min_x": 1000,
+            "max_x": 2000,
+            "min_y": 0,
+            "max_y": 1000
+          },
+          "identity_key": "room-b"
+        },
+        {
+          "object_id": "room-a.copy.4",
+          "object_type": "room",
+          "label": "room-a 副本",
+          "geometry_refs": [
+            4,
+            5
+          ],
+          "assembly_id": "whole.copy.4",
+          "assembly_label": "组合 副本",
+          "confirmed": true,
+          "bounds": {
+            "min_x": 0,
+            "max_x": 1000,
+            "min_y": 0,
+            "max_y": 1000
+          },
+          "identity_key": "room-a.copy.4",
+          "derived_from_object_id": "room-a"
+        },
+        {
+          "object_id": "room-b.copy.4",
+          "object_type": "room",
+          "label": "room-b 副本",
+          "geometry_refs": [
+            5,
+            6
+          ],
+          "assembly_id": "whole.copy.4",
+          "assembly_label": "组合 副本",
+          "confirmed": true,
+          "bounds": {
+            "min_x": 1000,
+            "max_x": 2000,
+            "min_y": 0,
+            "max_y": 1000
+          },
+          "identity_key": "room-b.copy.4",
+          "derived_from_object_id": "room-b"
+        }
+      ],
+      "topology": {
+        "schema_version": "cad.topology.v1",
+        "shared_geometries": [
+          {
+            "geometry_id": 2,
+            "object_ids": [
+              "room-a",
+              "room-b"
+            ],
+            "relation": "shared_boundary"
+          },
+          {
+            "geometry_id": 5,
+            "object_ids": [
+              "room-a.copy.4",
+              "room-b.copy.4"
+            ],
+            "relation": "shared_boundary"
+          }
+        ],
+        "relations": []
+      },
+      "graph_validation": {
+        "schema": "cad.logical-validation.v1",
+        "verified": true,
+        "errors": [],
+        "object_count": 4,
+        "shared_geometry_count": 2,
+        "relation_count": 0,
+        "fingerprint": "aa0134c26cb117c21622adb7ec85bf198485dbf681b42846cee9781f5549959f"
+      },
+      "revision_status": "invalid",
+      "revision_logical_validation": {
+        "schema": "cad.logical-continuity.v1",
+        "verified": false,
+        "errors": [
+          {
+            "code": "shared_topology_drift",
+            "message": "共享边界归属在修改过程中发生了变化",
+            "geometry_ids": [
+              5
+            ]
+          }
+        ],
+        "source_validation": {
+          "schema": "cad.logical-validation.v1",
+          "verified": true,
+          "errors": [],
+          "object_count": 2,
+          "shared_geometry_count": 1,
+          "relation_count": 0,
+          "fingerprint": "d9e0e948f523be39560ac53b8c4e953d17fc6917aa27fe60f5b6b5817104b4ca"
+        },
+        "target_validation": {
+          "schema": "cad.logical-validation.v1",
+          "verified": true,
+          "errors": [],
+          "object_count": 4,
+          "shared_geometry_count": 2,
+          "relation_count": 0,
+          "fingerprint": "aa0134c26cb117c21622adb7ec85bf198485dbf681b42846cee9781f5549959f"
+        },
+        "diff": {
+          "schema": "cad.logical-diff.v1",
+          "added_object_ids": [
+            "room-a.copy.4",
+            "room-b.copy.4"
+          ],
+          "removed_object_ids": [],
+          "modified_object_ids": [],
+          "shared_geometry_changes": [
+            5
+          ],
+          "added_relations": [],
+          "removed_relations": []
+        }
+      },
+      "source_inputs_unchanged": true
+    }
+  ],
+  "partition_single_long_path": {
+    "footprint_mm": [
+      10000,
+      18000
+    ],
+    "partition_status": "ready",
+    "coverage": {
+      "verified": true,
+      "source_geometry_ids": [
+        1
+      ],
+      "covered_source_geometry_ids": [
+        1
+      ],
+      "source_length_m": 628.0,
+      "partition_length_m": 628.0,
+      "length_delta_m": 0.0,
+      "duplicate_printing_segments": 0,
+      "uncovered_geometry_ids": []
+    },
+    "coordinate_validation": {
+      "verified": true,
+      "canonical_space": "zone_local_mm",
+      "planner_compatibility_space": "map_mm",
+      "round_trip_tolerance_mm": 1e-06
+    },
+    "segment_budget_m": 500.0,
+    "segment_lengths_m": [
+      628.0
+    ],
+    "segment_count": 1
+  },
+  "compatibility_helper_boundaries": {
+    "scope": "Function-only findings; current app caller supplies explicit mm. Whole-design scale helpers have no app call sites found.",
+    "explicit_m_horizontal_line": {
+      "note": "degenerate_extent",
+      "actual_endpoint": {
+        "x": 1,
+        "y": 0
+      },
+      "expected_endpoint_mm": {
+        "x": 1000,
+        "y": 0
+      }
+    },
+    "scale_parser_differential": [
+      {
+        "text": "缩小到0.5倍",
+        "incremental_parser": 0.5,
+        "whole_design_helper": 2.0
+      },
+      {
+        "text": "缩小到原来的0.5倍",
+        "incremental_parser": 0.5,
+        "whole_design_helper": null
+      }
+    ]
+  }
+}

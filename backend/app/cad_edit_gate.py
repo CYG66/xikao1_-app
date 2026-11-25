@@ -1,6 +1,7 @@
 """Preflight and risk classification for deterministic CAD candidate edits."""
 
 from __future__ import annotations
+from .cad_canonical_json import canonical_json_hash
 
 import hashlib
 import json
@@ -11,17 +12,11 @@ from .geometry_diff import build_geometry_diff
 
 
 def geometry_fingerprint(geometries: list[dict[str, Any]]) -> str:
-    payload = json.dumps(
-        geometries, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
+    return canonical_json_hash(geometries)
 
 
 def geometry_entity_fingerprint(geometry: dict[str, Any]) -> str:
-    payload = json.dumps(
-        geometry, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
+    return canonical_json_hash(geometry)
 
 
 def build_rejection_rollback_evidence(
@@ -520,8 +515,10 @@ def build_cad_edit_preflight(
     relation_validation = validate_edit_relations(source, target, contract)
     check("object_relation_acceptance", "对象关系独立验收", relation_validation["verified"], relation_validation["message"])
     already_satisfied = (
-        changed == 0 and relation_validation["enforced"] and relation_validation["verified"]
-        and geometry_fingerprint(source) == geometry_fingerprint(target)
+        changed == 0
+        and ((relation_validation["enforced"] and relation_validation["verified"])
+             or (effect_validation.get("enforced") and effect_validation.get("verified") is True))
+        and _semantic_geometry_fingerprint(source) == _semantic_geometry_fingerprint(target)
     )
     if already_satisfied:
         checks[0].update(ok=True, detail="独立几何验收确认关系已满足，无需修改图元")

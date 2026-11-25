@@ -1,0 +1,220 @@
+{
+  "source": "画一个半圆拱门的闭合外轮廓。水平底边左端在(-1.36,-0.72)，整体宽3.26米，从底边到拱顶的整体高4.61米；左右两段直墙竖直且等高，顶上用直径3.26米的上半圆连接，整体高度包含这段半圆。不要内部线。坐标单位米。只生成预览，不执行小车。",
+  "provenance": ".local-dev\\selected-transfer-live-xzvt9j16\\run\\V6-r2-B\\projects.json",
+  "plans": [
+    {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "arch-outline",
+          "output_ref": "arch_outline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "semicircle_arch",
+            "assembly_label": "半圆拱门",
+            "object_id": "arch_outer",
+            "object_type": "outline",
+            "label": "半圆拱门闭合外轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_composite_path",
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": -1.36,
+                "y": -0.72
+              },
+              "end": {
+                "x": 1.63,
+                "y": -0.72
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 1.63,
+                "y": -0.72
+              },
+              "end": {
+                "x": 1.63,
+                "y": 2.26
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": 0.0,
+                "y": 2.26
+              },
+              "radius": 1.63,
+              "start_angle": 0.0,
+              "end_angle": 180.0,
+              "clockwise": false
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": -1.63,
+                "y": 2.26
+              },
+              "end": {
+                "x": -1.36,
+                "y": -0.72
+              }
+            }
+          ],
+          "closed": true,
+          "samples_per_curve": 64,
+          "connection_tolerance": 1e-06,
+          "continuity": "C0",
+          "tangent_tolerance_deg": 1.0,
+          "allow_self_intersection": false,
+          "allow_duplicate_segments": false,
+          "max_curvature": null,
+          "max_sampling_error": 0.0002,
+          "junction_constraints": []
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "arch_closed",
+          "target_ref": "arch_outline"
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "arch_bounds",
+          "target_ref": "arch_outline",
+          "width": 3.26,
+          "height": 4.61,
+          "tolerance": 0.01
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "arch_entity_count",
+          "target_ref": "arch_outline",
+          "equals": 1
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "step-1",
+          "output_ref": "arch_outline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "semicircular_arch",
+            "assembly_label": "半圆拱门的闭合外轮廓",
+            "object_id": "arch_outline",
+            "object_type": "drawing_part",
+            "label": "半圆拱门闭合外轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_composite_path",
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": -1.36,
+                "y": -0.72
+              },
+              "end": {
+                "x": 1.9,
+                "y": -0.72
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 1.9,
+                "y": -0.72
+              },
+              "end": {
+                "x": 1.9,
+                "y": 2.26
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": 0.27,
+                "y": 2.26
+              },
+              "radius": 1.63,
+              "start_angle": 0.0,
+              "end_angle": 180.0,
+              "clockwise": false
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": -1.36,
+                "y": 2.26
+              },
+              "end": {
+                "x": -1.36,
+                "y": -0.72
+              }
+            }
+          ],
+          "closed": true,
+          "samples_per_curve": 32,
+          "connection_tolerance": 1e-06,
+          "continuity": "C0",
+          "tangent_tolerance_deg": 1.0,
+          "allow_self_intersection": false,
+          "allow_duplicate_segments": false,
+          "max_curvature": null,
+          "max_sampling_error": 0.0002,
+          "junction_constraints": []
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "bounds_size",
+          "assertion_id": "assert-width-height",
+          "target_ref": "arch_outline",
+          "width": 3.26,
+          "height": 4.61,
+          "tolerance": 0.005
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "assert-closed",
+          "target_ref": "arch_outline"
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "assert-single-boundary",
+          "target_ref": "arch_outline",
+          "equals": 1
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    }
+  ]
+}

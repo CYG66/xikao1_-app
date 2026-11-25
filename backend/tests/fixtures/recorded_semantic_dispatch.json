@@ -1,0 +1,70 @@
+{
+  "provenance": "Recorded A1 first attempt from 2026-11-17 real deepseek-flash evaluation; not a success fixture or generator",
+  "source": "生成一个闭合爱心轮廓，宽度4米，高度4米",
+  "plan": {
+    "schema_version": "cad.construction-plan.v1",
+    "units": "m",
+    "project_id": null,
+    "source_version": null,
+    "steps": [
+      {
+        "step_id": "heart.outline",
+        "output_ref": "heart_outline",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "heart_assembly",
+          "assembly_label": "闭合爱心轮廓",
+          "object_id": "heart_outline",
+          "object_type": "outline",
+          "label": "闭合爱心外轮廓",
+          "role": "outer_boundary"
+        },
+        "op": "add_parametric_curve",
+        "x_expression": "2*sin(t)",
+        "y_expression": "2*cos(t)+1.6*sqrt(abs(sin(t)))-0.9",
+        "t_start": "0",
+        "t_end": "2*pi",
+        "max_sampling_error": 0.001,
+        "closed": true
+      }
+    ],
+    "constraints": [],
+    "constraint_backend": "auto",
+    "assertions": [
+      {
+        "kind": "closed",
+        "assertion_id": "heart.closed",
+        "target_ref": "heart_outline"
+      },
+      {
+        "kind": "entity_count",
+        "assertion_id": "heart.count",
+        "target_ref": "heart_outline",
+        "equals": 1
+      },
+      {
+        "kind": "bounds_size",
+        "assertion_id": "explicit-outline-size",
+        "target_ref": "heart_outline",
+        "width": 4.0,
+        "height": 4.0,
+        "tolerance": 0.001
+      }
+    ],
+    "budgets": {
+      "max_steps": 5,
+      "max_entities": 20
+    },
+    "free_outline_layout": [
+      {
+        "target_ref": "heart_outline",
+        "width": 4.0,
+        "height": 4.0,
+        "right_of_ref": null,
+        "gap": 0.0,
+        "gap_reference": "edge",
+        "center": null
+      }
+    ]
+  }
+}

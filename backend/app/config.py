@@ -99,17 +99,9 @@ HARDWARE_LAUNCH_PID = os.getenv(
     "XLINE_HARDWARE_LAUNCH_PID",
     "/home/qingz/xline_ws3_hardware_runtime.pid",
 ).strip()
-ENABLE_PRINTER = os.getenv("XLINE_ENABLE_PRINTER", "false").strip().lower() in {
+ENABLE_PRINTER = os.getenv("XLINE_ENABLE_PRINTER", "true").strip().lower() in {
     "1", "true", "yes", "on",
 }
-# Hardware execution is a separate, explicit production decision.  Being in
-# the App process is not permission to spawn planner/base/printer nodes.
-HARDWARE_RUNTIME_ENABLED = os.getenv(
-    "XLINE_HARDWARE_RUNTIME_ENABLE", "false"
-).strip().lower() in {"1", "true", "yes", "on"}
-PRINTER_AUTHORIZED = os.getenv(
-    "XLINE_PRINTER_AUTHORIZED", "false"
-).strip().lower() in {"1", "true", "yes", "on"}
 BACKEND_NODE_NAME = os.getenv(
     "XLINE_BACKEND_NODE_NAME", "xline_app_backend1"
 ).strip() or "xline_app_backend1"

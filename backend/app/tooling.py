@@ -43,7 +43,7 @@ class CadLine(CadGeometryBase):
 
 class CadPolyline(CadGeometryBase):
     type: Literal["polyline"]
-    vertices: list[CadPoint] = Field(min_length=2, max_length=500)
+    vertices: list[CadPoint] = Field(min_length=2, max_length=4096)
     closed: bool = False
 
 
@@ -296,7 +296,7 @@ class CadGeometryPatch(BaseModel):
     end: CadPoint | None = None
     center: CadPoint | None = None
     position: CadPoint | None = None
-    vertices: list[CadPoint] | None = Field(default=None, min_length=2, max_length=500)
+    vertices: list[CadPoint] | None = Field(default=None, min_length=2, max_length=4096)
     control_points: list[CadPoint] | None = Field(default=None, min_length=2, max_length=100)
     radius: float | None = Field(default=None, gt=0.0, le=50000.0)
     major_axis: CadPoint | None = None

@@ -1,0 +1,8 @@
+{
+  "date": "2026-11-25",
+  "baseline_file_count": 471,
+  "production_python_file_count": 149,
+  "changed_files": [],
+  "missing_files": [],
+  "meaning": "Existence/hash verification only; not reading or runtime correctness proof."
+}

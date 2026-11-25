@@ -1,0 +1,86 @@
+{
+  "scope": "Public edit adapter only; not proven full HTTP formal delivery",
+  "source": "将第1个图形向右移动1米，并向上移动2米。",
+  "results": [
+    {
+      "dx_mm": 1000,
+      "dy_mm": 2000,
+      "parsed": true,
+      "grounding": {
+        "verified": true,
+        "checks": [
+          {
+            "claim": "target.resolved",
+            "verified": true,
+            "observed": "instance"
+          },
+          {
+            "claim": "target.instance_ids",
+            "verified": true,
+            "observed": [
+              1
+            ]
+          },
+          {
+            "claim": "parameters.translation_distance",
+            "verified": true,
+            "observed": [
+              1000.0,
+              2000.0
+            ]
+          },
+          {
+            "claim": "parameters.translation_direction",
+            "verified": true,
+            "observed": {
+              "dx_mm": 1000.0,
+              "dy_mm": 2000.0
+            }
+          }
+        ],
+        "failures": []
+      },
+      "confidence": 0.99
+    },
+    {
+      "dx_mm": 2000,
+      "dy_mm": 1000,
+      "parsed": true,
+      "grounding": {
+        "verified": true,
+        "checks": [
+          {
+            "claim": "target.resolved",
+            "verified": true,
+            "observed": "instance"
+          },
+          {
+            "claim": "target.instance_ids",
+            "verified": true,
+            "observed": [
+              1
+            ]
+          },
+          {
+            "claim": "parameters.translation_distance",
+            "verified": true,
+            "observed": [
+              1000.0,
+              2000.0
+            ]
+          },
+          {
+            "claim": "parameters.translation_direction",
+            "verified": true,
+            "observed": {
+              "dx_mm": 2000.0,
+              "dy_mm": 1000.0
+            }
+          }
+        ],
+        "failures": []
+      },
+      "confidence": 0.99
+    }
+  ]
+}

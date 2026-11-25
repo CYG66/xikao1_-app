@@ -1,0 +1,140 @@
+[
+  [
+    {
+      "file": "app\\agent_plan_sqlite_store.py",
+      "name": "_connect",
+      "line": 24,
+      "lines": 7
+    },
+    {
+      "file": "app\\database.py",
+      "name": "_connect",
+      "line": 42,
+      "lines": 7
+    }
+  ],
+  [
+    {
+      "file": "app\\agent_plan_sqlite_store.py",
+      "name": "_connection",
+      "line": 33,
+      "lines": 7
+    },
+    {
+      "file": "app\\database.py",
+      "name": "_session",
+      "line": 51,
+      "lines": 7
+    }
+  ],
+  [
+    {
+      "file": "app\\agent_skills.py",
+      "name": "as_id",
+      "line": 330,
+      "lines": 6
+    },
+    {
+      "file": "app\\cad_edit_gate.py",
+      "name": "_positive_id",
+      "line": 142,
+      "lines": 6
+    },
+    {
+      "file": "app\\drawing_commands.py",
+      "name": "_entity_id",
+      "line": 35,
+      "lines": 6
+    },
+    {
+      "file": "app\\geometry_catalog.py",
+      "name": "_geometry_id",
+      "line": 44,
+      "lines": 6
+    }
+  ],
+  [
+    {
+      "file": "app\\cad_constraint_solver.py",
+      "name": "_points",
+      "line": 479,
+      "lines": 9
+    },
+    {
+      "file": "app\\native_constraint_worker.py",
+      "name": "_points",
+      "line": 17,
+      "lines": 9
+    }
+  ],
+  [
+    {
+      "file": "app\\cad_constraint_solver.py",
+      "name": "_size",
+      "line": 502,
+      "lines": 8
+    },
+    {
+      "file": "app\\native_constraint_worker.py",
+      "name": "_size",
+      "line": 53,
+      "lines": 8
+    }
+  ],
+  [
+    {
+      "file": "app\\cad_constraint_solver.py",
+      "name": "_rotate",
+      "line": 533,
+      "lines": 12
+    },
+    {
+      "file": "app\\native_constraint_worker.py",
+      "name": "_rotate",
+      "line": 69,
+      "lines": 12
+    }
+  ],
+  [
+    {
+      "file": "app\\geometry_catalog.py",
+      "name": "_number",
+      "line": 36,
+      "lines": 6
+    },
+    {
+      "file": "app\\ros_adapter.py",
+      "name": "finite",
+      "line": 1414,
+      "lines": 6
+    }
+  ],
+  [
+    {
+      "file": "tests\\manual\\cad_widget_live_worker.py",
+      "name": "load_local_deepseek_key",
+      "line": 20,
+      "lines": 14
+    },
+    {
+      "file": "tests\\manual\\run_everyday_cad_live.py",
+      "name": "load_local_deepseek_key",
+      "line": 14,
+      "lines": 14
+    }
+  ],
+  [
+    {
+      "file": "tests\\test_cad_plan_recovery.py",
+      "name": "_source",
+      "line": 15,
+      "lines": 17
+    },
+    {
+      "file": "tests\\test_cad_plan_verifier.py",
+      "name": "_source",
+      "line": 18,
+      "lines": 17
+    }
+  ]
+]

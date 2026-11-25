@@ -61,7 +61,20 @@ def template_plan_for_project(project, route):
     if len(matches) == 1:
         if requirements.get("quantity") is not None:
             matches[0]["quantity"] = requirements["quantity"]
-        for key, value in (requirements.get("dimensions") or {}).items():
+        dimensions = dict(requirements.get("dimensions") or {})
+        # Project tools express rectangular sizes as length/width, while the
+        # template IR uses x/y extents. Old summaries also duplicate width as
+        # height; reconcile that alias without changing source requirements.
+        if dimensions.get('length_m') is not None:
+            length = dimensions['length_m']
+            width = dimensions.get('width_m')
+            height = dimensions.get('height_m')
+            if width is None:
+                raise ValueError('模板长宽参数缺少宽度，不能猜测另一轴尺寸')
+            if height is not None and height not in (width, length):
+                raise ValueError('模板length/width与height参数冲突，请确认实际长宽')
+            dimensions.update(width_m=length, height_m=width)
+        for key, value in dimensions.items():
             if key in {"width_m", "height_m", "radius_m"}:
                 matches[0][key] = value
         for key in ('grid_columns', 'grid_rows'):
@@ -101,6 +114,26 @@ def template_plan_for_project(project, route):
     })
 
 
+def template_trial_acceptance(trial):
+    """Shared acceptance for backend-compiled registered template plans only.
+
+    This proves execution within the registered template scope, not arbitrary
+    prose coverage or certification. Model-authored plans cannot use this gate.
+    """
+    checks = {
+        'assertions': (trial.get('assertions') or {}).get('ok') is True,
+        'feasibility': (trial.get('feasibility') or {}).get('ok') is True,
+        'constraints': (trial.get('constraint_solve') or {}).get('verified') is True,
+        'object_graph': (trial.get('graph_validation') or {}).get('verified') is True,
+    }
+    accepted = all(checks.values()) and bool(trial.get('geometries'))
+    return {'status': 'passed' if accepted else 'review_required',
+            'review_required': not accepted, 'authority': 'backend_measured_geometry',
+            'source': 'deterministic_template_execution',
+            'requirement_coverage': 'registered_template_scope',
+            'execution_checks': checks, 'geometry_count': len(trial.get('geometries') or [])}
+
+
 def interpret_template_project(project, route):
     plan = template_plan_for_project(project, route)
     if plan is None:
@@ -111,15 +144,7 @@ def interpret_template_project(project, route):
     # same response visibility contract as model-produced plans.  Persist an
     # explicit backend acceptance result instead of making the HTTP layer
     # infer success from the presence of geometries alone.
-    assertions = trial.get("assertions") if isinstance(trial, dict) else None
-    accepted = isinstance(assertions, dict) and assertions.get("ok") is True
-    acceptance_summary = {
-        "status": "passed" if accepted else "review_required",
-        "review_required": not accepted,
-        "authority": "backend_measured_geometry",
-        "source": "deterministic_template_execution",
-        "geometry_count": len(list(trial.get("geometries") or [])),
-    }
+    acceptance_summary = template_trial_acceptance(trial)
     return {"schema": "cad.construction-interpretation-result.v1", "status": "ready",
             "parser": "parameterized_template", "confidence": 1.0,
             "plan": plan.model_dump(mode="json"), "trial_result": trial,

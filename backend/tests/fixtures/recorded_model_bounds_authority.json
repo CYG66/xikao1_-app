@@ -1,0 +1,128 @@
+{
+  "source": "绘制胶囊形闭合边界，中心位于(-64,83)，长轴相对x轴正向逆时针-26度，沿长轴总长572厘米、短轴总高148厘米。两端各为向外半圆，两条直边与半圆相切；两端半径相同，总长含半圆。不添加内部线，坐标单位厘米。只生成预览，不执行小车。",
+  "payload": {
+    "schema_version": "cad.construction-interpretation.v1",
+    "is_construction_request": true,
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "steps": [
+        {
+          "step_id": "capsule.outline",
+          "output_ref": "capsule.outline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "capsule",
+            "assembly_label": "胶囊形闭合边界",
+            "object_id": "capsule.outline",
+            "object_type": "closed_boundary",
+            "label": "胶囊外边界",
+            "role": "outer_outline"
+          },
+          "op": "add_composite_path",
+          "segments": [
+            {
+              "kind": "arc",
+              "center": {
+                "x": "-0.64-2.12*cos(-26*pi/180)",
+                "y": "0.83-2.12*sin(-26*pi/180)"
+              },
+              "radius": 0.74,
+              "start_angle": 244,
+              "end_angle": 64,
+              "clockwise": false
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": "-0.64-2.12*cos(-26*pi/180)-0.74*sin(-26*pi/180)",
+                "y": "0.83-2.12*sin(-26*pi/180)+0.74*cos(-26*pi/180)"
+              },
+              "end": {
+                "x": "-0.64+2.12*cos(-26*pi/180)-0.74*sin(-26*pi/180)",
+                "y": "0.83+2.12*sin(-26*pi/180)+0.74*cos(-26*pi/180)"
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": "-0.64+2.12*cos(-26*pi/180)",
+                "y": "0.83+2.12*sin(-26*pi/180)"
+              },
+              "radius": 0.74,
+              "start_angle": 64,
+              "end_angle": 244,
+              "clockwise": false
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": "-0.64+2.12*cos(-26*pi/180)+0.74*sin(-26*pi/180)",
+                "y": "0.83+2.12*sin(-26*pi/180)-0.74*cos(-26*pi/180)"
+              },
+              "end": {
+                "x": "-0.64-2.12*cos(-26*pi/180)+0.74*sin(-26*pi/180)",
+                "y": "0.83-2.12*sin(-26*pi/180)-0.74*cos(-26*pi/180)"
+              }
+            }
+          ],
+          "closed": true,
+          "samples_per_curve": 32,
+          "connection_tolerance": 1e-06,
+          "continuity": "C0",
+          "tangent_tolerance_deg": 1,
+          "allow_self_intersection": false,
+          "allow_duplicate_segments": false,
+          "max_curvature": null,
+          "max_sampling_error": 0.0002,
+          "junction_constraints": []
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "capsule.closed",
+          "target_ref": "capsule.outline"
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "capsule.size",
+          "target_ref": "capsule.outline",
+          "width": 5.906538,
+          "height": 4.988261,
+          "tolerance": 0.001
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 5000
+      },
+      "free_outline_layout": [
+        {
+          "target_ref": "capsule.outline",
+          "width": null,
+          "height": null,
+          "right_of_ref": null,
+          "gap": 0,
+          "gap_reference": "edge",
+          "center": {
+            "x": -0.64,
+            "y": 0.83
+          }
+        }
+      ]
+    },
+    "evidence_text": [
+      "绘制胶囊形闭合边界，中心位于(-64,83)，长轴相对x轴正向逆时针-26度，沿长轴总长572厘米、短轴总高148厘米。两端各为向外半圆，两条直边与半圆相切；两端半径相同，总长含半圆。不添加内部线，坐标单位厘米。只生成预览，不执行小车。"
+    ],
+    "assumptions": [
+      "半径=短轴总高的一半=0.74m，直边长=总长-短轴总高=4.24m，两端半圆圆心距整体中心±2.12m沿长轴方向。",
+      "单位按规范化契约使用米，中心(-0.64,0.83)m，长轴角-26度；全部端点与圆弧角度由表达式精确计算后整体旋转一次，避免局部长度误算。",
+      "胶囊为单一闭合外边界，不含内部线；圆弧起点/终点与直线端点由同一表达式推导以确保逐段连续闭合。"
+    ],
+    "confidence": 0.95
+  },
+  "provenance": ".local-dev\\stale-assertion-live-jlunpmfv\\run\\L2-r1-B\\api-response-d8d2bd8c-0864-45bc-9abd-bcc9d1c23214.json"
+}

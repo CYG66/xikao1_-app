@@ -9,8 +9,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
-from .startup_guard import assert_startup_admitted, startup_recovery_authorized
-
 
 TaskState = Literal[
     "pending_confirmation",
@@ -47,7 +45,6 @@ def utc_now() -> str:
 
 class AgentTaskStore:
     def __init__(self, path: Path | None = None) -> None:
-        assert_startup_admitted()
         configured = os.getenv("XLINE_AGENT_TASK_STORE", "").strip()
         default_root = (
             Path(tempfile.gettempdir()) / "xline-agent"
@@ -59,8 +56,7 @@ class AgentTaskStore:
         self._lock = threading.RLock()
         self._tasks: dict[str, dict[str, Any]] = {}
         self._load()
-        if startup_recovery_authorized():
-            self._interrupt_unfinished_tasks()
+        self._interrupt_unfinished_tasks()
 
     def create_pending(
         self,

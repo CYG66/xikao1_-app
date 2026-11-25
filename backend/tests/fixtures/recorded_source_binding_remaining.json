@@ -1,0 +1,1033 @@
+[
+  {
+    "case": "A9",
+    "source": "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米\n中心(2,3)，宽4米、高4米，坐标单位米。",
+    "original": "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "heart-outline",
+          "output_ref": "heart_outline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "heart_1",
+            "assembly_label": "左右对称、平滑闭合的爱心",
+            "object_id": "heart_outer",
+            "object_type": "drawing_part",
+            "label": "爱心外轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_composite_path",
+          "segments": [
+            {
+              "kind": "bezier",
+              "control_points": [
+                {
+                  "x": 2.0,
+                  "y": 1.18181181640625
+                },
+                {
+                  "x": 1.2,
+                  "y": 2.09859822217344
+                },
+                {
+                  "x": 0.0,
+                  "y": 3.400282721406016
+                },
+                {
+                  "x": 0.0,
+                  "y": 4.20131933631837
+                }
+              ]
+            },
+            {
+              "kind": "bezier",
+              "control_points": [
+                {
+                  "x": 0.0,
+                  "y": 4.20131933631837
+                },
+                {
+                  "x": 0.0,
+                  "y": 5.202615104958814
+                },
+                {
+                  "x": 1.3,
+                  "y": 5.603133412414991
+                },
+                {
+                  "x": 2.0,
+                  "y": 4.601837643774547
+                }
+              ]
+            },
+            {
+              "kind": "bezier",
+              "control_points": [
+                {
+                  "x": 2.0,
+                  "y": 4.601837643774547
+                },
+                {
+                  "x": 2.7,
+                  "y": 5.603133412414991
+                },
+                {
+                  "x": 4.0,
+                  "y": 5.202615104958814
+                },
+                {
+                  "x": 4.0,
+                  "y": 4.20131933631837
+                }
+              ]
+            },
+            {
+              "kind": "bezier",
+              "control_points": [
+                {
+                  "x": 4.0,
+                  "y": 4.20131933631837
+                },
+                {
+                  "x": 4.0,
+                  "y": 3.400282721406016
+                },
+                {
+                  "x": 2.8,
+                  "y": 2.09859822217344
+                },
+                {
+                  "x": 2.0,
+                  "y": 1.18181181640625
+                }
+              ]
+            }
+          ],
+          "closed": true,
+          "samples_per_curve": 32,
+          "connection_tolerance": 0.001,
+          "continuity": "C0",
+          "tangent_tolerance_deg": 2.0,
+          "allow_self_intersection": false,
+          "allow_duplicate_segments": false,
+          "max_curvature": null,
+          "max_sampling_error": null,
+          "junction_constraints": []
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "heart_closed",
+          "target_ref": "heart_outline"
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "explicit-outline-size",
+          "target_ref": "heart_outline",
+          "width": 4.0,
+          "height": 4.0,
+          "tolerance": 0.001
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": [
+        {
+          "target_ref": "heart_outline",
+          "width": 4.0,
+          "height": 4.0,
+          "right_of_ref": null,
+          "gap": 0.0,
+          "gap_reference": "edge",
+          "center": {
+            "x": 2.0,
+            "y": 3.0
+          }
+        }
+      ]
+    }
+  },
+  {
+    "case": "C14",
+    "source": "生成一个齿轮轮廓，外径2米，8个齿\n8个等距齿，外径2米，齿根圆直径1.5米，中心(0,0)，各齿齿顶角宽15度。",
+    "original": "生成一个齿轮轮廓，外径2米，8个齿",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "gear.outline",
+          "output_ref": "gear_outline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "gear_8t",
+            "assembly_label": "齿轮轮廓",
+            "object_id": "gear_boundary",
+            "object_type": "drawing_part",
+            "label": "8齿齿轮近似外轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_rotational_path",
+          "segments": [
+            {
+              "kind": "arc",
+              "center": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "radius": 1.0,
+              "start_angle": -7.5,
+              "end_angle": 7.5,
+              "clockwise": false
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 0.9914448613738104,
+                "y": 0.13052619222005157
+              },
+              "end": {
+                "x": 0.7244443697168013,
+                "y": 0.19411428382689055
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "radius": 0.75,
+              "start_angle": 15.0,
+              "end_angle": 30.0,
+              "clockwise": false
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 0.649519052838329,
+                "y": 0.37499999999999994
+              },
+              "end": {
+                "x": 0.7933533402912352,
+                "y": 0.6087614290087207
+              }
+            }
+          ],
+          "closed": true,
+          "samples_per_curve": 32,
+          "connection_tolerance": 1e-06,
+          "continuity": "C0",
+          "tangent_tolerance_deg": 1.0,
+          "allow_self_intersection": false,
+          "allow_duplicate_segments": false,
+          "max_curvature": null,
+          "max_sampling_error": null,
+          "junction_constraints": [],
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "count": 8,
+          "fit_width": null,
+          "fit_height": null,
+          "constrain_sector_end": true,
+          "direction": "auto"
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "gear_closed",
+          "target_ref": "gear_outline"
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "gear_outer_diameter",
+          "target_ref": "gear_outline",
+          "width": 2.0,
+          "height": 2.0,
+          "tolerance": 0.01
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": [
+        {
+          "target_ref": "gear_outline",
+          "width": null,
+          "height": null,
+          "right_of_ref": null,
+          "gap": 0.0,
+          "gap_reference": "edge",
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      ]
+    }
+  },
+  {
+    "case": "C16",
+    "source": "生成一个房子轮廓，宽4米高3米，屋顶是三角形，下面加一个门\n总宽4米、总高3米；墙体左下角(0,0)，宽4米高2米；屋顶顶点(0,2)(2,3)(4,2)；门左下角(1.5,0)，宽1米高1.5米，坐标单位米。",
+    "original": "生成一个房子轮廓，宽4米高3米，屋顶是三角形，下面加一个门",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "step.wall",
+          "output_ref": "outline.wall",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "house",
+            "assembly_label": "房子轮廓",
+            "object_id": "wall",
+            "object_type": "drawing_part",
+            "label": "墙体轮廓",
+            "role": "wall"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 0.0,
+              "y": 0.0
+            },
+            {
+              "x": 4.0,
+              "y": 0.0
+            },
+            {
+              "x": 4.0,
+              "y": 2.0
+            },
+            {
+              "x": 0.0,
+              "y": 2.0
+            }
+          ],
+          "closed": true
+        },
+        {
+          "step_id": "step.roof",
+          "output_ref": "outline.roof",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "house",
+            "assembly_label": "房子轮廓",
+            "object_id": "roof",
+            "object_type": "drawing_part",
+            "label": "三角形屋顶",
+            "role": "roof"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 0.0,
+              "y": 2.0
+            },
+            {
+              "x": 2.0,
+              "y": 3.0
+            },
+            {
+              "x": 4.0,
+              "y": 2.0
+            }
+          ],
+          "closed": true
+        },
+        {
+          "step_id": "step.door",
+          "output_ref": "outline.door",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "house",
+            "assembly_label": "房子轮廓",
+            "object_id": "door",
+            "object_type": "drawing_part",
+            "label": "门轮廓",
+            "role": "door"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 1.5,
+              "y": 0.0
+            },
+            {
+              "x": 2.5,
+              "y": 0.0
+            },
+            {
+              "x": 2.5,
+              "y": 1.5
+            },
+            {
+              "x": 1.5,
+              "y": 1.5
+            }
+          ],
+          "closed": true
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "bounds_size",
+          "assertion_id": "assert.house.width.height",
+          "target_ref": "outline.wall",
+          "width": 4.0,
+          "height": 2.0,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "assert.roof.width.height",
+          "target_ref": "outline.roof",
+          "width": 4.0,
+          "height": 1.0,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "assert.door.width.height",
+          "target_ref": "outline.door",
+          "width": 1.0,
+          "height": 1.5,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "assert.wall.closed",
+          "target_ref": "outline.wall"
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "assert.roof.closed",
+          "target_ref": "outline.roof"
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "assert.door.closed",
+          "target_ref": "outline.door"
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    }
+  },
+  {
+    "case": "C20",
+    "source": "画一个圆角矩形，宽3米高2米，圆角半径0.5米\n外包宽3米、高2米，四角圆角半径0.5米，闭合。",
+    "original": "画一个圆角矩形，宽3米高2米，圆角半径0.5米",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "rounded_rect_body",
+          "output_ref": "rounded_rect_outer",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "rounded_rectangle",
+            "assembly_label": "圆角矩形",
+            "object_id": "rounded_rect_outer",
+            "object_type": "closed_profile",
+            "label": "圆角矩形外轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_composite_path",
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": 0.5,
+                "y": 0.0
+              },
+              "end": {
+                "x": 2.5,
+                "y": 0.0
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": 2.5,
+                "y": 0.5
+              },
+              "radius": 0.5,
+              "start_angle": 270.0,
+              "end_angle": 360.0,
+              "clockwise": false
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 3.0,
+                "y": 0.5
+              },
+              "end": {
+                "x": 3.0,
+                "y": 1.5
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": 2.5,
+                "y": 1.5
+              },
+              "radius": 0.5,
+              "start_angle": 0.0,
+              "end_angle": 90.0,
+              "clockwise": false
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 2.5,
+                "y": 2.0
+              },
+              "end": {
+                "x": 0.5,
+                "y": 2.0
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": 0.5,
+                "y": 1.5
+              },
+              "radius": 0.5,
+              "start_angle": 90.0,
+              "end_angle": 180.0,
+              "clockwise": false
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 0.0,
+                "y": 1.5
+              },
+              "end": {
+                "x": 0.0,
+                "y": 0.5
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": 0.5,
+                "y": 0.5
+              },
+              "radius": 0.5,
+              "start_angle": 180.0,
+              "end_angle": 270.0,
+              "clockwise": false
+            }
+          ],
+          "closed": true,
+          "samples_per_curve": 32,
+          "connection_tolerance": 1e-06,
+          "continuity": "C0",
+          "tangent_tolerance_deg": 1.0,
+          "allow_self_intersection": false,
+          "allow_duplicate_segments": false,
+          "max_curvature": null,
+          "max_sampling_error": null,
+          "junction_constraints": []
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    }
+  },
+  {
+    "case": "C21",
+    "source": "画一个十字形，由两条等宽矩形垂直交叉组成，总宽4米总高4米，臂宽1米\n总宽4米、总高4米，水平与竖直两臂宽度均1米，中心(0,0)，坐标单位米。",
+    "original": "画一个十字形，由两条等宽矩形垂直交叉组成，总宽4米总高4米，臂宽1米",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "step.horizontal_arm",
+          "output_ref": "horizontal_arm",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "cross_shape",
+            "assembly_label": "十字形",
+            "object_id": "horizontal_arm",
+            "object_type": "drawing_part",
+            "label": "水平臂矩形",
+            "role": "horizontal_arm"
+          },
+          "op": "add_centered_rectangle",
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "width": 4.0,
+          "height": 1.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "step_id": "step.vertical_arm",
+          "output_ref": "vertical_arm",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "cross_shape",
+            "assembly_label": "十字形",
+            "object_id": "vertical_arm",
+            "object_type": "drawing_part",
+            "label": "竖直臂矩形",
+            "role": "vertical_arm"
+          },
+          "op": "add_centered_rectangle",
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "width": 1.0,
+          "height": 4.0,
+          "rotation_deg": 0.0
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "bounds_size",
+          "assertion_id": "assert.cross_bounds",
+          "target_ref": null,
+          "width": 4.0,
+          "height": 4.0,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "assert.cross_entity_count",
+          "target_ref": null,
+          "equals": 2
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    }
+  },
+  {
+    "case": "C25",
+    "source": "生成一个禁止标志，圆半径1.5米，中间一条45度斜线贯穿\n圆心(0,0)，半径1.5米；直径斜线方向45度，坐标单位米。",
+    "original": "生成一个禁止标志，圆半径1.5米，中间一条45度斜线贯穿",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "step.circle",
+          "output_ref": "prohibit_outer_circle",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "prohibit_sign",
+            "assembly_label": "禁止标志",
+            "object_id": "prohibit_outer_circle",
+            "object_type": "drawing_part",
+            "label": "禁止标志外圆",
+            "role": "outer_boundary"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 1.5
+        },
+        {
+          "step_id": "step.slash",
+          "output_ref": "prohibit_slash",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "prohibit_sign",
+            "assembly_label": "禁止标志",
+            "object_id": "prohibit_slash",
+            "object_type": "drawing_part",
+            "label": "45度直径斜线",
+            "role": "inner_stroke"
+          },
+          "op": "add_line",
+          "start": {
+            "x": -1.0606601717798214,
+            "y": -1.0606601717798214
+          },
+          "end": {
+            "x": 1.0606601717798214,
+            "y": 1.0606601717798214
+          }
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "assert.circle.closed",
+          "target_ref": "prohibit_outer_circle"
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "assert.circle.bounds",
+          "target_ref": "prohibit_outer_circle",
+          "width": 3.0,
+          "height": 3.0,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "center_distance",
+          "assertion_id": "assert.slash.center",
+          "target_ref": "prohibit_slash",
+          "reference_ref": "prohibit_outer_circle",
+          "distance": 0.0,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "assert.entities",
+          "target_ref": null,
+          "equals": 2
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    }
+  },
+  {
+    "case": "C28",
+    "source": "生成一个笑脸图案，圆半径1米，两个圆点眼睛，一个圆弧嘴巴\n外圆：圆，圆心(0,0)，半径1米，坐标单位米；左眼：圆，圆心(-0.35,0.35)，半径0.09米，坐标单位米；右眼：圆，圆心(0.35,0.35)，半径0.09米，坐标单位米；嘴巴：圆弧，圆心(0,-0.15)，半径0.55米，起始角200度，终止角340度，坐标单位米",
+    "original": "生成一个笑脸图案，圆半径1米，两个圆点眼睛，一个圆弧嘴巴",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "step-face-outer",
+          "output_ref": "face_outer_circle",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "smiley_face",
+            "assembly_label": "笑脸图案",
+            "object_id": "face_outer",
+            "object_type": "circle",
+            "label": "外圆",
+            "role": "face_outline"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 1.0
+        },
+        {
+          "step_id": "step-eye-left",
+          "output_ref": "face_eye_left",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "smiley_face",
+            "assembly_label": "笑脸图案",
+            "object_id": "eye_left",
+            "object_type": "circle",
+            "label": "左眼",
+            "role": "eye"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": -0.35,
+            "y": 0.35
+          },
+          "radius": 0.09
+        },
+        {
+          "step_id": "step-eye-right",
+          "output_ref": "face_eye_right",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "smiley_face",
+            "assembly_label": "笑脸图案",
+            "object_id": "eye_right",
+            "object_type": "circle",
+            "label": "右眼",
+            "role": "eye"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": 0.35,
+            "y": 0.35
+          },
+          "radius": 0.09
+        },
+        {
+          "step_id": "step-mouth-arc",
+          "output_ref": "face_mouth_arc",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "smiley_face",
+            "assembly_label": "笑脸图案",
+            "object_id": "mouth",
+            "object_type": "arc",
+            "label": "嘴巴",
+            "role": "mouth"
+          },
+          "op": "add_arc",
+          "center": {
+            "x": 0.0,
+            "y": -0.15
+          },
+          "radius": 0.55,
+          "start_angle": 200.0,
+          "end_angle": 340.0
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "assert-outer-closed",
+          "target_ref": "face_outer_circle"
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "assert-eye-left-closed",
+          "target_ref": "face_eye_left"
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "assert-eye-right-closed",
+          "target_ref": "face_eye_right"
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "assert-entity-count",
+          "target_ref": null,
+          "equals": 4
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    }
+  },
+  {
+    "case": "C33",
+    "source": "画一个圆柱体的轮廓，底面半径1米，高3米，俯视顶圆可见",
+    "original": "画一个圆柱体的轮廓，底面半径1米，高3米，俯视顶圆可见",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "cyl.top",
+          "output_ref": "cyl_top",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "cylinder",
+            "assembly_label": "圆柱体",
+            "object_id": "cyl_top_face",
+            "object_type": "drawing_part",
+            "label": "圆柱体俯视可见顶圆",
+            "role": "outline"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 1.0
+        },
+        {
+          "step_id": "cyl.side",
+          "output_ref": "cyl_side",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "cylinder",
+            "assembly_label": "圆柱体",
+            "object_id": "cyl_side_silhouette",
+            "object_type": "drawing_part",
+            "label": "圆柱体侧面轮廓矩形（高3米、宽2米）",
+            "role": "outline"
+          },
+          "op": "add_centered_rectangle",
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "width": 2.0,
+          "height": 3.0,
+          "rotation_deg": 0.0
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "bounds_size",
+          "assertion_id": "cyl_side_size",
+          "target_ref": "cyl_side",
+          "width": 2.0,
+          "height": 3.0,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "cyl_top_closed",
+          "target_ref": "cyl_top"
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    }
+  },
+  {
+    "case": "C34",
+    "source": "画一个L形走廊，宽1米，两条臂分别长3米和2米，直角连接",
+    "original": "画一个L形走廊，宽1米，两条臂分别长3米和2米，直角连接",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "lcorridor-outline",
+          "output_ref": "l_corridor_outline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "l_corridor",
+            "assembly_label": "L形走廊",
+            "object_id": "l_corridor_boundary",
+            "object_type": "path",
+            "label": "L形走廊连续外边界",
+            "role": "boundary"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 0.0,
+              "y": 0.0
+            },
+            {
+              "x": 3.0,
+              "y": 0.0
+            },
+            {
+              "x": 3.0,
+              "y": 1.0
+            },
+            {
+              "x": 1.0,
+              "y": 1.0
+            },
+            {
+              "x": 1.0,
+              "y": 2.0
+            },
+            {
+              "x": 0.0,
+              "y": 2.0
+            }
+          ],
+          "closed": true
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "bounds_size",
+          "assertion_id": "lcorridor-bounds",
+          "target_ref": "l_corridor_outline",
+          "width": 3.0,
+          "height": 2.0,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "lcorridor-closed",
+          "target_ref": "l_corridor_outline"
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "lcorridor-entities",
+          "target_ref": null,
+          "equals": 1
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    }
+  }
+]

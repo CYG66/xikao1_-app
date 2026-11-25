@@ -1,4 +1,5 @@
 """Measure source-requested path relations; never synthesize or repair CAD."""
+from .cad_length_units import length_factors
 import math
 import re
 
@@ -14,15 +15,44 @@ def assemble_closed_boundary(geometries, tolerance_mm=.5):
     from .drawing_store import _geometry_points
     from shapely.geometry import LineString
     from shapely.ops import polygonize, unary_union
+    if not math.isfinite(tolerance_mm) or tolerance_mm <= 0:
+        raise ValueError('endpoint tolerance must be finite and positive')
     nodes=[];degrees=[];lines=[]
+    def reject(reason):
+        raise StructureContractError('图元未组成唯一、无重复边的闭合边界', {
+            'geometry_ids':[g.get('id') for g in geometries], 'reason':reason,
+            'endpoint_tolerance_mm':tolerance_mm, 'requires_structural_replan':True})
     def node(point):
-        index=next((i for i,p in enumerate(nodes) if math.dist(p,point)<=tolerance_mm),None)
-        if index is None:index=len(nodes);nodes.append(point);degrees.append(0)
+        matches=[i for i,cluster in enumerate(nodes) if any(math.dist(p,point)<=tolerance_mm for p in cluster)]
+        if len(matches)>1:reject('ambiguous_endpoint_cluster')
+        index=matches[0] if matches else None
+        if index is None:index=len(nodes);nodes.append([point]);degrees.append(0)
+        elif not all(math.dist(p,point)<=tolerance_mm for p in nodes[index]):reject('ambiguous_endpoint_cluster')
+        else:nodes[index].append(point)
         degrees[index]+=1
-        return nodes[index]
+        return nodes[index][0]
     for g in geometries:
-        points=[(p[0]*1000,p[1]*1000) for p in _geometry_points(g)]
+        if any(p.get('bulge',0) for p in g.get('vertices',[])):
+            reject('unsupported_bulge')
+        if g.get('type')=='arc':
+            radius=float(g['radius']);delta=float(g['end_angle'])-float(g['start_angle'])
+            if not math.isfinite(radius) or radius<=0 or not math.isfinite(delta) or abs(delta)<1e-12:
+                reject('invalid_arc')
+            sweep=(-((-delta)%360 or 360)) if g.get('clockwise') else (delta%360 or 360)
+            # Measurement samples are bounded independently of preview resolution.
+            step=2*math.acos(max(-1,min(1,1-min(.05,radius*.1)/radius)))
+            count=max(2,math.ceil(abs(math.radians(sweep))/max(step,1e-12)))
+            if count>20000:reject('sampling_budget_exceeded')
+            points=[(g['center']['x']+radius*math.cos(math.radians(g['start_angle']+sweep*i/count)),
+                     g['center']['y']+radius*math.sin(math.radians(g['start_angle']+sweep*i/count)))
+                    for i in range(count+1)]
+        elif g.get('type')=='polyline':
+            points=[(p['x'],p['y']) for p in g.get('vertices',[])]
+        else:
+            points=[(p[0]*1000,p[1]*1000) for p in _geometry_points(g)]
         if len(points)<2:continue
+        if not all(math.isfinite(v) for p in points for v in p):reject('invalid_coordinates')
+        if any(math.dist(a,b)<1e-9 for a,b in zip(points,points[1:])):reject('zero_length_edge')
         if g.get('closed') and math.dist(points[0],points[-1])>tolerance_mm:
             points.append(points[0])
         points[0]=node(points[0]);points[-1]=node(points[-1])
@@ -45,28 +75,21 @@ def path_relation_requirements(text):
     return bool(re.search(r'[sSＳｓ]\s*[形型]\s*(?:分割线|分界线|曲线|路径)', source))
 
 
-def verify_path_relations(text, geometries):
+def verify_path_relations(text, geometries, *, evidence_context=None):
     arms = verify_perpendicular_arm_dimensions(text, geometries)
     if arms is not None:
         return arms
     if not path_relation_requirements(text):
         return {'status':'not_checked','coverage':'partial','checks':[]}
-    from .drawing_store import _geometry_points
+    from .cad_geometry_measurements import measure_path_geometry,circle_facts
     from shapely.geometry import LineString, Point
     from .cad_source_acceptance import source_texts
     source='\n'.join(source_texts(text))
     pair_checks=[]
     active=[g for g in geometries if g.get('role') not in {'reference','annotation','ignored'}
             and g.get('selected') is not False]
-    paths=[]
-    ids=[]
-    for g in active:
-        if g['type'] in {'circle','text'} or g.get('closed'):
-            continue
-        points=_geometry_points(g)
-        if len(points)>1 and math.dist(points[0],points[-1])>.0005:
-            paths.append(points)
-            ids.append(g['id'])
+    facts=measure_path_geometry(active,evidence_context=evidence_context)
+    paths=facts['paths_m'];ids=facts['path_ids']
     def fail(message, **measurements):
         raise StructureContractError(message,{'authority':'backend_measured_geometry',
             'geometry_ids':ids,'required_relation':'continuous_open_s_path',
@@ -110,7 +133,9 @@ def verify_path_relations(text, geometries):
         circles=[g for g in active if g['type']=='circle']
         if not circles:fail('缺少分割路径所属的外圆。')
         outer=max(circles,key=lambda g:g['radius'])
-        center=[outer['center']['x']/1000,outer['center']['y']/1000];radius=outer['radius']/1000
+        outer_facts=facts['circle_facts'].get(outer['id'])
+        if outer_facts is None:outer_facts=circle_facts(outer)
+        center=[v/1000 for v in outer_facts['center_mm']];radius=outer_facts['radius_mm']/1000
         errors=[abs(math.dist(p,center)-radius) for p in (chain[0],chain[-1])]
         if max(errors)>.0005:fail('分割路径两端未连接外圆。',boundary_errors_m=errors)
         if any(math.dist(p,center)>radius+.0005 for p in chain):fail('分割路径超出外圆。')
@@ -122,8 +147,9 @@ def verify_path_relations(text, geometries):
             if len(inner)!=2:
                 raise StructureContractError('对称小圆数量不符合要求',{'geometry_ids':circle_ids,
                     'required_count':2,'observed_count':len(inner)})
-            centers=[(g['center']['x']/1000,g['center']['y']/1000) for g in inner]
-            radii=[g['radius']/1000 for g in inner]
+            inner_facts=[facts['circle_facts'].get(g['id']) or circle_facts(g) for g in inner]
+            centers=[tuple(v/1000 for v in fact['center_mm']) for fact in inner_facts]
+            radii=[fact['radius_mm']/1000 for fact in inner_facts]
             measured={'center_symmetry_error_m':math.hypot(centers[0][0]+centers[1][0]-2*center[0],
                 centers[0][1]+centers[1][1]-2*center[1]),
                 'radius_difference_m':abs(radii[0]-radii[1]),
@@ -138,8 +164,42 @@ def verify_path_relations(text, geometries):
             pair_checks.append({'name':'symmetric_contained_circles','status':'passed',
                 'geometry_ids':circle_ids,'measurements':measured,'authority':'backend_measured_geometry'})
     return {'status':'partial','coverage':'explicit_open_s_path_relations_only',
+        'outer_circle':({'geometry_id':outer['id'],'radius_mm':outer['radius'],
+                         'center_mm':[outer['center']['x'],outer['center']['y']]} if outer else None),
         'checks':[{'name':'continuous_open_s_path','status':'passed','authority':'backend_measured_geometry',
                    'geometry_ids':ids,'tolerance_mm':.5}]+pair_checks}
+
+
+def verify_path_source_coverage(text, measured, geometries=None):
+    """Associate the existing arm proof only with completely consumed prose."""
+    from .cad_source_acceptance import source_texts
+    partial={'status':'not_checked','coverage':'partial','checks':[]}
+    if measured.get('coverage')=='explicit_open_s_path_relations_only' and geometries is not None:
+        source='\n'.join(source_texts(text));rest=source
+        checks=measured.get('checks') or [];outer=measured.get('outer_circle')
+        if not outer or not {'continuous_open_s_path','symmetric_contained_circles'}<={c['name'] for c in checks if c['status']=='passed'}:return partial
+        ids={outer['geometry_id']}|{i for c in checks for i in c.get('geometry_ids',[])}
+        active=[g for g in geometries if g.get('selected') is not False and g.get('role') not in {'reference','annotation','ignored'}]
+        if ids!={g['id'] for g in active}:return partial
+        unit=r'(毫米|厘米|米|mm|cm|m)(?![a-zA-Z])';factors=length_factors('mm')
+        pattern=r'外圆半径\s*(\d+(?:\.\d+)?)\s*'+unit
+        radii=list(re.finditer(pattern,rest,re.I))
+        if not radii or any(abs(float(m[1])*factors[m[2].lower()]-outer['radius_mm'])>.5 for m in radii):return partial
+        rest=re.sub(pattern,' ',rest,flags=re.I)
+        rest=re.sub(r'坐标单位(?:为|是)?\s*'+unit,' ',rest,flags=re.I)
+        rest=re.sub(r'保持原始太极图要求|只生成预览|太极图|S形分割线|两个对称小圆|生成|创建|画|一个|和',' ',rest,flags=re.I)
+        if rest.strip(' \t\r\n，,、。；;：:'):return {**partial,'unconsumed_text':rest.strip()}
+        return {**measured,'status':'passed','coverage':'complete','source_evidence':source_texts(text)}
+    if measured.get('status')!='passed' or measured.get('coverage')!='explicit_perpendicular_arm_extents_and_width':return partial
+    source='\n'.join(source_texts(text));rest=source
+    requirement=perpendicular_arm_requirements(source)
+    if not requirement:return partial
+    number=r'\d+(?:\.\d+)?\s*(?:毫米|厘米|米|mm|cm|m)(?![a-zA-Z])'
+    rest=re.sub(r'(?:两|2)条臂分别长\s*'+number+r'\s*(?:和|与|、)\s*'+number,' ',rest,flags=re.I)
+    rest=re.sub(r'宽\s*'+number,' ',rest,flags=re.I)
+    rest=re.sub(r'L形走廊|直角连接|生成|创建|绘制|画出|画|请|一个',' ',rest,flags=re.I)
+    if rest.strip(' \t\r\n，,、。；;：:'):return {**partial,'unconsumed_text':rest.strip()}
+    return {**measured,'coverage':'complete','source_evidence':source_texts(text)}
 
 
 def perpendicular_arm_requirements(text):
@@ -158,7 +218,7 @@ def perpendicular_arm_requirements(text):
     width = re.search(r'宽\s*' + number, source, re.I)
     if not arms or not width:
         return None
-    factors = {'米':1, 'm':1, '厘米':.01, 'cm':.01, '毫米':.001, 'mm':.001}
+    factors = length_factors('m')
     a,b = [float(arms[i])*factors[arms[i+1].lower()] for i in (1,3)]
     w = float(width[1])*factors[width[2].lower()]
     if min(a,b) <= w:

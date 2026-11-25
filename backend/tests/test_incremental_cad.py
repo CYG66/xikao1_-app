@@ -7,12 +7,7 @@ from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
 
-from app.agent_service import (
-    robot_agent,
-    set_request_execution_context,
-    reset_request_execution_context,
-)
-from app.agent_http_service import build_execution_context
+from app.agent_service import robot_agent
 from app.creative_projects import CreativeProjectStore
 from app.incremental_cad import (
     add_symmetric_rectangles_on_circle,
@@ -30,14 +25,6 @@ from app.drawing_store import preview_paths
 
 
 class IncrementalCadTest(unittest.TestCase):
-    @staticmethod
-    def _seal_context(project_id: str, variant_id: str | None) -> dict:
-        return build_execution_context(
-            conversation_id="test-conv",
-            project_id=project_id,
-            source_variant_id=variant_id,
-        )
-
     def test_whole_domain_object_is_parsed_as_a_complete_target(self) -> None:
         edit = parse_incremental_edit("整个篮球场扩大一倍")
 
@@ -330,20 +317,14 @@ class IncrementalCadTest(unittest.TestCase):
                 route["object_memory"] = {
                     "objects": {"project": [{"id": project["id"]}]}
                 }
-                token = set_request_execution_context(
-                    self._seal_context(project["id"], parent["id"])
+                pending = robot_agent.chat(
+                    message, [], mode="advanced", route=route
                 )
-                try:
-                    pending = robot_agent.chat(
-                        message, [], mode="advanced", route=route
-                    )
-                    before_confirm = store.get(project["id"])
-                    action_id = pending["pending_action"]["id"]
-                    confirmed = robot_agent.confirm(action_id, True)
-                    after_confirm = store.get(project["id"])
-                    replay = robot_agent.confirm(action_id, True)
-                finally:
-                    reset_request_execution_context(token)
+                before_confirm = store.get(project["id"])
+                action_id = pending["pending_action"]["id"]
+                confirmed = robot_agent.confirm(action_id, True)
+                after_confirm = store.get(project["id"])
+                replay = robot_agent.confirm(action_id, True)
 
         self.assertEqual(route["decision_source"], "incremental_cad_edit_chain")
         self.assertTrue(pending["ok"], pending)
@@ -1542,16 +1523,10 @@ class IncrementalCadTest(unittest.TestCase):
                 route["object_memory"] = {
                     "objects": {"project": [{"id": project["id"]}]}
                 }
-                token = set_request_execution_context(
-                    self._seal_context(project["id"], parent["id"])
+                preview = robot_agent.chat(
+                    message, [], mode="advanced", route=route,
                 )
-                try:
-                    preview = robot_agent.chat(
-                        message, [], mode="advanced", route=route,
-                    )
-                    confirmed = robot_agent.confirm(preview["pending_action"]["id"], True)
-                finally:
-                    reset_request_execution_context(token)
+                confirmed = robot_agent.confirm(preview["pending_action"]["id"], True)
                 updated = store.get(project["id"])
 
         self.assertTrue(preview["ok"], preview)
@@ -1815,20 +1790,14 @@ class IncrementalCadTest(unittest.TestCase):
                 route["object_memory"] = {
                     "objects": {"project": [{"id": project["id"]}]}
                 }
-                token = set_request_execution_context(
-                    self._seal_context(project["id"], parent["id"])
+                pending_result = robot_agent.chat(
+                    "只保留第1个图形", [], mode="advanced", route=route,
                 )
-                try:
-                    pending_result = robot_agent.chat(
-                        "只保留第1个图形", [], mode="advanced", route=route,
-                    )
-                    before_confirm = store.get(project["id"])
-                    action_id = pending_result["pending_action"]["id"]
-                    confirmed = robot_agent.confirm(action_id, True)
-                    after_confirm = store.get(project["id"])
-                    replay = robot_agent.confirm(action_id, True)
-                finally:
-                    reset_request_execution_context(token)
+                before_confirm = store.get(project["id"])
+                action_id = pending_result["pending_action"]["id"]
+                confirmed = robot_agent.confirm(action_id, True)
+                after_confirm = store.get(project["id"])
+                replay = robot_agent.confirm(action_id, True)
         self.assertTrue(pending_result["ok"])
         self.assertEqual(pending_result["next_action"], "confirm_cad_edit")
         self.assertTrue(pending_result["cad_preflight"]["requires_confirmation"])
@@ -1862,15 +1831,9 @@ class IncrementalCadTest(unittest.TestCase):
                 route["object_memory"] = {
                     "objects": {"project": [{"id": project["id"]}]}
                 }
-                token = set_request_execution_context(
-                    self._seal_context(project["id"], parent["id"])
+                pending = robot_agent.chat(
+                    "只保留第1个图形", [], mode="advanced", route=route,
                 )
-                try:
-                    pending = robot_agent.chat(
-                        "只保留第1个图形", [], mode="advanced", route=route,
-                    )
-                finally:
-                    reset_request_execution_context(token)
                 sibling = store.add_variant(
                     project["id"], "并行候选", parent["geometries"], "并行修改",
                     score_design_variant(parent["geometries"]),
@@ -1973,7 +1936,10 @@ class IncrementalCadTest(unittest.TestCase):
                 route["object_memory"] = {"objects": {"project": [{"id": project["id"]}]}}
                 result = robot_agent.chat("第一个图形宽度改为5米", [], mode="advanced", route=route)
                 updated = store.get(project["id"])
-        self.assertFalse(result["ok"])
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["cad_edit_outcome"], "already_satisfied")
+        self.assertFalse(result["variant_saved"])
+        self.assertEqual(result["source_variant_id"], parent["id"])
         self.assertEqual(len(updated["variants"]), 1)
 
 

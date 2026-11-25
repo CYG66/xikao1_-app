@@ -1777,9 +1777,9 @@ def parameterize_design(prompt: str) -> dict[str, Any]:
                 for keywords, value in (
                     (("矩形", "长方形", "rectangle"), "rectangle"),
                     (("圆弧", "arc"), "arc"),
+                    (("椭圆", "ellipse"), "ellipse"),
                     (("圆形", "圆", "circle"), "circle"),
                     (("折线", "polyline"), "polyline"),
-                    (("椭圆", "ellipse"), "ellipse"),
                 )
                 if any(keyword in normalized for keyword in keywords)
             ),
@@ -1886,6 +1886,10 @@ def parameterize_design(prompt: str) -> dict[str, Any]:
     if shape is None and re.search(r"轮廓|闭合曲线|自由曲线|自由形状", normalized):
         shape = "generic_2d_cad"
 
+    from .cad_axis_requirements import ellipse_axes
+    axes = ellipse_axes(prompt)
+    if axes['status'] == 'complete' and shape in (None, 'ellipse'):
+        dimensions.update(axes['dimensions'])
     missing = []
     if shape is None:
         missing.append("shape")

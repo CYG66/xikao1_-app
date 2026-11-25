@@ -1,0 +1,13 @@
+{
+  "scope": "Real sync/stream adapters and resume guard; prepared context and upstream response injected. No real CAD/model generation.",
+  "context_validation_error": null,
+  "sync_result_has_execution_context": true,
+  "stream_result_has_execution_context": false,
+  "injected_interruption": "injected interruption after result checkpoint",
+  "actual_checkpoint_step": "result_generated",
+  "actual_checkpoint_has_execution_context": false,
+  "actual_checkpoint_has_prepared_context": false,
+  "paused_state": "paused",
+  "resume_ok": false,
+  "resume_message": "检查点缺少原始请求上下文，拒绝恢复，请重新发起请求。"
+}

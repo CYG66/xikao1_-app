@@ -3,92 +3,15 @@
 Supported explicit syntax: 名称：圆/矩形/线段/圆弧，... coordinates
 and dimensions. Unsupported prose remains unverified, never a full pass.
 """
+from .cad_length_units import length_factors
 import math
 import re
-from copy import deepcopy
 
 from .cad_structure_contract import StructureContractError
 
 N=r"[-+]?\d+(?:\.\d+)?"
 P=rf"[（(]\s*({N})\s*[,，]\s*({N})\s*[）)]"
 INVENTORY_MARKER=r"(?:完整部件清单|全部图元清单)[：:]"
-_OVERALL_SCOPE_RE=re.compile(r"整体|总(?:体)?(?:宽|高|长|尺寸)|外包|外形|外廓|包围盒")
-
-
-def scalar_fact_has_explicit_overall_scope(fact):
-    """Whether the fact's own source span explicitly scopes it to the whole."""
-    evidence=(fact or {}).get('evidence') or {}
-    text=evidence.get('text') if isinstance(evidence,dict) else str(evidence)
-    return bool(_OVERALL_SCOPE_RE.search(text or ""))
-
-
-def scalar_fact_scope_needs_object_binding(fact,logical_objects):
-    """A single-subject contract does not make several real objects one body."""
-    return len(logical_objects or [])>1 and not scalar_fact_has_explicit_overall_scope(fact)
-
-
-def _clause_field_matches(kind,body):
-    """Find the exact field matches this parser will consume, once.
-
-    The parser uses the first match for each named field.  Returning those
-    match objects lets residual calculation remove only the consumed span;
-    a second center/radius or unit therefore remains unresolved instead of
-    being silently erased by a broader cleanup regex.
-    """
-    unit_pattern=r"毫米|厘米|米|mm|cm|m"
-    matches={};spans=[]
-    def first(key,pattern,flags=0):
-        match=re.search(pattern,body,flags)
-        if match:
-            matches[key]=match
-            spans.append(match.span())
-        return match
-    first("units",r"坐标单位(?:为|是)?\s*("+unit_pattern+r")")
-    if kind in {"圆","圆弧"}:
-        first("圆心","圆心"+P)
-        first("半径",r"半径(?:为|是)?\s*("+N+r")\s*("+unit_pattern+r")")
-        if kind=="圆弧":
-            first("角度",rf"起始角\s*({N})\s*度[，,\s]+终止角\s*({N})\s*度")
-    elif kind=="矩形":
-        first("左下角","左下角"+P)
-        first("宽",r"宽(?:为|是)?\s*("+N+r")\s*("+unit_pattern+r")")
-        first("高",r"高(?:为|是)?\s*("+N+r")\s*("+unit_pattern+r")")
-    else:
-        first("起点","起点"+P)
-        first("终点","终点"+P)
-    return matches,spans
-
-
-def _unsupported_clause_residue(body,consumed_spans):
-    """Return clause text left after removing the spans actually consumed."""
-    text=body
-    for start,end in sorted(set(consumed_spans),reverse=True):
-        text=text[:start]+text[end:]
-    return text.strip(" \t\r\n，,；;。:：")
-
-
-def _object_geometry_refs(obj):
-    """Read the executor's canonical object scope without guessing a field.
-
-    ``geometry_refs`` is the executor/logical-object channel; legacy callers
-    and stored records may still carry ``geometry_ids``.  When both exist they
-    must agree, and a missing, malformed, duplicate or conflicting reference
-    stays unresolved so the caller emits ``unknown`` instead of measuring the
-    wrong geometry.
-    """
-    refs=obj.get('geometry_refs') if isinstance(obj,dict) else None
-    legacy=obj.get('geometry_ids') if isinstance(obj,dict) else None
-    if refs is None:refs=legacy
-    elif legacy is not None and refs!=legacy:return None
-    if not isinstance(refs,list) or not refs:return None
-    normalized=[]
-    for value in refs:
-        if isinstance(value,bool):return None
-        if isinstance(value,int):normalized.append(value)
-        elif isinstance(value,str) and value.strip().isdigit():normalized.append(int(value.strip()))
-        else:return None
-    if len(normalized)!=len(set(normalized)):return None
-    return normalized
 
 
 def source_texts(text):
@@ -100,16 +23,138 @@ def source_texts(text):
     return [first,source.split(followup,1)[1]] if followup in source else [first]
 
 
-def verify_final_source_contract(text,geometries,logical_objects=None):
+def verify_single_round_primitive(text, geometries):
+    """Independently measure fully consumed single-circle/arc source clauses.
+
+    This constructs no geometry and reads no plan or model assertions. Unknown
+    prose declines full coverage rather than ignoring an extra requirement.
+    """
+    from .cad_source_intent import partition_preview_intent
+    from .cad_precision import ACCEPTANCE_MM
+    factors = length_factors('mm')
+    unit = r'(毫米|厘米|米|mm|cm|m)(?![a-zA-Z])'
+    fields = {}; kinds = set(); evidence = []; output_checks=[]
+    intent_evidence=[]
+    for source in source_texts(text):
+        source,intents=partition_preview_intent(source);intent_evidence.extend(intents)
+        for clause in source.splitlines():
+            if not clause.strip():
+                continue
+            rest = clause
+            local = {}
+            def consume(pattern, callback):
+                nonlocal rest
+                matches = list(re.finditer(pattern, rest, re.I))
+                for match in matches:
+                    callback(match)
+                    evidence.append(match[0])
+                rest = re.sub(pattern, ' ', rest, flags=re.I)
+            def assign(key, value):
+                if key in local and local[key] != value:
+                    raise ValueError('conflicting source fields')
+                local[key] = value
+            try:
+                coordinate_units = re.findall(r'坐标单位(?:为|是|[:：])?\s*'+unit, rest, re.I)
+                metric_units = re.findall(N+r'\s*'+unit, rest, re.I)
+                coordinate_unit = coordinate_units[-1].lower() if coordinate_units else (
+                    metric_units[0].lower() if metric_units and len(set(u.lower() for u in metric_units)) == 1 else None)
+                consume(r'(半径|直径)(?:为|是|取|改为|=|[:：])?\s*('+N+r')\s*'+unit,
+                    lambda m: assign('radius', float(m[2])*factors[m[3].lower()] / (2 if m[1]=='直径' else 1)))
+                if re.search(r'圆心|中心', rest):
+                    if coordinate_unit is None:
+                        return {'status': 'not_checked', 'coverage': 'partial', 'checks': []}
+                    consume(r'(?:圆心|中心)(?:位于|在|为|是|=|[:：])?\s*'+P,
+                        lambda m: assign('center', [float(m[1])*factors[coordinate_unit], float(m[2])*factors[coordinate_unit]]))
+                    consume(r'以\s*'+P+r'\s*为(?:圆心|中心)',
+                        lambda m: assign('center', [float(m[1])*factors[coordinate_unit], float(m[2])*factors[coordinate_unit]]))
+                consume(r'起始角(?:为|是)?\s*('+N+r')\s*度', lambda m: assign('start_angle', float(m[1])))
+                consume(r'终止角(?:为|是)?\s*('+N+r')\s*度', lambda m: assign('end_angle', float(m[1])))
+                consume(r'从\s*('+N+r')\s*度\s*到\s*('+N+r')\s*度',
+                    lambda m: (assign('start_angle', float(m[1])), assign('end_angle', float(m[2]))))
+                consume(r'坐标单位(?:为|是|[:：])?\s*'+unit, lambda m: None)
+            except (ValueError, OverflowError):
+                return {'status': 'not_checked', 'coverage': 'partial', 'checks': []}
+            # This scope clause is proved by the type/count measurement below.
+            rest=re.sub(r'只画(?:这)?(?:一|1)个(?:圆形|圆)(?=[，,。；;\s]|$)','圆',rest)
+            rest=re.sub(r'(?:图纸里)?只保留(?:这)?(?:一|1)?个(?:圆形|圆)(?=[，,。；;\s]|$)','圆',rest)
+            from .cad_source_intent import partition_outline_scope,verify_output_restrictions
+            rest,scope_intents=partition_outline_scope(rest,['圆形','圆'],source=source)
+            output_checks.extend(verify_output_restrictions(geometries,scope_intents))
+            intent_evidence.extend(scope_intents)
+            kinds.update('circle' for i in scope_intents if i.get('subject') in {'圆','圆形'})
+            names = re.findall(r'圆弧|圆形|圆', rest)
+            kinds.update('arc' if name=='圆弧' else 'circle' for name in names)
+            rest = re.sub(r'新建图纸|生成|创建|绘制|画出|画|作|请|一个|一条|圆弧|圆形|圆|的', ' ', rest)
+            if rest.strip(' \t\r\n，,、。；;：:'):
+                return {'status': 'not_checked', 'coverage': 'partial', 'checks': [],
+                        'unconsumed_text':rest.strip(),'source_text':source}
+            fields.update(local)
+    if len(kinds) != 1 or not fields.get('radius') or not math.isfinite(fields['radius']) or fields['radius'] <= 0:
+        return {'status': 'not_checked', 'coverage': 'partial', 'checks': []}
+    kind = next(iter(kinds))
+    if re.search(r'不标尺寸|不加标注', '\n'.join(source_texts(text))) and any(
+            g.get('role') == 'annotation' for g in geometries):
+        raise StructureContractError('原文要求不加标注但存在标注图元')
+    if kind == 'arc' and not all(k in fields for k in ('center', 'start_angle', 'end_angle')):
+        return {'status': 'not_checked', 'coverage': 'partial', 'checks': []}
+    if kind == 'circle' and any(k in fields for k in ('start_angle', 'end_angle')):
+        return {'status': 'not_checked', 'coverage': 'partial', 'checks': []}
+    gs = [g for g in geometries if g.get('selected') is not False and g.get('role') not in {'annotation','reference','ignored'}]
+    checks = [{'field': 'single_primitive_type_and_count', 'status': 'passed' if len(gs)==1 and gs[0].get('type')==kind else 'failed'},*output_checks]
+    if checks[0]['status']=='passed':
+        g = gs[0]
+        checks.append({'field':'radius','actual_mm':g['radius'],'expected_mm':fields['radius'],
+                       'status':'passed' if abs(g['radius']-fields['radius'])<=ACCEPTANCE_MM else 'failed'})
+        if 'center' in fields:
+            actual = [g['center']['x'], g['center']['y']]
+            checks.append({'field':'center','actual_mm':actual,'expected_mm':fields['center'],
+                           'status':'passed' if math.dist(actual,fields['center'])<=ACCEPTANCE_MM else 'failed'})
+        if kind=='arc':
+            def sweep(start, end):
+                delta=end-start
+                return delta if delta>0 else delta+360*max(1,math.ceil(-delta/360))
+            angles_ok = all(abs((g[k]-fields[k]+180)%360-180)<=.001 for k in ('start_angle','end_angle'))
+            angles_ok = angles_ok and abs(sweep(g['start_angle'],g['end_angle'])-sweep(fields['start_angle'],fields['end_angle']))<=.001
+            checks.append({'field':'arc_angles_and_sweep','status':'passed' if angles_ok else 'failed'})
+    ids = [g['id'] for g in gs]
+    if any(c['status']=='failed' for c in checks):
+        raise StructureContractError('单图元几何不符合完整源需求',
+            {'geometry_ids':ids, 'checks':checks, 'source_evidence':evidence})
+    return {'status':'passed','coverage':'complete','checks':checks,
+            'geometry_ids':ids,'source_evidence':evidence,'authority':'backend_measured_geometry',
+            'measurement_scope':'fully_consumed_single_primitive_source','intent_evidence':intent_evidence}
+
+
+def nested_circle_roles(geometries):
+    """Bind a unique enclosing circle; never guess among several inner roles."""
+    circles=[g for g in geometries if g.get('type')=='circle']
+    if len(circles)<2 or any(g['radius']<=0 for g in circles):return {}
+    def contains(a,b):
+        return math.dist([a['center']['x'],a['center']['y']],
+                         [b['center']['x'],b['center']['y']])+b['radius']<a['radius']
+    outer=[a for a in circles if all(a is b or contains(a,b) for b in circles)]
+    if len(outer)!=1:return {}
+    result={'外圆':outer[0]}
+    if len(circles)==2:result['内圆']=next(g for g in circles if g is not outer[0])
+    return result
+
+
+def verify_final_source_contract(text,geometries,logical_objects=None,*,evidence_context=None):
     """Read-only final measurement of unambiguously scoped user facts."""
+    from .cad_capsule_acceptance import verify_capsule_source, has_local_axis_dimensions
+    capsule=verify_capsule_source(text,geometries,evidence_context=evidence_context)
+    if capsule['coverage']=='complete':return capsule
     from .cad_requirement_contract import requirement_contract
+    from .cad_validation_evidence import ConstructionEvidence
+    if evidence_context is None:evidence_context=ConstructionEvidence()
+    from .cad_geometry_measurements import measured
     from .cad_construction import construction_geometry_bounds
     sources=source_texts(text)
     contract=requirement_contract([{'source_id':f'user:{i}','text':s} for i,s in enumerate(sources)])
     gs=[g for g in geometries if g.get('selected') is not False and g.get('role') not in {'annotation','reference','ignored'}]
     checks=[];unknown=[];failures=[]
     if not gs:return {'status':'not_checked','coverage':'partial','checks':[]}
-    bounds=construction_geometry_bounds(gs)
+    bounds=measured(construction_geometry_bounds,gs,evidence_context=evidence_context)
     def measure(field,actual,expected,operator,source_id,evidence,ids=None):
         delta=max(abs(a-b) for a,b in zip(actual,expected)) if isinstance(actual,list) else actual-expected
         passed=(abs(delta)<=.5 if operator=='eq' else delta<=.5 if operator=='lte' else delta>=-.5)
@@ -120,27 +165,152 @@ def verify_final_source_contract(text,geometries,logical_objects=None):
         if not passed:failures.append(check)
     for fact in contract['facts']:
         if fact['status']!='effective':continue
-        selected=gs
-        if (len(contract['subjects'])==1 and fact['binding']=='single_subject'
-                and scalar_fact_scope_needs_object_binding(fact,logical_objects)):
-            unknown.append({'source_requirement_id':fact['fact_id'],
-                            'reason':'多对象尺寸范围不明确，未把单一契约主体当作整体'})
+        if fact['field'] in {'width','height'} and has_local_axis_dimensions(text):
+            unknown.append({'source_requirement_id':fact['fact_id'],'reason':'局部轴尺寸不能使用世界外包框验证'})
             continue
+        if (fact['subject'] in {'墙体','门'} and fact['field'] in {'width','height'}
+                and not any(o.get('label')==fact['subject'] for o in logical_objects or [])):
+            from .cad_semantic_acceptance import verify_semantic_requirements
+            semantic=evidence_context.measure(verify_semantic_requirements,text,gs)
+            house=semantic.get('measured_contracts',{}).get('house_parts')
+            if house:
+                boxes=[house['wall_bounds_mm']] if fact['subject']=='墙体' else house['door_bounds_mm']
+                if len(boxes)==1:
+                    measure(fact['field'],boxes[0][2 if fact['field']=='width' else 3],fact['value_mm'],
+                            fact['operator'],fact['fact_id'],fact['evidence'],house['geometry_ids'])
+                    continue
+        selected=gs
         if len(contract['subjects'])!=1 or fact['binding']!='single_subject':
-            matches=[obj for obj in logical_objects or [] if obj.get('label')==fact['subject']]
-            refs=_object_geometry_refs(matches[0]) if len(matches)==1 else None
-            if len(matches)!=1 or not refs:
+            if fact['subject'] in {'内圆','外圆'}:
+                roles=nested_circle_roles(gs)
+                if not roles and fact['subject']=='外圆':
+                    from .cad_symmetric_divider_acceptance import verify_symmetric_divider_source
+                    divider=evidence_context.measure(verify_symmetric_divider_source,text,gs,evidence_context=evidence_context)
+                    if divider['status']=='passed':
+                        roles={'外圆':next(g for g in gs if g['id']==divider['outer_circle_id'])}
+                if fact['subject'] not in roles:
+                    unknown.append({'source_requirement_id':fact['fact_id'],'reason':'内外圆角色尚未由唯一包含关系确认'})
+                    continue
+                matches=[{'geometry_refs':[roles[fact['subject']]['id']]}]
+            elif fact['subject'] in {'俯视圆','侧视轮廓'} and '两个独立正投影视图' in text and '圆柱体' in text:
+                from .cad_structure_contract import _frame
+                candidates=[g for g in gs if (g.get('type')=='circle' if fact['subject']=='俯视圆' else _frame(g,evidence_context=evidence_context) is not None)]
+                matches=[{'geometry_refs':[candidates[0]['id']]}] if len(candidates)==1 else []
+            elif fact['subject']=='外环' and fact['field'] in {'radius','diameter'}:
+                from .cad_radial_attachment_acceptance import verify_radial_attachment_source
+                proof=evidence_context.measure(verify_radial_attachment_source,text,gs)
+                circles=[g for g in gs if g.get('type')=='circle']
+                matches=([{'geometry_refs':[circles[0]['id']]}]
+                         if proof['status']=='passed' and len(circles)==1 else [])
+            else:
+                matches=[obj for obj in logical_objects or [] if obj.get('label')==fact['subject']]
+            if not matches:
+                # A named whole may consist of several primitive objects.
+                # Bind only one exact assembly identity, never a fuzzy label
+                # match or an arbitrary union of similarly named drawings.
+                def whole_name(label):return re.sub(r'(?:的)?轮廓$','',str(label or ''))
+                sole_whole=len(contract['subjects'])==1 and fact['subject']==contract['subjects'][0]
+                assemblies={obj.get('assembly_id') for obj in logical_objects or []
+                            if (obj.get('assembly_label')==fact['subject'] or
+                                sole_whole and whole_name(obj.get('assembly_label'))==whole_name(fact['subject']))
+                            and obj.get('assembly_id')}
+                if len(assemblies)==1:
+                    assembly_id=next(iter(assemblies))
+                    members=[obj for obj in logical_objects if obj.get('assembly_id')==assembly_id]
+                    refs=[obj.get('geometry_refs') or obj.get('geometry_ids') for obj in members]
+                    if all(refs):
+                        matches=[{'geometry_refs':list(dict.fromkeys(i for ids in refs for i in ids))}]
+            # A sole explicitly named primitive can be bound by its measured
+            # type even when a model adds adjectives to its label. Multiple
+            # geometric candidates stay unresolved; labels never select one.
+            if not matches and fact['subject'] in {'矩形','长方形','圆','圆形','圆弧'}:
+                from .cad_structure_contract import _frame
+                kind = {'圆':'circle','圆形':'circle','圆弧':'arc'}.get(fact['subject'])
+                candidates = [g for g in gs if (g.get('type')==kind if kind else _frame(g,evidence_context=evidence_context) is not None)]
+                if len(candidates)==1:
+                    matches=[{'geometry_refs':[candidates[0]['id']]}]
+            if len(matches)!=1 or not (matches[0].get('geometry_refs') or matches[0].get('geometry_ids')):
                 unknown.append({'source_requirement_id':fact['fact_id'],'reason':'对象范围尚未唯一绑定'});continue
-            selected=[g for g in gs if g['id'] in refs]
-            if len(selected)!=len(refs):
+            ids = matches[0].get('geometry_refs') or matches[0]['geometry_ids']
+            selected=[g for g in gs if g['id'] in ids]
+            if len(selected)!=len(set(ids)):
                 unknown.append({'source_requirement_id':fact['fact_id'],'reason':'逻辑对象引用不完整'});continue
-        local_bounds=construction_geometry_bounds(selected)
+        local_bounds=measured(construction_geometry_bounds,selected,evidence_context=evidence_context)
         field=fact['field'];actual=None
+        if field in {'radius','diameter'} and len(selected)>1:
+            # The source explicitly names a circle's size, and exactly one
+            # native circle exists in the bound assembly. Other radii remain
+            # unresolved rather than inheriting an arbitrary component.
+            native=[g for g in selected if g.get('type')=='circle']
+            if len(native)==1 and re.search(r'圆(?:半径|直径)',text):
+                selected=native
         if field in {'width','height'}:
             axis='x' if field=='width' else 'y'
             actual=local_bounds['max_'+axis]-local_bounds['min_'+axis]
-        elif len(selected)==1 and selected[0].get('type')=='circle' and field in {'radius','diameter'}:
-            actual=selected[0]['radius']*(2 if field=='diameter' else 1)
+        elif len(selected)==1 and selected[0].get('type') in {'circle','arc'} and field in {'radius','diameter'}:
+            from .cad_geometry_measurements import measured,circle_facts
+            actual=measured(circle_facts,selected[0],evidence_context=evidence_context)['radius_mm']*(2 if field=='diameter' else 1)
+        elif field=='side_length' and len(selected)>1 and '六边形' in text and re.search('无缝|共边',text):
+            from .cad_repetition_acceptance import verify_repetition_requirements
+            tiling=evidence_context.measure(verify_repetition_requirements,text,selected).get('measured_contracts',{}).get('hexagonal_tiling')
+            if tiling:actual=tiling['side_length_mm']
+        elif field=='side_length' and len(selected)==12 and all(g.get('type')=='line' for g in selected) and '投影棱长' in text:
+            from .cad_projection_acceptance import verify_projection_requirements
+            projection=evidence_context.measure(verify_projection_requirements,text,selected)
+            if projection['status']=='passed':actual=projection['projected_edge_length_mm']
+        elif field=='radius' and len(selected)>1 and '最大半径' in fact['evidence']['text']:
+            # A group's radial extent is not a native circle radius. Bind
+            # this scalar to the independently recovered rotational centre
+            # and endpoint distances, preserving its original fact/evidence.
+            from .cad_repetition_acceptance import branch_structure_requirements, verify_repetition_requirements
+            if branch_structure_requirements(text):
+                radial=evidence_context.measure(verify_repetition_requirements,text,selected).get('measured_contracts',{}).get('radial_branches')
+                if radial:actual=radial['maximum_radius_mm']
+        elif field=='diameter' and '外径' in fact['evidence']['text']:
+            from .cad_repetition_acceptance import tooth_boundary_requirements,verify_repetition_requirements
+            if tooth_boundary_requirements(text):
+                gear=evidence_context.measure(verify_repetition_requirements,text,selected).get('measured_contracts',{}).get('tooth_boundary')
+                if gear:actual=gear['outer_diameter_mm']
+        elif len(selected)==1 and selected[0].get('type')=='polyline' and field=='radius':
+            from .cad_parametric import polar_requirements
+            if re.search(r'圆角半径',text):
+                from .cad_geometry_measurements import rounded_rectangle_facts
+                rounded=measured(rounded_rectangle_facts,selected[0],fact['value_mm'],evidence_context=evidence_context)
+                if rounded:actual=rounded['radius_mm']
+            elif polar_requirements(text):
+                # Explicit origin-based winding fixes the radial reference;
+                # arbitrary free curves must not inherit an origin or radius.
+                actual=max(math.hypot(p['x'],p['y']) for p in selected[0]['vertices'])
+        elif len(selected)==1 and field in {'circumradius','side_length'}:
+            # Measure the bound scalar directly instead of clearing an
+            # unresolved source fact merely because another verifier passed.
+            from .cad_structure_contract import _points, _corners
+            geometry=selected[0]
+            points=_corners(_points(geometry))
+            straight=not any(p.get('bulge',0)!=0 for p in geometry.get('vertices',[]))
+            if len(points)>=3 and straight:
+                from shapely.geometry import Polygon
+                shape=Polygon(points)
+                if shape.is_valid and shape.area>0:
+                    if field=='side_length':
+                        lengths=[math.dist(p,q) for p,q in zip(points,points[1:]+points[:1])]
+                        if max(lengths)-min(lengths)<=.5:
+                            actual=sum(lengths)/len(lengths)
+                    else:
+                        from .cad_geometry_measurements import polygon_circumcircle
+                        circle=measured(polygon_circumcircle,geometry,evidence_context=evidence_context)
+                        if circle:actual=circle['radius_mm']
+                        else:
+                            from .cad_geometry_measurements import polygon_circumcircle_diagnostics
+                            diagnostic=measured(polygon_circumcircle_diagnostics,geometry,evidence_context=evidence_context)
+                            from .cad_construction_interpreter import outline_requirements
+                            radial=outline_requirements(text)
+                            if diagnostic and not diagnostic['cyclic_hull'] and radial and radial['profile']=='polygonal':
+                                raise StructureContractError('原文外接圆要求不满足：外轮廓顶点不共圆',{
+                                    'authority':'backend_measured_geometry','geometry_ids':[geometry['id']],
+                                    'source_requirement':fact,'measurements':diagnostic,
+                                    'requires_structural_replan':True,
+                                    'repair_instruction':'按已确认外接圆半径核对全部外顶点；修复实际顶点及其连接，保留内外比例、朝向和原始来源要求。不能把不共圆当成不支持测量，也不能改断言掩盖错误。'})
         if actual is not None:measure(field,actual,fact['value_mm'],fact['operator'],fact['fact_id'],fact['evidence'],[g['id'] for g in selected])
         else:unknown.append({'source_requirement_id':fact['fact_id'],'reason':'当前测量器不支持此要求'})
     # Coordinates are not inferred from assumptions, control points or a
@@ -153,7 +323,7 @@ def verify_final_source_contract(text,geometries,logical_objects=None):
             units=re.findall(r'坐标单位(?:为|是)?\s*(毫米|厘米|米|mm|cm|m)',source,re.I)
             if not units:units=re.findall(N+r'\s*(毫米|厘米|米|mm|cm|m)(?![a-zA-Z])',source,re.I)
             if matches and len(set(u.lower() for u in units))==1:
-                match=matches[-1];factor={'米':1000,'m':1000,'厘米':10,'cm':10,'毫米':1,'mm':1}[units[-1].lower()]
+                match=matches[-1];factor=length_factors('mm')[units[-1].lower()]
                 center=([float(match[1])*factor,float(match[2])*factor],f'user:{i}:center',match[0])
         if center:
             actual=[(bounds['min_x']+bounds['max_x'])/2,(bounds['min_y']+bounds['max_y'])/2]
@@ -163,8 +333,7 @@ def verify_final_source_contract(text,geometries,logical_objects=None):
             'authority':'backend_measured_geometry','geometry_ids':sorted({i for f in failures for i in f['geometry_ids']}),
             'failures':failures,'local_repair_possible':True,
             'repair_instruction':'只修正失败源需求绑定的对象和参数；不得删除源要求或改变未受影响对象。'})
-    return {'status':'partial' if checks else 'unverified' if unknown else 'not_checked',
-            'coverage':'partial','checks':checks,
+    return {'status':'partial' if checks else 'not_checked','coverage':'partial','checks':checks,
             'unknown_requirements':unknown,'review_required':bool(unknown)}
 
 
@@ -178,22 +347,22 @@ def extract_scoped_primitives(text):
             label,kind,body=m.groups()
             # Explicit per-clause unit required; never borrow another part's
             # radius, dimensions, or units.
-            factors={"毫米":1,"mm":1,"厘米":10,"cm":10,"米":1000,"m":1000}
-            matches,consumed=_clause_field_matches(kind,body)
-            units=matches.get("units")
+            unit_pattern=r"毫米|厘米|米|mm|cm|m"
+            factors=length_factors('mm')
+            units=re.search(r"坐标单位(?:为|是)?\s*("+unit_pattern+r")",body)
             if not units:continue
             spec={"subject":label.strip(),"kind":kind,"evidence":clause.strip()}
             def scalar(name):
-                match=matches.get(name)
+                match=re.search(rf"{name}(?:为|是)?\s*({N})\s*({unit_pattern})",body)
                 return float(match[1])*factors[match[2]] if match else None
             def point(name):
-                match=matches.get(name)
+                match=re.search(name+P,body)
                 return [float(match[1])*factors[units[1]],float(match[2])*factors[units[1]]] if match else None
             if kind in {"圆","圆弧"}:
                 spec.update(center=point("圆心"),radius=scalar("半径"))
                 if spec["center"] is None or spec["radius"] is None:continue
                 if kind=="圆弧":
-                    angles=matches.get("角度")
+                    angles=re.search(rf"起始角\s*({N})\s*度[，,\s]+终止角\s*({N})\s*度",body)
                     if not angles:continue
                     spec.update(start_angle=float(angles[1]),end_angle=float(angles[2]))
             elif kind=="矩形":
@@ -202,8 +371,15 @@ def extract_scoped_primitives(text):
             else:
                 spec.update(start=point("起点"),end=point("终点"))
                 if spec["start"] is None or spec["end"] is None:continue
-            residue=_unsupported_clause_residue(body,consumed)
-            if residue:spec["unresolved_evidence"]=residue
+            # Parsing a prefix never proves the rest of the clause. Preserve
+            # unrecognized suffixes so coverage adapters cannot swallow them
+            # by removing the full primitive evidence string.
+            rest=body
+            rest=re.sub(r'坐标单位(?:为|是)?\s*(?:'+unit_pattern+r')',' ',rest)
+            rest=re.sub(r'(?:圆心|左下角|起点|终点)(?:为|是)?\s*'+P,' ',rest)
+            rest=re.sub(r'(?:半径|宽|高)(?:为|是)?\s*'+N+r'\s*(?:'+unit_pattern+r')',' ',rest)
+            rest=re.sub(r'(?:起始角|终止角)\s*'+N+r'\s*度',' ',rest)
+            if rest.strip(' \t，,、：:'):spec['unconsumed_text']=rest.strip()
             # Later revisions override only the same explicitly named subject.
             specs[spec["subject"]]=spec
     # Also accept one unambiguous primitive described in ordinary command
@@ -212,7 +388,7 @@ def extract_scoped_primitives(text):
     if not specs:
         source="\n".join(source_texts(text))
         unit_pattern=r"毫米|厘米|米|mm|cm|m"
-        factors={"毫米":1,"mm":1,"厘米":10,"cm":10,"米":1000,"m":1000}
+        factors=length_factors('mm')
         units=re.findall(r"坐标单位(?:为|是)?\s*("+unit_pattern+r")",source,re.I)
         unit=units[-1].lower() if units else None
         if unit:
@@ -249,17 +425,22 @@ def extract_scoped_primitives(text):
     return list(specs.values())
 
 
-def verify_scoped_primitives(text, geometries, logical_objects=None):
+def verify_scoped_primitives(text, geometries, logical_objects=None, *, evidence_context=None):
     from .cad_structure_contract import _frame
+    from .cad_geometry_measurements import measured,circle_facts
+    from .cad_validation_evidence import ConstructionEvidence
+    if evidence_context is None:evidence_context=ConstructionEvidence()
     specs=extract_scoped_primitives(text)
     if not specs:return {"status":"not_checked","checks":[],"coverage":"partial"}
+    has_annotations=any(g.get('selected') is not False and g.get('role')=='annotation' for g in geometries)
     geometries=[g for g in geometries if g.get("selected") is not False and g.get("role") not in {"reference","annotation","ignored"}]
     def point(p):return [p["x"],p["y"]]
     def near(a,b):return math.dist(a,b)<=.5
     def matches(s,g):
         if s["kind"] in {"圆","圆弧"}:
             if g.get("type")!=({"圆":"circle","圆弧":"arc"}[s["kind"]]):return False
-            if not near(s["center"],point(g["center"])) or abs(s["radius"]-g["radius"])>.5:return False
+            fact=measured(circle_facts,g,evidence_context=evidence_context)
+            if not near(s["center"],fact['center_mm']) or abs(s["radius"]-fact['radius_mm'])>.5:return False
             if s["kind"]=="圆弧":
                 def sweep(start,end):
                     delta=end-start
@@ -270,7 +451,7 @@ def verify_scoped_primitives(text, geometries, logical_objects=None):
                     and abs(sweep(g["start_angle"],g["end_angle"])-sweep(s["start_angle"],s["end_angle"]))<.001)
             return True
         if s["kind"]=="矩形":
-            frame=_frame(g)
+            frame=_frame(g,evidence_context=evidence_context)
             return bool(frame and near(s["origin"],frame[:2]) and abs(s["width"]-frame[2])<=.5 and abs(s["height"]-frame[3])<=.5)
         return g.get("type")=="line" and near(s["start"],point(g["start"])) and near(s["end"],point(g["end"]))
     # Bipartite assignment avoids a greedy match stealing a repeated component.
@@ -292,12 +473,30 @@ def verify_scoped_primitives(text, geometries, logical_objects=None):
     # exact cardinality. An unsupported clause must not become a missing part.
     inventories=[re.split(INVENTORY_MARKER,s,maxsplit=1)[1] for s in source_texts(text)
                  if re.search(INVENTORY_MARKER,s)]
-    evidence={s['evidence'] for s in specs if not s.get('unresolved_evidence')}
+    evidence={s['evidence'] for s in specs}
     from .cad_relation_acceptance import extract_named_relations
     evidence.update(r['evidence']['text'] for r in extract_named_relations(text,[s['subject'] for s in specs]))
     complete_inventory=bool(inventories) and all(
         all(c.strip() in evidence for c in re.split(r"[；;。\n]",body) if c.strip())
         for body in inventories)
+    # Ordinary complete enumerations use the same measured bindings. Coverage
+    # is established by consuming every clause, never by absence of failures.
+    from .cad_source_intent import partition_preview_intent
+    rest,intents=partition_preview_intent('\n'.join(source_texts(text)))
+    for spec in specs:
+        if not spec.get('unconsumed_text'):
+            rest=rest.replace(spec['evidence'],' ',1)
+    declarations=list(re.finditer(r'(?:在同一张图中)?(?:请)?(?:画|绘制|生成)([二三四五六七八九十]|两|\d+)个独立图形',rest))
+    number=lambda s:int(s) if s.isdigit() else 2 if s=='两' else '零一二三四五六七八九十'.index(s)
+    closed_enumeration=bool(declarations) and all(number(m[1])==len(specs) for m in declarations)
+    rest=re.sub(r'(?:在同一张图中)?(?:请)?(?:画|绘制|生成)(?:[二三四五六七八九十]|两|\d+)个独立图形',' ',rest)
+    no_extra=bool(re.search(r'不要增加连接线或标注|不加其他图形',rest))
+    rest=re.sub(r'不要增加连接线或标注|不加其他图形',' ',rest)
+    ordinary_complete=(closed_enumeration and no_extra and not rest.strip(' \t\r\n，,。；;')
+                       and not any(s.get('unconsumed_text') for s in specs))
+    complete_inventory=complete_inventory or ordinary_complete
+    if ordinary_complete and has_annotations:
+        raise StructureContractError('原文完整清单要求不加标注')
     if unmatched and complete_inventory:
         raise StructureContractError(
             "完整部件清单之外存在额外可见图元",
@@ -309,831 +508,19 @@ def verify_scoped_primitives(text, geometries, logical_objects=None):
         "unverified_geometry_ids":unmatched,"review_required":bool(unmatched),"checks":[
         {"subject":s["subject"],"source_requirement":s,"geometry_ids":[ids[i]],
          "status":"passed","authority":"backend_measured_geometry"} for i,s in enumerate(specs)]}
-    ownership_complete=True
     if logical_objects is not None:
-        ownership_complete=False
-        subjects={s["subject"] for s in specs}
         for check in report["checks"]:
-            owners=[o for o in logical_objects if check["geometry_ids"][0] in (_object_geometry_refs(o) or [])]
+            owners=[o for o in logical_objects if check["geometry_ids"][0] in o.get("geometry_refs",[])]
             if not owners or any(not o.get("assembly_id") for o in owners):
                 raise StructureContractError("部件缺少明确整体归属："+check["subject"])
-            # A model label is never positive identity proof.  It is only a
-            # contradiction signal: if an owner is labelled as a different
-            # declared source subject while owning this subject's measured
-            # geometry, the object binding is internally inconsistent.
-            for owner in owners:
-                label=str(owner.get("label") or "")
-                if label in subjects and label!=check["subject"]:
-                    raise StructureContractError(
-                        "部件归属与来源主体不一致："+check["subject"],
-                        {"reason":"object_binding_conflict","subject":check["subject"],
-                         "owner_label":label,"geometry_ids":check["geometry_ids"],
-                         "object_id":owner.get("object_id")})
             check["object_ids"]=[o["object_id"] for o in owners]
             check["assembly_ids"]=sorted({o["assembly_id"] for o in owners})
-            ownership_complete=True
     from .cad_relation_acceptance import verify_named_relations
-    report['relation_acceptance']=verify_named_relations(text,geometries,report['checks'])
+    report['relation_acceptance']=verify_named_relations(text,geometries,report['checks'],evidence_context=evidence_context)
     report['review_required']=report['review_required'] or report['relation_acceptance']['review_required']
-
-    category_for_kind={"圆":"circle","圆弧":"arc","矩形":"rectangle","线段":"line"}
-    scope_entries=[];all_object_ids=set()
-    for check in report["checks"]:
-        spec=check["source_requirement"]
-        entry={"requirement_id":f"source-scope:{spec['subject']}","subject":spec["subject"],
-               "category":category_for_kind.get(spec["kind"],"named_subject"),
-               "quantity":1,"geometry_ids":deepcopy(check["geometry_ids"]),
-               "object_ids":deepcopy(check.get("object_ids") or []),
-               "assembly_ids":deepcopy(check.get("assembly_ids") or []),
-               "evidence":spec["evidence"],"authority":"backend_measured_geometry",
-               "measurement":{"kind":spec["kind"]}}
-        for key in ("center","radius","origin","width","height","start","end","start_angle","end_angle"):
-            if key in spec:entry["measurement"][key]=deepcopy(spec[key])
-        if spec.get("unresolved_evidence"):
-            entry["unresolved_evidence"]=spec["unresolved_evidence"]
-        scope_entries.append(entry)
-        all_object_ids.update(entry["object_ids"])
-    grouping="object"
-    grouped_ids=all_object_ids
-    reasons=[]
-    unresolved=[s for s in specs if s.get("unresolved_evidence")]
-    if not complete_inventory:reasons.append("来源完整清单未声明或包含未解析条款")
-    if unresolved:reasons.append("条款包含未解释、未测量的片段")
-    if unmatched:reasons.append("存在完整清单之外的可见图元")
-    if not ownership_complete:reasons.append("部件缺少唯一逻辑对象和整体归属")
-    if report['relation_acceptance']['review_required']:reasons.append("存在未验证的原文部件关系")
-    complete_scope=(complete_inventory and not unmatched and ownership_complete
-                    and not unresolved
-                    and not report['relation_acceptance']['review_required']
-                    and all(c["status"]=="passed" for c in report["checks"]))
-    report["scope_evidence"]={"schema":"cad.source-scope-evidence.v1",
-        "state":"complete" if complete_scope else "partial","entries":scope_entries,
-        "count_baseline":{"expected_object_count":len(grouped_ids) if complete_scope else None,
-                          "grouping":grouping},
-        "unmatched_geometry_ids":deepcopy(unmatched),"reasons":reasons}
-    if complete_scope:
-        report["status"]="passed"
-        report["coverage"]="complete"
-        report["review_required"]=False
+    if ordinary_complete and not report['review_required']:
+        report.update(status='passed',coverage='complete',intent_evidence=intents,
+                      measurement_scope='fully_consumed_measured_scoped_inventory')
+        report['inventory_check']={'field':'complete_visible_inventory','status':'passed',
+            'expected':len(specs),'actual':len(geometries),'geometry_ids':[g['id'] for g in geometries]}
     return report
-
-
-# ---------------------------------------------------------------------------
-# Requirement -> verifier -> measurement coverage closure
-# ---------------------------------------------------------------------------
-# This layer does not recognize requirements and does not create geometry.  It
-# consumes the already measured *_acceptance reports and binds each source
-# clause to the backend check that measured it.  A clause is complete only
-# when every applicable check passed and no unresolved/unsupported item
-# remains.  A failed, partial or unbound clause stays a blocking requirement.
-#
-# The table below is a bridge for semantic verifiers that expose their
-# recognized scope through ``coverage`` but omit source spans.  It is keyed by
-# the verifier's own coverage value, not by a case id, and carries no pass
-# authority: the semantic report itself must be ``passed``.
-
-_SEMANTIC_COVERAGE_SOURCE_TERMS = {
-    "cardioid_shape_and_declared_direction": [
-        {"role": "shape_identity", "pattern": r"cardioid|心形线",
-         "check": "cardioid_polar_identity"},
-        {"role": "declared_direction", "pattern": r"尖点朝下",
-         "check": "cardioid_polar_identity"},
-    ],
-    "astroid_identity_radius_and_four_cusps": [
-        {"role": "shape_identity", "pattern": r"astroid|星形线",
-         "check": None},
-    ],
-    "explicit_nested_square_frames": [
-        {"role": "shape_identity", "pattern": r"嵌套[^，,；;。\n]*正方形",
-         "check": None},
-    ],
-    "explicit_regular_polygon_and_concentric_hole": [
-        {"role": "shape_identity", "pattern": r"正\s*\d+\s*边形",
-         "check": None},
-    ],
-}
-
-_ADMIN_SEGMENT = re.compile(
-    r"^(?:完整部件清单|全部图元清单|坐标单位(?:为|是)?\s*"
-    r"(?:毫米|厘米|米|mm|cm|m))[：:]?$", re.I)
-
-# A second requirement can be attached to the previous one without any comma,
-# e.g. "直角连接并在墙上加一扇门".  Split before these top-level connectors so
-# the added component cannot inherit the previous clause's verified status.
-_SUBREQUIREMENT_BOUNDARY = re.compile(
-    r"(?=(?:并在|且在|并且|同时|然后|另外|还要|以及|并加|并带|且加|且带|再在|再加))")
-_PATH_SHAPE_CLAUSE = re.compile(
-    r"^(?:请|帮我|麻烦|给我)?(?:画|绘制|生成|制作|创建|设计|建|做)?"
-    r"(?:一个|一条|一座|个|条)?\s*"
-    r"(?:L\s*[形型](?:走廊|通道|路径|轮廓|线)?"
-    r"|直角折形(?:走廊|通道)?"
-    r"|折形(?:走廊|通道)?)$", re.I)
-_PATH_RIGHT_ANGLE_CLAUSE = re.compile(
-    r"^(?:请|帮我|麻烦)?(?:两臂|两段|两条臂|边界|拐角|转角|连接"
-    r"|并|且|同时)?(?:以|成|为|是)?直角(?:连接|相连|相接|拐角|转角)?$")
-_PATH_ARM_CLAUSE = re.compile(
-    rf"^(?:两条臂|两臂|两段|两条)?(?:分别|各)?(?:长|长度为|为)?\s*"
-    rf"({N})\s*(毫米|厘米|米|mm|cm|m)\s*(?:和|、|,|，)\s*"
-    rf"({N})\s*(毫米|厘米|米|mm|cm|m)$", re.I)
-_WIDTH_CLAUSE = re.compile(
-    rf"宽(?:度)?(?:为|是|取|设为)?\s*({N})\s*(毫米|厘米|米|mm|cm|m)",
-    re.I)
-# Only syntax that decorates a measurement is removable when checking whether
-# a verified claim really covers the whole source clause.  Everything else is
-# left as residual and blocks the clause.
-_REQUEST_PREFIX = re.compile(
-    r"^(?:请|帮我|麻烦|给我)?(?:画|绘制|生成|制作|创建|设计|建|做)?"
-    r"(?:一个|一条|一座|一张|一幅|个|条)?\s*")
-_ASCII_ALIAS_PAREN = re.compile(
-    r"[（(]\s*[A-Za-z][A-Za-z0-9 _./+-]*\s*[）)]")
-_UNIT_FACTORS = {"毫米": 1.0, "mm": 1.0, "厘米": 10.0, "cm": 10.0,
-                 "米": 1000.0, "m": 1000.0}
-
-
-def _split_subrequirements(raw):
-    """Split top-level attached requirements while preserving offsets."""
-    depths = []
-    depth = 0
-    for char in raw:
-        depths.append(depth)
-        if char in "(（":
-            depth += 1
-        elif char in ")）":
-            depth = max(0, depth - 1)
-    boundaries = [match.start() for match in _SUBREQUIREMENT_BOUNDARY.finditer(raw)
-                  if match.start() > 0 and depths[match.start()] == 0]
-    if not boundaries:
-        return [(0, len(raw))]
-    starts = [0] + boundaries
-    ends = boundaries + [len(raw)]
-    return [(start, end) for start, end in zip(starts, ends) if end > start]
-
-
-def _source_segments(text):
-    """Split source into top-level clauses without breaking coordinates.
-
-    Commas inside parentheses belong to a point, not to a new requirement.
-    The inventory header and a stand-alone unit declaration are administrative
-    and never count as user requirements.
-    """
-    segments = []
-    for source_index, source in enumerate(source_texts(text)):
-        pieces = []
-        begin = 0
-        depth = 0
-        for index, char in enumerate(source):
-            if char in "(（":
-                depth += 1
-            elif char in ")）":
-                depth = max(0, depth - 1)
-            elif depth == 0 and char in "，,；;。\n":
-                pieces.append((begin, index))
-                begin = index + 1
-        pieces.append((begin, len(source)))
-        expanded = []
-        for piece_begin, piece_end in pieces:
-            raw = source[piece_begin:piece_end]
-            expanded.extend((piece_begin + start, piece_begin + end)
-                            for start, end in _split_subrequirements(raw))
-        for begin, end in expanded:
-            raw = source[begin:end]
-            stripped = raw.strip()
-            if not stripped:
-                continue
-            offset = len(raw) - len(raw.lstrip())
-            begin += offset
-            end = begin + len(stripped)
-            if _ADMIN_SEGMENT.match(stripped):
-                continue
-            segments.append({
-                "source_index": source_index,
-                "text": source[begin:end],
-                "start": begin,
-                "end": end,
-                "administrative": False,
-            })
-    return segments
-
-
-def _segment_for_span(segments, source_index, start, end=None):
-    for segment in segments:
-        if segment["source_index"] != source_index:
-            continue
-        if end is None:
-            if segment["start"] <= start < segment["end"]:
-                return segment
-        elif start >= segment["start"] and end <= segment["end"]:
-            return segment
-        if start < segment["end"] and end is not None and end > segment["start"]:
-            return segment
-    return None
-
-
-def _numbers_mm(text):
-    factors = {"毫米": 1.0, "mm": 1.0, "厘米": 10.0, "cm": 10.0,
-               "米": 1000.0, "m": 1000.0}
-    values = []
-    for match in re.finditer(r"(\d+(?:\.\d+)?)\s*(毫米|厘米|米|mm|cm|m)(?![a-zA-Z])",
-                             text, re.I):
-        values.append(float(match.group(1)) * factors[match.group(2).lower()])
-    return values
-
-
-def _near_mm(left, right, tolerance=0.5):
-    return abs(float(left) - float(right)) <= tolerance
-
-
-def _claim_residual(text, evidence):
-    """Return source text not covered by a claim's actual evidence phrase.
-
-    This is deliberately syntax-only: command prefixes and ASCII alias
-    parentheses are decoration, while any remaining content is substantive and
-    must keep the clause partial.  No list of requirement connectors is used.
-    """
-    if not isinstance(text, str) or not isinstance(evidence, str) or not evidence:
-        return (text or "").strip()
-    index = text.find(evidence)
-    if index < 0:
-        return text.strip()
-    residual = text[:index] + text[index + len(evidence):]
-    residual = _REQUEST_PREFIX.sub("", residual, count=1)
-    residual = _ASCII_ALIAS_PAREN.sub("", residual)
-    return re.sub(r"[\s，,；;。:：、（）()]", "", residual)
-
-
-def _path_actual_width_mm(check, expected_mm):
-    """Read the measured boundary width, not the source-parsed requirement."""
-    expected = check.get("expected_boundary_lengths_m")
-    actual = check.get("actual_boundary_lengths_m")
-    if not isinstance(expected, list) or not isinstance(actual, list):
-        return None
-    if len(expected) != len(actual):
-        return None
-    target = float(expected_mm) / 1000.0
-    candidates = [
-        float(measured) * 1000.0
-        for wanted, measured in zip(expected, actual)
-        if _near_mm(wanted, target, tolerance=0.0005)
-    ]
-    if not candidates:
-        return None
-    if not all(_near_mm(candidate, expected_mm) for candidate in candidates):
-        return None
-    return min(candidates)
-
-
-def _path_claim_matches_fact(claim, fact):
-    if claim.get("status") != "verified" or claim.get("covers_field") != fact.get("field"):
-        return None
-    if fact.get("field") == "width":
-        measured = _path_actual_width_mm(claim.get("check") or {}, fact.get("value_mm"))
-        if measured is None or not _near_mm(measured, fact.get("value_mm")):
-            return None
-        return measured
-    return claim.get("value_mm") if _near_mm(claim.get("value_mm"), fact.get("value_mm")) else None
-
-
-def _checks_all_passed(report):
-    checks = report.get("checks") if isinstance(report, dict) else None
-    if not isinstance(checks, list) or not checks:
-        return True
-    return all(isinstance(check, dict) and check.get("status") == "passed"
-               for check in checks)
-
-
-def _semantic_check(report, name=None):
-    checks = report.get("checks") if isinstance(report, dict) else None
-    if not isinstance(checks, list):
-        return None
-    for check in checks:
-        if not isinstance(check, dict):
-            continue
-        if name is None or check.get("name") == name:
-            return check
-    return None
-
-
-def _semantic_claim_status(report):
-    if not isinstance(report, dict):
-        return "partial", "semantic_acceptance_report_unavailable"
-    if report.get("status") != "passed":
-        return "partial", f"semantic_report_status_{report.get('status') or 'missing'}"
-    if report.get("review_required") is True:
-        return "partial", "semantic_report_review_required"
-    if not _checks_all_passed(report):
-        return "partial", "semantic_checks_not_all_passed"
-    return "verified", None
-
-
-def _semantic_claims(report, segments):
-    """Return source-bound semantic claims, never model text as evidence."""
-    claims = []
-    if not isinstance(report, dict):
-        return claims
-    status, reason = _semantic_claim_status(report)
-    evidence_texts = []
-    for requirement in report.get("requirements") or []:
-        if not isinstance(requirement, dict):
-            continue
-        for evidence in requirement.get("source_evidence") or []:
-            if isinstance(evidence, str) and evidence.strip():
-                evidence_texts.append({
-                    "text": evidence,
-                    "kind": requirement.get("kind"),
-                    "role": "semantic_requirement",
-                    "check": None,
-                })
-    coverage = report.get("coverage")
-    for term in _SEMANTIC_COVERAGE_SOURCE_TERMS.get(coverage, []):
-        evidence_texts.append({**term, "kind": coverage})
-    seen = set()
-    for item in evidence_texts:
-        text = item.get("text")
-        pattern = item.get("pattern")
-        if not text and not pattern:
-            continue
-        matches = []
-        for segment in segments:
-            source = None
-            if text:
-                if text in segment["text"]:
-                    matches.append((segment, text))
-            elif pattern and re.search(pattern, segment["text"], re.I):
-                match = re.search(pattern, segment["text"], re.I)
-                matches.append((segment, match.group(0)))
-        for segment, evidence in matches:
-            key = (segment["source_index"], segment["start"], item.get("role"),
-                   item.get("check"), evidence)
-            if key in seen:
-                continue
-            seen.add(key)
-            claim = {
-                "requirement": segment["text"],
-                "source_evidence": evidence,
-                "source_index": segment["source_index"],
-                "role": item.get("role"),
-                "kind": item.get("kind"),
-                "verifier": "semantic_acceptance",
-                "check_name": item.get("check"),
-                "status": status,
-            }
-            check = _semantic_check(report, item.get("check"))
-            if check:
-                claim["check"] = deepcopy(check)
-                if item.get("role") == "declared_direction":
-                    vector = ((check.get("measurements") or {})
-                              .get("cusp_pointing_unit_vector"))
-                    if not isinstance(vector, list) or len(vector) != 2:
-                        claim["status"] = "partial"
-                        claim["reason"] = "direction_measurement_missing"
-                    elif vector[1] > -math.cos(math.radians(10)):
-                        claim["status"] = "partial"
-                        claim["reason"] = "measured_direction_not_downward"
-            elif item.get("check"):
-                claim["status"] = "partial"
-                claim["reason"] = "declared_semantic_check_missing"
-            if status != "verified" and not claim.get("reason"):
-                claim["reason"] = reason
-            if claim.get("status") == "verified":
-                residual = _claim_residual(segment["text"], evidence)
-                if residual:
-                    claim["status"] = "partial"
-                    claim["reason"] = "局部语义证据未覆盖剩余原文：" + residual
-            claims.append(claim)
-    return claims
-
-
-def _path_claims(report, segments):
-    """Bind the existing right-angle-arm measurements to their source clauses.
-
-    The path verifier is itself a source-scoped acceptance rule.  This bridge
-    only exposes the numbers it already measured; it does not accept geometry
-    and does not fill a missing measurement.
-    """
-    if not isinstance(report, dict) or report.get("status") != "passed":
-        return []
-    checks = report.get("checks") or []
-    check = next((item for item in checks if isinstance(item, dict)
-                  and item.get("name") == "perpendicular_arm_dimensions"), None)
-    if not check or check.get("status") != "passed":
-        return []
-    width = check.get("required_width_m")
-    arms = check.get("required_arm_extents_m")
-    substantive = [segment for segment in segments
-                   if not segment.get("administrative")]
-    first_substantive = substantive[0] if substantive else None
-    claims = []
-    for segment in segments:
-        text = segment["text"]
-        numbers = _numbers_mm(text)
-        width_match = _WIDTH_CLAUSE.search(text)
-        if width is not None and width_match:
-            measured_width = (float(width_match.group(1))
-                              * _UNIT_FACTORS[width_match.group(2).lower()])
-            if _near_mm(measured_width, float(width) * 1000):
-                evidence = width_match.group(0).strip()
-                residual = _claim_residual(text, evidence)
-                claim = {
-                    "requirement": text, "source_evidence": evidence,
-                    "source_index": segment["source_index"],
-                    "role": "path_width", "verifier": "path_relation_acceptance",
-                    "status": "partial" if residual else "verified",
-                    "check": deepcopy(check),
-                    "covers_field": "width", "value_mm": float(width) * 1000,
-                }
-                if residual:
-                    claim["reason"] = "局部尺寸证据未覆盖剩余原文：" + residual
-                claims.append(claim)
-                continue
-        if (arms and "臂" in text and len(numbers) >= len(arms)
-                and _PATH_ARM_CLAUSE.fullmatch(text.strip())):
-            converted = [float(value) * 1000 for value in arms]
-            if all(any(_near_mm(number, required) for number in numbers)
-                   for required in converted):
-                claims.append({
-                    "requirement": text, "source_evidence": text,
-                    "source_index": segment["source_index"],
-                    "role": "path_arm_extents", "verifier": "path_relation_acceptance",
-                    "status": "verified", "check": deepcopy(check),
-                    "value_mm": converted,
-                })
-                continue
-        if "直角" in text and check.get("orthogonal") is True \
-                and _PATH_RIGHT_ANGLE_CLAUSE.fullmatch(text.strip()):
-            claims.append({
-                "requirement": text, "source_evidence": text,
-                "source_index": segment["source_index"],
-                "role": "path_right_angle", "verifier": "path_relation_acceptance",
-                "status": "verified", "check": deepcopy(check),
-            })
-            continue
-        actual = check.get("actual_boundary_lengths_m")
-        if (segment is first_substantive and not numbers
-                and _PATH_SHAPE_CLAUSE.fullmatch(text.strip())
-                and check.get("polygon_count") == 1
-                and check.get("orthogonal") is True
-                and isinstance(actual, list) and len(actual) == 6):
-            claims.append({
-                "requirement": text, "source_evidence": text,
-                "source_index": segment["source_index"],
-                "role": "path_shape_identity", "verifier": "path_relation_acceptance",
-                "status": "verified", "check": deepcopy(check),
-                "note": "唯一闭合、六边直角边界与两臂/宽度测量共同确定直角折形",
-            })
-    return claims
-
-
-def _scope_claims(source_acceptance, segments):
-    evidence = source_acceptance.get("scope_evidence") or {}
-    if evidence.get("state") != "complete":
-        return []
-    claims = []
-    checks = source_acceptance.get("checks") or []
-    for entry in evidence.get("entries") or []:
-        if not isinstance(entry, dict):
-            continue
-        text = entry.get("evidence")
-        if not isinstance(text, str) or not text.strip():
-            continue
-        segment = next((item for item in segments if text == item["text"]
-                        or text in item["text"]), None)
-        if segment is None:
-            continue
-        check = next((item for item in checks if isinstance(item, dict)
-                      and item.get("source_requirement", {}).get("subject")
-                      == entry.get("subject")), None)
-        claims.append({
-            "requirement": segment["text"],
-            "source_evidence": text,
-            "source_index": segment["source_index"],
-            "role": "explicit_scoped_primitive",
-            "verifier": "verify_scoped_primitives",
-            "status": "verified" if check and check.get("status") == "passed" else "partial",
-            "check": deepcopy(check) if check else None,
-            "measurement": deepcopy(entry.get("measurement")),
-        })
-    return claims
-
-
-def _generic_claims(source_acceptance, segments):
-    """Bind checks that already carry a source quote or a source requirement."""
-    claims = []
-    for key, report in source_acceptance.items():
-        if key in {"semantic_acceptance", "final_source_acceptance"}:
-            continue
-        if not key.endswith("_acceptance"):
-            continue
-        if not isinstance(report, dict):
-            continue
-        for check in report.get("checks") or []:
-            if not isinstance(check, dict):
-                continue
-            evidence = check.get("source_evidence")
-            if isinstance(evidence, dict):
-                text = evidence.get("text")
-                start = evidence.get("start")
-                source_index = 0
-            else:
-                text = None
-                start = None
-                source_index = 0
-            requirement = check.get("source_requirement")
-            if isinstance(requirement, dict):
-                text = requirement.get("evidence") or text
-            if not isinstance(text, str) or not text.strip():
-                continue
-            segment = None
-            if isinstance(start, int):
-                segment = _segment_for_span(segments, source_index, start)
-            if segment is None:
-                segment = next((item for item in segments if text in item["text"]), None)
-            if segment is None:
-                continue
-            claims.append({
-                "requirement": segment["text"],
-                "source_evidence": text,
-                "source_index": segment["source_index"],
-                "role": check.get("name") or check.get("field") or key,
-                "verifier": key,
-                "status": "verified" if check.get("status") == "passed" else "partial",
-                "check": deepcopy(check),
-            })
-    return claims
-
-
-def _top_level_check_claims(source_acceptance, segments):
-    """Bind evidence-free top-level checks only when one clause can own them.
-
-    Existing explicit Bezier bridging is the only producer of such checks.
-    Requiring a single substantive clause prevents an unscoped check from
-    being assigned to an arbitrary requirement.
-    """
-    substantive = [segment for segment in segments if not segment.get("administrative")]
-    if len(substantive) != 1:
-        return []
-    check_fields = {"bezier_segment_count", "bezier_continuity"}
-    claims = []
-    for check in source_acceptance.get("checks") or []:
-        if not isinstance(check, dict) or check.get("field") not in check_fields:
-            continue
-        claims.append({
-            "requirement": substantive[0]["text"],
-            "source_evidence": substantive[0]["text"],
-            "source_index": substantive[0]["source_index"],
-            "role": check.get("field"),
-            "verifier": "source_acceptance",
-            "status": "verified" if check.get("status") == "passed" else "partial",
-            "check": deepcopy(check),
-        })
-    return claims
-
-
-def _unknown_requirements(source_acceptance):
-    found = []
-    reports = {"source_acceptance": source_acceptance}
-    for key, value in source_acceptance.items():
-        if key.endswith("_acceptance") and isinstance(value, dict):
-            reports[key] = value
-    for key, value in reports.items():
-        for item in value.get("unknown_requirements") or []:
-            if isinstance(item, dict):
-                found.append({"report": key, **deepcopy(item)})
-    return found
-
-
-def build_requirement_coverage_evidence(text, source_acceptance):
-    """Build the source-clause to verifier/measurement coverage ledger."""
-    from .cad_requirement_contract import requirement_contract
-
-    source_acceptance = source_acceptance or {}
-    scope = source_acceptance.get("scope_evidence") or {}
-    if scope.get("state") == "complete" and source_acceptance.get("coverage") == "complete":
-        entries = []
-        for entry in scope.get("entries") or []:
-            entries.append({
-                "requirement_id": entry.get("requirement_id"),
-                "requirement": entry.get("evidence"),
-                "source_evidence": entry.get("evidence"),
-                "status": "verified",
-                "verifier": "verify_scoped_primitives",
-                "measurement": deepcopy(entry.get("measurement")),
-                "authority": "backend_measured_geometry",
-            })
-        return {
-            "schema": "cad.requirement-coverage-evidence.v1",
-            "state": "complete",
-            "authority": "backend_measured_geometry",
-            "clauses": entries,
-            "verified_requirement_count": len(entries),
-            "partial_requirement_count": 0,
-            "unverified_requirement_count": 0,
-            "blocking_requirements": [],
-            "unresolved_fact_ids": [],
-            "note": "显式完整部件清单已由既有来源作用域验收证明，未新增放行规则。",
-        }
-
-    sources = source_texts(text)
-    contract = requirement_contract([
-        {"source_id": f"user:{index}", "text": source}
-        for index, source in enumerate(sources)
-    ])
-    segments = _source_segments(text)
-
-    semantic_claims = _semantic_claims(source_acceptance.get("semantic_acceptance"), segments)
-    path_claims = _path_claims(source_acceptance.get("path_relation_acceptance"), segments)
-    scope_claims = _scope_claims(source_acceptance, segments)
-    generic_claims = _generic_claims(source_acceptance, segments)
-    top_level_claims = _top_level_check_claims(source_acceptance, segments)
-    claims = semantic_claims + path_claims + scope_claims + generic_claims + top_level_claims
-
-    final_report = source_acceptance.get("final_source_acceptance") or {}
-    final_checks = final_report.get("checks") or []
-    final_unknown = final_report.get("unknown_requirements") or []
-    clauses = []
-    blocking = []
-
-    for segment in segments:
-        facts = []
-        for fact in contract.get("facts") or []:
-            evidence = fact.get("evidence") or {}
-            if _segment_for_span(segments, segment["source_index"],
-                                 evidence.get("start", -1),
-                                 evidence.get("end")) is segment:
-                facts.append(fact)
-        applicable_claims = [
-            claim for claim in claims
-            if claim["source_index"] == segment["source_index"]
-            and claim["requirement"] == segment["text"]
-        ]
-        evidence_items = []
-        unresolved = []
-        supported = False
-        failed = False
-        claim_reason = None
-        consumed_claims = set()
-        for fact in facts:
-            fact_id = fact.get("fact_id")
-            if fact.get("status") != "effective" or fact.get("binding") == "unresolved":
-                covered = next(
-                    (claim for claim in applicable_claims
-                     if _path_claim_matches_fact(claim, fact) is not None),
-                    None,
-                )
-                if covered:
-                    supported = True
-                    consumed_claims.add(id(covered))
-                    measured_mm = _path_claim_matches_fact(covered, fact)
-                    evidence_items.append({
-                        "requirement_id": fact_id,
-                        "verifier": "path_relation_acceptance",
-                        "status": "verified",
-                        "measurement": {
-                            "field": fact.get("field"),
-                            "actual_mm": measured_mm,
-                            "expected_mm": fact.get("value_mm"),
-                            "source_evidence": fact.get("evidence"),
-                            "check_name": (covered.get("check") or {}).get("name"),
-                            "actual_boundary_lengths_m": deepcopy(
-                                (covered.get("check") or {}).get("actual_boundary_lengths_m")),
-                            "authority": "backend_measured_geometry",
-                        },
-                    })
-                else:
-                    unresolved.append({
-                        "requirement_id": fact_id,
-                        "field": fact.get("field"),
-                        "expected_mm": fact.get("value_mm"),
-                        "source_evidence": fact.get("evidence"),
-                        "reason": "无法唯一绑定验证对象",
-                    })
-                continue
-            check = next((item for item in final_checks
-                          if isinstance(item, dict)
-                          and item.get("source_requirement_id") == fact_id), None)
-            if check and check.get("status") == "passed":
-                supported = True
-                evidence_items.append({
-                    "requirement_id": fact_id,
-                    "verifier": "verify_final_source_contract",
-                    "status": "verified",
-                    "measurement": deepcopy(check),
-                })
-            else:
-                failed = True
-                unknown = next((item for item in final_unknown
-                                if isinstance(item, dict)
-                                and item.get("source_requirement_id") == fact_id), None)
-                reason = (unknown or {}).get("reason") or "无独立测量结果"
-                unresolved.append({
-                    "requirement_id": fact_id,
-                    "field": fact.get("field"),
-                    "expected_mm": fact.get("value_mm"),
-                    "source_evidence": fact.get("evidence"),
-                    "reason": reason,
-                })
-        for claim in applicable_claims:
-            if id(claim) in consumed_claims:
-                continue
-            evidence_items.append({
-                "requirement_id": f"clause:{segment['source_index']}:{segment['start']}",
-                "verifier": claim.get("verifier"),
-                "role": claim.get("role"),
-                "status": claim.get("status"),
-                "measurement": deepcopy(claim.get("check") or claim.get("measurement")),
-                "reason": claim.get("reason"),
-            })
-            if claim.get("status") == "verified":
-                supported = True
-            else:
-                failed = True
-                claim_reason = claim_reason or claim.get("reason")
-        if supported and not failed and not unresolved:
-            status = "verified"
-            reason = None
-        elif supported:
-            status = "partial"
-            reason = "部分要求已有独立测量，但仍有未决或无能力项"
-        elif failed and applicable_claims:
-            status = "partial"
-            reason = claim_reason or "已有验证器返回 partial，不能提升为逐条完整覆盖"
-        elif unresolved:
-            status = "unbound" if any(item.get("reason") == "无法唯一绑定验证对象"
-                                      for item in unresolved) else "unverified"
-            reason = unresolved[0].get("reason")
-        else:
-            status = "unverified"
-            reason = "当前没有可用的独立验证能力"
-        clause = {
-            "requirement_id": f"clause:{segment['source_index']}:{segment['start']}",
-            "source_index": segment["source_index"],
-            "requirement": segment["text"],
-            "span": {"start": segment["start"], "end": segment["end"]},
-            "status": status,
-            "reason": reason,
-            "unsupported_evidence": deepcopy(unresolved),
-            "evidence": evidence_items,
-            "authority": "backend_measured_geometry",
-        }
-        clauses.append(clause)
-        if status != "verified":
-            blocking.append({
-                "requirement_id": clause["requirement_id"],
-                "requirement": clause["requirement"],
-                "status": status,
-                "reason": reason or "未获得完整、来源绑定的独立测量证据",
-            })
-
-    covered_fact_ids = {
-        item.get("requirement_id")
-        for clause in clauses
-        for item in clause.get("unsupported_evidence") or []
-    }
-    for item in _unknown_requirements(source_acceptance):
-        source_id = item.get("source_requirement_id")
-        if source_id in covered_fact_ids:
-            continue
-        already = any(
-            blocker.get("requirement_id") == source_id
-            for blocker in blocking
-        )
-        if not already:
-            blocking.append({
-                "requirement_id": source_id or f"report:{item.get('report')}",
-                "requirement": item.get("text") or item.get("source_evidence") or source_id,
-                "status": "unverified",
-                "reason": item.get("reason") or "报告声明了未决要求",
-            })
-
-    semantic = source_acceptance.get("semantic_acceptance") or {}
-    semantic_status, semantic_reason = _semantic_claim_status(semantic)
-    semantic_kinds = semantic.get("applicable_requirement_kinds") or []
-    semantic_block = False
-    if semantic_kinds and semantic_status != "verified":
-        semantic_block = True
-        blocking.append({
-            "requirement_id": "semantic:" + ",".join(str(kind) for kind in semantic_kinds),
-            "requirement": ",".join(str(kind) for kind in semantic_kinds),
-            "status": "partial",
-            "reason": semantic_reason or "语义验证器未给出 passed 完整状态",
-        })
-
-    state = "complete" if not blocking else "partial"
-    return {
-        "schema": "cad.requirement-coverage-evidence.v1",
-        "state": state,
-        "authority": "backend_measured_geometry",
-        "clauses": clauses,
-        "verified_requirement_count": sum(1 for item in clauses if item["status"] == "verified"),
-        "partial_requirement_count": sum(1 for item in clauses if item["status"] == "partial"),
-        "unverified_requirement_count": sum(
-            1 for item in clauses
-            if item["status"] in {"unverified", "unbound", "unsupported", "unparseable"}
-        ),
-        "blocking_requirements": blocking,
-        "unresolved_fact_ids": [
-            clause["requirement_id"] for clause in clauses
-            if clause["status"] != "verified"
-        ],
-        "semantic_block": semantic_block,
-        "note": "每条原文要求须绑定既有后端测量；未绑定、未支持或 partial 项均阻断完整覆盖。",
-    }

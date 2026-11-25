@@ -1,0 +1,147 @@
+{
+  "date": "2026-11-25",
+  "phase": 5,
+  "meaning": "Human reading of tool-presented source, including rereads; not whole-repository completion or HTTP/hardware delivery proof.",
+  "full_modules_completed": [
+    {
+      "file": "app/logical_topology.py",
+      "lines": 970,
+      "sha256": "0e622944b8045ddd0ff5e1b34047d310f473a6d3e581e9cf0e382614b43add98",
+      "read_ranges_this_phase": [
+        [
+          1,
+          970
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "app/spatial_partition.py",
+      "lines": 841,
+      "sha256": "2093dbccbf0e58a9d219b1563e080332a4f919d3c7b2ec3adab583355166e4ac",
+      "read_ranges_this_phase": [
+        [
+          1,
+          841
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "app/cad_revision.py",
+      "lines": 201,
+      "sha256": "33fd359006c75a1a4c9926197cff5bd4505350d00bc7ed82f7596b7f9ad1dbd9",
+      "read_ranges_this_phase": [
+        [
+          1,
+          201
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "app/cad_candidate_state.py",
+      "lines": 146,
+      "sha256": "4b8d058eba1c89bd50c9dda3c628f05ad7e6dff15a1a253e093814518a518011",
+      "read_ranges_this_phase": [
+        [
+          1,
+          146
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "app/cad_plan_references.py",
+      "lines": 102,
+      "sha256": "558416b08a3e8cfe46f76826cdb243e6474e9e1df2693d73511fba97419f693f",
+      "read_ranges_this_phase": [
+        [
+          1,
+          102
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "app/cad_candidate_orchestrator.py",
+      "lines": 405,
+      "sha256": "6f64f0fc77b3b1917f9b748d1ee107f367bf8f42951b4707c5b9609909372ab5",
+      "read_ranges_this_phase": [
+        [
+          1,
+          405
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "app/cad_project_candidates.py",
+      "lines": 1142,
+      "sha256": "a31aa2e7a944af978c8c2f399b34b8c7fa2c34cef195e9d38443002cd94211c9",
+      "read_ranges_this_phase": [
+        [
+          1,
+          1142
+        ]
+      ],
+      "full_module_complete": true
+    }
+  ],
+  "production_module_lines": 3807,
+  "full_test_files_read": [
+    {
+      "file": "tests/test_logical_topology.py",
+      "lines": 335,
+      "sha256": "303792203409f73b330ceb93d96f0f35d4b3e5fea3e7e984df8f932d6cda4621",
+      "read_ranges_this_phase": [
+        [
+          1,
+          335
+        ]
+      ],
+      "full_module_complete": true
+    }
+  ],
+  "partial_modules": [
+    {
+      "file": "app/agent_service.py",
+      "lines": 11566,
+      "sha256": "7f28f5ac9aae3606ac3b3e43f8d7a0399cb791061badf3c0b7d4bcfbfeb93a38",
+      "read_ranges_this_phase": [
+        [
+          7411,
+          7900
+        ]
+      ],
+      "full_module_complete": false
+    },
+    {
+      "file": "app/creative_projects.py",
+      "lines": 1239,
+      "sha256": "412e3ad1bfb5e9cbe10ce4ae1eac561076f5f2c2b66ab332a5332d8eb94fe5fb",
+      "read_ranges_this_phase": [
+        [
+          451,
+          540
+        ],
+        [
+          851,
+          935
+        ]
+      ],
+      "full_module_complete": false
+    }
+  ],
+  "new_evidence": [
+    "phase5-probes.json",
+    "phase5-integrity.json"
+  ],
+  "prior_reading_ledgers_preserved": true,
+  "whole_repository_manual_read_complete": false,
+  "remaining": [
+    "agent_service.py remaining branches",
+    "ros_adapter.py remaining branches",
+    "other partially/unread production, tools, evaluations and test files"
+  ]
+}

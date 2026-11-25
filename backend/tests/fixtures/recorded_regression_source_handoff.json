@@ -1,0 +1,155 @@
+[
+  {
+    "case": "C18",
+    "original": "生成一个星形线（内凹四角星），最大半径2米",
+    "source": "生成一个星形线（内凹四角星），最大半径2米\n使用参数式x=2*cos(t)^3、y=2*sin(t)^3，t从0到2*pi，坐标单位米，闭合。",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "step.astroid",
+          "output_ref": "astroid_outline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "astroid",
+            "assembly_label": "星形线",
+            "object_id": "astroid.curve",
+            "object_type": "drawing_part",
+            "label": "星形线外轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_parametric_curve",
+          "x_expression": "2*cos(t)**3",
+          "y_expression": "2*sin(t)**3",
+          "t_start": "0",
+          "t_end": "2*pi",
+          "max_sampling_error": 0.001,
+          "closed": true
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "assert.astroid.closed",
+          "target_ref": "astroid_outline"
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "assert.astroid.bounds",
+          "target_ref": "astroid_outline",
+          "width": 4.0,
+          "height": 4.0,
+          "tolerance": 0.01
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    }
+  },
+  {
+    "case": "C26",
+    "original": "生成一个大写字母A的轮廓，高3米宽2米",
+    "source": "生成一个大写字母A的轮廓，高3米宽2米\n字母A总高3米、总宽2米，两斜笔端点(-1,0)(0,3)(1,0)，横笔在高度1.5米处，坐标单位米。",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "stroke.left.diag",
+          "output_ref": "stroke_left_diag",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "capital_a",
+            "assembly_label": "大写字母A",
+            "object_id": "stroke_left",
+            "object_type": "drawing_part",
+            "label": "左侧斜笔",
+            "role": "左斜笔"
+          },
+          "op": "add_line",
+          "start": {
+            "x": -1.0,
+            "y": 0.0
+          },
+          "end": {
+            "x": 0.0,
+            "y": 3.0
+          }
+        },
+        {
+          "step_id": "stroke.right.diag",
+          "output_ref": "stroke_right_diag",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "capital_a",
+            "assembly_label": "大写字母A",
+            "object_id": "stroke_right",
+            "object_type": "drawing_part",
+            "label": "右侧斜笔",
+            "role": "右斜笔"
+          },
+          "op": "add_line",
+          "start": {
+            "x": 0.0,
+            "y": 3.0
+          },
+          "end": {
+            "x": 1.0,
+            "y": 0.0
+          }
+        },
+        {
+          "step_id": "stroke.crossbar",
+          "output_ref": "stroke_crossbar",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "capital_a",
+            "assembly_label": "大写字母A",
+            "object_id": "stroke_crossbar",
+            "object_type": "drawing_part",
+            "label": "横笔",
+            "role": "横笔"
+          },
+          "op": "add_line",
+          "start": {
+            "x": -0.5,
+            "y": 1.5
+          },
+          "end": {
+            "x": 0.5,
+            "y": 1.5
+          }
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "bounds_size",
+          "assertion_id": "a.bounds",
+          "target_ref": null,
+          "width": 2.0,
+          "height": 3.0,
+          "tolerance": 0.001
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    }
+  }
+]

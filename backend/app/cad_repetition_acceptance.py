@@ -2,6 +2,7 @@
 
 Only measures submitted geometry. No point generation or geometry repair.
 """
+from .cad_length_units import length_factors
 import math
 import re
 from .cad_structure_contract import StructureContractError
@@ -12,7 +13,7 @@ UNIT=r'(?:毫米|厘米|米|mm|cm|m)'
 
 
 def mm(value,unit):
-    return float(value)*{'毫米':1,'厘米':10,'米':1000,'mm':1,'cm':10,'m':1000}[unit.lower()]
+    return float(value)*length_factors('mm')[unit.lower()]
 
 
 def tiling_structure_requirements(source):
@@ -61,6 +62,25 @@ def branch_structure_requirements(source):
     return {'main_count':count,'sides_per_main':per,'entity_count':count*(per+1)}
 
 
+def branch_attachment_dimensions(source):
+    """Shared source parsing for readiness and existing branch measurement."""
+    lengths=re.findall(rf'侧枝[^，。；;\n]{{0,8}}(?:长度|长)\s*({NUMBER})\s*({UNIT})|(?:长度|长)\s*({NUMBER})\s*({UNIT})[^；;。\n]{{0,30}}?侧枝',source,re.I)
+    anchors=re.findall(rf'在半径\s*({NUMBER})\s*({UNIT})\s*处',source,re.I)
+    angles=re.findall(rf'与主枝夹角\s*({NUMBER})\s*度',source)
+    return {'side_length_mm':next((mm(a or c,b or d) for a,b,c,d in reversed(lengths)),None),
+            'anchor_radius_mm':mm(*anchors[-1]) if anchors else None,
+            'branch_angle_degrees':float(angles[-1]) if angles else None}
+
+
+def branch_source_ready(source):
+    if not branch_structure_requirements(source):return False
+    d=branch_attachment_dimensions(source)
+    return (d['side_length_mm'] is not None and d['side_length_mm']>0
+            and d['anchor_radius_mm'] is not None and d['anchor_radius_mm']>0
+            and d['branch_angle_degrees'] is not None and 0<d['branch_angle_degrees']<180
+            and bool(re.search(r'对称侧枝|侧枝镜面对称',source)))
+
+
 def validate_repetition_plan(source, plan):
     """Preflight branch inventory before executing coordinates."""
     if hasattr(plan,'model_dump'):
@@ -84,48 +104,41 @@ def validate_repetition_plan(source, plan):
     return {'status':'passed','phase':'preflight_structure',**requirement}
 
 
+def _staggered_grid_matches(centers,neighbor_vectors,columns,rows,tolerance=.5):
+    """Recognize a rectangular staggered lattice from measured cell centres.
+
+    Predictions are comparisons only: this verifier never emits CAD points.
+    Accept either flat- or point-topped layouts and rigidly rotated grids.
+    """
+    if len(centers)!=columns*rows or min(columns,rows)<1:return False
+    for a in neighbor_vectors:
+        for b in neighbor_vectors:
+            if abs(sum(x*y for x,y in zip(a,b))-.5*math.hypot(*a)*math.hypot(*b))>1e-5*max(1,math.hypot(*a)*math.hypot(*b)):continue
+            perpendicular=[b[k]-.5*a[k] for k in range(2)]
+            for stagger_columns in (True,False):
+                u,v=(perpendicular,a) if stagger_columns else (a,perpendicular)
+                for origin in centers:
+                    used=set()
+                    for j in range(rows):
+                        for i in range(columns):
+                            parity=i%2 if stagger_columns else j%2
+                            point=[origin[k]+i*u[k]+j*v[k]+.5*parity*a[k] for k in range(2)]
+                            matches=[index for index,c in enumerate(centers) if index not in used and math.dist(point,c)<=tolerance]
+                            if len(matches)!=1:break
+                            used.add(matches[0])
+                        else:continue
+                        break
+                    else:
+                        if len(used)==len(centers):return True
+    return False
+
+
 def verify_repetition_requirements(source,geometries):
     source=source.split('\n后端试算反馈：',1)[0]
     checks=[]
-    objects=local_creation_objects(source)
-    teeth=tooth_boundary_requirements(source)
-    strips=parallel_strip_requirements(source)
-    stair=re.search(rf'(\d+)\s*级.*?每级\s*宽\s*({NUMBER})\s*({UNIT})\s*高\s*({NUMBER})\s*({UNIT})',source,re.I)
-    grid=re.search(r'(\d+)\s*列\s*(\d+)\s*行',source)
-    side=re.search(rf'边长\s*({NUMBER})\s*({UNIT})',source,re.I)
-    grid_match=bool(grid and side and re.search(r'六边形',source) and re.search(r'无缝|共边',source))
-    branch_clause=bool(re.search(r'(\d+)\s*条对称分支',source)
-        and re.search(r'每条分支带\s*(\d+)\s*个侧枝',source))
-    recognized=[]
-    if teeth:
-        recognized.append(('tooth_boundary',[m.group(0) for m in
-            (re.search(r'(\d+)个齿',source),re.search(rf'外径\s*({NUMBER})\s*({UNIT})',source,re.I)) if m]))
-    if strips:
-        recognized.append(('parallel_strip',[m.group(0) for m in
-            (re.search(r'(\d+)条平行(?:横线|条带)',source),
-             re.search(rf'每条长\s*({NUMBER})\s*({UNIT})\s*宽\s*({NUMBER})\s*({UNIT})',source,re.I),
-             re.search(rf'(中心距|净间距|间距)\s*({NUMBER})\s*({UNIT})',source,re.I)) if m]))
-    if stair:
-        recognized.append(('stair_step',[stair.group(0)]))
-    if grid_match:
-        recognized.append(('hexagonal_tiling',[grid.group(0),side.group(0)]))
-    if branch_clause:
-        recognized.append(('branch_network',[
-            re.search(r'(\d+)\s*条对称分支',source).group(0),
-            re.search(r'每条分支带\s*(\d+)\s*个侧枝',source).group(0)]))
-    # B. The source carries a recognized repetition/tiling/branch clause, but
-    # multiple creation objects leave the check scope unresolved. Keep the
-    # clause auditable as unverified instead of dropping it as not_checked.
-    # Scope comes from source objects only; geometry appearance never adds a
-    # requirement, and no new requirement is synthesized here.
-    if recognized and len(objects)>1:
-        return {'status':'unverified','coverage':'unscoped_multiple_objects',
-            'review_required':True,'checks':[],
-            'unknown_requirements':[{
-                'source_requirement_id':'repetition_'+kind,
-                'reason':'unscoped_multiple_objects',
-                'evidence':evidence,
-                'object_count':len(objects)} for kind,evidence in recognized]}
+    measured_contracts={}
+    if len(local_creation_objects(source))>1:
+        return {'status':'not_checked','coverage':'unscoped_multiple_objects','checks':[]}
     gs=[g for g in geometries if g.get('selected') is not False
         and g.get('role') not in {'reference','annotation','ignored'}]
     def require(ok,name,measurements=None):
@@ -134,7 +147,9 @@ def verify_repetition_requirements(source,geometries):
              **({'geometry_ids':[gs[i]['id'] for i in measurements['cells']],
                  'repair_instruction':'按原文局部尺寸和关系修正相关部件，保留无关正确部件；不得改变用户尺寸来绕过关系验收。'}
                 if isinstance(measurements,dict) and 'cells' in measurements else {})})
-        checks.append({'name':name,'status':'passed','authority':'backend_measured_geometry'})
+        checks.append({'name':name,'status':'passed','authority':'backend_measured_geometry',
+                       **({'measurements':measurements} if measurements is not None else {})})
+    teeth=tooth_boundary_requirements(source)
     if teeth:
         from shapely.affinity import rotate
         from .cad_path_relation_acceptance import assemble_closed_boundary
@@ -165,13 +180,23 @@ def verify_repetition_requirements(source,geometries):
             require(abs(min(radii)-teeth['root_radius_mm'])<=.5,'齿根圆半径',{'cells':tooth_cells,'actual_mm':min(radii),'expected_mm':teeth['root_radius_mm']})
         error=polygon.boundary.hausdorff_distance(rotate(polygon,360/teeth['count'],origin=(cx,cy)).boundary)
         require(error<=.5,'齿形旋转重复关系',{'cells':tooth_cells,'hausdorff_error_mm':error})
+        measured_contracts['tooth_boundary']={'count':len(starts),'outer_diameter_mm':2*max(radii),
+            'root_diameter_mm':2*min(radii),'tip_angles_degrees':widths,'center_mm':[cx,cy],
+            'geometry_ids':[g['id'] for g in gs]}
+    strips=parallel_strip_requirements(source)
     if strips:
         from .cad_semantic_acceptance import _corners
+        from shapely.geometry import Polygon
+        require(strips['count']>0 and strips['length_mm']>0 and strips['width_mm']>0
+            and strips['spacing_mm']>=0,'条带数量、尺寸和间距范围')
         require(len(gs)==strips['count'],'平行条带数量',{'actual':len(gs),'expected':strips['count']})
         boxes=[]
         for i,g in enumerate(gs):
             points=_corners([(p['x'],p['y']) for p in g.get('vertices',[])])
-            require(g.get('closed') and len(points)==4,'条带闭合矩形',{'cells':[i]})
+            require(g.get('type')=='polyline' and g.get('closed') and len(points)==4
+                and not any(p.get('bulge',0)!=0 for p in g.get('vertices',[]))
+                and Polygon(points).is_valid and Polygon(points).area>0,
+                '条带闭合直边矩形',{'cells':[i]})
             xs,ys=zip(*points);x,y,X,Y=min(xs),min(ys),max(xs),max(ys)
             require(all(any(math.dist(p,q)<=.5 for p in points) for q in [(x,y),(X,y),(X,Y),(x,Y)])
                 and abs(X-x-strips['length_mm'])<=.5 and abs(Y-y-strips['width_mm'])<=.5,
@@ -185,14 +210,23 @@ def verify_repetition_requirements(source,geometries):
             require(abs(actual-strips['spacing_mm'])<=.5,'平行条带间距',{
                 'cells':[a[4],b[4]],'actual_mm':actual,'expected_mm':strips['spacing_mm'],
                 'spacing_reference':strips['spacing_reference']})
+        measured_contracts['parallel_strips']={**strips,'frames_mm':[list(box[:4]) for box in boxes]}
     # Width/height scoped by “每级” cannot be interpreted as whole bounds.
+    stair=re.search(rf'(\d+)\s*级.*?每级\s*宽\s*({NUMBER})\s*({UNIT})\s*高\s*({NUMBER})\s*({UNIT})',source,re.I)
     if stair:
         count=int(stair[1]);width=mm(stair[2],stair[3]);height=mm(stair[4],stair[5])
+        require(count>0 and width>0 and height>0,'台阶数量和局部尺寸必须为正')
         require(len(gs)==1 and gs[0].get('type')=='polyline','单一台阶轮廓')
+        from shapely.geometry import LineString, Polygon
+        xy=[(p['x'],p['y']) for p in gs[0]['vertices']]
+        boundary=xy+[xy[0]] if gs[0].get('closed') and xy and xy[0]!=xy[-1] else xy
+        require(len(xy)>=2 and not any(p.get('bulge',0)!=0 for p in gs[0]['vertices'])
+            and LineString(boundary).is_simple
+            and (not gs[0].get('closed') or Polygon(xy).is_valid), '台阶必须是无自交直边轮廓')
         points=gs[0]['vertices'];segments=[(b['x']-a['x'],b['y']-a['y']) for a,b in zip(points,points[1:])]
         if gs[0].get('closed') and math.dist((points[0]['x'],points[0]['y']),(points[-1]['x'],points[-1]['y']))>.5:
             segments.append((points[0]['x']-points[-1]['x'],points[0]['y']-points[-1]['y']))
-        valid=False
+        valid=False;candidates=[]
         for start in range(len(segments)) if gs[0].get('closed') else [0]:
             ordered=segments[start:]+segments[:start];steps=ordered[:count*2];base=ordered[count*2:]
             horizontal=[abs(dy)<=.5 and abs(abs(dx)-width)<=.5 for dx,dy in steps]
@@ -206,21 +240,37 @@ def verify_repetition_requirements(source,geometries):
                     and abs(base[1-i][1])<=.5 and abs(abs(base[1-i][0])-count*width)<=.5
                     for i in (0,1)))
             valid=valid or (valid_steps and valid_base)
+            if valid_steps and valid_base:
+                origin=[points[start]['x'],points[start]['y']]
+                finish=[origin[0]+sum(dx for dx,dy in steps),origin[1]+sum(dy for dx,dy in steps)]
+                candidates.extend([{'start_mm':origin,'end_mm':finish},
+                                   {'start_mm':finish,'end_mm':origin}])
         require(valid,
             '每级尺寸及交替数量',{'segments_mm':segments,'step_width_mm':width,'step_height_mm':height})
-    if grid_match:
+        measured_contracts['stairs']={'count':count,'step_width_mm':width,'step_height_mm':height,
+                                     'traversals':candidates,'geometry_id':gs[0]['id']}
+    grid=re.search(r'(\d+)\s*列\s*(\d+)\s*行',source)
+    side=re.search(rf'边长\s*({NUMBER})\s*({UNIT})',source,re.I)
+    if grid and side and re.search(r'六边形',source) and re.search(r'无缝|共边',source):
         from shapely.geometry import Polygon
         count=int(grid[1])*int(grid[2]);length=mm(side[1],side[2]);polygons=[]
-        require(len(gs)==count,'阵列单元数量',{'expected':count,'actual':len(gs)})
-        for g in gs:
+        require(count>0 and len(gs)==count,'阵列单元数量',{'expected':count,'actual':len(gs)})
+        for cell_index,g in enumerate(gs):
             points=g.get('vertices') or []
             if len(points)>1 and points[0]==points[-1]:points=points[:-1]
             require(g.get('type')=='polyline' and g.get('closed') and len(points)==6,'闭合六边形单元')
             xy=[(p['x'],p['y']) for p in points];polygon=Polygon(xy)
             cx=sum(x for x,y in xy)/6;cy=sum(y for x,y in xy)/6
             require(polygon.is_valid and all(abs(math.dist(a,b)-length)<=.5 for a,b in zip(xy,xy[1:]+xy[:1]))
-                and all(abs(math.dist((cx,cy),p)-length)<=.5 for p in xy),'正六边形局部边长')
+                and all(abs(math.dist((cx,cy),p)-length)<=.5 for p in xy),'正六边形局部边长',
+                {'cells':[cell_index],'expected_side_length_mm':length,
+                 'actual_side_lengths_mm':[math.dist(a,b) for a,b in zip(xy,xy[1:]+xy[:1])],
+                 'actual_vertex_radii_mm':[math.dist((cx,cy),p) for p in xy],
+                 'center_mm':[cx,cy],'required_neighbor_center_distance_mm':math.sqrt(3)*length})
             polygons.append(polygon)
+        centers=[[p.centroid.x,p.centroid.y] for p in polygons]
+        first=list(polygons[0].exterior.coords)[:-1];center=centers[0]
+        neighbor_vectors=[[a[k]+b[k]-2*center[k] for k in range(2)] for a,b in zip(first,first[1:]+first[:1])]
         adjacency={i:set() for i in range(count)}
         conflicts=[]
         for i in range(count):
@@ -237,13 +287,26 @@ def verify_repetition_requirements(source,geometries):
             require(False,'单元内部不得重叠',{
                 'cells':sorted({k for pair in conflicts for k in pair['cells']}),
                 'overlap_pairs':conflicts,'maximum_overlap_area_mm2':1,
+                'centers_mm':centers,'validated_cell_neighbor_displacements_mm':neighbor_vectors,
                 'required_neighbor_center_distance_mm':math.sqrt(3)*length,
-                'instruction':'同时修复全部列出的冲突对；不能只修第一对后把重叠转移给其他邻居。边长和六边形形状保持不变，只调整重复单元的整体位置。'})
+                'instruction':'同时修复全部列出的冲突对；不能只修第一对后把重叠转移给其他邻居。边长和六边形形状保持不变，只调整重复单元的整体位置。必须使用当前实测六边形的公共边法向邻接位移，不能混用平顶与尖顶阵列的中心坐标公式。位移为毫米，须按plan.units换算；这是测量诊断，不是替换点集。'})
         visited=set();pending=[0] if count else []
         while pending:
             node=pending.pop()
             if node not in visited:visited.add(node);pending.extend(adjacency[node]-visited)
-        require(len(visited)==count,'全部单元通过完整公共边连通')
+        require(len(visited)==count,'全部单元通过完整公共边连通',{
+            'cells':list(range(count)),'connected_cells':sorted(visited),
+            'adjacency':{str(i):sorted(v) for i,v in adjacency.items()},'centers_mm':centers,
+            'validated_cell_neighbor_displacements_mm':neighbor_vectors,
+            'required_neighbor_center_distance_mm':math.sqrt(3)*length,
+            'instruction':'单元形状和边长已正确；按实际单元的公共边法向邻接位移统一修正排列，不能用外接圆直径作中心距。位移是毫米测量，按plan.units换算，不是替换点集。'})
+        grid_ok=_staggered_grid_matches(centers,neighbor_vectors,int(grid[1]),int(grid[2]))
+        require(grid_ok,'来源行列数与蜂窝错列布局',{'cells':list(range(count)),
+            'columns':int(grid[1]),'rows':int(grid[2]),'centers_mm':centers,
+            'validated_cell_neighbor_displacements_mm':neighbor_vectors})
+        measured_contracts['hexagonal_tiling']={'columns':int(grid[1]),'rows':int(grid[2]),
+            'count':count,'side_length_mm':length,'center_grid_verified':True,'centers_mm':centers,
+            'geometry_ids':[g['id'] for g in gs]}
     network=branch_structure_requirements(source)
     if network:
         count=network['main_count'];per=network['sides_per_main']
@@ -258,12 +321,8 @@ def verify_repetition_requirements(source,geometries):
             elif math.dist(b,center)<=.5:main.append((b,a))
             else:sides.append((a,b))
         require(len(main)==count and len(sides)==count*per,'主枝必须连接共同中心')
-        side_lengths=re.findall(rf'侧枝[^，。；;\n]{{0,8}}(?:长度|长)\s*({NUMBER})\s*({UNIT})|(?:长度|长)\s*({NUMBER})\s*({UNIT})[^；;。\n]{{0,30}}?侧枝',source,re.I)
-        side_length=next((mm(a or c,b or d) for a,b,c,d in reversed(side_lengths)),None)
-        anchors=re.findall(rf'在半径\s*({NUMBER})\s*({UNIT})\s*处',source,re.I)
-        anchor_radius=mm(*anchors[-1]) if anchors else None
-        angles=re.findall(rf'与主枝夹角\s*({NUMBER})\s*度',source)
-        branch_angle=float(angles[-1]) if angles else None
+        dimensions=branch_attachment_dimensions(source)
+        side_length=dimensions['side_length_mm'];anchor_radius=dimensions['anchor_radius_mm'];branch_angle=dimensions['branch_angle_degrees']
         assigned=set()
         for _,end in main:
             length=math.dist(end,center)
@@ -304,4 +363,12 @@ def verify_repetition_requirements(source,geometries):
                 or (math.dist(b,rotated[0])<=.5 and math.dist(a,rotated[1])<=.5)),None)
             require(index is not None,'各分支旋转对应一致，侧枝长度与位置对称')
             remaining.pop(index)
-    return {'status':'partial' if checks else 'not_checked','coverage':'explicit_repetition_relations_only','checks':checks}
+        measured_contracts['radial_branches'] = {
+            **network, 'center_mm':list(center),
+            'main_radii_mm':[math.dist(center,end) for _,end in main],
+            'maximum_radius_mm':max(math.dist(center,p) for edge in edges for p in edge),
+            'side_length_mm':side_length,'anchor_radius_mm':anchor_radius,
+            'branch_angle_degrees':branch_angle,
+            'rotation_and_attachment_verified':True}
+    return {'status':'partial' if checks else 'not_checked','coverage':'explicit_repetition_relations_only',
+            'checks':checks,'measured_contracts':measured_contracts,'geometry_ids':[g['id'] for g in gs]}

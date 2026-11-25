@@ -1,0 +1,313 @@
+{
+  "scope": "Existing normalizer plus real deterministic executor only; no HTTP delivery or live model claim.",
+  "three_control_points": [
+    {
+      "kind": "bezier",
+      "source": "两段二次曲线，保留控制点：第一段(0,0),(1,1),(2,0)；第二段(3,0),(4,1),(5,0)，坐标单位米。",
+      "original_control_points": [
+        {
+          "x": 3,
+          "y": 0
+        },
+        {
+          "x": 4,
+          "y": 1
+        },
+        {
+          "x": 5,
+          "y": 0
+        }
+      ],
+      "normalized_control_points": [
+        {
+          "x": 2.0,
+          "y": 0.0
+        },
+        {
+          "x": 3,
+          "y": 0
+        },
+        {
+          "x": 4,
+          "y": 1
+        },
+        {
+          "x": 5,
+          "y": 0
+        }
+      ],
+      "repairs": [
+        {
+          "kind": "complete_composite_bezier_start",
+          "step_id": "path",
+          "segment_index": 1
+        }
+      ],
+      "before_executor": {
+        "ok": false,
+        "exception": "ConstructionPlanError",
+        "code": "disconnected_composite_path",
+        "message": "复合路径第 1 段与第 2 段端点未连接"
+      },
+      "after_executor": {
+        "ok": true,
+        "geometry_count": 1
+      },
+      "input_unchanged": true
+    },
+    {
+      "kind": "spline",
+      "source": "两段二次曲线，保留控制点：第一段(0,0),(1,1),(2,0)；第二段(3,0),(4,1),(5,0)，坐标单位米。",
+      "original_control_points": [
+        {
+          "x": 3,
+          "y": 0
+        },
+        {
+          "x": 4,
+          "y": 1
+        },
+        {
+          "x": 5,
+          "y": 0
+        }
+      ],
+      "normalized_control_points": [
+        {
+          "x": 2.0,
+          "y": 0.0
+        },
+        {
+          "x": 3,
+          "y": 0
+        },
+        {
+          "x": 4,
+          "y": 1
+        },
+        {
+          "x": 5,
+          "y": 0
+        }
+      ],
+      "repairs": [
+        {
+          "kind": "complete_composite_bezier_start",
+          "step_id": "path",
+          "segment_index": 1
+        }
+      ],
+      "before_executor": {
+        "ok": false,
+        "exception": "ConstructionPlanError",
+        "code": "disconnected_composite_path",
+        "message": "复合路径第 1 段与第 2 段端点未连接"
+      },
+      "after_executor": {
+        "ok": true,
+        "geometry_count": 1
+      },
+      "input_unchanged": true
+    }
+  ],
+  "scoped_semicircles": {
+    "source": "画两个独立圆弧：中心(0,0)半径1米的上半圆；中心(5,0)半径1米的下半圆，坐标单位米。",
+    "before": {
+      "plan": {
+        "units": "m",
+        "steps": [
+          {
+            "op": "add_composite_path",
+            "step_id": "upper",
+            "output_ref": "upper",
+            "semantic": {
+              "label": "upper"
+            },
+            "closed": false,
+            "segments": [
+              {
+                "kind": "arc",
+                "center": {
+                  "x": 0,
+                  "y": 0
+                },
+                "radius": 1,
+                "start_angle": 0,
+                "end_angle": 180,
+                "clockwise": false
+              }
+            ]
+          },
+          {
+            "op": "add_composite_path",
+            "step_id": "lower",
+            "output_ref": "lower",
+            "semantic": {
+              "label": "lower"
+            },
+            "closed": false,
+            "segments": [
+              {
+                "kind": "arc",
+                "center": {
+                  "x": 5,
+                  "y": 0
+                },
+                "radius": 1,
+                "start_angle": 0,
+                "end_angle": 180,
+                "clockwise": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "after": {
+      "plan": {
+        "units": "m",
+        "steps": [
+          {
+            "op": "add_composite_path",
+            "step_id": "upper",
+            "output_ref": "upper",
+            "semantic": {
+              "label": "upper"
+            },
+            "closed": false,
+            "segments": [
+              {
+                "kind": "arc",
+                "center": {
+                  "x": 0,
+                  "y": 0
+                },
+                "radius": 1,
+                "start_angle": 0,
+                "end_angle": 180,
+                "clockwise": false
+              }
+            ]
+          },
+          {
+            "op": "add_composite_path",
+            "step_id": "lower",
+            "output_ref": "lower",
+            "semantic": {
+              "label": "lower"
+            },
+            "closed": false,
+            "segments": [
+              {
+                "kind": "arc",
+                "center": {
+                  "x": 5,
+                  "y": 0
+                },
+                "radius": 1,
+                "start_angle": 0,
+                "end_angle": 180,
+                "clockwise": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "repairs": [
+      {
+        "kind": "bind_semicircle_orientation",
+        "step_id": "lower",
+        "segment_index": 0,
+        "orientation": "upper"
+      }
+    ],
+    "before_executor": {
+      "ok": true,
+      "geometry_count": 2
+    },
+    "after_executor": {
+      "ok": true,
+      "geometry_count": 2
+    },
+    "input_unchanged": true
+  },
+  "local_tangent_tolerance": [
+    {
+      "global_tolerance_deg": 5,
+      "local_tolerance_deg": 1,
+      "actual_angle_deg": 2,
+      "expected_pass_under_local_contract": false,
+      "executor": {
+        "ok": true,
+        "geometry_count": 1
+      }
+    },
+    {
+      "global_tolerance_deg": 1,
+      "local_tolerance_deg": 5,
+      "actual_angle_deg": 2,
+      "expected_pass_under_local_contract": true,
+      "executor": {
+        "ok": false,
+        "exception": "ConstructionPlanError",
+        "code": "c1_continuity_failed",
+        "message": "复合路径有 1 个连接点不满足 C1 切向连续"
+      }
+    }
+  ],
+  "equivalent_bezier_bounds": [
+    {
+      "representation": "native",
+      "analytic_curve_bounds_mm": {
+        "min_x": 0,
+        "max_x": 2000,
+        "min_y": 0,
+        "max_y": 1000
+      },
+      "construction_bounds_mm": {
+        "min_x": 0.0,
+        "min_y": 0.0,
+        "max_x": 2000.0,
+        "max_y": 2000.0
+      },
+      "preview_bounds_mm": {
+        "min_x": 0.0,
+        "min_y": 0.0,
+        "max_x": 2000.0,
+        "max_y": 1000.0
+      },
+      "incorrect_two_metre_height_assertion": {
+        "ok": true,
+        "geometry_count": 1
+      }
+    },
+    {
+      "representation": "composite",
+      "analytic_curve_bounds_mm": {
+        "min_x": 0,
+        "max_x": 2000,
+        "min_y": 0,
+        "max_y": 1000
+      },
+      "construction_bounds_mm": {
+        "min_x": 0.0,
+        "min_y": 0.0,
+        "max_x": 2000.0,
+        "max_y": 1000.0
+      },
+      "preview_bounds_mm": {
+        "min_x": 0.0,
+        "min_y": 0.0,
+        "max_x": 2000.0,
+        "max_y": 1000.0
+      },
+      "incorrect_two_metre_height_assertion": {
+        "ok": false,
+        "exception": "ConstructionPlanError",
+        "code": "assertion_failed",
+        "message": "实际尺寸 2 x 1，要求 2 x 2"
+      }
+    }
+  ]
+}

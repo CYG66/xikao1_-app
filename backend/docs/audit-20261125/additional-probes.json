@@ -1,0 +1,915 @@
+{
+  "circle_centimeters": {
+    "case": {
+      "id": "circle_centimeters",
+      "command": "画一个圆，圆心(2,3)，半径150厘米",
+      "expected_status": "ready",
+      "expected_types": [
+        "circle"
+      ]
+    },
+    "actual": {
+      "schema": "cad.construction-interpretation-result.v1",
+      "status": "invalid",
+      "parser": "deterministic_rules",
+      "error": {
+        "code": "trial_execution_failed",
+        "message": "单图元几何不符合完整源需求"
+      },
+      "construction_error": {
+        "schema": "cad.construction-error.v1",
+        "code": "structure_requirement_failed",
+        "message": "单图元几何不符合完整源需求",
+        "details": {
+          "geometry_ids": [
+            1
+          ],
+          "checks": [
+            {
+              "field": "single_primitive_type_and_count",
+              "status": "passed"
+            },
+            {
+              "field": "radius",
+              "actual_mm": 1500.0,
+              "expected_mm": 1500.0,
+              "status": "passed"
+            },
+            {
+              "field": "center",
+              "actual_mm": [
+                2000.0,
+                3000.0
+              ],
+              "expected_mm": [
+                20.0,
+                30.0
+              ],
+              "status": "failed"
+            }
+          ],
+          "source_evidence": [
+            "半径150厘米",
+            "圆心(2,3)"
+          ],
+          "affected_output_refs": [
+            "shape-1"
+          ],
+          "repair_instruction": "只修复 affected_output_refs 对应的构造步骤；保留其他对象、尺寸、布局、标识和断言。"
+        }
+      },
+      "requirements_contract": null,
+      "deterministic_repairs": [],
+      "plan": {
+        "shared_points": {},
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "project_id": null,
+        "source_version": null,
+        "steps": [
+          {
+            "step_id": "step-1",
+            "output_ref": "shape-1",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": null,
+              "assembly_label": null,
+              "object_id": null,
+              "object_type": "circle",
+              "label": "圆1",
+              "role": null
+            },
+            "op": "add_circle",
+            "center": {
+              "x": 2.0,
+              "y": 3.0
+            },
+            "radius": 1.5
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "closed-1",
+            "target_ref": "shape-1"
+          }
+        ],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 500
+        },
+        "free_outline_layout": []
+      },
+      "confidence": 1.0,
+      "assumptions": []
+    }
+  },
+  "explicit_coordinate_units": {
+    "米": {
+      "source": "画一个圆，圆心(2,2)，半径1.5米，坐标单位为米",
+      "result": {
+        "schema": "cad.construction-interpretation-result.v1",
+        "status": "ready",
+        "parser": "deterministic_rules",
+        "requirement_ledger": {
+          "schema": "cad.requirement-ledger.v1",
+          "sources": [
+            {
+              "source_id": "request",
+              "origin": "user_request_context",
+              "text": "画一个圆，圆心(2,2)，半径1.5米，坐标单位为米",
+              "sha256": "a3e24a4737a13287fc49faf4e6235327a17e6ef3dc6b23db1eb978af29d89410"
+            }
+          ],
+          "evidence_items": [
+            {
+              "kind": "quantity",
+              "source_id": "request",
+              "evidence": {
+                "start": 1,
+                "end": 3,
+                "text": "一个"
+              },
+              "clause": "画一个圆",
+              "binding_status": "unresolved",
+              "verification_status": "not_checked",
+              "requirement_id": "req-1"
+            },
+            {
+              "kind": "position",
+              "source_id": "request",
+              "evidence": {
+                "start": 5,
+                "end": 7,
+                "text": "圆心"
+              },
+              "clause": "圆心(2",
+              "binding_status": "unresolved",
+              "verification_status": "not_checked",
+              "requirement_id": "req-2"
+            },
+            {
+              "kind": "dimension",
+              "source_id": "request",
+              "evidence": {
+                "start": 13,
+                "end": 19,
+                "text": "半径1.5米"
+              },
+              "clause": "半径1.5米",
+              "binding_status": "unresolved",
+              "verification_status": "not_checked",
+              "requirement_id": "req-3"
+            },
+            {
+              "kind": "units",
+              "source_id": "request",
+              "evidence": {
+                "start": 20,
+                "end": 26,
+                "text": "坐标单位为米"
+              },
+              "clause": "坐标单位为米",
+              "binding_status": "unresolved",
+              "verification_status": "not_checked",
+              "requirement_id": "req-4"
+            }
+          ],
+          "derived_requirements": [],
+          "model_assumptions": [],
+          "pending_clarifications": [],
+          "coverage": {
+            "status": "partial",
+            "note": "原文完整留存；尚未逐项结构化所有语义，不代表全部需求已独立验收"
+          },
+          "geometry_acceptance": {
+            "status": "not_checked",
+            "checks": []
+          },
+          "revision_sha256": "df85cfb70cb2eab2b49644489696e76359cfaf0bbdec7c723286bbe8caa30ff1"
+        },
+        "confidence": 1.0,
+        "evidence_text": [],
+        "assumptions": [],
+        "deterministic_repairs": [],
+        "normalization_facts": [],
+        "plan": {
+          "shared_points": {},
+          "schema_version": "cad.construction-plan.v1",
+          "units": "m",
+          "project_id": null,
+          "source_version": null,
+          "steps": [
+            {
+              "step_id": "step-1",
+              "output_ref": "shape-1",
+              "layer_id": 1,
+              "semantic": {
+                "assembly_id": null,
+                "assembly_label": null,
+                "object_id": null,
+                "object_type": "circle",
+                "label": "圆1",
+                "role": null
+              },
+              "op": "add_circle",
+              "center": {
+                "x": 2.0,
+                "y": 2.0
+              },
+              "radius": 1.5
+            }
+          ],
+          "constraints": [],
+          "constraint_backend": "auto",
+          "assertions": [
+            {
+              "kind": "closed",
+              "assertion_id": "closed-1",
+              "target_ref": "shape-1"
+            }
+          ],
+          "budgets": {
+            "max_steps": 100,
+            "max_entities": 500
+          },
+          "free_outline_layout": []
+        },
+        "requirements_contract": null,
+        "structure_contract": null,
+        "preflight_structure": null,
+        "structure_validation": null,
+        "composition_contract": null,
+        "composition_validation": null,
+        "source_acceptance": {
+          "status": "not_checked",
+          "checks": [],
+          "coverage": "complete",
+          "final_source_acceptance": {
+            "status": "partial",
+            "coverage": "partial",
+            "checks": [
+              {
+                "field": "radius",
+                "actual_mm": 1500.0,
+                "expected_mm": 1500.0,
+                "operator": "eq",
+                "tolerance_mm": 0.5,
+                "source_requirement_id": "user:0:scalar-1:radius:圆",
+                "source_evidence": {
+                  "start": 13,
+                  "end": 19,
+                  "text": "半径1.5米"
+                },
+                "status": "passed",
+                "geometry_ids": [
+                  1
+                ]
+              }
+            ],
+            "unknown_requirements": [],
+            "review_required": false
+          },
+          "single_primitive_acceptance": {
+            "status": "passed",
+            "coverage": "complete",
+            "checks": [
+              {
+                "field": "single_primitive_type_and_count",
+                "status": "passed"
+              },
+              {
+                "field": "radius",
+                "actual_mm": 1500.0,
+                "expected_mm": 1500.0,
+                "status": "passed"
+              },
+              {
+                "field": "center",
+                "actual_mm": [
+                  2000.0,
+                  2000.0
+                ],
+                "expected_mm": [
+                  2000.0,
+                  2000.0
+                ],
+                "status": "passed"
+              }
+            ],
+            "geometry_ids": [
+              1
+            ],
+            "source_evidence": [
+              "半径1.5米",
+              "圆心(2,2)",
+              "坐标单位为米"
+            ],
+            "authority": "backend_measured_geometry",
+            "measurement_scope": "fully_consumed_single_primitive_source",
+            "intent_evidence": []
+          },
+          "rectangle_acceptance": {
+            "status": "not_checked",
+            "coverage": "partial",
+            "checks": [],
+            "unconsumed_text": "圆，圆心(2,2)，半径1.5米，",
+            "source_text": "画一个圆，圆心(2,2)，半径1.5米，坐标单位为米"
+          }
+        },
+        "acceptance_summary": {
+          "status": "passed",
+          "review_required": false,
+          "authority": "backend_measured_geometry",
+          "verified_checks": 4,
+          "failed_checks": [],
+          "requirement_coverage": "complete",
+          "unknown_requirements": [],
+          "geometry_validity": "passed",
+          "constraint_satisfaction": "not_checked",
+          "assertion_status": "passed",
+          "unverified_geometry_ids": []
+        },
+        "trial_result": {
+          "schema": "cad.construction-result.v1",
+          "plan": {
+            "shared_points": {},
+            "schema_version": "cad.construction-plan.v1",
+            "units": "m",
+            "project_id": null,
+            "source_version": null,
+            "steps": [
+              {
+                "step_id": "step-1",
+                "output_ref": "shape-1",
+                "layer_id": 1,
+                "semantic": {
+                  "assembly_id": null,
+                  "assembly_label": null,
+                  "object_id": null,
+                  "object_type": "circle",
+                  "label": "圆1",
+                  "role": null
+                },
+                "op": "add_circle",
+                "center": {
+                  "x": 2.0,
+                  "y": 2.0
+                },
+                "radius": 1.5
+              }
+            ],
+            "constraints": [],
+            "constraint_backend": "auto",
+            "assertions": [
+              {
+                "kind": "closed",
+                "assertion_id": "closed-1",
+                "target_ref": "shape-1"
+              }
+            ],
+            "budgets": {
+              "max_steps": 100,
+              "max_entities": 500
+            },
+            "free_outline_layout": []
+          },
+          "geometries": [
+            {
+              "id": 1,
+              "layer_id": 1,
+              "type": "circle",
+              "center": {
+                "x": 2000.0,
+                "y": 2000.0,
+                "z": 0.0
+              },
+              "radius": 1500.0
+            }
+          ],
+          "logical_objects": [
+            {
+              "object_id": "shape-1",
+              "object_type": "circle",
+              "label": "圆1",
+              "geometry_refs": [
+                1
+              ],
+              "bounds": {
+                "min_x": 500.0,
+                "min_y": 500.0,
+                "max_x": 3500.0,
+                "max_y": 3500.0
+              },
+              "confirmed": true,
+              "confidence": 1.0,
+              "assembly_id": "assembly:shape-1",
+              "assembly_label": "圆1"
+            }
+          ],
+          "topology": {
+            "schema_version": "cad.topology.v1",
+            "shared_geometries": [],
+            "relations": []
+          },
+          "symbol_table": {
+            "shape-1": [
+              1
+            ]
+          },
+          "reference_table": {
+            "shape-1": [
+              1
+            ]
+          },
+          "assertions": {
+            "ok": true,
+            "count": 1
+          },
+          "constraint_solve": {
+            "schema": "cad.constraint-solve.v1",
+            "requested_backend": "auto",
+            "backend": "builtin",
+            "external_backends": {
+              "builtin": {
+                "available": true,
+                "executable": null,
+                "transport": "in_process"
+              },
+              "solvespace": {
+                "available": false,
+                "executable": null,
+                "transport": "isolated_python_worker",
+                "package": "slvs"
+              },
+              "planegcs": {
+                "available": false,
+                "executable": null,
+                "transport": "isolated_python_worker",
+                "package": "planegcs"
+              }
+            },
+            "verified": true,
+            "constraint_count": 0,
+            "constraints": [],
+            "native_result": null,
+            "builtin_fallback_constraint_ids": [],
+            "geometry_is_authoritative": true
+          },
+          "curve_quality": [],
+          "feasibility": {
+            "ok": true,
+            "errors": [],
+            "warnings": [],
+            "geometry_count": 1,
+            "preview_path_count": 1,
+            "printing_length_m": 9.4248,
+            "topology": {
+              "ok": true,
+              "errors": [],
+              "warnings": [],
+              "open_chain_count": 0,
+              "closed_loop_count": 1,
+              "self_intersection_count": 0,
+              "path_self_intersection_count": 0,
+              "cross_path_intersection_count": 0,
+              "duplicate_geometry_count": 0,
+              "disconnected_component_count": 1,
+              "endpoint_count": 0
+            },
+            "bounds": {
+              "min_x_mm": 500.0,
+              "max_x_mm": 3500.0,
+              "min_y_mm": 500.0,
+              "max_y_mm": 3500.0,
+              "width_mm": 3000.0,
+              "height_mm": 3000.0
+            },
+            "boundary_check": {
+              "ok": true,
+              "bounds": {
+                "min_x_mm": 500.0,
+                "max_x_mm": 3500.0,
+                "min_y_mm": 500.0,
+                "max_y_mm": 3500.0,
+                "width_mm": 3000.0,
+                "height_mm": 3000.0
+              },
+              "errors": [],
+              "warnings": []
+            }
+          },
+          "graph_validation": {
+            "schema": "cad.logical-validation.v1",
+            "verified": true,
+            "errors": [],
+            "object_count": 1,
+            "shared_geometry_count": 0,
+            "relation_count": 0,
+            "fingerprint": "826f0eb356ffc0d736f28179255bc1d4fec72abbe45f5bd15a3f5d3b61ce7549"
+          }
+        },
+        "template_specifications": []
+      }
+    },
+    "厘米": {
+      "source": "画一个圆，圆心(200,200)，半径150厘米，坐标单位为厘米",
+      "result": {
+        "schema": "cad.construction-interpretation-result.v1",
+        "status": "invalid",
+        "parser": "deterministic_rules",
+        "error": {
+          "code": "trial_execution_failed",
+          "message": "2 validation errors for tagged-union[CadLine,CadPolyline,CadCircle,CadArc,CadEllipse,CadSpline,CadText]\ncircle.center.x\n  Input should be less than or equal to 100000 [type=less_than_equal, input_value=200000.0, input_type=float]\n    For further information visit https://errors.pydantic.dev/2.11/v/less_than_equal\ncircle.center.y\n  Input should be less than or equal to 100000 [type=less_than_equal, input_value=200000.0, input_type=float]\n    For further information visit https://errors.pydantic.dev/2.11/v/less_than_equal"
+        },
+        "construction_error": {
+          "schema": "cad.construction-error.v1",
+          "code": "invalid_geometry_result",
+          "message": "2 validation errors for tagged-union[CadLine,CadPolyline,CadCircle,CadArc,CadEllipse,CadSpline,CadText]\ncircle.center.x\n  Input should be less than or equal to 100000 [type=less_than_equal, input_value=200000.0, input_type=float]\n    For further information visit https://errors.pydantic.dev/2.11/v/less_than_equal\ncircle.center.y\n  Input should be less than or equal to 100000 [type=less_than_equal, input_value=200000.0, input_type=float]\n    For further information visit https://errors.pydantic.dev/2.11/v/less_than_equal",
+          "step_id": "step-1",
+          "details": {
+            "affected_output_refs": [
+              "shape-1"
+            ],
+            "repair_instruction": "仅修复指定输出；其他部件、单位、布局及断言由后端保留。"
+          }
+        },
+        "requirements_contract": null,
+        "deterministic_repairs": [],
+        "plan": {
+          "shared_points": {},
+          "schema_version": "cad.construction-plan.v1",
+          "units": "m",
+          "project_id": null,
+          "source_version": null,
+          "steps": [
+            {
+              "step_id": "step-1",
+              "output_ref": "shape-1",
+              "layer_id": 1,
+              "semantic": {
+                "assembly_id": null,
+                "assembly_label": null,
+                "object_id": null,
+                "object_type": "circle",
+                "label": "圆1",
+                "role": null
+              },
+              "op": "add_circle",
+              "center": {
+                "x": 200.0,
+                "y": 200.0
+              },
+              "radius": 1.5
+            }
+          ],
+          "constraints": [],
+          "constraint_backend": "auto",
+          "assertions": [
+            {
+              "kind": "closed",
+              "assertion_id": "closed-1",
+              "target_ref": "shape-1"
+            }
+          ],
+          "budgets": {
+            "max_steps": 100,
+            "max_entities": 500
+          },
+          "free_outline_layout": []
+        },
+        "confidence": 1.0,
+        "assumptions": []
+      }
+    },
+    "毫米": {
+      "source": "画一个圆，圆心(2000,2000)，半径1500毫米，坐标单位为毫米",
+      "result": {
+        "schema": "cad.construction-interpretation-result.v1",
+        "status": "invalid",
+        "parser": "deterministic_rules",
+        "error": {
+          "code": "trial_execution_failed",
+          "message": "2 validation errors for tagged-union[CadLine,CadPolyline,CadCircle,CadArc,CadEllipse,CadSpline,CadText]\ncircle.center.x\n  Input should be less than or equal to 100000 [type=less_than_equal, input_value=2000000.0, input_type=float]\n    For further information visit https://errors.pydantic.dev/2.11/v/less_than_equal\ncircle.center.y\n  Input should be less than or equal to 100000 [type=less_than_equal, input_value=2000000.0, input_type=float]\n    For further information visit https://errors.pydantic.dev/2.11/v/less_than_equal"
+        },
+        "construction_error": {
+          "schema": "cad.construction-error.v1",
+          "code": "invalid_geometry_result",
+          "message": "2 validation errors for tagged-union[CadLine,CadPolyline,CadCircle,CadArc,CadEllipse,CadSpline,CadText]\ncircle.center.x\n  Input should be less than or equal to 100000 [type=less_than_equal, input_value=2000000.0, input_type=float]\n    For further information visit https://errors.pydantic.dev/2.11/v/less_than_equal\ncircle.center.y\n  Input should be less than or equal to 100000 [type=less_than_equal, input_value=2000000.0, input_type=float]\n    For further information visit https://errors.pydantic.dev/2.11/v/less_than_equal",
+          "step_id": "step-1",
+          "details": {
+            "affected_output_refs": [
+              "shape-1"
+            ],
+            "repair_instruction": "仅修复指定输出；其他部件、单位、布局及断言由后端保留。"
+          }
+        },
+        "requirements_contract": null,
+        "deterministic_repairs": [],
+        "plan": {
+          "shared_points": {},
+          "schema_version": "cad.construction-plan.v1",
+          "units": "m",
+          "project_id": null,
+          "source_version": null,
+          "steps": [
+            {
+              "step_id": "step-1",
+              "output_ref": "shape-1",
+              "layer_id": 1,
+              "semantic": {
+                "assembly_id": null,
+                "assembly_label": null,
+                "object_id": null,
+                "object_type": "circle",
+                "label": "圆1",
+                "role": null
+              },
+              "op": "add_circle",
+              "center": {
+                "x": 2000.0,
+                "y": 2000.0
+              },
+              "radius": 1.5
+            }
+          ],
+          "constraints": [],
+          "constraint_backend": "auto",
+          "assertions": [
+            {
+              "kind": "closed",
+              "assertion_id": "closed-1",
+              "target_ref": "shape-1"
+            }
+          ],
+          "budgets": {
+            "max_steps": 100,
+            "max_entities": 500
+          },
+          "free_outline_layout": []
+        },
+        "confidence": 1.0,
+        "assumptions": []
+      }
+    }
+  },
+  "arc_preview_precision": {
+    "geometry": {
+      "id": 1,
+      "type": "arc",
+      "center": {
+        "x": 0,
+        "y": 0
+      },
+      "radius": 5000,
+      "start_angle": 0,
+      "end_angle": 180
+    },
+    "segment_count": 32,
+    "first_chord_sag_mm": 6.022718974138115,
+    "construction_sampling_budget_mm": 0.2,
+    "source_acceptance_tolerance_mm": 0.5,
+    "scope": "Renderer samples reused by measure_path_geometry; not an HTTP false-acceptance reproduction."
+  },
+  "named_inner_outer_test_fixture": {
+    "status": "not_checked",
+    "coverage": "partial",
+    "checks": [],
+    "unknown_requirements": [
+      {
+        "source_requirement_id": "user:0:scalar-1:radius:内圆",
+        "reason": "内外圆角色尚未由唯一包含关系确认"
+      },
+      {
+        "source_requirement_id": "user:0:scalar-2:radius:外圆",
+        "reason": "内外圆角色尚未由唯一包含关系确认"
+      }
+    ],
+    "review_required": true
+  },
+  "generic_preflight_review_resolution": {
+    "status": "passed",
+    "review_required": false,
+    "authority": "backend_measured_geometry",
+    "verified_checks": 2,
+    "failed_checks": [],
+    "requirement_coverage": "complete",
+    "unknown_requirements": [],
+    "geometry_validity": "not_checked",
+    "constraint_satisfaction": "not_checked",
+    "assertion_status": "not_checked",
+    "unverified_geometry_ids": []
+  },
+  "middle_target_representation": {
+    "(-2000, 2000)": {
+      "centers_by_instance_id": {
+        "1": -2000,
+        "2": 2000
+      },
+      "instance_untyped": {
+        "status": "resolved",
+        "scope": "instance",
+        "instance_ids": [
+          1
+        ],
+        "reason": "middle_count",
+        "confidence": 1.0,
+        "scoring": {
+          "schema": "cad.target-score.v1",
+          "decision": "authoritative",
+          "minimum_score": 0.7,
+          "minimum_margin": 0.15,
+          "winner_score": 1.0,
+          "runner_up_score": null,
+          "margin": 1.0,
+          "candidates": [
+            {
+              "instance_id": 1,
+              "score": 1.0,
+              "evidence": [
+                {
+                  "kind": "middle_position_count",
+                  "score": 1.0
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "instance_typed": {
+        "status": "needs_clarification",
+        "reason": "even_middle_typed_instances",
+        "candidate_instance_ids": [
+          1,
+          2
+        ],
+        "question": "有多个居中的circle，请在右侧画布点选目标。",
+        "confidence": 0.0
+      },
+      "logical_object": {
+        "status": "needs_clarification",
+        "reason": "even_middle_objects",
+        "question": "当前有两个居中的对象，请在右侧画布选择其中一个。",
+        "candidate_object_ids": [
+          "circle-1",
+          "circle-2"
+        ]
+      }
+    },
+    "(0, 10000, 5000)": {
+      "centers_by_instance_id": {
+        "1": 0,
+        "2": 10000,
+        "3": 5000
+      },
+      "instance_untyped": {
+        "status": "resolved",
+        "scope": "instance",
+        "instance_ids": [
+          3
+        ],
+        "reason": "middle_count",
+        "confidence": 1.0,
+        "scoring": {
+          "schema": "cad.target-score.v1",
+          "decision": "authoritative",
+          "minimum_score": 0.7,
+          "minimum_margin": 0.15,
+          "winner_score": 1.0,
+          "runner_up_score": null,
+          "margin": 1.0,
+          "candidates": [
+            {
+              "instance_id": 3,
+              "score": 1.0,
+              "evidence": [
+                {
+                  "kind": "middle_position_count",
+                  "score": 1.0
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "instance_typed": {
+        "status": "resolved",
+        "scope": "instance",
+        "instance_ids": [
+          2
+        ],
+        "reason": "middle_template_type",
+        "confidence": 1.0,
+        "scoring": {
+          "schema": "cad.target-score.v1",
+          "decision": "authoritative",
+          "minimum_score": 0.7,
+          "minimum_margin": 0.15,
+          "winner_score": 1.0,
+          "runner_up_score": null,
+          "margin": 1.0,
+          "candidates": [
+            {
+              "instance_id": 2,
+              "score": 1.0,
+              "evidence": [
+                {
+                  "kind": "template_type_and_position",
+                  "score": 1.0
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "logical_object": {
+        "status": "resolved",
+        "object_id": "circle-3",
+        "object_ids": [
+          "circle-3"
+        ],
+        "label": "circle-3",
+        "geometry_ids": [
+          3
+        ],
+        "confidence": 1.0
+      }
+    }
+  },
+  "offline_minimum_trace": {
+    "m,flat=False": {
+      "version": "cad.bezier-layout-minimum.v1",
+      "status": "unverified",
+      "formal_candidate_accepted": false,
+      "interval_arithmetic_proof": false,
+      "reason": "execution_or_geometry_not_supported",
+      "direct_execution_error": {
+        "schema": "cad.construction-error.v1",
+        "code": "sampling_error_exceeded",
+        "message": "尺寸缩放后采样误差上界超过精度限制",
+        "step_id": "outline",
+        "details": {
+          "sampling_error_bound": 0.000442164,
+          "limit": 0.0002,
+          "scale": 4.0
+        }
+      }
+    },
+    "m,flat=True": {
+      "version": "cad.bezier-layout-minimum.v1",
+      "status": "unverified",
+      "formal_candidate_accepted": false,
+      "interval_arithmetic_proof": false,
+      "reason": "execution_or_geometry_not_supported",
+      "direct_execution_error": {
+        "schema": "cad.construction-error.v1",
+        "code": "sampling_error_exceeded",
+        "message": "尺寸缩放后采样误差上界超过精度限制",
+        "step_id": "outline",
+        "details": {
+          "sampling_error_bound": 0.000545876,
+          "limit": 0.0002,
+          "scale": 4.0
+        }
+      }
+    },
+    "mm,flat=False": {
+      "version": "cad.bezier-layout-minimum.v1",
+      "status": "unverified",
+      "formal_candidate_accepted": false,
+      "interval_arithmetic_proof": false,
+      "reason": "execution_or_geometry_not_supported",
+      "direct_execution_error": {
+        "schema": "cad.construction-error.v1",
+        "code": "sampling_error_exceeded",
+        "message": "尺寸缩放后采样误差上界超过精度限制",
+        "step_id": "outline",
+        "details": {
+          "sampling_error_bound": 0.442164184,
+          "limit": 0.2,
+          "scale": 4.0
+        }
+      }
+    },
+    "mm,flat=True": {
+      "version": "cad.bezier-layout-minimum.v1",
+      "status": "unverified",
+      "formal_candidate_accepted": false,
+      "interval_arithmetic_proof": false,
+      "reason": "execution_or_geometry_not_supported",
+      "direct_execution_error": {
+        "schema": "cad.construction-error.v1",
+        "code": "sampling_error_exceeded",
+        "message": "尺寸缩放后采样误差上界超过精度限制",
+        "step_id": "outline",
+        "details": {
+          "sampling_error_bound": 0.545877552,
+          "limit": 0.2,
+          "scale": 4.0
+        }
+      }
+    }
+  }
+}

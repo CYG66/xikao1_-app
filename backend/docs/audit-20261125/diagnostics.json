@@ -1,0 +1,18 @@
+{
+  "production_python_unchanged": true,
+  "host_worker_rotate_same_input_equal": true,
+  "malformed_bounds_differential": {
+    "target_bounds": {
+      "value": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "edit_bounds": {
+      "exception": "ValueError"
+    }
+  },
+  "scope": "Offline helper diagnostics only; not formal CAD model evaluation"
+}

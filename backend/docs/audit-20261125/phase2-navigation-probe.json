@@ -1,0 +1,62 @@
+{
+  "scope": "Real agent_chat preparation/navigation/finalization and isolated real stores. No provider/model/hardware call; versions built and measured by existing deterministic interpreter.",
+  "initial_acceptance": "passed",
+  "child_acceptance": "passed",
+  "child_revision_gate": {
+    "schema": "cad.planning-source.v1",
+    "ok": true,
+    "reason": "verified",
+    "message": "候选修改及规划源已验证",
+    "variant_id": "884d3b1d-a57d-46fb-812a-7d5907408c3a",
+    "parent_variant_id": "0ff2046a-c1c8-4db2-a3f6-f4f1e8ff8978",
+    "snapshot_id": "cad_9ea5cfcd86d1bfbd",
+    "sha256": "9ea5cfcd86d1bfbdd782c3f8de823fcd375b48d46f98f9c6a2f41928f34f3d13",
+    "checks": {
+      "schema": true,
+      "status": true,
+      "variant_id": true,
+      "parent_variant_id": true,
+      "snapshot": true,
+      "validation": true,
+      "logical_objects": true
+    }
+  },
+  "response_ok": false,
+  "visibility": {
+    "status": "hidden",
+    "run_id": "bbb0b8c3-04bb-42c8-b1b6-610a3721485f",
+    "reason": [
+      "candidate_not_bound_to_current_run",
+      "candidate_created_before_current_run"
+    ]
+  },
+  "rollback_verification": {
+    "schema": "cad.rollback.verification.v1",
+    "status": "success",
+    "verified": true,
+    "expected": "before",
+    "expected_sha256": "4b38e2220993beab86dd1ddb21304fe96eada60a99fa9724b198b35624cbccc6",
+    "actual_sha256": "4b38e2220993beab86dd1ddb21304fe96eada60a99fa9724b198b35624cbccc6",
+    "snapshot": {
+      "ok": true,
+      "contract_version": "cad-snapshot-1.0",
+      "snapshot_id": "cad_4b38e2220993beab",
+      "sha256": "4b38e2220993beab86dd1ddb21304fe96eada60a99fa9724b198b35624cbccc6",
+      "label": "回滚复核",
+      "entity_count": 1,
+      "path_count": 1,
+      "path_lengths_m": [
+        6.2807
+      ],
+      "geometry_ids": [
+        1
+      ],
+      "persisted": false,
+      "execution_allowed": false
+    }
+  },
+  "returned_variant": null,
+  "stored_base_is_parent": true,
+  "stored_variant_count": 2,
+  "run_state": "failed"
+}

@@ -1,0 +1,193 @@
+[
+  {
+    "case": "A2",
+    "source": "新建图纸，画一个宽5米高3米的矩形\n宽度5米，高度3米，单位米。",
+    "original": "新建图纸，画一个宽5米高3米的矩形",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "step-1",
+          "output_ref": "shape-1",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": null,
+            "assembly_label": null,
+            "object_id": null,
+            "object_type": "rectangle",
+            "label": "矩形1",
+            "role": null
+          },
+          "op": "add_rectangle",
+          "origin": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "width": 5.0,
+          "height": 3.0,
+          "rotation_deg": 0.0
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "bounds_size",
+          "assertion_id": "size-1",
+          "target_ref": "shape-1",
+          "width": 5.0,
+          "height": 3.0,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "closed-1",
+          "target_ref": "shape-1"
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": "C:\\Users\\29924\\Codes\\cad-eval-20261117\\run\\A2\\step-3.json.variants[0].construction_record.plan"
+  },
+  {
+    "case": "C20",
+    "source": "画一个圆角矩形，宽3米高2米，圆角半径0.5米\n外包宽3米、高2米，四角圆角半径0.5米，闭合。",
+    "original": "画一个圆角矩形，宽3米高2米，圆角半径0.5米",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "step.rect.base",
+          "output_ref": "rounded_rect_base",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "rounded_rect",
+            "assembly_label": "圆角矩形",
+            "object_id": "rounded_rect_body",
+            "object_type": "drawing_part",
+            "label": "圆角矩形基体",
+            "role": "body"
+          },
+          "op": "add_centered_rectangle",
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "width": 3.0,
+          "height": 2.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "step_id": "step.corner.c1",
+          "output_ref": "corner_circle_1",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "rounded_rect",
+            "assembly_label": "圆角矩形",
+            "object_id": "corner_circle_1",
+            "object_type": "drawing_part",
+            "label": "左下圆角",
+            "role": "corner"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": -1.0,
+            "y": -0.5
+          },
+          "radius": 0.5
+        },
+        {
+          "step_id": "step.corner.c2",
+          "output_ref": "corner_circle_2",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "rounded_rect",
+            "assembly_label": "圆角矩形",
+            "object_id": "corner_circle_2",
+            "object_type": "drawing_part",
+            "label": "右下圆角",
+            "role": "corner"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": 1.0,
+            "y": -0.5
+          },
+          "radius": 0.5
+        },
+        {
+          "step_id": "step.corner.c3",
+          "output_ref": "corner_circle_3",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "rounded_rect",
+            "assembly_label": "圆角矩形",
+            "object_id": "corner_circle_3",
+            "object_type": "drawing_part",
+            "label": "右上圆角",
+            "role": "corner"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": 1.0,
+            "y": 0.5
+          },
+          "radius": 0.5
+        },
+        {
+          "step_id": "step.corner.c4",
+          "output_ref": "corner_circle_4",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "rounded_rect",
+            "assembly_label": "圆角矩形",
+            "object_id": "corner_circle_4",
+            "object_type": "drawing_part",
+            "label": "左上圆角",
+            "role": "corner"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": -1.0,
+            "y": 0.5
+          },
+          "radius": 0.5
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "bounds_size",
+          "assertion_id": "assert.base_bounds",
+          "target_ref": "rounded_rect_base",
+          "width": 3.0,
+          "height": 2.0,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "assert.count",
+          "target_ref": null,
+          "equals": 5
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": "C:\\Users\\29924\\Codes\\cad-eval-20261117\\run\\C20\\step-3.json.construction_interpretation.recovery.attempts[2].plan"
+  }
+]

@@ -1,0 +1,194 @@
+{
+  "schema_version": "cad.construction-plan.v1",
+  "units": "m",
+  "steps": [
+    {
+      "step_id": "heart-outline-bezier",
+      "output_ref": "heart_outline",
+      "layer_id": 1,
+      "semantic": {
+        "assembly_id": "heart",
+        "assembly_label": "爱心",
+        "object_id": "heart_outline",
+        "object_type": "closed_outline",
+        "label": "爱心外轮廓",
+        "role": "outline"
+      },
+      "op": "add_composite_path",
+      "segments": [
+        {
+          "kind": "bezier",
+          "control_points": [
+            {
+              "x": 2.0,
+              "y": 4.6
+            },
+            {
+              "x": 2.75,
+              "y": 5.35
+            },
+            {
+              "x": 3.75,
+              "y": 4.65
+            },
+            {
+              "x": 3.65,
+              "y": 3.75
+            }
+          ]
+        },
+        {
+          "kind": "bezier",
+          "control_points": [
+            {
+              "x": 3.55,
+              "y": 2.85
+            },
+            {
+              "x": 2.55,
+              "y": 2.05
+            },
+            {
+              "x": 2.0,
+              "y": 1.0
+            },
+            {
+              "x": 2.0,
+              "y": 1.0
+            }
+          ]
+        },
+        {
+          "kind": "bezier",
+          "control_points": [
+            {
+              "x": 2.0,
+              "y": 1.0
+            },
+            {
+              "x": 1.45,
+              "y": 2.05
+            },
+            {
+              "x": 0.45,
+              "y": 2.85
+            },
+            {
+              "x": 0.35,
+              "y": 3.75
+            }
+          ]
+        },
+        {
+          "kind": "bezier",
+          "control_points": [
+            {
+              "x": 0.25,
+              "y": 4.65
+            },
+            {
+              "x": 1.25,
+              "y": 5.35
+            },
+            {
+              "x": 2.0,
+              "y": 4.6
+            },
+            {
+              "x": 2.0,
+              "y": 4.6
+            }
+          ]
+        }
+      ],
+      "closed": true,
+      "samples_per_curve": 48,
+      "connection_tolerance": 1e-06,
+      "continuity": "C0",
+      "tangent_tolerance_deg": 1.0,
+      "allow_self_intersection": false,
+      "allow_duplicate_segments": false,
+      "max_curvature": null,
+      "max_sampling_error": 0.001,
+      "junction_constraints": [
+        {
+          "junction_index": 0,
+          "left_segment_index": 3,
+          "right_segment_index": 0,
+          "intent": "smooth",
+          "required_continuity": "C1",
+          "tangent_tolerance_deg": null,
+          "source_requirement_refs": [
+            "user:0"
+          ]
+        },
+        {
+          "junction_index": 1,
+          "left_segment_index": 0,
+          "right_segment_index": 1,
+          "intent": "smooth",
+          "required_continuity": "C1",
+          "tangent_tolerance_deg": null,
+          "source_requirement_refs": [
+            "user:0"
+          ]
+        },
+        {
+          "junction_index": 2,
+          "left_segment_index": 1,
+          "right_segment_index": 2,
+          "intent": "smooth",
+          "required_continuity": "C1",
+          "tangent_tolerance_deg": null,
+          "source_requirement_refs": [
+            "user:0"
+          ]
+        },
+        {
+          "junction_index": 3,
+          "left_segment_index": 2,
+          "right_segment_index": 3,
+          "intent": "smooth",
+          "required_continuity": "C1",
+          "tangent_tolerance_deg": null,
+          "source_requirement_refs": [
+            "user:0"
+          ]
+        }
+      ]
+    }
+  ],
+  "assertions": [
+    {
+      "kind": "closed",
+      "assertion_id": "heart-closed",
+      "target_ref": "heart_outline"
+    },
+    {
+      "kind": "bounds_size",
+      "assertion_id": "explicit-outline-size",
+      "target_ref": "heart_outline",
+      "width": 4.0,
+      "height": 4.0,
+      "tolerance": 0.02
+    }
+  ],
+  "budgets": {
+    "max_steps": 100,
+    "max_entities": 500
+  },
+  "free_outline_layout": [
+    {
+      "target_ref": "heart_outline",
+      "width": 4.0,
+      "height": 4.0,
+      "right_of_ref": null,
+      "gap": 0.0,
+      "gap_reference": "edge",
+      "center": {
+        "x": 2.0,
+        "y": 3.0
+      }
+    }
+  ]
+}

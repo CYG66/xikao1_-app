@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.agent_run_store import AgentRunStore
 from app.main import app
-from app.agent_http_service import _record_agent_run_result, build_execution_context
+from app.agent_http_service import _record_agent_run_result
 
 
 class AgentRunApiTests(unittest.TestCase):
@@ -146,10 +146,6 @@ class AgentRunApiTests(unittest.TestCase):
         store = AgentRunStore(Path(tempfile.mkdtemp()) / "runs.json")
         run = store.create("测试", user_id="user-1")
         store.transition(run["id"], "understanding", "理解")
-        store.bind_context(
-            run["id"],
-            execution_context=build_execution_context(conversation_id="chat-owner"),
-        )
         with store._lock:
             store._runs[run["id"]]["state"] = "paused"
             store._save()
@@ -176,13 +172,6 @@ class AgentRunApiTests(unittest.TestCase):
             source_variant_id="variant-1",
             mode="advanced",
         )
-        store.bind_context(
-            run["id"],
-            execution_context=build_execution_context(
-                conversation_id="chat-1", project_id="project-1",
-                source_variant_id="variant-1",
-            ),
-        )
         with store._lock:
             store._runs[run["id"]]["state"] = "paused"
             store._save()
@@ -200,10 +189,6 @@ class AgentRunApiTests(unittest.TestCase):
     def test_resume_from_generated_result_skips_model_and_execution(self) -> None:
         store = AgentRunStore(Path(tempfile.mkdtemp()) / "runs.json")
         run = store.create("生成候选", user_id="user-1", conversation_id="chat-1")
-        store.bind_context(
-            run["id"],
-            execution_context=build_execution_context(conversation_id="chat-1"),
-        )
         with store._lock:
             store._runs[run["id"]]["state"] = "paused"
             store._save()
@@ -231,8 +216,7 @@ class AgentRunApiTests(unittest.TestCase):
         with store._lock:
             store._runs[run["id"]]["state"] = "paused"
             store._save()
-        prepared = {"route": {"intent": "cad", "execution_context": build_execution_context(
-            conversation_id="chat-1")}, "model_messages": []}
+        prepared = {"route": {"intent": "cad"}, "model_messages": []}
         store.set_checkpoint(run["id"], {
             "schema": "agent.checkpoint.v3",
             "step_id": "context_prepared",

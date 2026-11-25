@@ -1,0 +1,213 @@
+[
+  {
+    "case": "C3",
+    "source": "生成一个半圆拱门轮廓，宽2米高3米\n顶部为半径1米的上半圆；两侧直墙各长2米；底边闭合。整体宽度2米、整体高度3米，坐标单位米。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "shared_points": {
+          "base_left": {
+            "x": -1.0,
+            "y": 0.0
+          },
+          "base_right": {
+            "x": 1.0,
+            "y": 0.0
+          },
+          "wall_top_left": {
+            "x": -1.0,
+            "y": 2.0
+          },
+          "wall_top_right": {
+            "x": 1.0,
+            "y": 2.0
+          }
+        },
+        "steps": [
+          {
+            "step_id": "arch_wall_left",
+            "output_ref": "arch_wall_left",
+            "semantic": {
+              "assembly_id": "semicircle_arch",
+              "assembly_label": "半圆拱门轮廓",
+              "object_id": "arch_wall_left",
+              "object_type": "drawing_part",
+              "label": "左侧直墙",
+              "role": "outline"
+            },
+            "op": "add_line",
+            "start": {
+              "x": "@base_left.x",
+              "y": "@base_left.y"
+            },
+            "end": {
+              "x": "@wall_top_left.x",
+              "y": "@wall_top_left.y"
+            }
+          },
+          {
+            "step_id": "arch_wall_right",
+            "output_ref": "arch_wall_right",
+            "semantic": {
+              "assembly_id": "semicircle_arch",
+              "assembly_label": "半圆拱门轮廓",
+              "object_id": "arch_wall_right",
+              "object_type": "drawing_part",
+              "label": "右侧直墙",
+              "role": "outline"
+            },
+            "op": "add_line",
+            "start": {
+              "x": "@base_right.x",
+              "y": "@base_right.y"
+            },
+            "end": {
+              "x": "@wall_top_right.x",
+              "y": "@wall_top_right.y"
+            }
+          },
+          {
+            "step_id": "arch_dome",
+            "output_ref": "arch_dome",
+            "semantic": {
+              "assembly_id": "semicircle_arch",
+              "assembly_label": "半圆拱门轮廓",
+              "object_id": "arch_dome",
+              "object_type": "drawing_part",
+              "label": "顶部半圆",
+              "role": "outline"
+            },
+            "op": "add_arc",
+            "center": {
+              "x": 0.0,
+              "y": 2.0
+            },
+            "radius": 1.0,
+            "start_angle": 0.0,
+            "end_angle": 180.0
+          },
+          {
+            "step_id": "arch_base",
+            "output_ref": "arch_base",
+            "semantic": {
+              "assembly_id": "semicircle_arch",
+              "assembly_label": "半圆拱门轮廓",
+              "object_id": "arch_base",
+              "object_type": "drawing_part",
+              "label": "底边",
+              "role": "outline"
+            },
+            "op": "add_line",
+            "start": {
+              "x": "@base_left.x",
+              "y": "@base_left.y"
+            },
+            "end": {
+              "x": "@base_right.x",
+              "y": "@base_right.y"
+            }
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "entity_count",
+            "assertion_id": "arch_entity_count",
+            "equals": 4
+          },
+          {
+            "kind": "center_distance",
+            "assertion_id": "arch_wall_spacing",
+            "target_ref": "arch_wall_left",
+            "reference_ref": "arch_wall_right",
+            "distance": 2.0,
+            "tolerance": 0.001
+          }
+        ]
+      },
+      "evidence_text": [
+        "生成一个半圆拱门轮廓，宽2米高3米"
+      ],
+      "assumptions": [
+        "拱门为单一闭合外轮廓，由左右两条竖直直墙、顶部半径1米的上半圆和底部水平闭合边组成",
+        "整体宽度2米即左右直墙间距，整体高度3米即直墙2米加上半圆半径1米",
+        "顶弧与直墙在墙顶端点相接，属于造型自然连接",
+        "坐标单位为米"
+      ],
+      "confidence": 0.95
+    }
+  },
+  {
+    "case": "C6",
+    "source": "画一朵花的轮廓，5片花瓣，闭合曲线\n宽度5米，高度5米。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "flower.curve",
+            "output_ref": "flower.outline",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": "flower",
+              "assembly_label": "花的轮廓",
+              "object_id": "flower.outline",
+              "object_type": "drawing_part",
+              "label": "五瓣花闭合轮廓",
+              "role": "outer_boundary"
+            },
+            "op": "add_parametric_curve",
+            "x_expression": "1.25*cos(t)*(2+0.6*cos(5*t))",
+            "y_expression": "1.25*sin(t)*(2+0.6*cos(5*t))",
+            "t_start": "0",
+            "t_end": "2*pi",
+            "max_sampling_error": 0.0005,
+            "closed": true
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "flower.closed",
+            "target_ref": "flower.outline"
+          },
+          {
+            "kind": "entity_count",
+            "assertion_id": "required-outline-count",
+            "target_ref": null,
+            "equals": 1
+          },
+          {
+            "kind": "radial_pattern",
+            "assertion_id": "requested-radial-pattern",
+            "target_ref": "flower.outline",
+            "lobes": 5,
+            "profile": "smooth"
+          }
+        ],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 500
+        },
+        "free_outline_layout": []
+      },
+      "evidence_text": [
+        "画一朵花的轮廓，5片花瓣，闭合曲线"
+      ],
+      "assumptions": [
+        "花瓣轮廓采用极坐标调制曲线 r(t)=R*(cos(t),sin(t))，R(t)=2.5*(1+0.3*cos(5t)) 米，峰值半径3.25米、谷值半径1.75米，保证恰好5个平滑径向凸瓣",
+        "整体最大宽度与高度均为5.0米：x与y方向峰值半径3.25米处位于t=0和t=pi/2，两个方向极值均为3.25米，故包围盒宽高均为6.5米，需按5米整体宽高做统一缩放，缩放系数5/6.5，缩放后表达式已直接内嵌系数1.25替代2.5",
+        "曲线在t∈[0,2π]区间内恰好遍历边界一次，端点相同且切线连续（C1），无自交",
+        "未指定单位时按米解释设计尺寸，与用户明确给出的宽度5米、高度5米一致"
+      ],
+      "confidence": 0.82
+    }
+  }
+]

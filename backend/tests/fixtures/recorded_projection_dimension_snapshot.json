@@ -1,0 +1,843 @@
+{
+  "original": "画一个立方体的透视轮廓，边长2米",
+  "requirements": {
+    "shape": "generic_2d_cad",
+    "construction_mode": "clarified_scope",
+    "units": "m",
+    "recognized_size": true,
+    "dimensions": {
+      "width_m": 2.0,
+      "height_m": 2.0
+    },
+    "construction_scope": "awaiting_confirmation",
+    "requirement_ledger": {
+      "schema": "cad.requirement-ledger.v1",
+      "sources": [
+        {
+          "source_id": "user-1",
+          "origin": "user",
+          "sequence": 1,
+          "text": "画一个立方体的透视轮廓，边长2米",
+          "sha256": "75a7d2d1134a3e29cf48755b9e12706521cc600123665dcac699dd68ab08cab3"
+        },
+        {
+          "source_id": "user-2",
+          "origin": "user",
+          "sequence": 2,
+          "text": "二维等轴投影，三个投影轴夹角120度，各投影棱长2米，只画可见及隐藏的12条棱线。",
+          "sha256": "9d2ca6a9c9597248154b50980abe3abff88219f038ba32b5f4271f65227438aa"
+        }
+      ],
+      "evidence_items": [
+        {
+          "kind": "quantity",
+          "source_id": "user-1",
+          "evidence": {
+            "start": 1,
+            "end": 3,
+            "text": "一个"
+          },
+          "clause": "画一个立方体的透视轮廓",
+          "binding_status": "unresolved",
+          "verification_status": "not_checked",
+          "requirement_id": "user-1:req-1"
+        },
+        {
+          "kind": "dimension",
+          "source_id": "user-1",
+          "evidence": {
+            "start": 12,
+            "end": 16,
+            "text": "边长2米"
+          },
+          "clause": "边长2米",
+          "binding_status": "unresolved",
+          "verification_status": "not_checked",
+          "requirement_id": "user-1:req-2"
+        },
+        {
+          "kind": "quantity",
+          "source_id": "user-2",
+          "evidence": {
+            "start": 7,
+            "end": 9,
+            "text": "三个"
+          },
+          "clause": "三个投影轴夹角120度",
+          "binding_status": "unresolved",
+          "verification_status": "not_checked",
+          "requirement_id": "user-2:req-1"
+        },
+        {
+          "kind": "dimension",
+          "source_id": "user-2",
+          "evidence": {
+            "start": 23,
+            "end": 26,
+            "text": "长2米"
+          },
+          "clause": "各投影棱长2米",
+          "binding_status": "unresolved",
+          "verification_status": "not_checked",
+          "requirement_id": "user-2:req-2"
+        },
+        {
+          "kind": "quantity",
+          "source_id": "user-2",
+          "evidence": {
+            "start": 35,
+            "end": 38,
+            "text": "12条"
+          },
+          "clause": "只画可见及隐藏的12条棱线",
+          "binding_status": "unresolved",
+          "verification_status": "not_checked",
+          "requirement_id": "user-2:req-3"
+        }
+      ],
+      "model_assumptions": [],
+      "pending_clarifications": [],
+      "coverage": {
+        "status": "partial",
+        "note": "逐轮原文完整保存；参数归属未解析时不自动覆盖或宣称已验收"
+      },
+      "requirement_contract": {
+        "schema": "cad.requirement-contract.v1",
+        "subjects": [
+          "立方体的透视轮廓"
+        ],
+        "facts": [
+          {
+            "fact_id": "user-1:scalar-1:side_length:立方体的透视轮廓",
+            "origin": "user",
+            "source_id": "user-1",
+            "subject": "立方体的透视轮廓",
+            "field": "side_length",
+            "operator": "eq",
+            "value_mm": 2000.0,
+            "evidence": {
+              "start": 12,
+              "end": 16,
+              "text": "边长2米"
+            },
+            "binding": "single_subject",
+            "status": "effective"
+          }
+        ],
+        "sources": [
+          {
+            "source_id": "user-1",
+            "text": "画一个立方体的透视轮廓，边长2米",
+            "subjects": [
+              "立方体的透视轮廓"
+            ],
+            "clauses": [
+              {
+                "text": "画一个立方体的透视轮廓",
+                "subjects": [
+                  "立方体的透视轮廓"
+                ]
+              },
+              {
+                "text": "边长2米",
+                "subjects": []
+              }
+            ]
+          },
+          {
+            "source_id": "user-2",
+            "text": "二维等轴投影，三个投影轴夹角120度，各投影棱长2米，只画可见及隐藏的12条棱线。",
+            "subjects": [],
+            "clauses": [
+              {
+                "text": "二维等轴投影",
+                "subjects": []
+              },
+              {
+                "text": "三个投影轴夹角120度",
+                "subjects": []
+              },
+              {
+                "text": "各投影棱长2米",
+                "subjects": []
+              },
+              {
+                "text": "只画可见及隐藏的12条棱线",
+                "subjects": []
+              }
+            ]
+          }
+        ],
+        "unresolved_fact_ids": [],
+        "raw_requirement_text": "画一个立方体的透视轮廓，边长2米\n二维等轴投影，三个投影轴夹角120度，各投影棱长2米，只画可见及隐藏的12条棱线。",
+        "effective_fact_ids": [
+          "user-1:scalar-1:side_length:立方体的透视轮廓"
+        ],
+        "conflicts": [],
+        "consistent": true,
+        "coverage": {
+          "status": "partial",
+          "supported_fields": [
+            "circumradius",
+            "diameter",
+            "height",
+            "radius",
+            "side_length",
+            "width"
+          ],
+          "normalized_fields": [
+            "objects",
+            "raw_text",
+            "clauses",
+            "scoped_scalar_facts",
+            "unresolved_facts"
+          ],
+          "note": "未绑定的尺寸不自动归给整体；位置、数量和连接保留原文、分句及证据账本中"
+        }
+      },
+      "revision_sha256": "2ce99f226622d66b084280d587a85825cbf76ae9a56e9d925bbc8ac91b97ce34",
+      "previous_revision_sha256": "fc7cdd89e5c05a674158a07aa13dc41269d3f5a43fee457339be9d1162fbe12b"
+    },
+    "source_followups": [
+      "二维等轴投影，三个投影轴夹角120度，各投影棱长2米，只画可见及隐藏的12条棱线。"
+    ],
+    "scale_source": "explicit_source_constraints"
+  },
+  "payload": {
+    "schema_version": "cad.construction-interpretation.v1",
+    "is_construction_request": true,
+    "confidence": 0.95,
+    "evidence_text": [
+      "画一个立方体的透视轮廓，边长2米"
+    ],
+    "assumptions": [
+      "仅修复重复object_id，保持原有12条棱线几何、尺寸与断言不变",
+      "同一立方体整体共享assembly_id=cube_iso，每条棱线使用唯一object_id"
+    ],
+    "clarification": null,
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "shared_points": {
+        "f_bottom": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "f_right": {
+          "x": 1.732050808,
+          "y": 0.0
+        },
+        "f_top": {
+          "x": 2.598076211,
+          "y": 1.0
+        },
+        "f_left": {
+          "x": 0.866025404,
+          "y": 1.0
+        },
+        "b_bottom": {
+          "x": 0.866025404,
+          "y": 2.0
+        },
+        "b_right": {
+          "x": 2.598076211,
+          "y": 2.0
+        },
+        "b_top": {
+          "x": 3.464101616,
+          "y": 3.0
+        },
+        "b_left": {
+          "x": 1.732050808,
+          "y": 3.0
+        }
+      },
+      "steps": [
+        {
+          "step_id": "l01",
+          "output_ref": "cube-edge-01",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "front_face_bottom_edge",
+            "object_type": "drawing_part",
+            "label": "前面下棱",
+            "role": "outline"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@f_bottom.x",
+            "y": "@f_bottom.y"
+          },
+          "end": {
+            "x": "@f_right.x",
+            "y": "@f_right.y"
+          }
+        },
+        {
+          "step_id": "l02",
+          "output_ref": "cube-edge-02",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "front_face_right_edge",
+            "object_type": "drawing_part",
+            "label": "前面右棱",
+            "role": "outline"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@f_right.x",
+            "y": "@f_right.y"
+          },
+          "end": {
+            "x": "@f_top.x",
+            "y": "@f_top.y"
+          }
+        },
+        {
+          "step_id": "l03",
+          "output_ref": "cube-edge-03",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "front_face_top_edge",
+            "object_type": "drawing_part",
+            "label": "前面上棱",
+            "role": "outline"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@f_top.x",
+            "y": "@f_top.y"
+          },
+          "end": {
+            "x": "@f_left.x",
+            "y": "@f_left.y"
+          }
+        },
+        {
+          "step_id": "l04",
+          "output_ref": "cube-edge-04",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "front_face_left_edge",
+            "object_type": "drawing_part",
+            "label": "前面左棱",
+            "role": "outline"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@f_left.x",
+            "y": "@f_left.y"
+          },
+          "end": {
+            "x": "@f_bottom.x",
+            "y": "@f_bottom.y"
+          }
+        },
+        {
+          "step_id": "l05",
+          "output_ref": "cube-edge-05",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "back_face_bottom_edge",
+            "object_type": "drawing_part",
+            "label": "后面下棱",
+            "role": "hidden"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@b_bottom.x",
+            "y": "@b_bottom.y"
+          },
+          "end": {
+            "x": "@b_right.x",
+            "y": "@b_right.y"
+          }
+        },
+        {
+          "step_id": "l06",
+          "output_ref": "cube-edge-06",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "back_face_right_edge",
+            "object_type": "drawing_part",
+            "label": "后面右棱",
+            "role": "hidden"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@b_right.x",
+            "y": "@b_right.y"
+          },
+          "end": {
+            "x": "@b_top.x",
+            "y": "@b_top.y"
+          }
+        },
+        {
+          "step_id": "l07",
+          "output_ref": "cube-edge-07",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "back_face_top_edge",
+            "object_type": "drawing_part",
+            "label": "后面上棱",
+            "role": "outline"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@b_top.x",
+            "y": "@b_top.y"
+          },
+          "end": {
+            "x": "@b_left.x",
+            "y": "@b_left.y"
+          }
+        },
+        {
+          "step_id": "l08",
+          "output_ref": "cube-edge-08",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "back_face_left_edge",
+            "object_type": "drawing_part",
+            "label": "后面左棱",
+            "role": "hidden"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@b_left.x",
+            "y": "@b_left.y"
+          },
+          "end": {
+            "x": "@b_bottom.x",
+            "y": "@b_bottom.y"
+          }
+        },
+        {
+          "step_id": "l09",
+          "output_ref": "cube-edge-09",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "depth_edge_front_bottom",
+            "object_type": "drawing_part",
+            "label": "前下到后下的深度棱",
+            "role": "outline"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@f_bottom.x",
+            "y": "@f_bottom.y"
+          },
+          "end": {
+            "x": "@b_bottom.x",
+            "y": "@b_bottom.y"
+          }
+        },
+        {
+          "step_id": "l10",
+          "output_ref": "cube-edge-10",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "depth_edge_front_right",
+            "object_type": "drawing_part",
+            "label": "前右到后右的深度棱",
+            "role": "outline"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@f_right.x",
+            "y": "@f_right.y"
+          },
+          "end": {
+            "x": "@b_right.x",
+            "y": "@b_right.y"
+          }
+        },
+        {
+          "step_id": "l11",
+          "output_ref": "cube-edge-11",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "depth_edge_front_top",
+            "object_type": "drawing_part",
+            "label": "前上到后上的深度棱",
+            "role": "outline"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@f_top.x",
+            "y": "@f_top.y"
+          },
+          "end": {
+            "x": "@b_top.x",
+            "y": "@b_top.y"
+          }
+        },
+        {
+          "step_id": "l12",
+          "output_ref": "cube-edge-12",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "depth_edge_front_left",
+            "object_type": "drawing_part",
+            "label": "前左到后左的深度棱",
+            "role": "hidden"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@f_left.x",
+            "y": "@f_left.y"
+          },
+          "end": {
+            "x": "@b_left.x",
+            "y": "@b_left.y"
+          }
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "entity_count",
+          "assertion_id": "cube-edge-count",
+          "target_ref": null,
+          "equals": 12
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    }
+  },
+  "previous_success_payload": {
+    "schema_version": "cad.construction-interpretation.v1",
+    "is_construction_request": true,
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "steps": [
+        {
+          "step_id": "s01",
+          "output_ref": "cube_front_top",
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "edge_ftl",
+            "object_type": "line",
+            "label": "立方体上表面前棱",
+            "role": "visible_edge"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@P000.x",
+            "y": "@P000.y"
+          },
+          "end": {
+            "x": "@P001.x",
+            "y": "@P001.y"
+          }
+        },
+        {
+          "step_id": "s02",
+          "output_ref": "cube_right_top",
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "edge_ftr",
+            "object_type": "line",
+            "label": "立方体上表面右棱",
+            "role": "visible_edge"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@P001.x",
+            "y": "@P001.y"
+          },
+          "end": {
+            "x": "@P002.x",
+            "y": "@P002.y"
+          }
+        },
+        {
+          "step_id": "s03",
+          "output_ref": "cube_back_top",
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "edge_bt",
+            "object_type": "line",
+            "label": "立方体上表面后棱",
+            "role": "hidden_edge"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@P002.x",
+            "y": "@P002.y"
+          },
+          "end": {
+            "x": "@P003.x",
+            "y": "@P003.y"
+          }
+        },
+        {
+          "step_id": "s04",
+          "output_ref": "cube_left_top",
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "edge_btl",
+            "object_type": "line",
+            "label": "立方体上表面左棱",
+            "role": "hidden_edge"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@P003.x",
+            "y": "@P003.y"
+          },
+          "end": {
+            "x": "@P000.x",
+            "y": "@P000.y"
+          }
+        },
+        {
+          "step_id": "s05",
+          "output_ref": "cube_vert_000",
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "edge_v000",
+            "object_type": "line",
+            "label": "立方体顶点0竖直棱",
+            "role": "visible_edge"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@P000.x",
+            "y": "@P000.y"
+          },
+          "end": {
+            "x": "@P004.x",
+            "y": "@P004.y"
+          }
+        },
+        {
+          "step_id": "s06",
+          "output_ref": "cube_vert_001",
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "edge_v001",
+            "object_type": "line",
+            "label": "立方体顶点1竖直棱",
+            "role": "visible_edge"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@P001.x",
+            "y": "@P001.y"
+          },
+          "end": {
+            "x": "@P005.x",
+            "y": "@P005.y"
+          }
+        },
+        {
+          "step_id": "s07",
+          "output_ref": "cube_vert_002",
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "edge_v002",
+            "object_type": "line",
+            "label": "立方体顶点2竖直棱",
+            "role": "hidden_edge"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@P002.x",
+            "y": "@P002.y"
+          },
+          "end": {
+            "x": "@P006.x",
+            "y": "@P006.y"
+          }
+        },
+        {
+          "step_id": "s08",
+          "output_ref": "cube_vert_003",
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "edge_v003",
+            "object_type": "line",
+            "label": "立方体顶点3竖直棱",
+            "role": "hidden_edge"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@P003.x",
+            "y": "@P003.y"
+          },
+          "end": {
+            "x": "@P007.x",
+            "y": "@P007.y"
+          }
+        },
+        {
+          "step_id": "s09",
+          "output_ref": "cube_front_bottom",
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "edge_fbl",
+            "object_type": "line",
+            "label": "立方体下表面前棱",
+            "role": "visible_edge"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@P004.x",
+            "y": "@P004.y"
+          },
+          "end": {
+            "x": "@P005.x",
+            "y": "@P005.y"
+          }
+        },
+        {
+          "step_id": "s10",
+          "output_ref": "cube_right_bottom",
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "edge_fbr",
+            "object_type": "line",
+            "label": "立方体下表面右棱",
+            "role": "hidden_edge"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@P005.x",
+            "y": "@P005.y"
+          },
+          "end": {
+            "x": "@P006.x",
+            "y": "@P006.y"
+          }
+        },
+        {
+          "step_id": "s11",
+          "output_ref": "cube_back_bottom",
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "edge_bb",
+            "object_type": "line",
+            "label": "立方体下表面后棱",
+            "role": "hidden_edge"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@P006.x",
+            "y": "@P006.y"
+          },
+          "end": {
+            "x": "@P007.x",
+            "y": "@P007.y"
+          }
+        },
+        {
+          "step_id": "s12",
+          "output_ref": "cube_left_bottom",
+          "semantic": {
+            "assembly_id": "cube_iso",
+            "assembly_label": "立方体的透视轮廓",
+            "object_id": "edge_bbl",
+            "object_type": "line",
+            "label": "立方体下表面左棱",
+            "role": "hidden_edge"
+          },
+          "op": "add_line",
+          "start": {
+            "x": "@P007.x",
+            "y": "@P007.y"
+          },
+          "end": {
+            "x": "@P004.x",
+            "y": "@P004.y"
+          }
+        }
+      ],
+      "shared_points": {
+        "P000": {
+          "x": 0,
+          "y": 2
+        },
+        "P001": {
+          "x": 1.732050807569,
+          "y": 1
+        },
+        "P002": {
+          "x": 0,
+          "y": 0
+        },
+        "P003": {
+          "x": -1.732050807569,
+          "y": 1
+        },
+        "P004": {
+          "x": 0,
+          "y": 0
+        },
+        "P005": {
+          "x": 1.732050807569,
+          "y": -1
+        },
+        "P006": {
+          "x": 0,
+          "y": -2
+        },
+        "P007": {
+          "x": -1.732050807569,
+          "y": -1
+        }
+      }
+    },
+    "evidence_text": [
+      "画一个立方体的透视轮廓，边长2米"
+    ],
+    "assumptions": [
+      "采用二维等轴投影：三个投影轴在图上互成120度。",
+      "三条可见投影轴方向上的投影棱长均取2米；立方体的其余棱与对应轴平行且投影长度相同。",
+      "透视轮廓只画12条棱线，不填充面，不在三维模型中求隐藏线消隐，隐藏棱以隐藏线角色标注。"
+    ],
+    "confidence": 0.86
+  }
+}

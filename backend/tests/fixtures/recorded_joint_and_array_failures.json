@@ -1,0 +1,655 @@
+[
+  {
+    "case": "A9",
+    "original": "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米",
+    "source": "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米。宽4米、高4米，左右对称、平滑闭合。",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "heart.outline",
+          "output_ref": "heart.outline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "heart",
+            "assembly_label": "左右对称、平滑闭合的爱心",
+            "object_id": "heart.outline",
+            "object_type": "closed_free_outline",
+            "label": "爱心外轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_composite_path",
+          "segments": [
+            {
+              "kind": "bezier",
+              "control_points": [
+                {
+                  "x": 2.0,
+                  "y": 1.0
+                },
+                {
+                  "x": 1.42,
+                  "y": 1.72
+                },
+                {
+                  "x": 0.0,
+                  "y": 2.95
+                },
+                {
+                  "x": 0.0,
+                  "y": 4.3
+                }
+              ]
+            },
+            {
+              "kind": "bezier",
+              "control_points": [
+                {
+                  "x": 0.0,
+                  "y": 4.3
+                },
+                {
+                  "x": 0.0,
+                  "y": 5.13
+                },
+                {
+                  "x": 0.896,
+                  "y": 5.0
+                },
+                {
+                  "x": 2.0,
+                  "y": 4.2
+                }
+              ]
+            },
+            {
+              "kind": "bezier",
+              "control_points": [
+                {
+                  "x": 2.0,
+                  "y": 4.2
+                },
+                {
+                  "x": 3.104,
+                  "y": 5.0
+                },
+                {
+                  "x": 4.0,
+                  "y": 5.13
+                },
+                {
+                  "x": 4.0,
+                  "y": 4.3
+                }
+              ]
+            },
+            {
+              "kind": "bezier",
+              "control_points": [
+                {
+                  "x": 4.0,
+                  "y": 4.3
+                },
+                {
+                  "x": 4.0,
+                  "y": 2.95
+                },
+                {
+                  "x": 2.58,
+                  "y": 1.72
+                },
+                {
+                  "x": 2.0,
+                  "y": 1.0
+                }
+              ]
+            }
+          ],
+          "closed": true,
+          "samples_per_curve": 32,
+          "connection_tolerance": 1e-06,
+          "continuity": "C1",
+          "tangent_tolerance_deg": 1.0,
+          "allow_self_intersection": false,
+          "allow_duplicate_segments": false,
+          "max_curvature": null,
+          "max_sampling_error": 0.0005,
+          "junction_constraints": [
+            {
+              "junction_index": 0,
+              "left_segment_index": 0,
+              "right_segment_index": 1,
+              "intent": "smooth",
+              "required_continuity": "C1",
+              "tangent_tolerance_deg": 1.0,
+              "source_requirement_refs": [
+                "user:0"
+              ]
+            },
+            {
+              "junction_index": 1,
+              "left_segment_index": 1,
+              "right_segment_index": 2,
+              "intent": "smooth",
+              "required_continuity": "C1",
+              "tangent_tolerance_deg": 1.0,
+              "source_requirement_refs": [
+                "user:0"
+              ]
+            },
+            {
+              "junction_index": 2,
+              "left_segment_index": 2,
+              "right_segment_index": 3,
+              "intent": "smooth",
+              "required_continuity": "C1",
+              "tangent_tolerance_deg": 1.0,
+              "source_requirement_refs": [
+                "user:0"
+              ]
+            },
+            {
+              "junction_index": 3,
+              "left_segment_index": 3,
+              "right_segment_index": 0,
+              "intent": "smooth",
+              "required_continuity": "C1",
+              "tangent_tolerance_deg": 1.0,
+              "source_requirement_refs": [
+                "user:0"
+              ]
+            }
+          ]
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "heart.closed",
+          "target_ref": "heart.outline"
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "explicit-outline-size",
+          "target_ref": "heart.outline",
+          "width": 4.0,
+          "height": 4.0,
+          "tolerance": 0.001
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": [
+        {
+          "target_ref": "heart.outline",
+          "width": 4.0,
+          "height": 4.0,
+          "right_of_ref": null,
+          "gap": 0.0,
+          "gap_reference": "edge",
+          "center": {
+            "x": 2.0,
+            "y": 3.0
+          }
+        }
+      ]
+    }
+  },
+  {
+    "case": "C17",
+    "original": "生成3列2行的蜂窝六边形阵列，边长0.5米，无缝拼接",
+    "source": "生成3列2行的蜂窝六边形阵列，边长0.5米，无缝拼接。正六边形边长0.5米，3列2行共6个，蜂窝错列共边拼接，坐标单位米。",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "hex0",
+          "output_ref": "hex_cell_0_0",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "honeycomb_array",
+            "assembly_label": "3列2行蜂窝六边形阵列",
+            "object_id": "hex_cell_0_0",
+            "object_type": "drawing_part",
+            "label": "蜂窝六边形单元(列0,行0)",
+            "role": "cell"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 0.5,
+              "y": 0.0
+            },
+            {
+              "x": 0.25000000000000006,
+              "y": 0.4330127018922193
+            },
+            {
+              "x": -0.2499999999999999,
+              "y": 0.43301270189221935
+            },
+            {
+              "x": -0.5,
+              "y": 6.123233995736766e-17
+            },
+            {
+              "x": -0.2500000000000002,
+              "y": -0.43301270189221924
+            },
+            {
+              "x": 0.25000000000000006,
+              "y": -0.4330127018922193
+            }
+          ],
+          "closed": true
+        },
+        {
+          "step_id": "hex1",
+          "output_ref": "hex_cell_0_1",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "honeycomb_array",
+            "assembly_label": "3列2行蜂窝六边形阵列",
+            "object_id": "hex_cell_0_1",
+            "object_type": "drawing_part",
+            "label": "蜂窝六边形单元(列0,行1)",
+            "role": "cell"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 1.25,
+              "y": 0.4330127018922193
+            },
+            {
+              "x": 1.0,
+              "y": 0.8660254037844386
+            },
+            {
+              "x": 0.5,
+              "y": 0.8660254037844386
+            },
+            {
+              "x": 0.25,
+              "y": 0.4330127018922193
+            },
+            {
+              "x": 0.5,
+              "y": 0.0
+            },
+            {
+              "x": 1.0,
+              "y": 0.0
+            }
+          ],
+          "closed": true
+        },
+        {
+          "step_id": "hex2",
+          "output_ref": "hex_cell_1_0",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "honeycomb_array",
+            "assembly_label": "3列2行蜂窝六边形阵列",
+            "object_id": "hex_cell_1_0",
+            "object_type": "drawing_part",
+            "label": "蜂窝六边形单元(列1,行0)",
+            "role": "cell"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 1.25,
+              "y": 0.0
+            },
+            {
+              "x": 1.0,
+              "y": 0.4330127018922193
+            },
+            {
+              "x": 0.5,
+              "y": 0.4330127018922193
+            },
+            {
+              "x": 0.25,
+              "y": 0.0
+            },
+            {
+              "x": 0.5,
+              "y": -0.4330127018922193
+            },
+            {
+              "x": 1.0,
+              "y": -0.4330127018922193
+            }
+          ],
+          "closed": true
+        },
+        {
+          "step_id": "hex3",
+          "output_ref": "hex_cell_1_1",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "honeycomb_array",
+            "assembly_label": "3列2行蜂窝六边形阵列",
+            "object_id": "hex_cell_1_1",
+            "object_type": "drawing_part",
+            "label": "蜂窝六边形单元(列1,行1)",
+            "role": "cell"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 3.5,
+              "y": 0.8660254037844386
+            },
+            {
+              "x": 3.25,
+              "y": 1.299038105676658
+            },
+            {
+              "x": 2.75,
+              "y": 1.299038105676658
+            },
+            {
+              "x": 2.5,
+              "y": 0.8660254037844387
+            },
+            {
+              "x": 2.75,
+              "y": 0.43301270189221935
+            },
+            {
+              "x": 3.25,
+              "y": 0.4330127018922193
+            }
+          ],
+          "closed": true
+        },
+        {
+          "step_id": "hex4",
+          "output_ref": "hex_cell_2_0",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "honeycomb_array",
+            "assembly_label": "3列2行蜂窝六边形阵列",
+            "object_id": "hex_cell_2_0",
+            "object_type": "drawing_part",
+            "label": "蜂窝六边形单元(列2,行0)",
+            "role": "cell"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 2.0,
+              "y": 0.0
+            },
+            {
+              "x": 1.75,
+              "y": 0.4330127018922193
+            },
+            {
+              "x": 1.25,
+              "y": 0.4330127018922193
+            },
+            {
+              "x": 1.0,
+              "y": 0.0
+            },
+            {
+              "x": 1.25,
+              "y": -0.4330127018922193
+            },
+            {
+              "x": 1.75,
+              "y": -0.4330127018922193
+            }
+          ],
+          "closed": true
+        },
+        {
+          "step_id": "hex5",
+          "output_ref": "hex_cell_2_1",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "honeycomb_array",
+            "assembly_label": "3列2行蜂窝六边形阵列",
+            "object_id": "hex_cell_2_1",
+            "object_type": "drawing_part",
+            "label": "蜂窝六边形单元(列2,行1)",
+            "role": "cell"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 5.0,
+              "y": 0.8660254037844386
+            },
+            {
+              "x": 4.75,
+              "y": 1.299038105676658
+            },
+            {
+              "x": 4.25,
+              "y": 1.299038105676658
+            },
+            {
+              "x": 4.0,
+              "y": 0.8660254037844387
+            },
+            {
+              "x": 4.25,
+              "y": 0.43301270189221935
+            },
+            {
+              "x": 4.75,
+              "y": 0.4330127018922193
+            }
+          ],
+          "closed": true
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "entity_count",
+          "assertion_id": "six_cells",
+          "target_ref": null,
+          "equals": 6
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "cell0_closed",
+          "target_ref": "hex_cell_0_0"
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "cell1_closed",
+          "target_ref": "hex_cell_0_1"
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "cell2_closed",
+          "target_ref": "hex_cell_1_0"
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "cell3_closed",
+          "target_ref": "hex_cell_1_1"
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "cell4_closed",
+          "target_ref": "hex_cell_2_0"
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "cell5_closed",
+          "target_ref": "hex_cell_2_1"
+        },
+        {
+          "kind": "center_distance",
+          "assertion_id": "adj_col01_row0",
+          "target_ref": "hex_cell_1_0",
+          "reference_ref": "hex_cell_0_0",
+          "distance": 0.8660254037844386,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "center_distance",
+          "assertion_id": "adj_col12_row0",
+          "target_ref": "hex_cell_2_0",
+          "reference_ref": "hex_cell_1_0",
+          "distance": 0.8660254037844386,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "center_distance",
+          "assertion_id": "adj_row01_col0",
+          "target_ref": "hex_cell_0_1",
+          "reference_ref": "hex_cell_0_0",
+          "distance": 0.8660254037844386,
+          "tolerance": 0.001
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    }
+  },
+  {
+    "case": "C14",
+    "original": "生成一个齿轮轮廓，外径2米，8个齿",
+    "source": "生成一个齿轮轮廓，外径2米，8个齿。8个等距齿，外径2米，齿根圆直径1.5米，中心(0,0)，各齿齿顶角宽15度。",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "steps": [
+        {
+          "step_id": "gear-teeth",
+          "output_ref": "gear_outline",
+          "semantic": {
+            "assembly_id": "gear",
+            "assembly_label": "齿轮轮廓",
+            "object_id": "gear_outline",
+            "object_type": "drawing_part",
+            "label": "齿轮外轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_rotational_path",
+          "center": {
+            "x": 0,
+            "y": 0
+          },
+          "count": 8,
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": "1.0*cos(-7.5*pi/180)",
+                "y": "1.0*sin(-7.5*pi/180)"
+              },
+              "end": {
+                "x": "1.0*cos(7.5*pi/180)",
+                "y": "1.0*sin(7.5*pi/180)"
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": "1.0*cos(7.5*pi/180)",
+                "y": "1.0*sin(7.5*pi/180)"
+              },
+              "end": {
+                "x": "0.75*cos(15*pi/180)",
+                "y": "0.75*sin(15*pi/180)"
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": "0.75*cos(15*pi/180)",
+                "y": "0.75*sin(15*pi/180)"
+              },
+              "end": {
+                "x": "0.75*cos(30*pi/180)",
+                "y": "0.75*sin(30*pi/180)"
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": "0.75*cos(30*pi/180)",
+                "y": "0.75*sin(30*pi/180)"
+              },
+              "end": {
+                "x": "1.0*cos(37.5*pi/180)",
+                "y": "1.0*sin(37.5*pi/180)"
+              }
+            }
+          ],
+          "closed": true,
+          "continuity": "C0",
+          "constrain_sector_end": true,
+          "direction": "counterclockwise",
+          "junction_constraints": [
+            {
+              "junction_index": 0,
+              "left_segment_index": 0,
+              "right_segment_index": 1,
+              "intent": "intentional_corner",
+              "required_continuity": "C0"
+            },
+            {
+              "junction_index": 1,
+              "left_segment_index": 1,
+              "right_segment_index": 2,
+              "intent": "intentional_corner",
+              "required_continuity": "C0"
+            },
+            {
+              "junction_index": 2,
+              "left_segment_index": 2,
+              "right_segment_index": 3,
+              "intent": "intentional_corner",
+              "required_continuity": "C0"
+            },
+            {
+              "junction_index": 3,
+              "left_segment_index": 3,
+              "right_segment_index": 0,
+              "intent": "intentional_corner",
+              "required_continuity": "C0"
+            }
+          ]
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "gear-closed",
+          "target_ref": "gear_outline"
+        }
+      ],
+      "budgets": {
+        "max_steps": 20,
+        "max_entities": 100
+      }
+    }
+  }
+]

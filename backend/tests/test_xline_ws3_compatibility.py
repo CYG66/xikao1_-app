@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import unittest
 from unittest.mock import patch
 from pathlib import Path
@@ -31,10 +30,7 @@ class XlineWs3RuntimeTest(unittest.TestCase):
         self.assertEqual(XLINE_SETUP_FILE, "/home/qingz/xline_ws3/install/setup.bash")
         self.assertEqual(
             PLANNED_RESULTS_DIR,
-            os.environ.get(
-                "XLINE_PLANNED_RESULTS_DIR",
-                "/home/qingz/xline_ws3/other/planned_results",
-            ),
+            "/home/qingz/xline_ws3/other/planned_results",
         )
         self.assertEqual(MAX_LINEAR_VELOCITY, 1.00)
         self.assertEqual(DEFAULT_LINEAR_VELOCITY, 0.10)
@@ -42,7 +38,7 @@ class XlineWs3RuntimeTest(unittest.TestCase):
         self.assertEqual(MAX_MOTOR_RPM, 500.0)
         self.assertEqual(CMD_VEL_TIMEOUT_SEC, 0.50)
         self.assertEqual(BACKEND_NODE_NAME, "xline_app_backend1")
-        self.assertEqual(RUNTIME_PROFILE, os.environ.get("XLINE_RUNTIME_PROFILE", "xline_ws3"))
+        self.assertEqual(RUNTIME_PROFILE, "xline_ws3")
         self.assertEqual(SUPPORTED_PRINTERS, ("center",))
 
     def test_total_station_runtime_explicitly_enables_hardware(self) -> None:
@@ -98,7 +94,7 @@ class XlineWs3RuntimeTest(unittest.TestCase):
         )
 
         self.assertIn("ExecStart=/home/qingz/xline_app_backend1/run_ws3_runtime.sh", unit)
-        self.assertIn("Restart=on-failure", unit)
+        self.assertIn("Restart=always", unit)
         self.assertIn("KillMode=control-group", unit)
         self.assertIn("shape_painting_system.launch.py", launcher)
         self.assertIn("xline_path_planner planner_node", launcher)

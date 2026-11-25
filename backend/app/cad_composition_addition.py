@@ -5,6 +5,7 @@ None on ambiguity so the ordinary clarification/model path remains in charge.
 """
 
 from __future__ import annotations
+from .cad_length_units import length_factors
 
 import math
 import re
@@ -16,7 +17,7 @@ from .cad_construction import execute_construction_plan, construction_geometry_b
 
 _NUMBER = r"(\d+(?:\.\d+)?)"
 _UNIT = r"(毫米|厘米|米|mm|cm|m)"
-_SCALE = {"毫米": 1.0, "厘米": 10.0, "米": 1000.0, "mm": 1.0, "cm": 10.0, "m": 1000.0}
+_SCALE = length_factors('mm', float_values=True)
 
 
 def _millimetres(match: re.Match[str]) -> float:

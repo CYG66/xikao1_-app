@@ -11,7 +11,6 @@ from typing import Any
 from datetime import datetime, timedelta, timezone
 
 from .task_store import utc_now
-from .startup_guard import assert_startup_admitted
 
 
 AGENT_RUN_STATES = {
@@ -52,7 +51,6 @@ class AgentRunStore:
     """Persistence for one AI request lifecycle, separate from rover execution missions."""
 
     def __init__(self, path: Path | None = None) -> None:
-        assert_startup_admitted()
         configured = os.getenv("XLINE_AGENT_RUN_STORE", "").strip()
         default_root = (
             Path(tempfile.gettempdir()) / "xline-agent"

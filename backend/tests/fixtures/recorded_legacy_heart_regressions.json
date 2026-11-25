@@ -1,0 +1,173 @@
+[
+  {
+    "source": "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "heart-outline",
+            "output_ref": "heart_outline",
+            "semantic": {
+              "assembly_id": "heart",
+              "assembly_label": "爱心",
+              "object_id": "heart_outline",
+              "object_type": "drawing_part",
+              "label": "爱心外轮廓",
+              "role": "outer_boundary"
+            },
+            "op": "add_parametric_curve",
+            "x_expression": "2 + (2*sin(t) - 0.55*sin(2*t) - 0.15*sin(3*t))",
+            "y_expression": "3 - 0.9*cos(t) - 0.35*cos(2*t) + 0.15*cos(3*t)",
+            "t_start": "0",
+            "t_end": "2*pi",
+            "max_sampling_error": 0.001,
+            "closed": true
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "heart-closed",
+            "target_ref": "heart_outline"
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "heart-bounds",
+            "target_ref": "heart_outline",
+            "width": 4,
+            "height": 4,
+            "tolerance": 0.05
+          }
+        ]
+      },
+      "evidence_text": [
+        "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米"
+      ],
+      "assumptions": [
+        "爱心为单一闭合外轮廓，顶部两瓣、中央凹口、底部尖点，参数 t 从 0 到 2π 一次遍历边界",
+        "参数曲线为建模选择，x 关于 t=π 左右对称，整体中心取 (2,3)，曲线实际极值经后端仿射调整至宽高各 4 米",
+        "归一化提示：4米=4米，单位取 m"
+      ],
+      "confidence": 0.82
+    },
+    "fingerprint": "d7b24040770fedbb2e24ace4afacf65c799512dfc91763042da1d218b228797b"
+  },
+  {
+    "source": "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米\n中心(2,3)，宽4米、高4米，坐标单位米。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "heart-outer",
+            "output_ref": "heart_outline",
+            "semantic": {
+              "assembly_id": "heart",
+              "assembly_label": "爱心",
+              "object_id": "heart_outline",
+              "object_type": "closed_outline",
+              "label": "左右对称平滑闭合爱心外轮廓",
+              "role": "outer_boundary"
+            },
+            "op": "add_parametric_curve",
+            "x_expression": "2 + 2*sin(t)",
+            "y_expression": "3 + (2/17)*(16*cos(t) - 5*cos(2*t) - 2*cos(3*t) - cos(4*t))",
+            "t_start": "0",
+            "t_end": "2*pi",
+            "max_sampling_error": 0.001,
+            "closed": true
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "heart-closed",
+            "target_ref": "heart_outline"
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "heart-size",
+            "target_ref": "heart_outline",
+            "width": 4.0,
+            "height": 4.0,
+            "tolerance": 0.01
+          }
+        ]
+      },
+      "evidence_text": [
+        "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米"
+      ],
+      "assumptions": [
+        "采用经典心形参数曲线 x=2+2sin t, y=3+(2/17)(16cos t-5cos2t-2cos3t-cos4t)，该曲线左右对称、C∞平滑、单一闭合，顶部双瓣与中央凹口、底部中央尖点拓扑正确。",
+        "纵坐标经手工推导：该心形标准纵坐标范围为[-17/16,1]，乘以2/17后范围恰为[-1/8,2/17*1]；按此比例与纵向中心 3 定位可保证高度 4 米；横向半径取 2 保证宽度 4 米，故整体包围盒恰为 4×4 米、中心在 (2,3)。",
+        "参数区间 t∈[0,2π] 恰好遍历边界一次，闭合端点重合，闭合由后端独立测量。"
+      ],
+      "confidence": 0.93
+    },
+    "fingerprint": "3737ca1ab92c008e9046b7da4d5c9fd150773c9c0088773b4aa7c796d144b704"
+  },
+  {
+    "source": "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "heart-outline",
+            "output_ref": "heart_outline",
+            "semantic": {
+              "assembly_id": "heart",
+              "assembly_label": "爱心",
+              "object_id": "heart_outline",
+              "object_type": "closed_outline",
+              "label": "爱心平滑闭合外轮廓",
+              "role": "outer_boundary"
+            },
+            "op": "add_parametric_curve",
+            "x_expression": "2 + 2*sin(t)",
+            "y_expression": "3 + 2*((13*cos(t) - 5*cos(2*t) - 2*cos(3*t) - cos(4*t))/16)",
+            "t_start": "0",
+            "t_end": "2*pi",
+            "closed": true,
+            "max_sampling_error": 0.001
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "heart-closed",
+            "target_ref": "heart_outline"
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "heart-size",
+            "target_ref": "heart_outline",
+            "width": 4,
+            "height": 4,
+            "tolerance": 0.01
+          }
+        ]
+      },
+      "evidence_text": [
+        "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米"
+      ],
+      "assumptions": [
+        "采用经典心形参数方程 x=2+2sin t, y=3+2·(13cos t−5cos2t−2cos3t−cos4t)/16，t∈[0,2π]，该方程左右对称、平滑闭合，顶部两凸瓣、中间凹口、底部尖点。",
+        "公式的 y 向幅值归一化为约 ±0.9965·2，实际包围盒高度约 3.986 米，在 0.01 米容差内满足高 4 米。",
+        "参数曲线闭合由后端按端点重合独立测量，不添加手工样条控制点。"
+      ],
+      "confidence": 0.9
+    },
+    "fingerprint": "81d7d96a473f67cd97fe3211b0afc31b01f7ea5e4dda2d7bd5453db8843bb06c"
+  }
+]

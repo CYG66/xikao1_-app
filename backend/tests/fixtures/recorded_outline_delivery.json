@@ -1,0 +1,469 @@
+[
+  {
+    "case": "C3",
+    "original": "生成一个半圆拱门轮廓，宽2米高3米",
+    "source": "生成一个半圆拱门轮廓，宽2米高3米\n顶部为半径1米的上半圆；两侧直墙各长2米；底边闭合。整体宽度2米、整体高度3米，坐标单位米。",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "arch.outline",
+          "output_ref": "arch_outline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "semicircle_arch",
+            "assembly_label": "半圆拱门轮廓",
+            "object_id": "arch_outline",
+            "object_type": "drawing_part",
+            "label": "半圆拱门完整闭合轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_composite_path",
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": -1.0,
+                "y": 0.0
+              },
+              "end": {
+                "x": -1.0,
+                "y": 2.0
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": 0.0,
+                "y": 2.0
+              },
+              "radius": 1.0,
+              "start_angle": 180.0,
+              "end_angle": 0.0,
+              "clockwise": true
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 1.0,
+                "y": 2.0
+              },
+              "end": {
+                "x": 1.0,
+                "y": 0.0
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 1.0,
+                "y": 0.0
+              },
+              "end": {
+                "x": -1.0,
+                "y": 0.0
+              }
+            }
+          ],
+          "closed": true,
+          "samples_per_curve": 32,
+          "connection_tolerance": 1e-06,
+          "continuity": "C0",
+          "tangent_tolerance_deg": 1.0,
+          "allow_self_intersection": false,
+          "allow_duplicate_segments": false,
+          "max_curvature": null,
+          "max_sampling_error": null,
+          "junction_constraints": []
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "arch_closed",
+          "target_ref": "arch_outline"
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "arch_bounds",
+          "target_ref": "arch_outline",
+          "width": 2.0,
+          "height": 3.0,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "arch_entities",
+          "target_ref": "arch_outline",
+          "equals": 1
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    }
+  },
+  {
+    "case": "C6",
+    "original": "画一朵花的轮廓，5片花瓣，闭合曲线",
+    "source": "画一朵花的轮廓，5片花瓣，闭合曲线\n宽度5米，高度5米。",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "flower.petal.curve",
+          "output_ref": "flower_outline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "flower",
+            "assembly_label": "花的轮廓",
+            "object_id": "flower_outline",
+            "object_type": "drawing_part",
+            "label": "五瓣花闭合外轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_parametric_curve",
+          "x_expression": "2.5*cos(t)*(1+0.35*cos(5*t))",
+          "y_expression": "2.5*sin(t)*(1+0.35*cos(5*t))",
+          "t_start": "0",
+          "t_end": "2*pi",
+          "max_sampling_error": 0.001,
+          "closed": true
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "flower.closed",
+          "target_ref": "flower_outline"
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "explicit-outline-size",
+          "target_ref": "flower_outline",
+          "width": 5.0,
+          "height": 5.0,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "required-outline-count",
+          "target_ref": null,
+          "equals": 1
+        },
+        {
+          "kind": "radial_pattern",
+          "assertion_id": "requested-radial-pattern",
+          "target_ref": "flower_outline",
+          "lobes": 5,
+          "profile": "smooth"
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": [
+        {
+          "target_ref": "flower_outline",
+          "width": 5.0,
+          "height": 5.0,
+          "right_of_ref": null,
+          "gap": 0.0,
+          "gap_reference": "edge",
+          "center": null
+        }
+      ]
+    }
+  },
+  {
+    "case": "C10",
+    "original": "生成一个爱心和一个五角星，爱心在左，五角星在右",
+    "source": "生成一个爱心和一个五角星，爱心在左，五角星在右\n爱心宽4米高4米；五角星外接圆半径2米、固定为5个尖角且尖角朝上；两者中心水平相距6米，坐标单位米。",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "heart-outline",
+          "output_ref": "heart_outline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "heart",
+            "assembly_label": "爱心",
+            "object_id": "heart_body",
+            "object_type": "drawing_part",
+            "label": "爱心外轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_composite_path",
+          "segments": [
+            {
+              "kind": "bezier",
+              "control_points": [
+                {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                {
+                  "x": -0.75,
+                  "y": 0.75
+                },
+                {
+                  "x": -2.0,
+                  "y": 1.5
+                },
+                {
+                  "x": -2.0,
+                  "y": 2.5
+                }
+              ]
+            },
+            {
+              "kind": "bezier",
+              "control_points": [
+                {
+                  "x": -2.0,
+                  "y": 2.5
+                },
+                {
+                  "x": -2.0,
+                  "y": 3.4
+                },
+                {
+                  "x": -1.2,
+                  "y": 4.0
+                },
+                {
+                  "x": -0.55,
+                  "y": 4.0
+                }
+              ]
+            },
+            {
+              "kind": "bezier",
+              "control_points": [
+                {
+                  "x": -0.55,
+                  "y": 4.0
+                },
+                {
+                  "x": 0.0,
+                  "y": 4.0
+                },
+                {
+                  "x": 0.0,
+                  "y": 3.2
+                },
+                {
+                  "x": 0.0,
+                  "y": 3.2
+                }
+              ]
+            },
+            {
+              "kind": "bezier",
+              "control_points": [
+                {
+                  "x": 0.0,
+                  "y": 3.2
+                },
+                {
+                  "x": 0.0,
+                  "y": 3.2
+                },
+                {
+                  "x": 0.55,
+                  "y": 4.0
+                },
+                {
+                  "x": 0.55,
+                  "y": 4.0
+                }
+              ]
+            },
+            {
+              "kind": "bezier",
+              "control_points": [
+                {
+                  "x": 0.55,
+                  "y": 4.0
+                },
+                {
+                  "x": 1.2,
+                  "y": 4.0
+                },
+                {
+                  "x": 2.0,
+                  "y": 3.4
+                },
+                {
+                  "x": 2.0,
+                  "y": 2.5
+                }
+              ]
+            },
+            {
+              "kind": "bezier",
+              "control_points": [
+                {
+                  "x": 2.0,
+                  "y": 2.5
+                },
+                {
+                  "x": 2.0,
+                  "y": 1.5
+                },
+                {
+                  "x": 0.75,
+                  "y": 0.75
+                },
+                {
+                  "x": 0.0,
+                  "y": 0.0
+                }
+              ]
+            }
+          ],
+          "closed": true,
+          "samples_per_curve": 32,
+          "connection_tolerance": 1e-06,
+          "continuity": "C0",
+          "tangent_tolerance_deg": 1.0,
+          "allow_self_intersection": false,
+          "allow_duplicate_segments": false,
+          "max_curvature": null,
+          "max_sampling_error": null,
+          "junction_constraints": []
+        },
+        {
+          "step_id": "star-outline",
+          "output_ref": "star_outline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "five_point_star",
+            "assembly_label": "五角星",
+            "object_id": "star_body",
+            "object_type": "drawing_part",
+            "label": "五角星外轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 6.0,
+              "y": 4.0
+            },
+            {
+              "x": 5.550972023420415,
+              "y": 2.618033988749895
+            },
+            {
+              "x": 4.097886967409693,
+              "y": 2.618033988749895
+            },
+            {
+              "x": 5.273457471994639,
+              "y": 1.7639320225002104
+            },
+            {
+              "x": 4.824429495415053,
+              "y": 0.3819660112501053
+            },
+            {
+              "x": 6.0,
+              "y": 1.2360679774997896
+            },
+            {
+              "x": 7.175570504584948,
+              "y": 0.381966011250106
+            },
+            {
+              "x": 6.726542528005361,
+              "y": 1.7639320225002102
+            },
+            {
+              "x": 7.902113032590307,
+              "y": 2.618033988749895
+            },
+            {
+              "x": 6.449027976579585,
+              "y": 2.618033988749895
+            }
+          ],
+          "closed": true
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "heart-closed",
+          "target_ref": "heart_outline"
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "star-closed",
+          "target_ref": "star_outline"
+        },
+        {
+          "kind": "center_distance",
+          "assertion_id": "heart-star-distance",
+          "target_ref": "star_outline",
+          "reference_ref": "heart_outline",
+          "distance": 6.0,
+          "tolerance": 0.01
+        },
+        {
+          "kind": "radial_pattern",
+          "assertion_id": "source-radial-2",
+          "target_ref": "star_outline",
+          "lobes": 5,
+          "profile": "polygonal"
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": [
+        {
+          "target_ref": "heart_outline",
+          "width": 4.0,
+          "height": 4.0,
+          "right_of_ref": null,
+          "gap": 0.0,
+          "gap_reference": "edge",
+          "center": null
+        },
+        {
+          "target_ref": "star_outline",
+          "width": 3.8042260651806137,
+          "height": 3.618033988749895,
+          "right_of_ref": "heart_outline",
+          "gap": 6.0,
+          "gap_reference": "center",
+          "center": null
+        }
+      ]
+    }
+  }
+]

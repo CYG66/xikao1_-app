@@ -1,4 +1,5 @@
 from __future__ import annotations
+from .cad_length_units import length_factors
 
 import json
 from .project_ownership import owned_request
@@ -21,7 +22,6 @@ from pathlib import Path
 from typing import Any
 
 from .audit_store import agent_audit
-from .startup_guard import assert_startup_admitted, startup_recovery_authorized
 from .agent_skills import (
     DRAWING_TEMPLATE_SKILLS,
     _template_layout_requirements,
@@ -138,15 +138,9 @@ from .cad_construction_interpreter import (
 from .cad_structure_contract import reference_contract, explicit_composition
 from .cad_generation_recovery import (
     should_repair, recovery_record, confidence_only_repair,
-    bounded_repair_available, evaluate_repair_progress, classify_feature_failure,
-    M3_PROGRESS_GATE_ENABLED, M2_SCOPE_CLASSIFIER_ENABLED,
+    bounded_repair_available,
 )
 from .cad_requirement_ledger import project_requirement_ledger
-from .integration_profile import (
-    IntegrationProfileError,
-    integration_profile_enabled,
-    require_external_model_calls_permitted,
-)
 from .cad_creation_intent import has_compound_primitives
 from .cad_creation_intent import local_creation_objects
 from .cad_construction_commit import (
@@ -300,15 +294,11 @@ class PendingAction:
 class RobotAgentService:
     @property
     def _active_user_profile(self) -> dict[str, Any] | None:
-        if integration_profile_enabled():
-            return None
         owner = current_agent_user_id()
         return None if owner == "local-default" else user_model_config.get(owner)
 
     @property
     def mode(self) -> str:
-        if integration_profile_enabled():
-            return "local"
         profile = self._active_user_profile
         return str(profile.get("mode")) if profile and profile.get("mode") else getattr(self, "_mode", "deepseek")
 
@@ -322,8 +312,6 @@ class RobotAgentService:
 
     @property
     def model(self) -> str:
-        if integration_profile_enabled():
-            return "local"
         profile = self._active_user_profile
         return str(profile.get("model")) if profile and profile.get("model") else getattr(self, "_model", "deepseek-chat")
 
@@ -337,8 +325,6 @@ class RobotAgentService:
 
     @property
     def base_model(self) -> str:
-        if integration_profile_enabled():
-            return "local"
         profile = self._active_user_profile
         return str(profile.get("base_model")) if profile and profile.get("base_model") else getattr(self, "_base_model", self.model)
 
@@ -352,8 +338,6 @@ class RobotAgentService:
 
     @property
     def advanced_model(self) -> str:
-        if integration_profile_enabled():
-            return "local"
         profile = self._active_user_profile
         return str(profile.get("advanced_model")) if profile and profile.get("advanced_model") else getattr(self, "_advanced_model", self.model)
 
@@ -367,16 +351,12 @@ class RobotAgentService:
 
     @property
     def cad_planning_model(self) -> str:
-        if integration_profile_enabled():
-            return "local"
         profile = self._active_user_profile
         value = str((profile or {}).get("cad_planning_model") or getattr(self, "_cad_planning_model", "deepseek-chat"))
         return value if value in {"deepseek-chat", "deepseek-reasoner", "deepseek-flash"} else "deepseek-chat"
 
     @property
     def api_keys(self) -> dict[str, str]:
-        if integration_profile_enabled():
-            return {}
         profile = self._active_user_profile
         if profile is not None:
             return profile.setdefault("api_keys", {})
@@ -395,13 +375,9 @@ class RobotAgentService:
         return "advanced" if mode in {"advanced", "work"} else "base"
 
     def __init__(self, *, restore_pending_actions: bool = True) -> None:
-        assert_startup_admitted()
         self.pending: dict[str, PendingAction] = {}
         self._pending_lock = threading.RLock()
-        self.config_path = Path(
-            os.getenv("XLINE_AGENT_MODEL_CONFIG_PATH", "").strip()
-            or (Path.home() / ".config" / "xline-agent.json")
-        ).expanduser()
+        self.config_path = Path.home() / ".config" / "xline-agent.json"
         self.mode = os.getenv("XLINE_AGENT_PROVIDER", "deepseek").strip()
         if self.mode not in {*PROVIDERS, "local"}:
             self.mode = "deepseek"
@@ -432,30 +408,15 @@ class RobotAgentService:
         self._deepseek_request_timeout = self._env_timeout(
             "XLINE_AGENT_DEEPSEEK_REQUEST_TIMEOUT_SECONDS", 90.0, maximum=900.0
         )
-        if integration_profile_enabled():
-            # Never read the local production config or provider-key
-            # environment inside the offline integration profile.  The
-            # property layer also forces local mode for every request owner.
-            self.mode = "local"
-            self.model = "local"
-            self.base_model = "local"
-            self.advanced_model = "local"
-            self._cad_planning_model = "local"
-            self.api_keys = {}
-        else:
-            for provider, env_name in PROVIDER_API_KEY_ENV.items():
-                value = os.getenv(env_name, "").strip()
-                if value:
-                    self.api_keys[provider] = value
-            self._load_config()
+        for provider, env_name in PROVIDER_API_KEY_ENV.items():
+            value = os.getenv(env_name, "").strip()
+            if value:
+                self.api_keys[provider] = value
+        self._load_config()
         if restore_pending_actions:
             self._restore_pending_actions()
 
     def _restore_pending_actions(self) -> None:
-        if not startup_recovery_authorized():
-            # A read-only production start must not rewrite tasks.json or
-            # silently expire confirmations whose timing cannot be audited.
-            return
         for task in agent_tasks.recoverable_pending():
             try:
                 name = str(task["tool"])
@@ -526,10 +487,6 @@ class RobotAgentService:
         clear_api_key: bool = False,
         cad_planning_model: str | None = None,
     ) -> dict[str, Any]:
-        if integration_profile_enabled():
-            raise IntegrationProfileError(
-                "集成验证 profile 禁止修改或启用外部模型配置"
-            )
         owner = current_agent_user_id()
         if owner != "local-default":
             user_model_config.update(
@@ -596,11 +553,6 @@ class RobotAgentService:
             pass
 
     def test_connection(self) -> dict[str, Any]:
-        if integration_profile_enabled():
-            return {
-                "ok": True,
-                "message": "集成验证 profile 已强制本地模式，不发起外部连接。",
-            }
         if self.mode == "local":
             return {"ok": True, "message": "本地诊断助手可用，无需 API Key。"}
         if not self.api_key:
@@ -667,7 +619,7 @@ class RobotAgentService:
         route: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         mode = self.normalize_agent_mode(mode)
-        route = route or self.resolve_intent(message, mode, history)
+        route = self._bind_cad_user_source(route or self.resolve_intent(message, mode, history),message,history)
         if route.get("decision_source") == "affirmative_followup":
             followup = self._confirmed_movement_followup(route, mode)
             if followup is not None:
@@ -1127,17 +1079,6 @@ class RobotAgentService:
         """
         if self.normalize_agent_mode(str(route.get("mode") or "advanced")) != "advanced":
             return None
-        # A route that already selected a dedicated geometry-rearrangement
-        # branch is owned by that handler. The parameter-merge parser must not
-        # misread a layout gap (e.g. "一个停车位大小") as a new component and
-        # overwrite the persisted shape / quantity contract.
-        dedicated_source = str(route.get("decision_source") or "")
-        if dedicated_source in {
-            "drawing_layout_followup",
-            "drawing_relative_template_addition",
-            "project_addition_plan",
-        }:
-            return None
         if local_creation_objects(message):
             return None
         parsed = parameterize_design(message)
@@ -1165,7 +1106,10 @@ class RobotAgentService:
             for i,text in enumerate([str(project.get('original_prompt') or ''),*source_turns,message])])
         latest_id=f'turn-{len(source_turns)+1}'
         corrections=[f for f in scalar['facts'] if f['source_id']==latest_id and f['status']=='effective']
-        if not dimensions and units is None and not corrections:
+        structural_answer = (bool(re.search(
+            r'投影|夹角|控制点|顶点|闭合|平滑|对称|[CG][01]|棱线|分支|侧枝',message,re.I))
+            and not re.search(r'为什么|为何|是否|怎么|[？?]',message))
+        if not dimensions and units is None and not corrections and not structural_answer:
             return None
         merged = dict(current)
         # Numeric extraction is only an index. Preserve the user's complete
@@ -1177,6 +1121,12 @@ class RobotAgentService:
         merged["source_followups"] = followups
         if units is not None:
             merged["units"] = units
+        if len(scalar['subjects'])==1 and dimensions:
+            fields={'width':'width_m','height':'height_m','radius':'radius_m','diameter':'diameter_m'}
+            local_keys={fields[f['field']] for f in scalar['facts']
+                if f['source_id']==latest_id and f['field'] in fields
+                and f['subject']!=scalar['subjects'][0]}
+            dimensions={k:v for k,v in dimensions.items() if k not in local_keys}
         if dimensions:
             original = parameterize_design(str(project.get("original_prompt") or ""))
             for source in (original, parsed):
@@ -1204,7 +1154,8 @@ class RobotAgentService:
             # whole height merely because the legacy index found it last.
             fields={'width':'width_m','height':'height_m','radius':'radius_m','diameter':'diameter_m'}
             for fact in scalar['facts']:
-                if fact['status']=='effective' and fact['operator']=='eq' and fact['field'] in fields:
+                if (fact['status']=='effective' and fact['operator']=='eq' and fact['field'] in fields
+                        and fact['subject']==scalar['subjects'][0]):
                     merged.setdefault('dimensions',{})[fields[fact['field']]]=fact['value_mm']/1000
         from .cad_coordinate_requirements import coordinate_scale
         coordinate_sized=coordinate_scale(str(project.get('original_prompt') or '')+'\n'+'\n'.join(followups))['has_scale']
@@ -1217,8 +1168,30 @@ class RobotAgentService:
         if coordinate_sized:
             missing=[key for key in missing if key!='dimensions']
             merged['scale_source']='explicit_coordinates_and_units'
+        else:
+            # Use the same source-based scale gate as creation. The legacy
+            # numeric index cannot represent every component radius, formula
+            # or coordinate system; an empty index is not missing evidence.
+            from .cad_construction_interpreter import clarify_construction_request
+            source_readiness = clarify_construction_request(
+                str(project.get('original_prompt') or '')+'\n'+'\n'.join(followups))
+            if source_readiness.get('recognized_size'):
+                missing=[key for key in missing if key!='dimensions']
+                merged['scale_source']='explicit_source_constraints'
         missing.extend(key for key in project.get('missing_parameters') or []
             if key not in {'shape','dimensions','printer'} and key not in missing)
+        source_constraints=str(project.get('original_prompt') or '')+'\n'+'\n'.join(followups)
+        from .cad_repetition_acceptance import branch_source_ready
+        if 'curve_constraints' in missing and branch_source_ready(source_constraints):
+            missing.remove('curve_constraints')
+            merged['curve_constraints']={'status':'specified','source':source_constraints,
+                                         'reason':'explicit_branch_attachment_dimensions'}
+        if ('curve_constraints' in missing
+                and re.search(r'(?:\d+|十二)\s*条(?:棱线|直线|直线段)',message)
+                and not re.search(r'曲线|样条|贝塞尔|圆弧|弧线',source_constraints)):
+            missing.remove('curve_constraints')
+            merged['curve_constraints']={'status':'not_applicable','source':message,
+                                         'reason':'explicit_straight_edge_inventory'}
         # A resolved arc-and-straight-edge specification answers a previous
         # curve clarification. Do not keep the old model question forever
         # after the user explicitly supplies radius and straight lengths.
@@ -1248,7 +1221,7 @@ class RobotAgentService:
             )
         if units is not None:
             remembered.append(f"单位={units}")
-        if not remembered and corrections:
+        if not remembered:
             remembered.append(message.strip())
         values_text = "，".join(remembered)
         if missing:
@@ -1659,7 +1632,6 @@ class RobotAgentService:
         each vendor's response to plain text; raises RuntimeError on API
         failure so callers can fall back to conservative rules.
         """
-        require_external_model_calls_permitted()
         if self.mode == "local" or not self.configured:
             raise RuntimeError("结构化复核 API 未配置")
         max_tokens = (
@@ -2480,7 +2452,7 @@ class RobotAgentService:
     ):
         bind_agent_user_id(user_id)
         mode = self.normalize_agent_mode(mode)
-        route = route or self.resolve_intent(message, mode, history)
+        route = self._bind_cad_user_source(route or self.resolve_intent(message, mode, history),message,history)
         if route.get("clarification_required"):
             requirement_followup = (
                 self._apply_design_requirement_followup(message, route)
@@ -2886,7 +2858,6 @@ class RobotAgentService:
     def _deepseek_response(
         self, payload: dict[str, Any]
     ) -> tuple[http.client.HTTPSConnection, http.client.HTTPResponse]:
-        require_external_model_calls_permitted()
         return self._deepseek_transport().open(payload)
 
     @staticmethod
@@ -3152,12 +3123,32 @@ class RobotAgentService:
         return result
 
     @staticmethod
+    def _bind_cad_user_source(route,message,history):
+        """Keep model tool prompts subordinate to the active user source.
+
+        A fresh local creation starts a new scope. A parameter-only message
+        can inherit the latest user creation in the supplied conversation;
+        assistant prose and model-resolved messages never become sources.
+        """
+        from .cad_creation_intent import local_creation_objects
+        users=[str(i.get('content') or '').strip() for i in history if i.get('role')=='user' and i.get('content')]
+        if local_creation_objects(message):sources=[message]
+        else:
+            start=next((i for i in range(len(users)-1,-1,-1) if local_creation_objects(users[i])),len(users))
+            sources=users[start:]+[message]
+        bound=dict(route)
+        bound['_backend_cad_source']='\n'.join(dict.fromkeys(s for s in sources if s))
+        return bound
+
+    @staticmethod
     def _bind_drawing_selection(
         name: str,
         arguments: dict[str, Any],
         route: dict[str, Any] | None,
     ) -> dict[str, Any]:
         """Bind the editor selection so the model cannot silently retarget it."""
+        if name=='create_creative_project' and isinstance(route,dict) and route.get('_backend_cad_source'):
+            return {**arguments,'prompt':route['_backend_cad_source']}
         if name != "modify_drawing" or not isinstance(route, dict):
             return arguments
         selection = route.get("drawing_selection")
@@ -3745,14 +3736,12 @@ class RobotAgentService:
 
     @staticmethod
     def _is_fresh_design_request(route: dict[str, Any]) -> bool:
-        """Return true only for a new design brief, not candidate confirmation.
-
-        A fresh brief is routed by operation/stage/decision_source rather than
-        by whether a selected project id is attached: a create request at the
-        requirements stage starts a new design even if an older project is
-        still selected, while a candidate-generation confirmation keeps the
-        selected project.
-        """
+        """Return true only for a new design brief, not candidate confirmation."""
+        # An explicit project id from the App owns the conversation, even if
+        # the follow-up text still contains creation words such as “新建” or
+        # “画一个”. Do not drop it during requirement merge or confirmation.
+        if str(route.get("selected_project_id") or "").strip():
+            return False
         if (
             route.get("name") != "drawing_design"
             or route.get("operation") != "create"
@@ -3903,9 +3892,10 @@ class RobotAgentService:
                       or has_compound_primitives(prompt)
                       or (shape and not is_generator_supported_shape(shape))):
                     return None
-                elif not list(project.get('variants') or []):
-                    # New non-template candidates must execute a construction
-                    # plan; indexed shape/radius fields cannot replace prose.
+                else:
+                    # Confirmation must not replace a construction result
+                    # (including a reviewable draft) with legacy shape geometry.
+                    # The formal constructor retains the source and acceptance.
                     return None
         confirmation_gate = design_confirmation_gate(
             message,
@@ -4039,11 +4029,7 @@ class RobotAgentService:
         if match is None:
             return None
         value = float(match.group("value"))
-        scale = {
-            "m": 1000.0, "米": 1000.0,
-            "mm": 1.0, "毫米": 1.0,
-            "cm": 10.0, "厘米": 10.0, "公分": 10.0,
-        }[match.group("unit").lower()]
+        scale = length_factors('mm', float_values=True, include_gongfen=True)[match.group("unit").lower()]
         return match.group("dir"), value * scale
 
     @staticmethod
@@ -4270,7 +4256,6 @@ class RobotAgentService:
         route: dict[str, Any] | None = None,
         context_message: str | None = None,
     ) -> dict[str, Any]:
-        require_external_model_calls_permitted()
         provider_name, base_url = PROVIDERS[self.mode]
         adapter = provider_adapter(self.mode)
         system = self._system_context(
@@ -4315,42 +4300,6 @@ class RobotAgentService:
                 "请确认模型名称有效，或改用该服务商的标准对话模型。"
             )
         return self._result(text, usage)
-
-    @staticmethod
-    def _measured_geometry_acceptance_summary(
-        assessment: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Produce the variant acceptance summary from measured geometry checks.
-
-        Reuses the same backend feasibility/topology/boundary evaluation already
-        embedded in ``score_design_variant``. A candidate is marked accepted only
-        when every measured check passes; otherwise it stays honestly
-        ``review_required`` and the durable write boundary keeps rejecting it.
-        No evidence is inferred from project status or the presence of
-        geometries alone.
-        """
-        feasibility = assessment.get("feasibility") or {}
-        topology = feasibility.get("topology") or {}
-        boundary = feasibility.get("boundary_check") or {}
-        checks = [
-            feasibility.get("ok") is True,
-            topology.get("ok") is True,
-            boundary.get("ok") is True,
-        ]
-        if all(checks):
-            return {
-                "status": "passed",
-                "review_required": False,
-                "authority": "backend_measured_geometry",
-                "source": "candidate_geometry_validation",
-                "verified_checks": len(checks),
-            }
-        return {
-            "status": "review_required",
-            "review_required": True,
-            "authority": "backend_measured_geometry",
-            "source": "missing_acceptance_evidence",
-        }
 
     def _local_intent(
         self,
@@ -4561,7 +4510,6 @@ class RobotAgentService:
                 add_variant=get_creative_project_store().add_variant,
                 get_project=get_creative_project_store().get,
                 stored_preview=preview_paths({"lines": geometries}),
-                acceptance_summary=self._measured_geometry_acceptance_summary(assessment),
             )
             variant = persisted_variant.get("variant") if isinstance(persisted_variant, dict) else None
             if variant is not None:
@@ -4633,7 +4581,6 @@ class RobotAgentService:
             add_variant=get_creative_project_store().add_variant,
             get_project=get_creative_project_store().get,
             stored_preview=preview_paths({"lines": geometries}),
-            acceptance_summary=self._measured_geometry_acceptance_summary(assessment),
         )
         variant = persisted_variant.get("variant") if isinstance(persisted_variant, dict) else None
         if variant is not None:
@@ -5042,14 +4989,14 @@ class RobotAgentService:
             if isinstance(persisted, dict) and persisted.get("state") == "pending_confirmation":
                 # The persisted server snapshot is authoritative across process
                 # boundaries; never trust the in-memory copy over it.
-                if approved and not isinstance(persisted.get("execution_context"), dict):
+                if not isinstance(persisted.get("execution_context"), dict):
                     return {"ok": False, "message": "待确认任务缺少原始请求上下文，已拒绝恢复，请重新发起请求。", "task_id": action_id}
                 if action is not None:
-                    action.execution_context = deepcopy(persisted["execution_context"]) if isinstance(persisted.get("execution_context"), dict) else None
+                    action.execution_context = deepcopy(persisted["execution_context"])
                     action.arguments = dict(persisted.get("arguments") or action.arguments)
                     action.name = str(persisted.get("tool") or action.name)
             if action is None and isinstance(persisted, dict) and persisted.get("state") == "pending_confirmation":
-                if approved and not isinstance(persisted.get("execution_context"), dict):
+                if not isinstance(persisted.get("execution_context"), dict):
                     return {"ok": False, "message": "待确认任务缺少原始请求上下文，已拒绝恢复，请重新发起请求。", "task_id": action_id}
                 action = PendingAction(
                     name=str(persisted.get("tool") or ""),
@@ -5108,21 +5055,18 @@ class RobotAgentService:
         # Legacy in-memory adapters may not have a persisted task at all; keep
         # their existing confirmation behavior. Once a task is persisted,
         # however, a missing snapshot is never recoverable.
-        # Context integrity guards the approved execution path only. A pure
-        # cancellation does not execute anything; it still writes a cancelled
-        # audit record below, so no request context is silently skipped.
-        if approved and not isinstance(action.execution_context, dict) and isinstance(persisted, dict):
+        if not isinstance(action.execution_context, dict) and isinstance(persisted, dict):
             agent_tasks.transition(action_id, "failed", "缺少原始请求上下文")
             return {"ok": False, "message": "待确认任务缺少原始请求上下文，已拒绝执行，请重新发起请求。", "task_id": action_id}
         expected_hash = action.execution_context.get("sha256") if isinstance(action.execution_context, dict) else None
         unsigned = {k: v for k, v in action.execution_context.items() if k != "sha256"} if isinstance(action.execution_context, dict) else {}
         actual_hash = hashlib.sha256(json.dumps(unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest() if isinstance(action.execution_context, dict) else None
-        if approved and isinstance(action.execution_context, dict) and (not isinstance(expected_hash, str) or expected_hash != actual_hash):
+        if isinstance(action.execution_context, dict) and (not isinstance(expected_hash, str) or expected_hash != actual_hash):
             agent_tasks.transition(action_id, "failed", "请求上下文完整性校验失败")
             return {"ok": False, "message": "待确认请求上下文已损坏或被篡改，已拒绝执行。", "task_id": action_id}
         if not approved:
             agent_tasks.transition(action_id, "cancelled", "用户取消操作")
-            return {"ok": True, "message": "已取消操作。", "task_id": action_id, "task_state": "cancelled"}
+            return {"ok": True, "message": "已取消操作。"}
         policy = agent_tool_policy(action.name, action.mode)
         if not policy["allowed"]:
             message = policy["reason"]
@@ -5763,7 +5707,6 @@ class RobotAgentService:
         )
         dimensioned_drawing_request = bool(
             local_creation_objects(message)
-            and re.match(r"^(?:请|帮我|请帮我|给我|麻烦)?\s*(?:绘制|画出|画|设计)", message.strip())
             and re.search(r"\d+(?:\.\d+)?\s*(?:毫米|厘米|米|mm|cm|m)(?![A-Za-z])", message, re.I)
             and re.search(r"宽|高|长|半径|直径|角|连接|对称", message)
         )
@@ -6147,10 +6090,31 @@ class RobotAgentService:
                 "螺距均匀意味着半径随角度线性变化；圈数决定角度跨度，不能把最大半径"
                 "误当成精确宽高。不要为开放曲线添加闭合约束。"
                 "已有整体尺寸的自由轮廓，内部控制点位置和比例属于建模选择，可在边界内设计并声明假设。"
-                "对于平滑、单一、周期性闭合自由边界，也可优先使用现有add_parametric_curve表达整体周期关系，"
-                "避免手算多个旋转贝塞尔扇区的端点与切线。公式属于建模假设，必须声明；"
+                "自由边界须先分解用户要求的凸瓣、凹口、尖点及其相对方向，再选择表达。"
+                "用户未指定数学关系时，不要仅凭公式名称或印象认定其形状正确；须核对极值、对称轴和尖点位置。"
+                "可使用现有add_composite_path逐段表达局部特征，核对相邻端点和切线；有意尖点只要求C0，平滑连接才要求C1。"
+                "若选择add_parametric_curve，公式属于建模假设，必须声明并验证其局部特征；"
                 "须保证一个参数周期只遍历边界一次、端点及切线连续、内部无自交；"
                 "闭合和重复数量由后端独立测量。后端可按明确整体宽高仿射调整自由轮廓，不适用于精确半径或固定坐标。"
+                "共享顶点必须由一致基点和轴向量的数学表达式计算，禁止为相邻边分别猜测端点。"
+                "优先在plan.shared_points中定义具名顶点，例如端点坐标可写x='@origin.x'、y='@origin.y'；"
+                "派生点可用@name.x加数学表达式定义。共享顶点只定义一次，所有相邻边引用同名点。"
+                "先核对各轴向量的夹角和长度，再定义由向量和产生的顶点；共享点表不会替你选择方向或修正尺寸。"
+                "断言按target_ref的实际图元计算；局部棱线不能套用整体包围盒尺寸。"
+                "断言、约束和布局引用精确output_ref，或object:<object_id>、assembly:<assembly_id>；"
+                "不能用显示名称猜测引用。source_ref复制源仍只引用此前步骤的output_ref。"
+                "阵列和模板展开会分配实例身份，其整体集合使用output_ref，不能用步骤semantic种子冒充实际object或assembly。"
+                "assembly引用选择该整体全部图元。closed可检查多条直线/圆弧组成的唯一闭合边界；"
+                "bounds_size、entity_count和center_distance按选中集合测量。"
+                "radial_pattern仍只支持单条闭合多段线；area仍只支持各自闭合的原生图元，不对开放线弧组合估算面积。"
+                "几何约束每端只支持一个实际图元，不得绑定多部件整体；"
+                "endpoint_coincident要求显式选择target_endpoint和reference_endpoint(start/end)，"
+                "只平移目标使端点重合，不缩放、不旋转；支持直线、开放多段线和非整圆圆弧，目前仅builtin后端。"
+                "free_outline_layout的可写目标仍须为一条闭合多段线，只读right_of_ref可用整体外包框。"
+                "多个圆或部件的对称不是单条边界的凸瓣重复，不要使用radial_pattern验证它们。"
+                "center_distance断言使用两个对象集合的外包框中心；圆弧中心不等于其外包框中心，不要混用。"
+                "center_distance约束使用圆/圆弧/椭圆自身center，其余图元使用坐标外包框中心；两种工具的中心定义不同，必须按各自Schema选择。"
+                "仅添加已核对适用对象和数值的断言，用户约束由后端独立复核。"
                 "如果请求属于 CAD 构造但存在必要参数缺失，设置 is_construction_request=true、"
                 "plan=null，并降低 confidence。evidence_text 中每一项必须逐字摘录用户原文。"
                 "缺少参数时必须填写clarification，question_key为shape、size、curve_constraints或standard_spec，"
@@ -6325,18 +6289,18 @@ class RobotAgentService:
         """
         callback, state = self._cad_construction_model_callback(mode=mode,**({'repair_context':repair_context} if repair_context is not None else {}))
         if callback is not None and component_repair_context is not None:
+            from .cad_plan_component_repair import normalize_component_repair_context
             original_callback = callback
             def callback(source, schema):
-                original_plan = component_repair_context.get('plan') or component_repair_context.get('rejected_plan') or {}
-                affected = ((component_repair_context.get('construction_error') or {}).get('details') or {}).get('affected_output_refs') or []
-                failed_assertion = (component_repair_context.get('construction_error') or {}).get('assertion_id')
-                identity_only=bool(((component_repair_context.get('construction_error') or {}).get('details') or {}).get('identity_only_repair'))
+                normalized_context=normalize_component_repair_context(component_repair_context)
+                original_plan = normalized_context.get('plan') or normalized_context.get('rejected_plan') or {}
+                affected = ((normalized_context.get('construction_error') or {}).get('details') or {}).get('affected_output_refs') or []
+                failed_assertion = (normalized_context.get('construction_error') or {}).get('assertion_id')
+                identity_only=bool(((normalized_context.get('construction_error') or {}).get('details') or {}).get('identity_only_repair'))
                 payload = original_callback(
                     source + '\n后端部件合并协议：本次仅输出 affected_output_refs 对应的步骤，'
                     + ('本次仅修复重复身份：保持每个output_ref，给出semantic.object_id的互不重复标识，不得重新规划几何。后端只采用object_id，其他字段全部使用原计划。' if identity_only else '') +
                     '其他部件、布局和断言由后端保留，禁止重新生成；不要添加辅助占位图形。'
-                    '保留失败步骤原有的 junction_constraints、continuity、tangent_tolerance_deg 等有效约束，不得清空或放宽；'
-                    '若改变段结构，必须输出与新段结构匹配的完整连接约束集合。'
                     'plan.units必须保持原单位。此精简计划仅用于合并，合并后仍执行全部验收。'
                     + (f'唯一允许同步修正的模型自拟错误断言是{failed_assertion}，放入assertions并保持原ID及target_ref；不可修改其他断言或用户原始要求。' if failed_assertion else '') + '\n'
                     + json.dumps({'affected_output_refs': affected,
@@ -6344,7 +6308,7 @@ class RobotAgentService:
                     schema,
                 )
                 from .cad_plan_component_repair import merge_component_repair
-                return merge_component_repair(component_repair_context, payload)
+                return merge_component_repair(normalized_context, payload)
         result = interpret_construction_request(message, callback)
         if state.get('coordinate_patch'):result['coordinate_patch']=deepcopy(state['coordinate_patch'])
         attempted = bool(state["provider_attempted"])
@@ -6475,9 +6439,10 @@ class RobotAgentService:
         if not project_id and not local_creation_objects(raw_followup):
             project_id = str(route.get("selected_project_id") or "").strip() or None
         project = get_creative_project_store().get(project_id) if project_id else None
+        from .cad_candidate_state import candidate_is_accepted
         clarification_followup = bool(
-            project and not project.get("variants")
-            and project.get("status") in {"draft", "clarifying", "ready_for_design"}
+            project and not any(candidate_is_accepted(v) for v in project.get('variants') or [])
+            and project.get("status") in {"draft", "clarifying", "ready_for_design", "designing"}
             and raw_followup and not local_creation_objects(raw_followup)
             and not self._is_design_generation_confirmation(raw_followup)
         )
@@ -6584,29 +6549,18 @@ class RobotAgentService:
         construction_attempts = [deepcopy(interpretation)]
         while (should_repair(interpretation)
                and bounded_repair_available(construction_attempts, max_repairs=2)):
-            # M3: stall guard between consecutive attempts. The first repair
-            # (single attempt) is never gated. Block only on a proven stall;
-            # every undetermined or missing-snapshot path releases.
-            if M3_PROGRESS_GATE_ENABLED and len(construction_attempts) >= 2:
-                progress=evaluate_repair_progress(construction_attempts[-2], construction_attempts[-1])
-                if progress['decision']=='block':
-                    interpretation={
-                        'schema':'cad.construction-interpretation-result.v1',
-                        'status':'invalid','parser':interpretation.get('parser'),
-                        'provider_attempted':interpretation.get('provider_attempted'),
-                        'rejected_plan':deepcopy(interpretation.get('plan')),
-                        'progress':deepcopy(progress),
-                        'error':{'code':'no_progress','message':'连续两次修复在失败特征与几何上均无实质进展，已停止无效重试；可重新生成整体方案。'}}
-                    break
             failed_attempt=deepcopy(interpretation)
+            if not (((failed_attempt.get('construction_error') or {}).get('details') or {}).get('local_repair_scope')):
+                from .cad_plan_component_repair import normalize_component_repair_context
+                try:
+                    failed_attempt=normalize_component_repair_context(failed_attempt)
+                except ValueError as exc:
+                    failed_attempt.setdefault('construction_error',{}).setdefault('details',{})['reference_resolution_error']=str(exc)
             repair_details=(failed_attempt.get('construction_error') or {}).get('details') or {}
             failed_refs=set(repair_details.get('affected_output_refs') or [])
             plan_refs={s.get('output_ref') for s in (failed_attempt.get('plan') or failed_attempt.get('rejected_plan') or {}).get('steps',[])}
-            failed_error=failed_attempt.get('construction_error') or failed_attempt.get('error') or {}
-            classification=classify_feature_failure(repair_details, failed_error.get('code') or '')
-            legacy_replan=bool(repair_details.get('requires_structural_replan')
+            structural_replan=bool(repair_details.get('requires_structural_replan')
                 and plan_refs and plan_refs.issubset(failed_refs))
-            structural_replan=legacy_replan or classification['requires_structural_replan']
             failure = interpretation.get("error") or {}
             feedback = str(failure.get("message") or "构造计划未通过验证")
             if isinstance(interpretation.get("construction_error"), dict):
@@ -6615,15 +6569,6 @@ class RobotAgentService:
                 )
                 if (interpretation['construction_error'].get('details') or {}).get('local_repair_scope'):
                     feedback += "\n本次是受保护的局部修复：仅可修改editable_fields_by_ref列出的坐标字段。必须保留全部步骤及其顺序、标识、语义和全局参数；不得增删步骤、重命名或改变其他部件。修复后会逐项比较并校验受保护几何。"
-                expected_feature=(repair_details.get('required_features')
-                    or {k:v for k,v in repair_details.items() if str(k).startswith('expected')})
-                measured_feature=(repair_details.get('measured_features')
-                    or repair_details.get('measurements') or repair_details.get('measured_center_mm'))
-                feedback += "\n修复范围判定：" + json.dumps(
-                    {'repair_class':classification['repair_class'],'requires_structural_replan':structural_replan,
-                     'expected_feature':expected_feature,'measured_feature':measured_feature,
-                     'difference':repair_details.get('failed_features') or []},
-                    ensure_ascii=False)
             rejected_plan = interpretation.get("plan") or interpretation.get("rejected_plan")
             previous_plan = (
                 "\n前次未通过的计划（仅供修正，禁止当成用户要求）："
@@ -6727,8 +6672,9 @@ class RobotAgentService:
                 if isinstance(error, dict)
                 else ""
             )
+            model_source_failure = isinstance(error,dict) and error.get('code')=='ungrounded_model_output'
             agent_audit.append(
-                "cad_clarification_required" if interpretation.get("status") == "clarification_required" else "cad_construction_failed",
+                "cad_clarification_required" if interpretation.get("status") == "clarification_required" and not model_source_failure else "cad_construction_failed",
                 "cad_construction",
                 {"project_id": self._project_id_from_route(route)},
                 {"ok": False, "message": error_message,
@@ -6742,6 +6688,14 @@ class RobotAgentService:
                 model_clarification if isinstance(model_clarification, dict)
                 else clarify_construction_request(message)
             )
+            if model_source_failure:
+                # Invalid model evidence is not evidence of missing user facts.
+                # Retain real deterministic missing-parameter questions only.
+                model_clarification=None
+                clarification=clarify_construction_request(message)
+                if isinstance(clarification,dict) and clarification.get('question_key')=='construction_scope':
+                    clarification=None
+                model_clarification=clarification
             # Composite drawings are owned by the structured constructor. Do
             # not downgrade a failed model attempt into a single-shape
             # clarification that loses the component inventory.
@@ -6784,10 +6738,12 @@ class RobotAgentService:
             # missing parameters or overwrite dimensions supplied in follow-ups.
             if isinstance(selected, dict) and not selected.get("missing_parameters") and not model_clarification:
                 persisted = selected
-            else:
+            elif isinstance(clarification,dict):
                 persisted = self._persist_clarification_requirements(
                     raw_followup if clarification_followup else message, clarification, route
                 )
+            else:
+                persisted = None
             if persisted is not None:
                 persisted_req = (
                     persisted.get("requirements")
@@ -6830,13 +6786,23 @@ class RobotAgentService:
                             "alternative_selection": deepcopy(interpretation.get("alternative_selection")),
                             "status": interpretation.get("status"),
                             "error": deepcopy(error),
-                            "progress": deepcopy(interpretation.get("progress")),
                             "provider_attempted": interpretation.get("provider_attempted", False),
                         },
                     }
             if not isinstance(clarification, dict):
                 selected_id = self._project_id_from_route(route)
                 selected = get_creative_project_store().get(selected_id) if selected_id else None
+                if (not selected_id and (interpretation.get('status')=='invalid' or model_source_failure)
+                        and interpretation.get('provider_attempted') and not model_clarification):
+                    from .cad_construction_commit import retain_failed_construction_source
+                    selected=retain_failed_construction_source(
+                        message,store=get_creative_project_store(),
+                        owner_conversation_id=self._conversation_id_from_route(route))
+                    selected_id=str(selected['id'])
+                    conversation_id=self._conversation_id_from_route(route)
+                    if conversation_id:
+                        conversation_memory.remember(conversation_id,message,
+                            {'project_id':selected_id,'project':selected},route=route)
                 return {
                     **self._result(
                         "本次 CAD 构造失败：模型未返回可执行的构造计划。需求已保留，可重试生成。",
@@ -6854,6 +6820,7 @@ class RobotAgentService:
                         "provider_attempted": bool(interpretation.get("provider_attempted")),
                     },
                 }
+            clarification = {**clarification, 'suggested_prompt': clarification.get('suggested_prompt') or clarification['question']}
             result = self._result(
                 str(clarification["question"]) + (
                     "\n示例：" + str(clarification["suggested_prompt"])
@@ -6997,6 +6964,10 @@ class RobotAgentService:
         question_key = str(clarification.get("question_key") or "shape")
         recognized_shape = str(clarification.get("recognized_shape") or "")
         recognized_size = bool(clarification.get("recognized_size"))
+        from .cad_vertex_acceptance import open_straight_path_requirements
+        path_source=open_straight_path_requirements(message)
+        if path_source.get('coverage')=='complete' and question_key in {'size','shape','construction_scope'}:
+            question_key='construction_scope';recognized_size=True;recognized_shape='polyline'
         # 用参数化器把原文里的具体尺寸和可生成形状提取出来，避免落库
         # 只有 recognized_size=True 而缺少 dimensions、确认时被生成器判为
         # "还缺少图形类型和关键尺寸"。
@@ -7062,12 +7033,16 @@ class RobotAgentService:
             # Selecting an old project is not authorization to replace its
             # requirements when the user explicitly describes a new drawing.
             project = None
+        from .cad_candidate_state import candidate_is_accepted
         if (
             project is not None
             and str(project.get("status") or "")
-            in {"draft", "clarifying", "ready_for_design"}
+            in {"draft", "clarifying", "ready_for_design", "designing"}
+            and not any(candidate_is_accepted(v) for v in project.get('variants') or [])
         ):
             old_requirements = project.get("requirements") or {}
+            if self._parse_units_followup(message) is None:
+                requirements['units'] = old_requirements.get('units') or requirements['units']
             saved_followups = list(old_requirements.get("source_followups") or [])
             original = str(project.get("original_prompt") or message)
             if message != original and "\n最新已确认要求（" not in message and message not in saved_followups:
@@ -8510,7 +8485,8 @@ class RobotAgentService:
         )
         if cad_preflight.get("already_satisfied"):
             result = self._result("当前图形已满足该约束，无需修改；继续使用当前方案。", self._empty_usage())
-            result.update({"project_id": str(project["id"]), "project": project,
+            result.update({"ok": True, "project_id": str(project["id"]), "project": project,
+                           "source_variant_id": str(parent["id"]),
                            "variant": parent, "preview_paths": geometry_preview_paths({"lines": geometries}),
                            "cad_edit_outcome": "already_satisfied", "variant_saved": False,
                            "cad_edit_contract": contract, "cad_preflight": cad_preflight,

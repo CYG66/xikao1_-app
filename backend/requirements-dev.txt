@@ -1,20 +1,3 @@
-# Test-only dependencies for the RELEASE-TEST-01 offline regression gate.
-#
-# These are NOT runtime dependencies. They are installed only by CI jobs that
-# collect or execute the pytest suite (and by the report-diff job, which invokes
-# check_manual_collection.py; that helper shells out to `python -m pytest`).
-#
-# Coverage basis (verified against backend/tests):
-# * The suite uses pytest only as the runner framework.
-# * Async cases use stdlib `asyncio.run(...)` / `unittest.IsolatedAsyncioTestCase`;
-#   there are zero `pytest.mark.asyncio`, `pytest_asyncio`, or `anyio` usages, so
-#   no pytest async plugin is required.
-# * Other third-party imports (fastapi, pydantic, starlette, ezdxf) are runtime
-#   dependencies already listed in requirements.txt.
-# * httpx is the required backend of fastapi/starlette TestClient; three test
-#   modules use TestClient (test_agent_run_api, test_cad_manual_review_http,
-#   test_web_demo). It is a test-only dependency, not a runtime one.
-#
-# Pinned to the locally validated interpreter/Pytest pair for repeatable CI runs.
+-r requirements.txt
 pytest==9.2.0
-httpx==0.28.1
+httpx>=0.28,<0.29

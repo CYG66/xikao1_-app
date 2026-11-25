@@ -1,0 +1,11 @@
+{
+  "method": "stdlib symtable unresolved globals; review leads, not runtime proof",
+  "findings": [
+    {
+      "file": "app\\agent_service.py",
+      "scope": "module.RobotAgentService._recover_candidate_after_empty_response",
+      "scope_start": 891,
+      "name": "raw_followup"
+    }
+  ]
+}

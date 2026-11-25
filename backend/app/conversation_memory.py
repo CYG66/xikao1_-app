@@ -12,8 +12,7 @@ import threading
 from typing import Any
 
 from .agent_skills import _template_layout_requirements
-from .cad_creation_intent import has_local_plural_reference
-from .startup_guard import assert_startup_admitted
+from .cad_creation_intent import has_local_plural_reference, historical_reference_text
 
 
 OBJECT_TYPES = ("project", "drawing", "variant", "mission", "printer", "task", "action")
@@ -76,7 +75,6 @@ class ConversationMemoryStore:
     """Small project-object memory isolated by the App's conversation id."""
 
     def __init__(self, path: Path | None = None) -> None:
-        assert_startup_admitted()
         configured = os.getenv("XLINE_AGENT_MEMORY_STORE", "").strip()
         root = (
             Path(tempfile.gettempdir()) / "xline-agent"
@@ -245,7 +243,9 @@ class ConversationMemoryStore:
             }
         lowered = message.lower()
         local_plural = has_local_plural_reference(message)
-        reference_text = lowered.replace("它们", "") if local_plural else lowered
+        reference_text = historical_reference_text(lowered)
+        if local_plural:
+            reference_text = reference_text.replace("它们", "")
         required = any(word in reference_text for word in REFERENCE_WORDS)
         if not required:
             return {

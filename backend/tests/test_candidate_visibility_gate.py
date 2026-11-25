@@ -124,6 +124,34 @@ def test_candidate_missing_from_current_project_snapshot_is_hidden() -> None:
     assert result["variant"] is None
 
 
+def test_proven_noop_retains_bound_accepted_source_without_new_timestamp():
+    from app.cad_edit_contract import build_cad_edit_contract
+    value=_result()
+    value['variant'].update(id='variant-source',created_at='2026-11-17',
+        geometries=[{'id':1,'type':'circle','center':{'x':0,'y':0},'radius':2000,'template_instance':1}])
+    value['project']['variants']=[deepcopy(value['variant'])]
+    value.update(source_variant_id='variant-source',variant_saved=False,cad_edit_outcome='already_satisfied',
+        cad_edit_contract=build_cad_edit_contract({'operation':'rotate','instances':[1],
+                                                  'angle_degrees':-90,'pivot':'instance_center'}))
+    run={'id':'run-1','project_id':'project-1','source_variant_id':'variant-source','created_at':'2026-11-18'}
+    with patch('app.agent_http_service.agent_runs.get',return_value=run):
+        result=_bind_and_filter_candidate_visibility('run-1',deepcopy(value))
+        assert result['ok']
+        assert result['candidate_visibility']['status']=='retained_source'
+        assert result['source_binding']['source_variant_id']=='variant-source'
+        assert 'candidate_binding' not in result
+        run.update(source_variant_id=None,drawing_selection={'variant_id':'variant-source'})
+        assert _bind_and_filter_candidate_visibility('run-1',deepcopy(value))['candidate_visibility']['status']=='retained_source'
+        for malformed in ['wrong_source','failed_effect','unaccepted']:
+            bad=deepcopy(value)
+            if malformed=='wrong_source':bad['source_variant_id']='other'
+            elif malformed=='failed_effect':
+                bad['cad_edit_contract']=build_cad_edit_contract({'operation':'translate','instances':[1],'dx_mm':1000,'dy_mm':0})
+            else:bad['variant']['acceptance_summary']['status']='review_required'
+            rejected=_bind_and_filter_candidate_visibility('run-1',bad)
+            assert rejected['candidate_visibility']['status']=='hidden'
+
+
 def test_stream_failure_never_falls_back_to_local_template_cad() -> None:
     prepared = {
         "history": [],

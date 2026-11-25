@@ -1,0 +1,3809 @@
+{
+  "date": "2026-11-25",
+  "branch": "codex/source-audit-handoff-20261125",
+  "upstream_base": "6d3f3e5b56bc7428020bed1f4ccaaf1aea915bdd",
+  "source_baseline_python_files": 471,
+  "files": [
+    {
+      "file": ".gitignore",
+      "bytes": 439,
+      "sha256": "b2d5b4341f7f6c64b3d1f8d74081b675ff88ec84f07ab70199b0a562f6e261e5"
+    },
+    {
+      "file": "README.md",
+      "bytes": 6182,
+      "sha256": "99be0d350073390599488528dd0380ab8b8427dc2686d1e4070cfdc73581d93d"
+    },
+    {
+      "file": "_parse_test.py",
+      "bytes": 846,
+      "sha256": "8ff8b228eb9044d6e6106c8138aef12fd00ecb0adb1b2cb145e5c42aa49201af"
+    },
+    {
+      "file": "_tmp_chat.py",
+      "bytes": 675,
+      "sha256": "82e126f61fbc174e8f9b7de811e106883895d1d84c0b3cc1710d78eed8f1c95d"
+    },
+    {
+      "file": "_tmp_coord.py",
+      "bytes": 241,
+      "sha256": "6172d2660e9d779d2af8a5ce56fa6bb33c9ad9215438117a6373768d56674538"
+    },
+    {
+      "file": "_tmp_parse.py",
+      "bytes": 395,
+      "sha256": "6a7e11d44d2391a05e2808c4f51ba93d89fa1a0915f8fdc6a83ee5d69cea4dbc"
+    },
+    {
+      "file": "_tmp_probe.py",
+      "bytes": 286,
+      "sha256": "874a43ebad4e00d935b439af38fc42113d08a55fc4733d274855497588f896a1"
+    },
+    {
+      "file": "app/__init__.py",
+      "bytes": 35,
+      "sha256": "9e59872332862ea4708e26d4d721a62f7418a1aadb5eeb8637a97c67452bf6aa"
+    },
+    {
+      "file": "app/agent_attachments.py",
+      "bytes": 3499,
+      "sha256": "275c6665ff5433e02f4d8f13965e11125f22b4efebffe63e9af0d996fffb32c2"
+    },
+    {
+      "file": "app/agent_evaluation.py",
+      "bytes": 21928,
+      "sha256": "d3435c82f3e217f2fb734f8c0d4e018f4db2c3639ea5e34d5e1651b06bc25e15"
+    },
+    {
+      "file": "app/agent_failure_policy.py",
+      "bytes": 2394,
+      "sha256": "015407adc66a8edcd4f9e02623850a965833067418d1e0e400eabae5028ef178"
+    },
+    {
+      "file": "app/agent_http_service.py",
+      "bytes": 93684,
+      "sha256": "018a2ce7c3e6b50e389c1132dbd7c317316a7efe1fd9784c9b6bf2a3f96f3df7"
+    },
+    {
+      "file": "app/agent_interruption_policy.py",
+      "bytes": 3780,
+      "sha256": "4686acb5fca2cf938775bcbb17b1b159a49e5feaaac59f8136804d695198eb37"
+    },
+    {
+      "file": "app/agent_plan_evaluation.py",
+      "bytes": 2283,
+      "sha256": "e5ffdc13f68036f5f2749f46407921244cc9c1e02fc8f159f33056f163790412"
+    },
+    {
+      "file": "app/agent_plan_models.py",
+      "bytes": 12526,
+      "sha256": "13666b61b9c546595d1c86135a2df68d6cfbd6f7a95db17952314d8ae926488e"
+    },
+    {
+      "file": "app/agent_plan_orchestrator.py",
+      "bytes": 7692,
+      "sha256": "2df8413e1c13110dd543244ca5513b702eafe49db86164bf5e509d4f8d3798c1"
+    },
+    {
+      "file": "app/agent_plan_recovery.py",
+      "bytes": 8800,
+      "sha256": "2c1d4f890ec14cf752abcb6d2d535cddd93caff63e2ef18ed747b8696d1368d8"
+    },
+    {
+      "file": "app/agent_plan_runtime.py",
+      "bytes": 14123,
+      "sha256": "fba49dc58b296476516eb610791659bf293581149dbd74c5c445ea74d091e8d2"
+    },
+    {
+      "file": "app/agent_plan_sqlite_store.py",
+      "bytes": 10267,
+      "sha256": "57149c8d3f2cfeb9b1010fde5840fbdb57eac2b89d68805053d6ee61c6039a14"
+    },
+    {
+      "file": "app/agent_plan_store.py",
+      "bytes": 5334,
+      "sha256": "8071e1ed6bd23a7956b4a902f77b11e250b288bd1c8213082ab1fc3d4e080fc3"
+    },
+    {
+      "file": "app/agent_policy.py",
+      "bytes": 1667,
+      "sha256": "8c461f1bad570db21350791e1228ac0627b7594911230063fd1e7e58a44599ac"
+    },
+    {
+      "file": "app/agent_response_builder.py",
+      "bytes": 4397,
+      "sha256": "ce6c8502f5c36a37340e872837ccdac7c2c474d241ca0c27673513fcd869e46f"
+    },
+    {
+      "file": "app/agent_run_store.py",
+      "bytes": 11602,
+      "sha256": "a492a4db89d0e994076a378a740fa354f12b757c211667b273f48c3789f2b49d"
+    },
+    {
+      "file": "app/agent_service.py",
+      "bytes": 579553,
+      "sha256": "7f28f5ac9aae3606ac3b3e43f8d7a0399cb791061badf3c0b7d4bcfbfeb93a38"
+    },
+    {
+      "file": "app/agent_service_config.py",
+      "bytes": 1405,
+      "sha256": "80f6539bc7bd991c40d11574ea69c930954ccbd0dc5b7f9a897c08cd0efc3cb7"
+    },
+    {
+      "file": "app/agent_service_context.py",
+      "bytes": 3465,
+      "sha256": "d03a587281b838e2e408a0429a5bd5a6643afff0cc9c4889b247a8d391a9d717"
+    },
+    {
+      "file": "app/agent_service_policy.py",
+      "bytes": 5472,
+      "sha256": "2c60744a6bcb1f50583389752d8d5f5a34891ccfe60156ec44cef83ccdc0e3b1"
+    },
+    {
+      "file": "app/agent_skills.py",
+      "bytes": 110289,
+      "sha256": "58120a6f3fd57c965b17cbd893e8c8d215d5e57a824e7fbb9af592bdb710918c"
+    },
+    {
+      "file": "app/answer_validation.py",
+      "bytes": 19705,
+      "sha256": "e6e82a595231f36cafa77cf98d4dda369bd6c85102324bbe3b190d4d02278d32"
+    },
+    {
+      "file": "app/audit_store.py",
+      "bytes": 2990,
+      "sha256": "928da3e14b91c1de8fc4b9aae49e2cad1eb3c6973b6bf7d1bc6301395c88ab7e"
+    },
+    {
+      "file": "app/cad_assertion_authority.py",
+      "bytes": 2314,
+      "sha256": "075beb7468a081c5dd4a05fc09390ac940f60be3aa4606b22479b7b5df168f16"
+    },
+    {
+      "file": "app/cad_assertions.py",
+      "bytes": 10141,
+      "sha256": "384960e28bb46499d1e0f6cf08bb17360958d539911dfd1ae153db67d2849a88"
+    },
+    {
+      "file": "app/cad_axis_requirements.py",
+      "bytes": 5375,
+      "sha256": "82cb52907e87fab17d5b5680c740f06b690fd6408cb05ac1c78e66b4b80151dc"
+    },
+    {
+      "file": "app/cad_candidate_orchestrator.py",
+      "bytes": 17144,
+      "sha256": "6f64f0fc77b3b1917f9b748d1ee107f367bf8f42951b4707c5b9609909372ab5"
+    },
+    {
+      "file": "app/cad_candidate_state.py",
+      "bytes": 7986,
+      "sha256": "4b8d058eba1c89bd50c9dda3c628f05ad7e6dff15a1a253e093814518a518011"
+    },
+    {
+      "file": "app/cad_canonical_json.py",
+      "bytes": 500,
+      "sha256": "031700e78fed433ad5fa3645d0b0d0fa4b9b5732ffb8aa42fc81610549227b05"
+    },
+    {
+      "file": "app/cad_capsule_acceptance.py",
+      "bytes": 6391,
+      "sha256": "453e22f124cb0631ce305724b4217c69d96baa664d22f23af421995a38d13438"
+    },
+    {
+      "file": "app/cad_circle_group_acceptance.py",
+      "bytes": 5721,
+      "sha256": "8fc939a6241d7967dcf181c3b8e095d1eb33eefaef82d5d4333957d0f53a3506"
+    },
+    {
+      "file": "app/cad_composition_addition.py",
+      "bytes": 6205,
+      "sha256": "668bef3848ca92b13572856291e7f68d3e6d0657e90fb01dc8197f1b5099e0c2"
+    },
+    {
+      "file": "app/cad_composition_coverage.py",
+      "bytes": 10679,
+      "sha256": "a7948df38a36143586163955b10210f45de2077aa3bd3e1838d46a1d8d08a248"
+    },
+    {
+      "file": "app/cad_connection_direction.py",
+      "bytes": 5140,
+      "sha256": "1a5a254ac4608da582facd3a3802785d3c354fe3416c4d03ace2338ba46cc584"
+    },
+    {
+      "file": "app/cad_constraint_solver.py",
+      "bytes": 25818,
+      "sha256": "67916c0fe5955d5ce33cb20d7349f2f8a2cfe41b0c40d8419c8d94115984b43c"
+    },
+    {
+      "file": "app/cad_construction.py",
+      "bytes": 107258,
+      "sha256": "56ee881a5616d34a22f9cc377b1b3bf8c8f0c07b4298c7f6c20d66e9e3b9ea68"
+    },
+    {
+      "file": "app/cad_construction_commit.py",
+      "bytes": 14962,
+      "sha256": "e01a118aa6d6ff80bd8f46e93a6f00108fb007b3c455d1ebaf9f7e0dbe0e235f"
+    },
+    {
+      "file": "app/cad_construction_evaluation.py",
+      "bytes": 9193,
+      "sha256": "f29170453870a9ce4b00587c9bcbefadc706853e5e7c569a691a0ba03c2b1c0e"
+    },
+    {
+      "file": "app/cad_construction_interpreter.py",
+      "bytes": 198086,
+      "sha256": "e195c1071938eb82b8376d7b00deb6bd6db1c18b7eccd346f4fdc203b7d7e92a"
+    },
+    {
+      "file": "app/cad_coordinate_requirements.py",
+      "bytes": 5757,
+      "sha256": "dfa90a8794242ac226669e622459151ed22e24d578388576dd882dff94a20e30"
+    },
+    {
+      "file": "app/cad_counterfactual_guard.py",
+      "bytes": 10932,
+      "sha256": "f9307c94ef238bc62175f55fd8a75030b50e9e88cb40e9f3f7845bf21caf5797"
+    },
+    {
+      "file": "app/cad_creation_intent.py",
+      "bytes": 4404,
+      "sha256": "d92294033ef2183adf5048429fa2dd70eb797e7cf0d05524bee703340709163f"
+    },
+    {
+      "file": "app/cad_curve_fit_acceptance.py",
+      "bytes": 8723,
+      "sha256": "f3e2e94af19c3513e6c13c3333f3b34477f294b3c798c9e3626a636588324fb1"
+    },
+    {
+      "file": "app/cad_edit_chain.py",
+      "bytes": 5663,
+      "sha256": "1bf0d08cdb128e80ddc70876467f60e01e0636b53e01929c07d527c3bdb3ec08"
+    },
+    {
+      "file": "app/cad_edit_contract.py",
+      "bytes": 27133,
+      "sha256": "ab20e62bedbe13fa3d6c8e1e7d2a41208ccd44d5af7533b1a4c48bab5a87c77d"
+    },
+    {
+      "file": "app/cad_edit_gate.py",
+      "bytes": 29020,
+      "sha256": "bec690faef4c1b9cefd5dc86204f6416d61e497d4405cf946be0498342fded1f"
+    },
+    {
+      "file": "app/cad_edit_intent.py",
+      "bytes": 11574,
+      "sha256": "865851502a2fc2e16889bd3fd7eddbcc647452db1db4681eed0636f6fd851cd5"
+    },
+    {
+      "file": "app/cad_edit_interpreter.py",
+      "bytes": 17281,
+      "sha256": "ef31c8b37f21bab60855810be3217e7b00f3ca3bc50f16fbdaefbb2553628ca2"
+    },
+    {
+      "file": "app/cad_edit_plan.py",
+      "bytes": 23979,
+      "sha256": "827717525e1c5a589f601e0079e71de5e44d8ed98dd937a44422f7a2adeddd39"
+    },
+    {
+      "file": "app/cad_edit_preview.py",
+      "bytes": 5248,
+      "sha256": "a4f9869d104a5a18863e9dcf39394ee3a1d46527b2faa9a0aa703f8bf5600a38"
+    },
+    {
+      "file": "app/cad_edit_relation_acceptance.py",
+      "bytes": 5473,
+      "sha256": "9a80d49608348c4d461bacf1fdbde93711109a29341a357e971a96be34fda40a"
+    },
+    {
+      "file": "app/cad_edit_session.py",
+      "bytes": 8400,
+      "sha256": "375cee8f7152895fa1e3cab606baf35b0dc4617d5df1cb0d54d8b79c725ce31f"
+    },
+    {
+      "file": "app/cad_generation_recovery.py",
+      "bytes": 5328,
+      "sha256": "7c6d0bab1ec2acc3837c992c36872613609d1d0477aa71d4f994f483bf3c25b1"
+    },
+    {
+      "file": "app/cad_geometry_measurements.py",
+      "bytes": 8643,
+      "sha256": "484b19303405c95cf11035983747804d20d9724a986bbdf688f21fe3c0224e1a"
+    },
+    {
+      "file": "app/cad_import.py",
+      "bytes": 31383,
+      "sha256": "8b108605ee91c17531a5d0ab1c1c644bc36f51187175d48266d7d1d4d373744c"
+    },
+    {
+      "file": "app/cad_length_units.py",
+      "bytes": 3285,
+      "sha256": "77f5f2a57e55e91b7490247e1e94d60a7509640dbd87ac0703c99c29f4dc8d30"
+    },
+    {
+      "file": "app/cad_local_repair.py",
+      "bytes": 14690,
+      "sha256": "e77d04fea982f73320d0a344062ae50562d05452afbb2c75eb7d79509e43164d"
+    },
+    {
+      "file": "app/cad_object_constraints.py",
+      "bytes": 9032,
+      "sha256": "4b4ce44a36a2b4888f52e517dd9cfc51d6a0ddf56ae110e166f54883c3f01895"
+    },
+    {
+      "file": "app/cad_parametric.py",
+      "bytes": 12167,
+      "sha256": "973a966cebd51f12e940788b33fb1723e9bcff5fe98a3625dec5134f96740736"
+    },
+    {
+      "file": "app/cad_path_relation_acceptance.py",
+      "bytes": 17255,
+      "sha256": "7c6adc281a37542f03004dff5ce27191ef5e720c8543b07ed14a4876b9d9866d"
+    },
+    {
+      "file": "app/cad_plan_component_repair.py",
+      "bytes": 6696,
+      "sha256": "c0751e7d6ccf324cedc1e49b37eb456256513d550b19b438b1ff30eed78ae95d"
+    },
+    {
+      "file": "app/cad_plan_recovery.py",
+      "bytes": 2993,
+      "sha256": "936c5d81667a5d74885f0d7ed2d79fc6b3b35354820908a0ca43d89637be455b"
+    },
+    {
+      "file": "app/cad_plan_references.py",
+      "bytes": 5207,
+      "sha256": "558416b08a3e8cfe46f76826cdb243e6474e9e1df2693d73511fba97419f693f"
+    },
+    {
+      "file": "app/cad_plan_verifier.py",
+      "bytes": 4836,
+      "sha256": "69c255cc90c5a26aab5ea0b476b30f8e7ed9e73d10d77d7d9bdd0c878d628800"
+    },
+    {
+      "file": "app/cad_polar_source_coverage.py",
+      "bytes": 2424,
+      "sha256": "041953870cf15aff17288724c8e0295ff787a8533f8507388b90a05212c79551"
+    },
+    {
+      "file": "app/cad_precision.py",
+      "bytes": 795,
+      "sha256": "dc08e0ba95ec299a639e71d6b51d0bafe051b4b451b1368494c58443cf9b5ced"
+    },
+    {
+      "file": "app/cad_primitive_layout_acceptance.py",
+      "bytes": 19162,
+      "sha256": "e755311e85928d43fa24599d3c2b7766cde21e790cf06b5974481ad8977280bf"
+    },
+    {
+      "file": "app/cad_project_candidates.py",
+      "bytes": 47724,
+      "sha256": "a31aa2e7a944af978c8c2f399b34b8c7fa2c34cef195e9d38443002cd94211c9"
+    },
+    {
+      "file": "app/cad_projection_acceptance.py",
+      "bytes": 9891,
+      "sha256": "2db038b96433e446d9ce3ef73f2c34370cd69e97a95f6ade1421bb85c251123f"
+    },
+    {
+      "file": "app/cad_radial_attachment_acceptance.py",
+      "bytes": 4399,
+      "sha256": "efa22a9301a736696c110b88fbea7e9041a3e48edff07d50b40f899f6a719c3d"
+    },
+    {
+      "file": "app/cad_rectangle_acceptance.py",
+      "bytes": 4987,
+      "sha256": "8d47e292f91611f7c700f14797855ddd1757b910f40193177a5f214ae214ac95"
+    },
+    {
+      "file": "app/cad_reference_data/cn_national_flag.json",
+      "bytes": 1506,
+      "sha256": "de943218361746a9a3a03f12023fc920243990c34b4a39c64983e5dda938495a"
+    },
+    {
+      "file": "app/cad_relation_acceptance.py",
+      "bytes": 6538,
+      "sha256": "545414a17785ccd53ad9e739baa6a89d3adae74448030f48d2a0988ece952474"
+    },
+    {
+      "file": "app/cad_repetition_acceptance.py",
+      "bytes": 25655,
+      "sha256": "9964128bd99242ce80bcc37041def8e62b17c96c3a90ac195d8febd9400fcf42"
+    },
+    {
+      "file": "app/cad_repetition_source_coverage.py",
+      "bytes": 9223,
+      "sha256": "1c0d1b94b09f8f9bd9de862366089e6e8300bf8ff5d6370a227464e598b067bf"
+    },
+    {
+      "file": "app/cad_requirement_contract.py",
+      "bytes": 16262,
+      "sha256": "2671fa4a831f069a1ec486e19f5bac92ffa6fe70c8de85aed9f230247d6af320"
+    },
+    {
+      "file": "app/cad_requirement_ledger.py",
+      "bytes": 10837,
+      "sha256": "c1d48c026545bf18692cc67a08411973b68275b91c53786416172e672a8b04d5"
+    },
+    {
+      "file": "app/cad_revision.py",
+      "bytes": 8157,
+      "sha256": "33fd359006c75a1a4c9926197cff5bd4505350d00bc7ed82f7596b7f9ad1dbd9"
+    },
+    {
+      "file": "app/cad_selected_operations.py",
+      "bytes": 4970,
+      "sha256": "73af7a3c2bd263f6c755cc8e5376abfa3f1f9fa1ac71e1800661ffa59c0ff18d"
+    },
+    {
+      "file": "app/cad_semantic_acceptance.py",
+      "bytes": 30690,
+      "sha256": "4d06f5432b7995087cd086e5794e72bf7be1528359028d1ab3a396deb022d348"
+    },
+    {
+      "file": "app/cad_semantic_source_coverage.py",
+      "bytes": 28660,
+      "sha256": "369cb88596c71d0d7fd89afffe26c9774c8571d485029b26115c374860da84aa"
+    },
+    {
+      "file": "app/cad_shared_points.py",
+      "bytes": 1972,
+      "sha256": "a2dc562b43a00491afa2a8031f66f441c105ab30603212993a6fc535929319ec"
+    },
+    {
+      "file": "app/cad_sketch_graph.py",
+      "bytes": 12737,
+      "sha256": "d414bee0639a5a32e2fc1dae8ae9583a54d599ab4c964f81cf19b2356b2ec31e"
+    },
+    {
+      "file": "app/cad_source_acceptance.py",
+      "bytes": 36509,
+      "sha256": "e4b6fcc3f7b88fd4d073e8b9e5aec79efdf248939f80a32995df5c12ddc85c83"
+    },
+    {
+      "file": "app/cad_source_intent.py",
+      "bytes": 2175,
+      "sha256": "09eaa4d2da34042982b6f534e8cdf06538cfd988a299a7d83e01695e92444da2"
+    },
+    {
+      "file": "app/cad_standard_templates.py",
+      "bytes": 4350,
+      "sha256": "28d0ef660a0ac6bdb36e6941a1642be4ba58be18733fcffc8db088adb2538f26"
+    },
+    {
+      "file": "app/cad_stroke_acceptance.py",
+      "bytes": 7200,
+      "sha256": "b0f4af1ae0d32be8c695ecee91ead354670a16e0590289fcb497ba3b30f44fe5"
+    },
+    {
+      "file": "app/cad_structure_contract.py",
+      "bytes": 35090,
+      "sha256": "793bd7fde846e6a07eb32cd40d1e26814d9ba786252e30d35468808829c8b0ee"
+    },
+    {
+      "file": "app/cad_symmetric_divider_acceptance.py",
+      "bytes": 4051,
+      "sha256": "f6d890568a90fc605aa28e42efa26c342c16a73d7787bffd1d007343034973aa"
+    },
+    {
+      "file": "app/cad_target_resolver.py",
+      "bytes": 36898,
+      "sha256": "151b6dd2b71ad37e650b88dd78eef6ef590ea41c4361a339bc6991642e7c0904"
+    },
+    {
+      "file": "app/cad_template_plan.py",
+      "bytes": 9381,
+      "sha256": "8ff420a693c9201f43fbb7f2b0469bda7cb09d11b98cc4ed3ea431146d3e7f0b"
+    },
+    {
+      "file": "app/cad_validation_evidence.py",
+      "bytes": 1354,
+      "sha256": "bd182253ed09f8d8fc39d5e63f2faad590656c5ff9d88ea9725278f0ec13c77b"
+    },
+    {
+      "file": "app/cad_vertex_acceptance.py",
+      "bytes": 14025,
+      "sha256": "095a9632fae1851a6443f437386eed57f092430c2e6271cbcb49c1e6f625db58"
+    },
+    {
+      "file": "app/cad_visual_scoring.py",
+      "bytes": 5381,
+      "sha256": "3a78a9975125daf24180ef7897e34207a97fb68297afa473a2ef68e20bade818"
+    },
+    {
+      "file": "app/cad_wave_requirements.py",
+      "bytes": 4932,
+      "sha256": "40ecb75ea03933bf4c64ac5e66c73b2a468cd63b194f3c0a327898705069c37a"
+    },
+    {
+      "file": "app/config.py",
+      "bytes": 4948,
+      "sha256": "8b8f72430bee9a18d675b13b6d2920abbc339fffcf0f45274ae2b6ffa103416d"
+    },
+    {
+      "file": "app/construction_quality.py",
+      "bytes": 12276,
+      "sha256": "7a61fa3dfacd2e1bdc9937d0554f9d175c271d1673dba1cfc63a0cdff06923e0"
+    },
+    {
+      "file": "app/conversation_archive.py",
+      "bytes": 471,
+      "sha256": "bd6f4e2b6c6c9c1dfdfc5eadb24c611a85b59e50a83c27c4ff38c04756760aee"
+    },
+    {
+      "file": "app/conversation_memory.py",
+      "bytes": 57698,
+      "sha256": "9eb96fb806ba61cfd0892535230a2af62065743a156a9a90b6d454fb6f0e52fa"
+    },
+    {
+      "file": "app/creative_projects.py",
+      "bytes": 61813,
+      "sha256": "412e3ad1bfb5e9cbe10ce4ae1eac561076f5f2c2b66ab332a5332d8eb94fe5fb"
+    },
+    {
+      "file": "app/creative_workflow.py",
+      "bytes": 51561,
+      "sha256": "68656bc4489b840e0ab00bdc257e5daaad9d2b5a0147207a5fdac214307b97f3"
+    },
+    {
+      "file": "app/database.py",
+      "bytes": 40214,
+      "sha256": "6626b2140a10782d3b073f8a715ede4fb90d027014192de259b8cf3d8df2c995"
+    },
+    {
+      "file": "app/deepseek_transport.py",
+      "bytes": 4944,
+      "sha256": "36e2831a5a23e30223c73ff89794d87b799a71c6744ff4096132b82becfffc95"
+    },
+    {
+      "file": "app/diagnostics.py",
+      "bytes": 11302,
+      "sha256": "0371d7f123dd755aa4d79c0e59ff1c26323d6073468881f7a0815e463991d036"
+    },
+    {
+      "file": "app/discovery.py",
+      "bytes": 6192,
+      "sha256": "46b7aa42a31a1505b6729a04d1757815af640df52f3b586ead121255b55055c7"
+    },
+    {
+      "file": "app/drawing_commands.py",
+      "bytes": 9827,
+      "sha256": "54b28c33a5e776acf296ea2ea336aa4c443b5e0f882b12d541c04728f993cc1c"
+    },
+    {
+      "file": "app/drawing_store.py",
+      "bytes": 14620,
+      "sha256": "5d29aa486b58c795889086cfad038df54679348dcf8bda496ffb5227a6a23ee1"
+    },
+    {
+      "file": "app/drawing_versions.py",
+      "bytes": 22130,
+      "sha256": "2c79c3af6842a1888fad0fcc370b60c6ca582244078d12af4b200b8da767b1d6"
+    },
+    {
+      "file": "app/fault_evaluation.py",
+      "bytes": 3232,
+      "sha256": "5862d0405a4a22cff49f13e435c054d3110e65e8cd809b982651e1a81f1aeaaa"
+    },
+    {
+      "file": "app/geometry_catalog.py",
+      "bytes": 12075,
+      "sha256": "b046ed24944589139f7e1ef6a6276e46aafc76cd9ed483cb7001ce9abeb3b4bd"
+    },
+    {
+      "file": "app/geometry_diff.py",
+      "bytes": 9791,
+      "sha256": "5cc1725d79365a13f8b4cdd237456ad21c6ed8850e749c25261dd52c20c93bf5"
+    },
+    {
+      "file": "app/geometry_identity.py",
+      "bytes": 3668,
+      "sha256": "b46cc34117f0c4b07d35a527c9c912301835de83f22e92e47f57cf5ac4046d75"
+    },
+    {
+      "file": "app/image_drawing_import.py",
+      "bytes": 17485,
+      "sha256": "7cb903766e2e2c7673b2234654f0e72088cc45e9b68387b3433def2d81304b51"
+    },
+    {
+      "file": "app/incremental_cad.py",
+      "bytes": 135772,
+      "sha256": "f139191430c59f2fc03c2ca192cbf96e11f25dea5f7eac639a6a92b3c591ad41"
+    },
+    {
+      "file": "app/knowledge_retrieval.py",
+      "bytes": 8765,
+      "sha256": "3e1dcc8bdcf75fe0b4ba64839f9c86d6bf825418df411c68830b26b5c69110c9"
+    },
+    {
+      "file": "app/logical_topology.py",
+      "bytes": 42795,
+      "sha256": "0e622944b8045ddd0ff5e1b34047d310f473a6d3e581e9cf0e382614b43add98"
+    },
+    {
+      "file": "app/main.py",
+      "bytes": 1841,
+      "sha256": "0ecf9cd64a0b3e1db07959979eb9891990434b533e71676c413d7e24fb341b27"
+    },
+    {
+      "file": "app/mission_analysis.py",
+      "bytes": 7125,
+      "sha256": "f8920b4f885dce66fa3aa0a02ab7de9eac8c0534c9466a0bc3d43f69e1abe645"
+    },
+    {
+      "file": "app/mission_ledger.py",
+      "bytes": 8140,
+      "sha256": "9feb4eb73df4c7ac2778e368b2dfce97d1820d6f6a017630ad0270f68754515d"
+    },
+    {
+      "file": "app/mission_quality.py",
+      "bytes": 2775,
+      "sha256": "07ad637bb711481123ca7181de7beec0a3ed1a55efbe0a8552a8a8384f5d5251"
+    },
+    {
+      "file": "app/mission_reports.py",
+      "bytes": 3244,
+      "sha256": "be55886a0ac3cb9da449c4d237fa8be5a82069a177e4e6622ea12fcc7274b594"
+    },
+    {
+      "file": "app/model_providers.py",
+      "bytes": 8455,
+      "sha256": "dd1c9a2eaff52fb861a6f10051174914b18315ec0f3083f689f947767ceb8cf5"
+    },
+    {
+      "file": "app/model_request_gateway.py",
+      "bytes": 2610,
+      "sha256": "190c469e93cbf39aa556c3f6bbe6e7a97e92506a4728ea24bc0577a352f5dc70"
+    },
+    {
+      "file": "app/native_constraint_worker.py",
+      "bytes": 12706,
+      "sha256": "6daf36f49df88cb0f13f0cb0bbed0566eeca94c322ca8a73b9dd2bead495f2f8"
+    },
+    {
+      "file": "app/network_manager.py",
+      "bytes": 18746,
+      "sha256": "a237687d387522231cf6941d7274254f6e1b36653b0d255e47e33927b890d6de"
+    },
+    {
+      "file": "app/oscillation.py",
+      "bytes": 1586,
+      "sha256": "b1b5716a0cde5d05e9314d3a292fdf523549b82fb62d77cf411b88f0844bccbb"
+    },
+    {
+      "file": "app/project_ownership.py",
+      "bytes": 1413,
+      "sha256": "f9a0b62bbea5252d8a97bc0381ba6cf4edd40960c076e0532913acc48d502237"
+    },
+    {
+      "file": "app/request_context.py",
+      "bytes": 940,
+      "sha256": "fa55637ae8f74d2b01b660db765362523f654f29a5228b29335df585ad72b6f4"
+    },
+    {
+      "file": "app/ros_adapter.py",
+      "bytes": 133267,
+      "sha256": "c274e299e5c016c2e648f931f69c39bc5de0c70a040d263a9a297f538b834b71"
+    },
+    {
+      "file": "app/rosbridge_protocol.py",
+      "bytes": 18074,
+      "sha256": "00785c4973985bde40bb8ed910826fd53265e21c44f4b1aca32df503a1992d14"
+    },
+    {
+      "file": "app/route_optimization_comparison.py",
+      "bytes": 6235,
+      "sha256": "945d20b01cc63352c29bde1cf4b800aee24ef926a1fe193d388268c794e37558"
+    },
+    {
+      "file": "app/routers/__init__.py",
+      "bytes": 68,
+      "sha256": "6afe91dfc6357f50d0e1be408ee471db6b82c2f77c1652778c2914fc94851f82"
+    },
+    {
+      "file": "app/routers/agent.py",
+      "bytes": 14321,
+      "sha256": "1d91a7ec1beea560e9ab59c58a917d9875cfc4544033384fdc14bfe752c37c6e"
+    },
+    {
+      "file": "app/routers/device.py",
+      "bytes": 5921,
+      "sha256": "e44cd66c2e7be1a4c5549839c5313e4ab5f394e323c2188fa4b7d86f1e090e5c"
+    },
+    {
+      "file": "app/routers/drawings.py",
+      "bytes": 33988,
+      "sha256": "31d903518f8205850dcda79cf5cf4eafe5bc8feb72eda6acd7fa4602e8b7a94f"
+    },
+    {
+      "file": "app/routers/missions.py",
+      "bytes": 7754,
+      "sha256": "12db0aea4fc3f1e40adb449e536b225ed8915d4758acac87d847fcfbdbffd3c4"
+    },
+    {
+      "file": "app/routers/projects.py",
+      "bytes": 19938,
+      "sha256": "8b051fdd0787b8a96cb0609f5ba6c54735b62f9cd0382c4a3eb1710f01765baf"
+    },
+    {
+      "file": "app/routers/rosbridge.py",
+      "bytes": 3207,
+      "sha256": "234fe35db1385eeb2c4e5c1d1706c429c6162a964d41ab1e84641e25d6eaaac9"
+    },
+    {
+      "file": "app/routers/system.py",
+      "bytes": 5567,
+      "sha256": "4a8cdc0e9bb7c2c6bcbe0865538fbd1403fc12c3497f3e92028c553f22b3580c"
+    },
+    {
+      "file": "app/schemas.py",
+      "bytes": 12576,
+      "sha256": "0eaa5fd7071546a1d99a283e95ec9657bd07c7423309946cf29a09258da7d836"
+    },
+    {
+      "file": "app/spatial_partition.py",
+      "bytes": 31491,
+      "sha256": "2093dbccbf0e58a9d219b1563e080332a4f919d3c7b2ec3adab583355166e4ac"
+    },
+    {
+      "file": "app/state.py",
+      "bytes": 27581,
+      "sha256": "b6f55f584f03d4908162489cafba5f4611613f84197a1c7ed0c22430602d2dfa"
+    },
+    {
+      "file": "app/structured_usage.py",
+      "bytes": 2804,
+      "sha256": "48ac03ba943242f1e3df94964bf2b7c714bb1f94f45d31a2834c156e18a24cfc"
+    },
+    {
+      "file": "app/task_store.py",
+      "bytes": 8262,
+      "sha256": "2ed48e5cbb95b3d5aca052f9fcf5329b16f588aeb3c2c532bf077bb677370870"
+    },
+    {
+      "file": "app/telemetry_contract.py",
+      "bytes": 9127,
+      "sha256": "78807a1ff31d381df682fc52be3a8ea4abac9333e05601b5022f5429cd04ce35"
+    },
+    {
+      "file": "app/tooling.py",
+      "bytes": 37173,
+      "sha256": "17c980909eeb7cc8aba0ccd19911ed0d1d96992ed58174e8e98c63552a5be9de"
+    },
+    {
+      "file": "app/trajectory_comparison.py",
+      "bytes": 3306,
+      "sha256": "67299c4312754b1840463b3205156078a1091ee526440ee976679965d5c08fe4"
+    },
+    {
+      "file": "app/user_model_config.py",
+      "bytes": 3103,
+      "sha256": "fe676a861de2c8e9d771846a5b608f9241183684a5676d9fcc0ab5f99a106395"
+    },
+    {
+      "file": "app/user_request_limits.py",
+      "bytes": 2096,
+      "sha256": "4fccd2b7746a09f7cc91137d0b156424bce1263967bbc384c7cadf3907d5a946"
+    },
+    {
+      "file": "app/web_demo.py",
+      "bytes": 797,
+      "sha256": "eeeed2b0f0be7bd70f2e82aacf726253fe79dc959d19005618e34d2098cf8bf8"
+    },
+    {
+      "file": "dashes-rover-discovery.service",
+      "bytes": 402,
+      "sha256": "a88e140e772593c3e147ff5c1bb037b2cb8f553f14742c78f942bce0705be5f6"
+    },
+    {
+      "file": "dev.ps1",
+      "bytes": 1041,
+      "sha256": "3500bd3aaf24abe24eb6df82860898056548ffc595de73028651ca639029b0fe"
+    },
+    {
+      "file": "docs/A9_ENDPOINT_FEEDBACK_20261121.md",
+      "bytes": 2656,
+      "sha256": "f20c5469f828b99652fb7cd42b4e6328806f39944a25f7a3ac0b9b20ee9e55a5"
+    },
+    {
+      "file": "docs/A9_FEATURE_WITNESSES_20261122.md",
+      "bytes": 3447,
+      "sha256": "fafe5b7ac413f6918b1c6688ddf31cdef41f7c59ab40eb9b08eab6d0aeb4655b"
+    },
+    {
+      "file": "docs/A9_INTENT_GUIDANCE_20261121.md",
+      "bytes": 2725,
+      "sha256": "df9342ecb7615305b294b579756f0c0fa33dccbdcf8b75893852120336f93908"
+    },
+    {
+      "file": "docs/A9_NOTCH_BOUNDARY_AUDIT_20261122.md",
+      "bytes": 3301,
+      "sha256": "666b110a582aefb70dc32f0ece9c1e512e237d966676527a9d7963f6f71d642b"
+    },
+    {
+      "file": "docs/A9_REPEATED_CENTER_20261121.md",
+      "bytes": 3404,
+      "sha256": "e696a3edea3f8ea6b21fd3dbbb1b1c1e84189dd9a2616cb9cfd5eb13f1e320a3"
+    },
+    {
+      "file": "docs/A9_SCHEMA_INTENT_20261121.md",
+      "bytes": 2884,
+      "sha256": "5087ac5b377dd55f61cb5e1eeb6bbfa630f089d97e67b84b3595e824a95b1de8"
+    },
+    {
+      "file": "docs/A9_SHALLOW_NOTCH_REMAINING_CHECKS_20261122.md",
+      "bytes": 3780,
+      "sha256": "b5e6f7e4812585c481cfd547a669d63b8aaf4ff53929db2eb7ac4a39e70a0f16"
+    },
+    {
+      "file": "docs/A9_STABILITY_20261121.md",
+      "bytes": 2936,
+      "sha256": "207b71ce9a3ad71f9ac5e4b0414f128531834861fe72a95f57e66c59985b7d63"
+    },
+    {
+      "file": "docs/ARCH_BOUNDARY_PROTOCOL_20261125.md",
+      "bytes": 410,
+      "sha256": "b5743454f14c39fa23fc59005fafe3072fe4cb68c773f350842c1d0ce6c73845"
+    },
+    {
+      "file": "docs/ARCH_BOUNDARY_REPAIR_20261125.md",
+      "bytes": 3969,
+      "sha256": "f2d82d55bead3b2db0c5427eff54d71a327c380cd888aa3c03161af18a8fd7fc"
+    },
+    {
+      "file": "docs/ARCH_LANGUAGE_REPAIR_20261125.md",
+      "bytes": 4544,
+      "sha256": "fb7d1ff9bd750dff3753bd6a12326b1b43e0eb37f4c51d795c73e4cdda36cee3"
+    },
+    {
+      "file": "docs/ARCH_REPAIR_PROTOCOL_20261125.md",
+      "bytes": 932,
+      "sha256": "bb123aea338894ff2e371e408639827655e24629ac65cb81c85961394537304b"
+    },
+    {
+      "file": "docs/ARCH_SOURCE_GENERALIZATION_20261124.md",
+      "bytes": 3381,
+      "sha256": "d0e2a376538285d3c6ea5f0044a0886e3ad1975e38c3809c9b36b82201fdd593"
+    },
+    {
+      "file": "docs/BEZIER_EXTREMA_20261122.md",
+      "bytes": 2524,
+      "sha256": "535ccfea61da686e3d4da7a4fb96c39a00a312b79d3b3f058eea8c8ca7e4efbf"
+    },
+    {
+      "file": "docs/BEZIER_LAYOUT_MINIMUM_20261122.md",
+      "bytes": 3243,
+      "sha256": "fd2800a4eb6a01f155ab0b9bbffbb9b98b7c28bcf580c7a2960316a4b9730427"
+    },
+    {
+      "file": "docs/BUSINESS_VALIDATION_CONSOLIDATION_20261119.md",
+      "bytes": 5260,
+      "sha256": "f31160a80b081b12d54942e3ab04c1c937d7564b950f06a7612020dc6dfff021"
+    },
+    {
+      "file": "docs/C27_REPAIR_FEEDBACK_FOLLOWUP_20261120.md",
+      "bytes": 5758,
+      "sha256": "0f3f25d8d2ddcdb25043890d56a8a372a0567c597fb816948f5ff848a45d7a09"
+    },
+    {
+      "file": "docs/C3_C6_C33_REPAIR_20261123.md",
+      "bytes": 4518,
+      "sha256": "500a6e7343b7a2b14300e9beae8fa466df3bb1747be3ac6956c85681ab45459e"
+    },
+    {
+      "file": "docs/CAD_COMPONENT_DIMENSION_SCOPE_07.md",
+      "bytes": 4198,
+      "sha256": "4c90b19ae3f625c4bf6ab5cf3a96b3ce1d778746c1afd43d7c816b04957437c2"
+    },
+    {
+      "file": "docs/CAD_COMPOSITION_COVERAGE_08.md",
+      "bytes": 3933,
+      "sha256": "aeee028b2394b4219756d6178c52b2677bbfc7161ab31b0decfdf2008abcb576"
+    },
+    {
+      "file": "docs/CAD_CURVE_SOURCE_HANDOFF_05.md",
+      "bytes": 3900,
+      "sha256": "ba539fc0b8023faa297610370b56ad887c8b247a2c960553dd15b6ca9063a50a"
+    },
+    {
+      "file": "docs/CAD_ELLIPSE_AXIS_HANDOFF_06.md",
+      "bytes": 3933,
+      "sha256": "8dd666260c3e0c363b1104428a1646a6c5d2a75043cbd50b49c7238687fb82c8"
+    },
+    {
+      "file": "docs/CAD_IMPROVEMENT_01.md",
+      "bytes": 3016,
+      "sha256": "8e0a3f147a65cc094688e6db3f89bc8b13be4dc273f931384c9b74d037a50a16"
+    },
+    {
+      "file": "docs/CAD_MEASURED_SEMANTIC_SOURCE_HANDOFF_11.md",
+      "bytes": 5849,
+      "sha256": "34e7e24b6ba1d04039c99c15abbef2df8acd9dac4c1c1f7d213bb4408d23639b"
+    },
+    {
+      "file": "docs/CAD_PIPELINE_DELIVERY_03.md",
+      "bytes": 4157,
+      "sha256": "54931b436c492541e3d5e45afc24b5b86a8fb0e54fb32d45f91ed14ac3f69773"
+    },
+    {
+      "file": "docs/CAD_PIPELINE_HANDOFF_02.md",
+      "bytes": 2605,
+      "sha256": "e8aa9112a5bb04d50f1ad6a03424e8d8465480e71682a1c08e9f6a65b1772ef8"
+    },
+    {
+      "file": "docs/CAD_POLAR_WAVE_SOURCE_HANDOFF_13.md",
+      "bytes": 6781,
+      "sha256": "244ba5c4aa5348b1da19f2372fc51c18d0cd70ec0b74ea05e7686486ae120386"
+    },
+    {
+      "file": "docs/CAD_PRIMITIVE_LAYOUT_SOURCE_HANDOFF_14.md",
+      "bytes": 5461,
+      "sha256": "02f9a4d1c986bc40dd91d8a5362067bd46c416c8fd49fa2c0d09f18a8e21ad98"
+    },
+    {
+      "file": "docs/CAD_PRIMITIVE_SOURCE_HANDOFF_04.md",
+      "bytes": 3598,
+      "sha256": "cc2614ee399fc656a84218392cc3023b966d50a089dcad404bd0ebf1194c5c24"
+    },
+    {
+      "file": "docs/CAD_RECTANGLE_SOURCE_HANDOFF_09.md",
+      "bytes": 4569,
+      "sha256": "2a535efda599283c0c5fa9e8897f1a2fc6a290f6c7eedd31e7d7f0a78b18bcd6"
+    },
+    {
+      "file": "docs/CAD_REPAIR_ROUTE_EXECUTION_20261120.md",
+      "bytes": 11010,
+      "sha256": "179a01e0f6ab88eef6c6adc812ec8b8905b3a40b754d1013f3598d4a0b03075c"
+    },
+    {
+      "file": "docs/CAD_REPETITION_STROKE_SOURCE_HANDOFF_12.md",
+      "bytes": 5598,
+      "sha256": "ec9373cfbc75517c9b39153a602d6d408525a11eb23faddcccb5e695c3542fe1"
+    },
+    {
+      "file": "docs/CAD_TOOL_CONTRACT_HANDOFF_20261123.md",
+      "bytes": 7210,
+      "sha256": "d20896bc364d2a1ad7c1cae1a7abc684b1eb4859e68e8ca772452b30879f30b0"
+    },
+    {
+      "file": "docs/CAD_VERTEX_ARRAY_BINDING_HANDOFF_10.md",
+      "bytes": 6044,
+      "sha256": "de76a42d356cbcde14b76b1583711f11420cb4b8cb658e9e4a9119cc9a03d7f0"
+    },
+    {
+      "file": "docs/CAPSULE_SOURCE_GENERALIZATION_20261124.md",
+      "bytes": 4122,
+      "sha256": "1233fb4ccd1d8fa0a005c2df2006886d99f8dc130fe2b4e12151c37deaabe678"
+    },
+    {
+      "file": "docs/CHATGPT_REVIEW_HANDOFF_20261125.md",
+      "bytes": 7265,
+      "sha256": "e2e795c9f1d270419938de65de18363d454d001cb592a2d8f59d3fdb9632ec2f"
+    },
+    {
+      "file": "docs/CIRCLE_GROUP_OUTPUT_REPAIR_20261124.md",
+      "bytes": 4246,
+      "sha256": "8868b4f27dd54dfcf84f4ebb78594b7cf94e841c42329dd70ebe91a5ffc9b3e2"
+    },
+    {
+      "file": "docs/CIRCLE_GROUP_REPAIR_PROTOCOL_20261124.md",
+      "bytes": 853,
+      "sha256": "b862d011420de3199903c835807d70ca7d44eb8ed82cc0ddee9323ee9a388ab4"
+    },
+    {
+      "file": "docs/CODE_DUPLICATION_REVIEW_20261125.md",
+      "bytes": 8824,
+      "sha256": "cba3cff3c3f4cdce9dd29e63cdea2c5d1d8feb84ecdac3d2457bdf3fda0d0c53"
+    },
+    {
+      "file": "docs/CODE_MANUAL_REVIEW_PHASE2_20261125.md",
+      "bytes": 9817,
+      "sha256": "f2c23bee4e11957d50c56fa4915b5540d8fef45071803a63346a7b7f0faf64f1"
+    },
+    {
+      "file": "docs/CODE_MANUAL_REVIEW_PHASE3_20261125.md",
+      "bytes": 8821,
+      "sha256": "f7bb248a41213d11630f6a9e988300663b45a4a9af9a3495f70ced39e25bf538"
+    },
+    {
+      "file": "docs/CODE_MANUAL_REVIEW_PHASE4_20261125.md",
+      "bytes": 9830,
+      "sha256": "6d741dd4ddbb41588af6bad2a3e6453a47657aea1daf890988cb546fe8076975"
+    },
+    {
+      "file": "docs/CODE_MANUAL_REVIEW_PHASE5_20261125.md",
+      "bytes": 10129,
+      "sha256": "1003abd2855abf27c9524a0704a5d921627253c55214db0003ac05a012f22995"
+    },
+    {
+      "file": "docs/CODE_MANUAL_REVIEW_PHASE6_20261125.md",
+      "bytes": 9161,
+      "sha256": "26bc402eaff653c2078b72fb409ac7094cfa8e5aaec2e646b7831e18b8a3e930"
+    },
+    {
+      "file": "docs/CODE_MODULE_INDEX_20261125.md",
+      "bytes": 54881,
+      "sha256": "57dcdff92d62f4c4f1a42b8addf748e6235a73753f2b521a2f23ec73c2d89ba9"
+    },
+    {
+      "file": "docs/COMPREHENSIVE_CODE_ASSESSMENT_20261125.md",
+      "bytes": 24112,
+      "sha256": "41644ac6211ea30332c330739c9e9dc237656c1a79bd0101925ca112843bd11f"
+    },
+    {
+      "file": "docs/CONFIRMED_SOURCE_AND_BOUNDARY_REPAIR_20261123.md",
+      "bytes": 7156,
+      "sha256": "16441b4e96f133acd5a93cee0ce36cf0ee8009bbacb5f5b9375b817de4655e26"
+    },
+    {
+      "file": "docs/CURRENT_CODE_DUPLICATION_AUDIT_20261119.md",
+      "bytes": 12023,
+      "sha256": "b7253e153716dfdade1b2668d8ddf852bbe27e0ff4d9b030594dce3f08a90fa8"
+    },
+    {
+      "file": "docs/CURVE_ARRAY_REPAIR_FOLLOWUP_20261121.md",
+      "bytes": 6012,
+      "sha256": "75c6be5ea11842691c1390fb08374d5e2a72923352232c8ad6b4552a9ee3d992"
+    },
+    {
+      "file": "docs/CURVE_EVIDENCE_INVENTORY_20261122.md",
+      "bytes": 3919,
+      "sha256": "376a877eb1ac0382ddf4734826f7024956150cd0dc33bc0296440eeb5eb817a9"
+    },
+    {
+      "file": "docs/DEEPSEEK_70_AFTER_REPAIRS_20261120.md",
+      "bytes": 6739,
+      "sha256": "5f09a6e258216b499d03e5608fe01a93935e170ddf006777600e60cd64f6429b"
+    },
+    {
+      "file": "docs/DEEPSEEK_70_FROZEN_FULL_RETEST_20261123.md",
+      "bytes": 5206,
+      "sha256": "67d202675535f40a5989695be4835cea456330ec966083463557961f75c7d4de"
+    },
+    {
+      "file": "docs/DEEPSEEK_70_FULL_SHADOW_RETEST_20261123.md",
+      "bytes": 6143,
+      "sha256": "66804cdfa1e9e8af843f99be5a31975a736e08612257dc88625b3d2fa56eb72f"
+    },
+    {
+      "file": "docs/DEEPSEEK_70_REAL_RETEST_20261118.md",
+      "bytes": 4266,
+      "sha256": "795de8f097c39282f9e9f93d00fcad653dca361938dcffb6e1165800334301f3"
+    },
+    {
+      "file": "docs/DEEPSEEK_70_REAL_RETEST_20261120.md",
+      "bytes": 7417,
+      "sha256": "39dedabd6786b05197ed6af1a86b636b916b56d96277113a7d1d38b7abd5f909"
+    },
+    {
+      "file": "docs/DUPLICATION_MERGE_FEASIBILITY_20261119.md",
+      "bytes": 8965,
+      "sha256": "98ae70e69356e1aae8ec32c1c8251c4f58c8baab0543471f2704d8a6f850a9a8"
+    },
+    {
+      "file": "docs/EDIT_HOLDOUT_V2_PROTOCOL_20261125.md",
+      "bytes": 1730,
+      "sha256": "cfe17b6243f96ee482b64bec223a6278d84b2a2c8c95ca02a4491671677cc0c1"
+    },
+    {
+      "file": "docs/EDIT_HOLDOUT_V2_RESULT_20261125.md",
+      "bytes": 5183,
+      "sha256": "c50d604d826a02ed1e2050c5467eba596aa3d5096b9001ae5df0efaabc8804d9"
+    },
+    {
+      "file": "docs/EDIT_ROUTING_REPAIR_20261125.md",
+      "bytes": 4372,
+      "sha256": "1e346515df08a9da9d59f46833e1a437a8265c2bba71c3d2409a4eaf758a2a72"
+    },
+    {
+      "file": "docs/EDIT_ROUTING_REPLAY_PROTOCOL_20261125.md",
+      "bytes": 556,
+      "sha256": "e98cd464c9be30191078d883aecbe2ee20c62682cfbe53dac805d0571b4e1d4f"
+    },
+    {
+      "file": "docs/EDIT_TRANSFER_PROTOCOL_20261125.md",
+      "bytes": 1353,
+      "sha256": "fb02444047820f6bc4427d3e010d71935a456d207a6387de603054aa772cea2f"
+    },
+    {
+      "file": "docs/EDIT_TRANSFER_RESULT_20261125.md",
+      "bytes": 5171,
+      "sha256": "2841af415d8155b247776bf82b8621c016d27c849894caa46db3730866baeaee"
+    },
+    {
+      "file": "docs/EXISTING_CAPABILITY_BOUNDARY_AUDIT_20261119.md",
+      "bytes": 9656,
+      "sha256": "8be55df5716da857ac8437a9ea7619e72b80e997af52bffa4daa1598495b51f6"
+    },
+    {
+      "file": "docs/FAILED_SOURCE_RETENTION_20261124.md",
+      "bytes": 4114,
+      "sha256": "c526da70710578aca98f93f172c49f57c4da8bfcf597a9b2ee3dca2202717467"
+    },
+    {
+      "file": "docs/FIRST_THREE_DUPLICATION_MERGES_20261119.md",
+      "bytes": 4570,
+      "sha256": "71714a0039bc7f70fa4871663a1fb235db55446506b3ff865119cacae880b204"
+    },
+    {
+      "file": "docs/FROZEN_RELEASE_AND_HOLDOUT_PROTOCOL_20261124.md",
+      "bytes": 2583,
+      "sha256": "2d927c2f8652dd8a858ed7ca47d1d77ecca8753991dd560c57cbf10682cd4ce6"
+    },
+    {
+      "file": "docs/FROZEN_RELEASE_AND_HOLDOUT_RESULT_20261124.md",
+      "bytes": 11239,
+      "sha256": "19903651ea369fc9a67e67d87e473b261765a4f5019f7686c2410821a1378b5a"
+    },
+    {
+      "file": "docs/FULL_PRODUCTION_CONTRACT_PILOT_PROTOCOL_20261123.md",
+      "bytes": 3717,
+      "sha256": "4b4d2462b70b98c78d929e07ee23357da096f988e41a22c11940bbcbe8cb2bfd"
+    },
+    {
+      "file": "docs/FULL_PRODUCTION_CONTRACT_PILOT_RESULT_20261123.md",
+      "bytes": 77499,
+      "sha256": "5e2f2d821dfcf18851092cb9d59764f904107792175f8c5fbee38a657d82a55d"
+    },
+    {
+      "file": "docs/GENERALIZATION_B_PROTOCOL_20261124.md",
+      "bytes": 1706,
+      "sha256": "c73be24a931c0b8bb90d20c45e7dbc25e08d965253b18d4987a34451d8f31f46"
+    },
+    {
+      "file": "docs/GENERALIZATION_B_RESULT_20261124.md",
+      "bytes": 5889,
+      "sha256": "f48f44ba302eb27ae3862b13de92466adffabcdcd0f709e83f3827f4b0069993"
+    },
+    {
+      "file": "docs/GENERALIZATION_C_PROTOCOL_20261124.md",
+      "bytes": 1482,
+      "sha256": "bf3978094b044d5c7d62e891a82bb4d6181e4a6e0d17ffcb13896e4fa755d086"
+    },
+    {
+      "file": "docs/GENERALIZATION_C_RESULT_20261124.md",
+      "bytes": 6112,
+      "sha256": "e4e523fb624c661a404b731397e0d470c24258a3b4d166ea64d2a2009712e3e7"
+    },
+    {
+      "file": "docs/GENERALIZATION_D_PROTOCOL_20261125.md",
+      "bytes": 1076,
+      "sha256": "0a28855186a2e9f85e9134e3ded29aed044a1b87382619cc9cca9fb407b29d9f"
+    },
+    {
+      "file": "docs/GENERALIZATION_D_RESULT_20261125.md",
+      "bytes": 4858,
+      "sha256": "49485ce18f98a751c3c5f0560e30cef0495e7b0b5693c330d6181e53bd8f504b"
+    },
+    {
+      "file": "docs/GENERALIZATION_HANDOFF_REPAIR_20261124.md",
+      "bytes": 10574,
+      "sha256": "a7f61be57e5634769851ab3b1f2a1e6ee241ecd74e3db7528f5ef4a7064fc57e"
+    },
+    {
+      "file": "docs/HEART_ACCEPTANCE_CANDIDATE_V1_20261122.md",
+      "bytes": 2972,
+      "sha256": "5e36c8976edbfeb2b2c8e19e2e7854afddafaedfc75d947ee0f306ea652ce6e7"
+    },
+    {
+      "file": "docs/HEART_CANDIDATE_STRESS_20261122.md",
+      "bytes": 3219,
+      "sha256": "00890546bd53bc14bbc96077aa5590231ad4ba618cb45f495c7eda840dcd1e35"
+    },
+    {
+      "file": "docs/HEART_CANDIDATE_V2_20261122.md",
+      "bytes": 3351,
+      "sha256": "e9e88353abc19f7102c714c28cfa2efa567bbf940ed00c7d174dc83b83ba681a"
+    },
+    {
+      "file": "docs/HEART_CANDIDATE_V3_20261122.md",
+      "bytes": 3177,
+      "sha256": "361c84f5af14de0f6b19e8cdf5572cdb93f674d4fb415bcbbd13c54d339a4ef5"
+    },
+    {
+      "file": "docs/HEART_CANDIDATE_V4_20261122.md",
+      "bytes": 3166,
+      "sha256": "e67f34142b83c0bce9a7ec7c9f296fd4e34667958003053a225dd86248dd2f4e"
+    },
+    {
+      "file": "docs/HEART_SHADOW_ENTRY_20261122.md",
+      "bytes": 3052,
+      "sha256": "e47c80f87a921987371ebbab0a997264844c888f0d55d72629a1a7e7f669d0b9"
+    },
+    {
+      "file": "docs/INDEPENDENT_ACCEPTANCE_AUDIT_20261123.md",
+      "bytes": 26541,
+      "sha256": "1b721d92f4f5ca3a2e24d068070c3a37085736a83d787e8867a2644eacceaa92"
+    },
+    {
+      "file": "docs/LIVE_HEART_SHADOW_20261122.md",
+      "bytes": 2915,
+      "sha256": "3e3cb4b1349655f09e7413a019e7f87ac00d672d39a9b144183450da36c7ffff"
+    },
+    {
+      "file": "docs/LIVE_HEART_SHADOW_EXPANDED_20261122.md",
+      "bytes": 2974,
+      "sha256": "0d35fff7317fba915920cd433710c18defefdbde2b2a9780f4bdb0afdecf57a2"
+    },
+    {
+      "file": "docs/LOCAL_DEVELOPMENT.md",
+      "bytes": 3018,
+      "sha256": "ea4afc543de37738af7c0537509ee49928d61e8911b0b93ef2449c3a0e2408e7"
+    },
+    {
+      "file": "docs/LOWER_TAPER_SENSITIVITY_20261122.md",
+      "bytes": 3470,
+      "sha256": "d1565c4f4262c5466672d06c413dc295cae4ba327f94502241edf32ec83cce42"
+    },
+    {
+      "file": "docs/MODEL_BOUNDS_AUTHORITY_REPAIR_20261124.md",
+      "bytes": 4693,
+      "sha256": "d9edd9c34ed26cc9ca64d7f7bc3a8e3a0a75d8ed419eb419254bfa511dc214b9"
+    },
+    {
+      "file": "docs/NAMED_PRIMITIVE_EDIT_REPAIR_20261125.md",
+      "bytes": 4665,
+      "sha256": "2ee0da134cf23c29484877c78d7b9cccec967cc6ece5bb3e149215dac324f133"
+    },
+    {
+      "file": "docs/NOTCH_RELATION_V1_20261122.md",
+      "bytes": 2716,
+      "sha256": "de7b939026b27a36a8bf54e7646d01d676c91a89a134583039d9ae1fbaf3ed26"
+    },
+    {
+      "file": "docs/OPEN_PATH_SOURCE_GENERALIZATION_20261124.md",
+      "bytes": 3407,
+      "sha256": "931bf3ecd51fe0ce43338df82eddba2a04584f9d79740c17730a3d75a98530d6"
+    },
+    {
+      "file": "docs/OUTLINE_SOURCE_DELIVERY_REPAIR_20261120.md",
+      "bytes": 6710,
+      "sha256": "68d8e572c116d53c1e9660cf92ed464296a06ce0fb3e6d8a722dafa023764fc7"
+    },
+    {
+      "file": "docs/OUTPUT_INTENT_RECOVERY_REPAIR_20261124.md",
+      "bytes": 5811,
+      "sha256": "ef2b29635abd1e1a7d5a5e84bed3c6f36125107ddd7c5ac8dedcc0e4c126f1ca"
+    },
+    {
+      "file": "docs/PLANNING_UNIT_CONTRACT_20261124.md",
+      "bytes": 2226,
+      "sha256": "3c7c40067a75e5bd9aa66d39ef67d8a98489b934bc39e5339bdd897a88590a2b"
+    },
+    {
+      "file": "docs/PROJECTION_SOURCE_PLANNING_HANDOFF_20261123.md",
+      "bytes": 3539,
+      "sha256": "7efb4c6e0d3d32b0ac6fa1d9299dc26e537ef4c5b82cafc723565247581defe9"
+    },
+    {
+      "file": "docs/RECORDED_HEARTS_COMPATIBILITY_20261122.md",
+      "bytes": 3646,
+      "sha256": "266bad0daf6893d83ad0028cfa2ef8b0be457068ef3ace70f2a45d7281d3b198"
+    },
+    {
+      "file": "docs/REGRESSION_HANDOFF_REPAIR_20261120.md",
+      "bytes": 3978,
+      "sha256": "5807921259a18aad44526f97cadafb0e1652121b8f5598d2169988005e92a75f"
+    },
+    {
+      "file": "docs/RELATION_PLANNING_PILOT_PROTOCOL_20261123.md",
+      "bytes": 4781,
+      "sha256": "ba08561b8eac6958491da073d7ae67bd0584e15ec53220f592580d0ae4f955ff"
+    },
+    {
+      "file": "docs/RELATION_PLANNING_PILOT_RESULT_20261123.md",
+      "bytes": 7642,
+      "sha256": "23d52d9c8e6701e010757a8104dd9ed107ce60b53bd89a66b9c8355090a49086"
+    },
+    {
+      "file": "docs/REPAIR_REFERENCE_AND_TANGENCY_HANDOFF_20261124.md",
+      "bytes": 4685,
+      "sha256": "ded896ed6f3b4880fd40ad962367e2d6e1057c35cc3e1268ef574428417fbfd5"
+    },
+    {
+      "file": "docs/REPAIR_REPRESENTATION_SCOPE_20261124.md",
+      "bytes": 4842,
+      "sha256": "f60c6bd335daa46125f2829be7ec6b9abfe768194c0b7169bf6d2b99bf084ce1"
+    },
+    {
+      "file": "docs/ROOT_CAUSE_FIXES_20261118.md",
+      "bytes": 6477,
+      "sha256": "f59392da26ff3fc589c377fe54678aabedf53923a8a56060504d243b625e106f"
+    },
+    {
+      "file": "docs/ROOT_CAUSE_FIXES_20261119.md",
+      "bytes": 2466,
+      "sha256": "0368de7756451e6f15133572aab5e7f484ce630b0ce1e3be6633713375b07565"
+    },
+    {
+      "file": "docs/ROOT_CAUSE_FIXES_20261119_CONTINUED.md",
+      "bytes": 2885,
+      "sha256": "5a150b8be97f8629bae1e709872216abb0493aea75c74137e245d3235be51aba"
+    },
+    {
+      "file": "docs/ROOT_CAUSE_FIXES_20261119_FAILURE_FEEDBACK.md",
+      "bytes": 1744,
+      "sha256": "43c9e7582d84d0ace4a79f6628a48e1ad356cee84777fe82c2ed7ccafb62fe29"
+    },
+    {
+      "file": "docs/ROOT_CAUSE_FIXES_20261119_SHARED_POINTS.md",
+      "bytes": 2414,
+      "sha256": "accafdb3c24c596c8f6d6b7b4e67e91212d1bad313bc1e5967ef957a3fb267fc"
+    },
+    {
+      "file": "docs/ROTATIONAL_SEGMENT_REPAIR_HANDOFF_20261123.md",
+      "bytes": 3553,
+      "sha256": "9ca081cc7678e7a21af9931a4c998f7cd682e5f7f4ddbe19664e2db157c12d4a"
+    },
+    {
+      "file": "docs/SHARED_PATH_SOURCE_REPAIR_20261124.md",
+      "bytes": 5449,
+      "sha256": "2a84ac956513abdba0ce9fa408bc9ea04fec6cc7af7ed570495818b0b14ad625"
+    },
+    {
+      "file": "docs/SOURCE_DELIVERY_LIVE_RETEST_PROTOCOL_20261124.md",
+      "bytes": 1717,
+      "sha256": "c1e3d8d24d3855bd9ba0f489d3c17875df3138fc41f681d3829d82aa00965970"
+    },
+    {
+      "file": "docs/SOURCE_DELIVERY_LIVE_RETEST_RESULT_20261124.md",
+      "bytes": 41884,
+      "sha256": "1734776706c68b50a74eb7e444abee87bf4cbdfaeb75cc6d4de7078b931ce919"
+    },
+    {
+      "file": "docs/SOURCE_DELIVERY_PRECISION_20261124.md",
+      "bytes": 4006,
+      "sha256": "002fceee5b67d8d71e404aff37962360be5ed103619f13fcc389e4348409afb2"
+    },
+    {
+      "file": "docs/STRUCTURE_DIAGNOSTIC_BOUNDED_REPAIR_20261123.md",
+      "bytes": 3642,
+      "sha256": "3d545c729c10bc402a98f64c29e920fa763cde2304022506ea4a9fb5de2c436a"
+    },
+    {
+      "file": "docs/TANGENT_ENDPOINT_SOLVER_20261124.md",
+      "bytes": 2595,
+      "sha256": "d520458c1c7a0b40dca1fd33bd6d0643b1a64f3c63e2ea46d20a4824c745b9c3"
+    },
+    {
+      "file": "docs/TRANSFER_HOLDOUT_PROTOCOL_20261124.md",
+      "bytes": 2122,
+      "sha256": "7118c778b2bf8e7083dc112ebd413b674b2661ffc2927abb2a3cc9fe311b1f50"
+    },
+    {
+      "file": "docs/TRANSFER_HOLDOUT_RESULT_20261124.md",
+      "bytes": 5887,
+      "sha256": "af6dc5cebe69d762c2ee14849c8a1f865dc739bbc2f6977308805e841f62af7e"
+    },
+    {
+      "file": "docs/TRIG_EXTREMA_20261122.md",
+      "bytes": 2886,
+      "sha256": "baef5172802a63f78e7861a67970fc91486301b8407d09cccb071aef9f6f6d39"
+    },
+    {
+      "file": "docs/UNIT_AND_TANGENCY_LIVE_CHECK_20261124.md",
+      "bytes": 3654,
+      "sha256": "2d112a5a400ba88abf2389d35f09b979c19d448af4c437b073f9d970aaadc7cd"
+    },
+    {
+      "file": "docs/VERTEX_PATH_LANGUAGE_REPAIR_20261124.md",
+      "bytes": 5323,
+      "sha256": "f8d8d4c8cb2a0df78188af79d9e61d5fdf3f3a44b80639a127f40da4e02a3eb9"
+    },
+    {
+      "file": "docs/VERTEX_PATH_REPAIR_PROTOCOL_20261124.md",
+      "bytes": 896,
+      "sha256": "b6ebff53557dd856da1a1a02c8cc306e5f6e3ca03a684e273f23403a25b1191a"
+    },
+    {
+      "file": "docs/audit-20261125/additional-probes.json",
+      "bytes": 30228,
+      "sha256": "27a721974dea38830e72bd8d6b1e08985f33a181a11dcb1fad05458c08cae86f"
+    },
+    {
+      "file": "docs/audit-20261125/contract-vocabularies.json",
+      "bytes": 6108,
+      "sha256": "4a8bbdd31e1e69e46f59eeea75baa6b34a2aa8be5d4facfc612659ff20cf3468"
+    },
+    {
+      "file": "docs/audit-20261125/diagnostics.json",
+      "bytes": 391,
+      "sha256": "4c989b049206851c0faaa733f47eeabfe7c3e865c2bf67b135081499b58b4e6c"
+    },
+    {
+      "file": "docs/audit-20261125/edit-grounding-differential.json",
+      "bytes": 2062,
+      "sha256": "8ae4eb5a17c805a2eb880a26b7847cc70b54bf838bed381ae751209c71e4aa39"
+    },
+    {
+      "file": "docs/audit-20261125/edit-grounding-through-preflight.json",
+      "bytes": 4825,
+      "sha256": "8382f1eef94dc2b228ba0ceec25bd465dd878a2f2ecb1e559e1f3f7cb7228940"
+    },
+    {
+      "file": "docs/audit-20261125/exact-body-duplicates.json",
+      "bytes": 2643,
+      "sha256": "c02ac9c6bfecdbea1ee85be6684758ff5180ff331d1aaf2c2ddfa9f41815b024"
+    },
+    {
+      "file": "docs/audit-20261125/full-test-failures.json",
+      "bytes": 92734,
+      "sha256": "d82b57043ff0ad58ca46ea4c62836056920ca400e764aba799de5ae764cc1ee3"
+    },
+    {
+      "file": "docs/audit-20261125/inventory.json",
+      "bytes": 2146650,
+      "sha256": "0337be5be509a920ceb6b06e549710f175fe1c904a94f6bc1a928719f900a7a4"
+    },
+    {
+      "file": "docs/audit-20261125/manual-reading-log-phase3.json",
+      "bytes": 1571,
+      "sha256": "c66eadf7d66867a64f8d42722910fc5820bdde4c7ba88bcc3c765b5a2daef33f"
+    },
+    {
+      "file": "docs/audit-20261125/manual-reading-log-phase4.json",
+      "bytes": 4367,
+      "sha256": "2c29cf80a134919934d5c2f395378dcbe39d128363acd8e610759784d196c817"
+    },
+    {
+      "file": "docs/audit-20261125/manual-reading-log-phase5.json",
+      "bytes": 3724,
+      "sha256": "b01d3b643c4807881f10a961275282020dde1d3f2e40824759a6aa8f822464f0"
+    },
+    {
+      "file": "docs/audit-20261125/manual-reading-log-phase6.json",
+      "bytes": 3864,
+      "sha256": "a0dcb994a9cfcd60ed9b05fa72c4f2cd45b0d27430434cd50ea0d776b22bf4c9"
+    },
+    {
+      "file": "docs/audit-20261125/manual-reading-log.json",
+      "bytes": 3365,
+      "sha256": "dc0065295b6ffcd38899c99542a73429f5418dca2457525a56d67a35281ede09"
+    },
+    {
+      "file": "docs/audit-20261125/phase2-navigation-probe.json",
+      "bytes": 2072,
+      "sha256": "3d9234fb5d68d53a176866d9edc5c35656340aab354e21c143d10b364e9fad65"
+    },
+    {
+      "file": "docs/audit-20261125/phase2-probes.json",
+      "bytes": 8057,
+      "sha256": "55c7bf49ebe1280ecc7f385a17caf94b3b4606e5162fa4cec2b440ce22bc938f"
+    },
+    {
+      "file": "docs/audit-20261125/phase2_navigation_probe.py",
+      "bytes": 3574,
+      "sha256": "6fd71b1b5c1b9e1edd1106e04e16e38da02ef5a03e455d2269fda17854dabc70"
+    },
+    {
+      "file": "docs/audit-20261125/phase2_probes.py",
+      "bytes": 4902,
+      "sha256": "bd595b0019398d971d6e4920f6d864e07a1b2cc924fdefd1fb9af8620a7093f0"
+    },
+    {
+      "file": "docs/audit-20261125/phase3-integrity.json",
+      "bytes": 248,
+      "sha256": "8ea63d9519c3167edd181c5d5ef10783347983b4660ec4c383474fe27616182a"
+    },
+    {
+      "file": "docs/audit-20261125/phase3-probes.json",
+      "bytes": 7608,
+      "sha256": "534fe994379609f243cecf975a35753c56db7efb5440db4cd3f2c010d94cee4e"
+    },
+    {
+      "file": "docs/audit-20261125/phase3_inventory.py",
+      "bytes": 2540,
+      "sha256": "cddabc2729578ce944a2295242fbbd96f9d61f8109338d40466f9e4010ea6f11"
+    },
+    {
+      "file": "docs/audit-20261125/phase3_probes.py",
+      "bytes": 5603,
+      "sha256": "337c1280ae8a9d1e10be39407bff0a3e41cf0981c75d91f5df56e69a37097cc9"
+    },
+    {
+      "file": "docs/audit-20261125/phase4-integrity.json",
+      "bytes": 219,
+      "sha256": "60cb84aea5f382487db8d6998b19505786257ff27740f0b67e41bae47051f626"
+    },
+    {
+      "file": "docs/audit-20261125/phase4-probes.json",
+      "bytes": 26870,
+      "sha256": "3dfd8999bd3a1b725c31b049ad3518b5df86394d524e792b145c3f773db10c78"
+    },
+    {
+      "file": "docs/audit-20261125/phase4_inventory.py",
+      "bytes": 3062,
+      "sha256": "c50b7c5160e1fbca06f2d8ded4de19eabe3daab6056af64fd3c1e655734c1c1e"
+    },
+    {
+      "file": "docs/audit-20261125/phase4_probes.py",
+      "bytes": 4033,
+      "sha256": "e3a6f516b41dce2ccf86563b1362706493464449ebde9754c49fe6333ebecf7a"
+    },
+    {
+      "file": "docs/audit-20261125/phase5-integrity.json",
+      "bytes": 233,
+      "sha256": "5f7fad7b670b80f57ddff710cb4773c290d49b521ca6ff907ef22fa25c6af526"
+    },
+    {
+      "file": "docs/audit-20261125/phase5-probes.json",
+      "bytes": 28267,
+      "sha256": "fbb4dc0e9c4ce004988cd069970b038c122c74c65ec34a2e84a62934373241ed"
+    },
+    {
+      "file": "docs/audit-20261125/phase5_inventory.py",
+      "bytes": 2793,
+      "sha256": "4cb70d267a742a550acae2d9398bd57a6bef44992355cdfc496a3a7199fcf1b1"
+    },
+    {
+      "file": "docs/audit-20261125/phase5_probes.py",
+      "bytes": 6924,
+      "sha256": "a5bc5b038c2cd290bd5ff670abea35897acdda506e13f61a717f2f027cba89d6"
+    },
+    {
+      "file": "docs/audit-20261125/phase6-integrity.json",
+      "bytes": 240,
+      "sha256": "af57db1b5aad87fd4971a8d48e3f6d09508bf15247cbbd549dacb82dbb90a9bc"
+    },
+    {
+      "file": "docs/audit-20261125/phase6-probes.json",
+      "bytes": 1996,
+      "sha256": "676c2f80a020e1a27c58569a6d0cfff20c75ecef0a76bf586f6597cb7ac8c44d"
+    },
+    {
+      "file": "docs/audit-20261125/phase6_inventory.py",
+      "bytes": 3878,
+      "sha256": "110c0965f9865e88ee6b941872d432037546c02a016dfc3b9ba888f6db25f313"
+    },
+    {
+      "file": "docs/audit-20261125/phase6_probes.py",
+      "bytes": 6609,
+      "sha256": "0837a4c3a9c89ce5dcf0d2df4b69b306bf250be7665bcfda3197724de603c56b"
+    },
+    {
+      "file": "docs/audit-20261125/review-status.json",
+      "bytes": 2506,
+      "sha256": "5428962484b458f1358d1706063527db403b3f43fd86a773043df47d78c1e841"
+    },
+    {
+      "file": "docs/audit-20261125/review_probes.py",
+      "bytes": 4962,
+      "sha256": "9632525856366965eb8eb619c9532a0578a5fde609af64a03a66ad66bdef3062"
+    },
+    {
+      "file": "docs/audit-20261125/root-entrypoints.json",
+      "bytes": 4824,
+      "sha256": "b7a336cbb1793bfceb2c33ffd84d6709507d00cf7632a815b75e0eafca31639f"
+    },
+    {
+      "file": "docs/audit-20261125/stream-context-probe.json",
+      "bytes": 659,
+      "sha256": "7c675169b6fcba446d3652f001d23c41c176d9bc3786b4913cbc075ec4ec08ff"
+    },
+    {
+      "file": "docs/audit-20261125/stream_context_probe.py",
+      "bytes": 4025,
+      "sha256": "d9b3e4e355b276cee8e212e46937316784fd0844ec9b623a1bc71e5ed8834156"
+    },
+    {
+      "file": "docs/audit-20261125/unresolved-global-references.json",
+      "bytes": 305,
+      "sha256": "3848c10f5ad608cece285c63f97ddf09d889c1d865c7609dc2a3e51b55d993d1"
+    },
+    {
+      "file": "evaluations/C2_HTTP复制来源证据修复20261106.md",
+      "bytes": 6863,
+      "sha256": "eb185a8d99abf58400c94acdc9d23d4d90455686aff82d37f624a46639bef870"
+    },
+    {
+      "file": "evaluations/CAD产品前三项验收.md",
+      "bytes": 4372,
+      "sha256": "9e6253861b9cf6bfa40fa4080ac7fc0834f492e525119fb917931ece746165f4"
+    },
+    {
+      "file": "evaluations/CAD历史重放与P1.1改造计划.md",
+      "bytes": 7895,
+      "sha256": "1f337de58846f843c0c096b031e5bfcfb3360a73efc13499827a48d9a1337c93"
+    },
+    {
+      "file": "evaluations/CAD通用生成评测说明.md",
+      "bytes": 2879,
+      "sha256": "9ffbed08c941625a763e2aa3f4799fad9507e80d6ce31e8b05dfde36324c2457"
+    },
+    {
+      "file": "evaluations/DeepSeekFlash_T1-T5真实生产验证20261106.md",
+      "bytes": 2145,
+      "sha256": "9a0afd0749fd7608948cc8b7c57719f147a357674a0be641b4fd134537cba11c"
+    },
+    {
+      "file": "evaluations/DeepSeekFlash_T1真实生产验证20261106.md",
+      "bytes": 1781,
+      "sha256": "c02bf9573cc7875f97f0774c3d3651f6734088078938285797fd057b0cb0c4ec"
+    },
+    {
+      "file": "evaluations/DeepSeekFlash受控验证20261106.md",
+      "bytes": 4285,
+      "sha256": "f838f06ba6c8833b749913ddbd1cd2d0ca6e310fa5a23f489d626f480f93d592"
+    },
+    {
+      "file": "evaluations/Flash测试工具零费用预检20261106.md",
+      "bytes": 3577,
+      "sha256": "d3e1a791558cf2b1b57948ad5c7a0ff698c55b11a84759d1e3d054d85b4b99b6"
+    },
+    {
+      "file": "evaluations/P1.1-C2单圆复制身份闭环.md",
+      "bytes": 6108,
+      "sha256": "b43b76d1713a7bd0732fa387b1edafc41cb7cebc9b255b0a86b3c6e01f54ec53"
+    },
+    {
+      "file": "evaluations/P1.1本轮实现与验证.md",
+      "bytes": 4702,
+      "sha256": "5a3d7a8257da7a1c75aa802a8ffd90cdacb9fc001528e9cad67fa0bf05a09ebd"
+    },
+    {
+      "file": "evaluations/P1.2 DeepSeek CAD模型能力评测准备报告20261106.md",
+      "bytes": 7797,
+      "sha256": "542e1cfd28c198301af4d582a05973b7645b1fc0069abd3537ca25f7f8998c8c"
+    },
+    {
+      "file": "evaluations/P1.2 DeepSeek Flash评测中止报告20261106.md",
+      "bytes": 3462,
+      "sha256": "c99446ca7d969ef853ebff496b6fcfd8a1287c74e75ac156d3ebfb9d6cf370f2"
+    },
+    {
+      "file": "evaluations/P1.2 预算守卫修复与重测准入报告20261107.md",
+      "bytes": 3564,
+      "sha256": "90990e2b2cf0c1e8a355fdb5500374908dc039e30a72f353806ab0807c890915"
+    },
+    {
+      "file": "evaluations/P1.2-E A9-B1准入检查报告20261107.md",
+      "bytes": 1584,
+      "sha256": "cd65803af2a8f83564d4d68b25ccf2c5a955f640ddccc3f0eb295fa4d097bde5"
+    },
+    {
+      "file": "evaluations/P1.2-E A9-B1真实重测结果报告20261107.md",
+      "bytes": 2610,
+      "sha256": "4de4dfc5186b40878ab13d1ed2993df4538471ebbf3cd6729ae42b43896228e5"
+    },
+    {
+      "file": "evaluations/P1.2-E阶段一中止报告20261107.md",
+      "bytes": 1973,
+      "sha256": "b02f09903567577016247d902aee5f90820913d0675c3cc56142f90e551b831d"
+    },
+    {
+      "file": "evaluations/P1.2-E零费用日志隔离修复报告20261107.md",
+      "bytes": 2381,
+      "sha256": "d4a83012c0f5e166a3e7887a5d0f69091e8ebb0a17011e19cf0ddbd11a75952a"
+    },
+    {
+      "file": "evaluations/P1.3-A9失败根因诊断报告20261107.md",
+      "bytes": 5201,
+      "sha256": "0fee10e4a57383348dc8f4ad5d8d934af21ba4bac72b9cff95ffb26b61909358"
+    },
+    {
+      "file": "evaluations/P1.3-A9提交一致性与爱心语义诊断报告20261107.md",
+      "bytes": 3005,
+      "sha256": "7519fae83af6b635610a62527816742a60ae52b07781722f678ab2ff11e0e830"
+    },
+    {
+      "file": "evaluations/P1.3-B通用曲线平滑性验收完善报告20261107.md",
+      "bytes": 3108,
+      "sha256": "256663c700c5682139c7629d3fca5e19fb0b2d02a5dcf060bc3b33d47319bfe3"
+    },
+    {
+      "file": "evaluations/P1.3-CAD几何生成质量优化报告20261107.md",
+      "bytes": 3225,
+      "sha256": "c2517cdd7d3237965f97f5f9802c23806c816ce5c0d722c5b9a44bc56d37a348"
+    },
+    {
+      "file": "evaluations/P1.3-D CAD平滑约束规划优化报告20261107.md",
+      "bytes": 2747,
+      "sha256": "d8c5f57466ebb2142acde8f04065a3078d427fe52de51b8d9c590e44fb0c1225"
+    },
+    {
+      "file": "evaluations/P1.3-E A9-S1真实DeepSeek几何规划能力评测报告20261107.md",
+      "bytes": 1991,
+      "sha256": "aeffbc44f98e59860eb28f845561a56a473e9df813a1ff261f7810b9d6020426"
+    },
+    {
+      "file": "evaluations/P1.3-E DeepSeek双案例几何规划评测准备报告20261107.md",
+      "bytes": 3015,
+      "sha256": "ba0a28d95c46cd413fffdbb97ccbf7827100e133315a7d96ee335c1683ce2136"
+    },
+    {
+      "file": "evaluations/P1.3-E-R2 A9-S1真实DeepSeek几何规划能力评测报告20261107.md",
+      "bytes": 2673,
+      "sha256": "43c4e2e900477195ac2c906bf3d235b4fac8df3ea1d8afac858c554c692397b7"
+    },
+    {
+      "file": "evaluations/P1.3-E-R评测预算绕过最小修复报告20261107.md",
+      "bytes": 1848,
+      "sha256": "7835aedb22f1c9ff760cb0921b3cb1f18bf1f034db3eec50e4ee939a471554b4"
+    },
+    {
+      "file": "evaluations/P1.3-F局部连续性约束Schema与调用链调查报告20261107.md",
+      "bytes": 4370,
+      "sha256": "a82c313381c7814e78796ff0f43f0b4140ee3bea84fa33cab802b9bde5aea887"
+    },
+    {
+      "file": "evaluations/P1.3-G Bezier连接点失败证据增强报告20261107.md",
+      "bytes": 2429,
+      "sha256": "1099f8806b6b9d8f4c7744dd5944a195521c35cd81921878fb1d895298b16cbb"
+    },
+    {
+      "file": "evaluations/P1.3-H1局部连接意图Schema设计与兼容方案20261107.md",
+      "bytes": 5702,
+      "sha256": "7646e17c7faf1b23f80fd5a2e6eaf1e33e28af7afd3c25c51d6776d834767925"
+    },
+    {
+      "file": "evaluations/P1.3-H2 Schema与局部连接约束解析实施报告20261107.md",
+      "bytes": 1473,
+      "sha256": "94fd033a63d95b7300be9602a4d328705a0d63e5e5260301b8f5989e9ee06cef"
+    },
+    {
+      "file": "evaluations/P1.3-H3-R0真实HTTP会话来源上下文只读审计报告20261107.md",
+      "bytes": 3319,
+      "sha256": "163aa7677e150a196a98b2bc6f3cfc1083919b83c8e2075b4dde4318bd6c0b89"
+    },
+    {
+      "file": "evaluations/P1.3-H3-R3 A9第一轮验收证据缺口诊断20261107.md",
+      "bytes": 2381,
+      "sha256": "3022fb74a6c393bc8a862fa5292868a80b05ac883b65b3f48806434ea1ccd55c"
+    },
+    {
+      "file": "evaluations/P1.3-H3-R3 CAD候选生命周期与最小接入点只读审计20261107.md",
+      "bytes": 3215,
+      "sha256": "4c4be84eeca53ae4968f2e63d2ce036ca4fe43e1b7ef40f94d87402db533b467"
+    },
+    {
+      "file": "evaluations/P1.3-H3.1-H3.2需求来源索引与局部意图可信校验报告20261107.md",
+      "bytes": 1431,
+      "sha256": "0f3acaa82e8297df4eb8cba4cf020025df7fc219e9b97ca3be309ab63cb31a72"
+    },
+    {
+      "file": "evaluations/P1.3-H3.3-H3.4多轮来源隔离与规划传递实施报告20261107.md",
+      "bytes": 1772,
+      "sha256": "d45c86ebe1bfe99930c10f07e36eb416ba474ce8307d46cb52c87d8665119e86"
+    },
+    {
+      "file": "evaluations/P1.3-H4局部连接意图几何验收实施报告20261107.md",
+      "bytes": 1515,
+      "sha256": "4a06fffd5ed8f49dbda1c021b6fdb7660d4666104a17a302af8582c25fd91cef"
+    },
+    {
+      "file": "evaluations/P1.4 A9-S1-M1真实DeepSeek评测零费用准入报告20261107.md",
+      "bytes": 1557,
+      "sha256": "34ad4fcee4cf931f16033b6c40e3b83d9734d1d0b415cf12410afebb90f3efb7"
+    },
+    {
+      "file": "evaluations/P1.4 A9-S1真实DeepSeek评测报告20261107.md",
+      "bytes": 2218,
+      "sha256": "1d21864e13df2f199a5d43e8e212fe5fcec63d9320bb05910fbf2e1b3fed6c43"
+    },
+    {
+      "file": "evaluations/P1.4-A9控制点级自相交与junction_constraints缺失链路诊断报告.md",
+      "bytes": 3475,
+      "sha256": "fad431d860f204c91c1951146bf06a4519316045ad7d5bece98402c1a86f5b9c"
+    },
+    {
+      "file": "evaluations/P1.4-A9自相交根因诊断报告.md",
+      "bytes": 941,
+      "sha256": "4ab8e44968c4246a4a3fe3d580897408a6b613dfdc908894115e6d8507ffe6cf"
+    },
+    {
+      "file": "evaluations/P1.4-A9自相交零费用几何重放报告.md",
+      "bytes": 2051,
+      "sha256": "e76ab6cfc441ee04fd0a73a23d6f1f742e5d330ccb4c1879a61b4fb4414b9bd3"
+    },
+    {
+      "file": "evaluations/P1.4-S1确定性路由覆盖修复与Mock验证报告.md",
+      "bytes": 1144,
+      "sha256": "1aeda7c0d10c466c865ca971946970f367b53f0edf11feb72b5d1c33cb0e6dfa"
+    },
+    {
+      "file": "evaluations/S1需求证据闭环与A9离线归因报告20261107.md",
+      "bytes": 2270,
+      "sha256": "79cd03ff1ab519c8d2b1e3d3b8e188f8850a8dd6a1c801ab9a18c006e4e393a5"
+    },
+    {
+      "file": "evaluations/analyze_relation_pilot_failures.py",
+      "bytes": 4620,
+      "sha256": "e1d47f7fe9995dbcbdee42545fa0999f472f6ad640bc7bf83dd108997b5b1c4e"
+    },
+    {
+      "file": "evaluations/assess_merge_feasibility.py",
+      "bytes": 9534,
+      "sha256": "a520cab5e7bffc33439f937c23b80b4bb23544097ea4b7d092dd485d2d72aff9"
+    },
+    {
+      "file": "evaluations/audit_current_duplication.py",
+      "bytes": 7160,
+      "sha256": "61e093fb64a26e0f6aa4bab44d0654b5803a457ca2f0f06e860a8affaaac7736"
+    },
+    {
+      "file": "evaluations/audit_existing_capabilities.py",
+      "bytes": 13638,
+      "sha256": "419ce344d1a321a04bceb5f355c3c4c09b0b0a34956c543d1f38c4b5538a6e30"
+    },
+    {
+      "file": "evaluations/audit_frozen_release.py",
+      "bytes": 6546,
+      "sha256": "321902d42370420fc0a62a839729c1529227e08630accd9ee770ed01f803b11c"
+    },
+    {
+      "file": "evaluations/audit_heart_notch.py",
+      "bytes": 3466,
+      "sha256": "b32a1777689f78577a026021adfb0e9e83c7bedfc23c5e2cef1312af9087679c"
+    },
+    {
+      "file": "evaluations/audit_heart_remaining_checks.py",
+      "bytes": 3273,
+      "sha256": "be5f954ec68e3d275a83dde70854327834f6dc27dde70ae2c4c586f08ae954ca"
+    },
+    {
+      "file": "evaluations/audit_stale_assertion_live.py",
+      "bytes": 3051,
+      "sha256": "949037778621f8d940a7737baa4889f680d316172fe12ecbb4ed96fede2c3029"
+    },
+    {
+      "file": "evaluations/audit_transfer_holdout.py",
+      "bytes": 3560,
+      "sha256": "d6100f75d249cb2b9be49f16ccacd844efd3c773af5de9c742405e9650cbcdb9"
+    },
+    {
+      "file": "evaluations/bezier_extrema_v1.py",
+      "bytes": 2690,
+      "sha256": "6d94e34d912e9373f7c602b5383ed0998eccd7c6aaf82633593514ec9815d118"
+    },
+    {
+      "file": "evaluations/bezier_layout_minimum_v1.py",
+      "bytes": 3170,
+      "sha256": "61ab8471a2f2a0cdb8c16527b6835a539e822dbaf728d42cab1634c7d39fb867"
+    },
+    {
+      "file": "evaluations/business_oracles_v2.py",
+      "bytes": 6822,
+      "sha256": "cf80e0fee2793c37dc4c43638f8d01a1110c285b3707bebdeacfb4abfa070900"
+    },
+    {
+      "file": "evaluations/cad_construction_chinese_commands.json",
+      "bytes": 2179,
+      "sha256": "69cf137693a22047cd182f8eeff364920f2c18a03d9faa4590fc0e383467fa69"
+    },
+    {
+      "file": "evaluations/cad_construction_model_benchmark.json",
+      "bytes": 2871,
+      "sha256": "46a9b00dbba14997fa808b62a55d4c7a61d8d3b9dc05887590fd9b30048cc76d"
+    },
+    {
+      "file": "evaluations/cad_construction_model_benchmark_extended.json",
+      "bytes": 28070,
+      "sha256": "f8255040fc670254dd3be69dcaef009bdb81992a2b25fd8e677655a26eec18ba"
+    },
+    {
+      "file": "evaluations/cad_copy_deepseek_preflight_20261106.json",
+      "bytes": 2427,
+      "sha256": "af2e6561dff2e89a44bd15407082722794562f9c698d6d506935aceba99cf22f"
+    },
+    {
+      "file": "evaluations/cad_copy_deepseek_validation_plan.json",
+      "bytes": 4049,
+      "sha256": "9a10cfb44df7c2008a9ff579ce56b9ff6d11cac8138b1f16536a4f8e13ec31b2"
+    },
+    {
+      "file": "evaluations/cad_edit_chinese_commands.json",
+      "bytes": 29348,
+      "sha256": "2c5967551339bc8b59b92858873e074575644bbee480848b77ecb40f52e6d61b"
+    },
+    {
+      "file": "evaluations/cad_product_acceptance_v1.json",
+      "bytes": 3837,
+      "sha256": "832c2b8adfe2d2c9c74659a574ad6502c372d53496706bd4da148f71cdc450d4"
+    },
+    {
+      "file": "evaluations/closed_boundary_oracle_v3.py",
+      "bytes": 4162,
+      "sha256": "bc3b3759e4aeb1b6945e98a1d305dbdda075cb4eb8ba1e1cc17f772af33235b7"
+    },
+    {
+      "file": "evaluations/curve_evidence_inventory.py",
+      "bytes": 2649,
+      "sha256": "5c23932053f56ff186c6ab7bdfd78d059d474fe20c3e1d52137cf74d7fed0fdf"
+    },
+    {
+      "file": "evaluations/deepseek_cad_construction_diagnostics.json",
+      "bytes": 5970,
+      "sha256": "6a90fb36d2a072db3e69724be27806d0d3500ab22ce5000b1a12e0accb8fbafb"
+    },
+    {
+      "file": "evaluations/deepseek_centered_rectangle_probe.json",
+      "bytes": 752,
+      "sha256": "b930ab6960eaecd8608de637026e0b51fad1ded1f4b1023171828e484691bbc6"
+    },
+    {
+      "file": "evaluations/deepseek_remaining_normalization_probe.json",
+      "bytes": 1365,
+      "sha256": "a270d48362846e6de0643dbef012d1b06dc147b059a749ac57cf73aabff3ca8a"
+    },
+    {
+      "file": "evaluations/deepseek_rooms_probe.json",
+      "bytes": 741,
+      "sha256": "fb3ecd4f188dc5c0ab382dd0b4402a7ae6b4c88625489b94ec8604838914d615"
+    },
+    {
+      "file": "evaluations/diagnose_generalization_c.py",
+      "bytes": 2037,
+      "sha256": "105edbbda13d97192a5c3f74cfaff41c4ef15a265ba3749add08f3839f32b416"
+    },
+    {
+      "file": "evaluations/diagnose_production_contract_pilot.py",
+      "bytes": 5704,
+      "sha256": "b6a13ae59515ecd5c36eb387bf01724c0169c624d23834a4b95df563379fe727"
+    },
+    {
+      "file": "evaluations/diagnose_repair_retest.py",
+      "bytes": 1948,
+      "sha256": "15801be793b5baf463cde3f6f4da8e4d595ad5958dbc88b7f42a70f8d48a08a3"
+    },
+    {
+      "file": "evaluations/edit_acceptance_v2.py",
+      "bytes": 904,
+      "sha256": "8984a0b2e1300e94433a6b74d22401333e1ab169b3fc34459b2591988e5da771"
+    },
+    {
+      "file": "evaluations/edit_transfer_holdout.py",
+      "bytes": 8579,
+      "sha256": "530fae23474bb5384c2821b48841a5528b8ad32614e6538aa7ff010fb3d8de09"
+    },
+    {
+      "file": "evaluations/edit_transfer_holdout_v2.py",
+      "bytes": 8788,
+      "sha256": "bee43f088caca6525864251288f4072a8f64405f0af31fec7cb8efdc0f15df0b"
+    },
+    {
+      "file": "evaluations/execution_layout_trace_v1.py",
+      "bytes": 2040,
+      "sha256": "2fab937b36a0c6d179b8b4cf7be87932aa76a470ea94846a1c35a1a759d91fff"
+    },
+    {
+      "file": "evaluations/fixtures/huanong_skeleton.dxf",
+      "bytes": 17626,
+      "sha256": "5c43d3fbe71d2059403384f3dab81fc68c194e74b0fa9e38ac0adcda0a63cdbb"
+    },
+    {
+      "file": "evaluations/fixtures/test_pattern.dxf",
+      "bytes": 15547,
+      "sha256": "cf3002e132b2cf9c1b328d1cb328b9b307ccacbb6bb46eb11087ee6ad857fe22"
+    },
+    {
+      "file": "evaluations/frozen_release_validation.py",
+      "bytes": 8968,
+      "sha256": "61c209dbdbe93eef01e11e63aa1195a7668b13672cedb4c9a828a83cdae396e0"
+    },
+    {
+      "file": "evaluations/generalization_holdout_b.py",
+      "bytes": 4885,
+      "sha256": "4ea123f5c0247b1113e96f6bd9026f596aa5ec3d07a9cd4cf35edd08e8252c56"
+    },
+    {
+      "file": "evaluations/generalization_holdout_c.py",
+      "bytes": 5450,
+      "sha256": "31148bae9ea019bd7d284294c90b7e9a8fef238c3d01beca6f9a209c9e15b01a"
+    },
+    {
+      "file": "evaluations/generalization_holdout_d.py",
+      "bytes": 3649,
+      "sha256": "d0cd97ba4b643e0116fff6e09bcd781a6207b98ce22143cae5424bd190fac805"
+    },
+    {
+      "file": "evaluations/heart_acceptance_candidate_v1.py",
+      "bytes": 3859,
+      "sha256": "cd9581d6c66b08c9991e0b32c49fbf642a07820dc9d5bafa937e5656647b2d74"
+    },
+    {
+      "file": "evaluations/heart_acceptance_candidate_v2.py",
+      "bytes": 1841,
+      "sha256": "e28248e3f7fe0fae7fd2fa8dd6139951b04e0116ad927b14740fb168b6b8a9bc"
+    },
+    {
+      "file": "evaluations/heart_acceptance_candidate_v3.py",
+      "bytes": 3002,
+      "sha256": "fef220f02393d3297c944d9b1d1101fad2304fca5f65982ada3da012f0a06915"
+    },
+    {
+      "file": "evaluations/heart_acceptance_candidate_v4.py",
+      "bytes": 714,
+      "sha256": "a6ff10cc7de32f30852aa0458e00a7a1d12d91107648d888b2154273f4696c73"
+    },
+    {
+      "file": "evaluations/heart_acceptance_candidate_v5.py",
+      "bytes": 1180,
+      "sha256": "86682154cebe238daae421d2ef3a1364f550c3a5a734e3a2bc7099044287d36d"
+    },
+    {
+      "file": "evaluations/heart_shadow_entry_v1.py",
+      "bytes": 1549,
+      "sha256": "963174cd5c83fe1f62c3c378826b524c74244c5de57b3e621a1c050bb80fab68"
+    },
+    {
+      "file": "evaluations/live_heart_shadow.py",
+      "bytes": 3587,
+      "sha256": "0553d61a5d19f9316ee92fba2de20f6503a7f8ac14033e063cc8344f508a37a1"
+    },
+    {
+      "file": "evaluations/lower_taper_relation_v1.py",
+      "bytes": 2746,
+      "sha256": "c69ac6a6e3a0c569c37de60fbb6bd23d5ede4bd12ea9353479265f3c4dfe9d52"
+    },
+    {
+      "file": "evaluations/notch_relation_v1.py",
+      "bytes": 2223,
+      "sha256": "a9afde11a35de48617b72f7eb4329749f11d046c2afc2e450f4ffdb4347ee152"
+    },
+    {
+      "file": "evaluations/p1.3e_dual_case_frozen.json",
+      "bytes": 1869,
+      "sha256": "35932e3c831ff5b8750298a629f0aab560df81ce244b927a3e96a565a09ecb4d"
+    },
+    {
+      "file": "evaluations/p1.3g-A9-diagnostics.json",
+      "bytes": 15187,
+      "sha256": "00450ebf6ea351a59689e85ede2dc09b4c3a4bbe34d61965be5742879453d290"
+    },
+    {
+      "file": "evaluations/p1.3g-S1-diagnostics.json",
+      "bytes": 11616,
+      "sha256": "4336e0b62746f00741594395a1d5f9553f41fc67e5d68144c61973ec59d7a003"
+    },
+    {
+      "file": "evaluations/parallel/00-四主线任务书.md",
+      "bytes": 11507,
+      "sha256": "8cdf2d31b393269099e1316a7850d5002ab0fe957a3ebc2834a1b21496313e01"
+    },
+    {
+      "file": "evaluations/parallel/01-文件所有权与公共接口冻结.md",
+      "bytes": 8611,
+      "sha256": "4092f9e9272b40672e2e9a9bde1a337c78a0b76b2b7fde64c8287075cafb498d"
+    },
+    {
+      "file": "evaluations/parallel/02-研发纪律与交付模板.md",
+      "bytes": 7209,
+      "sha256": "0ef4813ce9c8e8417e14bb4beeabed10e38b4e354da9f0dc12cc934cc54b60d0"
+    },
+    {
+      "file": "evaluations/parallel/03-集成分支与回归流程.md",
+      "bytes": 5976,
+      "sha256": "5cac936ae2b4ce2ed0c302aedc347d4a0bd908f4e8c055c64740da6c06051fff"
+    },
+    {
+      "file": "evaluations/parallel/04-真实模型调用与预算管理.md",
+      "bytes": 3377,
+      "sha256": "90289fb01186fa2741386807c63134ac1726fd7a485873e1a36b961418c8f665"
+    },
+    {
+      "file": "evaluations/parallel/05-考核指标口径.md",
+      "bytes": 4627,
+      "sha256": "dcaedd6ab1f633c7ebbfe619d4ca7e90901c4729947850ff64166d9464a394c5"
+    },
+    {
+      "file": "evaluations/parallel/06-每日集成记录.md",
+      "bytes": 4781,
+      "sha256": "914e15d9d54e6a02979feecd7b4fa8cbc929743cdd0331bf1ae09af3feab34ca"
+    },
+    {
+      "file": "evaluations/parallel/README.md",
+      "bytes": 10630,
+      "sha256": "80ee327f4a362343461c0e69c55eeee54d1f08fa9ce65c84a32165cc447cd6b1"
+    },
+    {
+      "file": "evaluations/production_contract_pilot.py",
+      "bytes": 15931,
+      "sha256": "ff91df8fba6e68d8c6fe0584de5f5a3c47cbccf60eaa578fd41be1b04a3e74b5"
+    },
+    {
+      "file": "evaluations/real_user_questions.json",
+      "bytes": 10621,
+      "sha256": "90804cfe55c18edb3f7f4eb971704348ea23b3852cd3730cc39493be29b925ca"
+    },
+    {
+      "file": "evaluations/relation_pilot/__init__.py",
+      "bytes": 78,
+      "sha256": "8ba40b7dd02033b99bc760a9b61e38850342b9ed346fe64f3621c75fdbb3fd0a"
+    },
+    {
+      "file": "evaluations/relation_pilot/cases.py",
+      "bytes": 4719,
+      "sha256": "35f2d37195b5377af557742f1df0edacb5d16a269e11c7b4cd1e3f0f89671fa7"
+    },
+    {
+      "file": "evaluations/relation_pilot/compiler.py",
+      "bytes": 7339,
+      "sha256": "883f9fdea831d51b624e4c912211c9875cf52903cf81f0183ee3fdb129bea8b6"
+    },
+    {
+      "file": "evaluations/relation_pilot/oracle.py",
+      "bytes": 2431,
+      "sha256": "ee31f2066d173e363f00c9c9abcc2def92d6f228fdf825214fedf17c43fdc104"
+    },
+    {
+      "file": "evaluations/relation_pilot/run.py",
+      "bytes": 13366,
+      "sha256": "6fb3275eb7386cd4c336b0ed3a1a6bbc5146646e4b9076b66ec85df385ee1777"
+    },
+    {
+      "file": "evaluations/replay_circle_group_c.py",
+      "bytes": 3407,
+      "sha256": "15f501bcf969367cc27b812e4420a9345157b01807e2f8a19dc30c7da9a4c487"
+    },
+    {
+      "file": "evaluations/replay_delivery_baseline_plans.py",
+      "bytes": 2902,
+      "sha256": "e1dbe244997fa8a8a17d0aee20a1a522a0d9b45eddfd10b2cb7fafcdf6ef30d0"
+    },
+    {
+      "file": "evaluations/replay_edit_transfer.py",
+      "bytes": 1246,
+      "sha256": "dce4c70c13ae607d4bf2a03d08bf7b60fa4480eeddf11f03cd44c32ec2b6ba9f"
+    },
+    {
+      "file": "evaluations/replay_fixed_plans.py",
+      "bytes": 2925,
+      "sha256": "65df01e03abbbf418d21ce26fbc411a747dae2e739bd915a2698de8cd4b8c5d8"
+    },
+    {
+      "file": "evaluations/replay_frozen_release.py",
+      "bytes": 1839,
+      "sha256": "77e4204fd090bbcbabf0efbea93651aea9952cf43825ee4c318b3ea58631cc13"
+    },
+    {
+      "file": "evaluations/replay_generalization_b.py",
+      "bytes": 1433,
+      "sha256": "5ceb8bf1485ed579629f881c8f5f9f45fa9b1a1546b590aef6d0ae28dfb5ff3d"
+    },
+    {
+      "file": "evaluations/replay_recorded_hearts_v4.py",
+      "bytes": 3583,
+      "sha256": "de1c916e85f174eafc541869e3ce5c8d5c3258fa6909523a0e72277004fb6de8"
+    },
+    {
+      "file": "evaluations/replay_rectangle_handoff.py",
+      "bytes": 2473,
+      "sha256": "e231846f10759750f0fa012f0e8f35b30cc391d3c90f1b3ea32358bfabe1b608"
+    },
+    {
+      "file": "evaluations/replay_selected_transfer.py",
+      "bytes": 4097,
+      "sha256": "2fb658008161056072081d265ca9b07f3c50bdfa036e8145a66f6f132c73e026"
+    },
+    {
+      "file": "evaluations/replay_transfer_holdout.py",
+      "bytes": 1446,
+      "sha256": "ee483ad3b8ca021b6cc8f3b189d60109a08175cef465885963f1b124067aa330"
+    },
+    {
+      "file": "evaluations/report_business_acceptance_v2.py",
+      "bytes": 4841,
+      "sha256": "0f42f9024268a07ab3f8836a57b78c3ae7201c9d80e42c796eecb40a285d67c1"
+    },
+    {
+      "file": "evaluations/report_business_acceptance_v3.py",
+      "bytes": 2746,
+      "sha256": "b3f1ab3f564c3377a45b7718a169476c788a2a5c9b86fd869c598f6c1cb41918"
+    },
+    {
+      "file": "evaluations/report_live_user_corpus.py",
+      "bytes": 12507,
+      "sha256": "20bdc31bea27d8037a19b699096a07f92ba6241a564acbf1825c8c1fff812b8b"
+    },
+    {
+      "file": "evaluations/report_production_contract_pilot.py",
+      "bytes": 7996,
+      "sha256": "73db7b47d0b58a3d4d94907584975b80d72fd73c7ed24700a4ae12666aab8a8e"
+    },
+    {
+      "file": "evaluations/report_relation_pilot.py",
+      "bytes": 9762,
+      "sha256": "0b249c4738989d8ce077dc1d63af2ec684da1b9768fa748b75ac00a616b9f583"
+    },
+    {
+      "file": "evaluations/retest_source_delivery.py",
+      "bytes": 2417,
+      "sha256": "1e103cd1e8a0947bfd3f3cccc29e1aaf2ae10e904c7e35678dd8b3c612741d83"
+    },
+    {
+      "file": "evaluations/run_live_user_corpus.py",
+      "bytes": 11544,
+      "sha256": "fc0c2eb9f1bf109d49a8dd23139f08907379d83d7a3f845033a86afa08f0e5a1"
+    },
+    {
+      "file": "evaluations/stale_assertion_live_check.py",
+      "bytes": 3005,
+      "sha256": "198036f5a664c80754c234cea9d5f6d76a010f77bbb145f2badff6eed7cf6166"
+    },
+    {
+      "file": "evaluations/stress_heart_candidate_v1.py",
+      "bytes": 3587,
+      "sha256": "93a71adbd1aff4e2b6cab2ead2322ff963d2f53b9d78e9c3e8b6d1ec88c59c7d"
+    },
+    {
+      "file": "evaluations/stress_lower_taper_sampling.py",
+      "bytes": 3411,
+      "sha256": "02d8f9b9c93c4946216066f44cc605275f65df2f81746f5a5142093967cc72fe"
+    },
+    {
+      "file": "evaluations/summarize_fixed_replay.py",
+      "bytes": 3512,
+      "sha256": "483516e69ec359d52c98304e0683500346ab36e40abe6b813f7d79b3075249d8"
+    },
+    {
+      "file": "evaluations/transfer_holdout_20261124.py",
+      "bytes": 6269,
+      "sha256": "910dfb72e7172acb9524b0a0466426998e460e1d177c73c2df9c4f6f045e43d6"
+    },
+    {
+      "file": "evaluations/trig_extrema_v1.py",
+      "bytes": 4276,
+      "sha256": "a817d411c3c8815861275f94fa6cca4c5a397fd2b34fc1cd2cc54cd859ad449c"
+    },
+    {
+      "file": "evaluations/trig_layout_minimum_v1.py",
+      "bytes": 2452,
+      "sha256": "026083577c9896abe8da6699e2d5126b7afcb7f6f5c730eca56848939cb41341"
+    },
+    {
+      "file": "evaluations/verify_business_consolidation.py",
+      "bytes": 5373,
+      "sha256": "31359c977311749a6b1a0feaf69bf3e208b91c9de7af43b881e3892a9d07772a"
+    },
+    {
+      "file": "evaluations/verify_tool_contract_handoff.py",
+      "bytes": 3600,
+      "sha256": "3f0c8c63ae3d4a7fdb7cce2e7331ea7e1354302cae7b6755df57245451f94fd7"
+    },
+    {
+      "file": "install_dwg_support.sh",
+      "bytes": 839,
+      "sha256": "d0dcbe41163780c25522285540bb059669801160f6ccf452b71ccf6d14a44a11"
+    },
+    {
+      "file": "requirements-dev.txt",
+      "bytes": 52,
+      "sha256": "7b45246ea8d18a406f1291e3529205b9a2e0a150e62fd7866bbd9e00bfa1d70f"
+    },
+    {
+      "file": "requirements-native-cad.txt",
+      "bytes": 204,
+      "sha256": "20bd7aeb6ed16799d9294b210a8c23ff48853382e73effbbee56d28e93bfa0df"
+    },
+    {
+      "file": "requirements.txt",
+      "bytes": 246,
+      "sha256": "67b153017332bb0396dd5845e6f94386f4d1c95f61b945756e6e50d8c19d095c"
+    },
+    {
+      "file": "review_all_steps.py",
+      "bytes": 5550,
+      "sha256": "003a6553f1828acb85b915192bfeab6a9ec15128890fc246d67951d0982db41a"
+    },
+    {
+      "file": "run_ai_test_backend.ps1",
+      "bytes": 5137,
+      "sha256": "438d4c0bfe6452af25bdf79e67f995f1fa3624609f477cc5f6c8079d9a927895"
+    },
+    {
+      "file": "run_cad_construction_benchmark.py",
+      "bytes": 3618,
+      "sha256": "a792fd915ffe432767083df7b9e849aa3b902b3263b214f47d11c01facecdc34"
+    },
+    {
+      "file": "run_cad_evaluation.py",
+      "bytes": 775,
+      "sha256": "ee3689349269a6a28f886c5b589d0f09cbfe0dcee9fe06660e4c802d162276e6"
+    },
+    {
+      "file": "run_discovery_service.sh",
+      "bytes": 231,
+      "sha256": "6c4787d1887a4170a8174f8c8bdf76fde7661e7724b29b03067c147e9101546f"
+    },
+    {
+      "file": "run_extended_deepseek_benchmark.py",
+      "bytes": 2478,
+      "sha256": "21f65519c71aecae115ec544d8491c8655654deb32864b870919494051ddde79"
+    },
+    {
+      "file": "run_extended_rule_benchmark.py",
+      "bytes": 2403,
+      "sha256": "2f8afb77d4fe93948ae6f1b6d8c904ef862a3ce87010be4165964b776618aa0c"
+    },
+    {
+      "file": "run_robot_backend.sh",
+      "bytes": 493,
+      "sha256": "f247723a36b3564901529d31485cc06aaac0a060fceeb68b7fac928d5a1c1d37"
+    },
+    {
+      "file": "run_ws3_runtime.sh",
+      "bytes": 1114,
+      "sha256": "c83cd9b79c7eec8d2a0b5635d78a9a1455c372c804e27d8e5a8645c83c1a892f"
+    },
+    {
+      "file": "scripts/local_dev.py",
+      "bytes": 8001,
+      "sha256": "6706a2e81f2cdd7b94fcc3309e49952356f1ab12a4c8e0cc57028ec56d5a0cf3"
+    },
+    {
+      "file": "scripts/smoke_local.py",
+      "bytes": 934,
+      "sha256": "0eaeda236fc0d2361974b1005e108ec15bb0e8d0d0c3a3f669d532caeffd16c8"
+    },
+    {
+      "file": "tests/fixtures/arch_failed_boundary.json",
+      "bytes": 6297,
+      "sha256": "d7910557da0883a157c537a86759594c3e5f2717d05a7299f70715dfc7d01e55"
+    },
+    {
+      "file": "tests/fixtures/edit_transport_parent.json",
+      "bytes": 111239,
+      "sha256": "0316fac7ff53d5a02901a38027720852517e92ad84f8575412a6254d851bbe17"
+    },
+    {
+      "file": "tests/fixtures/frozen_holdout_handoff_20261124.json",
+      "bytes": 10763,
+      "sha256": "f2228eea7efccfe50e1247e3260d0cd4951d5f2d42668d0cac2429d6a743f730"
+    },
+    {
+      "file": "tests/fixtures/frozen_holdout_repair_context_20261124.json",
+      "bytes": 13792,
+      "sha256": "fc877def18c75b5b22a41d284872b9f21981306f465e24d3a525bc4a3d6bfcff"
+    },
+    {
+      "file": "tests/fixtures/merge_first_three_golden.json",
+      "bytes": 13424,
+      "sha256": "cd884899fb8f6e5a570b7ae84244efbe24108b9205fd23c477c5574a2ea82b93"
+    },
+    {
+      "file": "tests/fixtures/recorded_arch_c.json",
+      "bytes": 30493,
+      "sha256": "97bea1c27dd7788b5f793e9a586d504675b464f1994a0a7ba58939ea060fa520"
+    },
+    {
+      "file": "tests/fixtures/recorded_branch_wrong_bounds.json",
+      "bytes": 11705,
+      "sha256": "8e26a2a64306a00d03632ea664a540f005836358a62c031083de068aa37bd429"
+    },
+    {
+      "file": "tests/fixtures/recorded_c3_c6_failures.json",
+      "bytes": 7267,
+      "sha256": "ad119a4acb94b68a3d9ecee692c92a549151108fe7f4d125449e8c75d1c43951"
+    },
+    {
+      "file": "tests/fixtures/recorded_circle_group_c.json",
+      "bytes": 11602,
+      "sha256": "b74c4d09f409c134d8ccbd272bd601088e9b8bd2069a14ab4633ec509ce3fb8a"
+    },
+    {
+      "file": "tests/fixtures/recorded_component_scope.json",
+      "bytes": 7469,
+      "sha256": "19d3d660be1af3ba42b68fa835bd363d16d0bf4c74dff7382178d4875bec727f"
+    },
+    {
+      "file": "tests/fixtures/recorded_confirmed_source_failures.json",
+      "bytes": 5678,
+      "sha256": "865077a7484162cf890f2733fe38045c82e97d7653b6aa34c238dfd295f6dfa5"
+    },
+    {
+      "file": "tests/fixtures/recorded_control_point_curves.json",
+      "bytes": 3295,
+      "sha256": "f28c257a8a2e988125649779051d1c17d058b26f077639bd8117c8217fb348f1"
+    },
+    {
+      "file": "tests/fixtures/recorded_disconnected_outline.json",
+      "bytes": 4490,
+      "sha256": "a8f9e694eacda17ca70fb8e4c88bc3f97ba57a89733e3211251f672799e2f0ea"
+    },
+    {
+      "file": "tests/fixtures/recorded_full_segment_conflict.json",
+      "bytes": 4354,
+      "sha256": "a7b9dc4e8bef746cb9079b3cb90d7c325180e00ab2271b2528b1f20f26086718"
+    },
+    {
+      "file": "tests/fixtures/recorded_joint_and_array_failures.json",
+      "bytes": 18504,
+      "sha256": "fcf4b879eb0b36f53ae8cd319c2cb8c5024844a824754906d0a63c38b85d7723"
+    },
+    {
+      "file": "tests/fixtures/recorded_legacy_heart_regressions.json",
+      "bytes": 6875,
+      "sha256": "c190b5802a853c596f025536c85b71a1e43f2d49041b6bdf2d860bcb2383ac31"
+    },
+    {
+      "file": "tests/fixtures/recorded_measured_semantics.json",
+      "bytes": 10721,
+      "sha256": "afdc023e80cfe644329e0b06a5ef205fe98695010fa4181f9dbd8711f16cdda4"
+    },
+    {
+      "file": "tests/fixtures/recorded_model_bounds_authority.json",
+      "bytes": 4946,
+      "sha256": "7e530d01a1e703796dac9096fab682afaa74740caf2d9020fe877bac556715ce"
+    },
+    {
+      "file": "tests/fixtures/recorded_native_arch_boundary.json",
+      "bytes": 869,
+      "sha256": "5b5af119cc624826d5cc5218f42ed5c517c94d57e572d6e4534b5ace977e7f5c"
+    },
+    {
+      "file": "tests/fixtures/recorded_native_layout_reference.json",
+      "bytes": 3590,
+      "sha256": "b80be9f4957b808b2b8319c2cd7f39b437db76b094698b1740bd6818dcbac3b5"
+    },
+    {
+      "file": "tests/fixtures/recorded_outline_binding.json",
+      "bytes": 5696,
+      "sha256": "6e33445b1f3e692ebef2f7621cdeee6b5a0781e4b41fc19fb00b2e830cee6368"
+    },
+    {
+      "file": "tests/fixtures/recorded_outline_delivery.json",
+      "bytes": 12982,
+      "sha256": "644cef3c35ae1d1350339e33fead9f1bf1c3887afa37a76ae1c396f2180fa45f"
+    },
+    {
+      "file": "tests/fixtures/recorded_output_intent_b.json",
+      "bytes": 4372,
+      "sha256": "68178647208a7759d54f66798b7d03df0b4033fc109165ebb2d31bcfb23c7c3a"
+    },
+    {
+      "file": "tests/fixtures/recorded_planning_failures.json",
+      "bytes": 14865,
+      "sha256": "4f02a2381c14e94aaa7ceeaf77f2dc0283b42737fe3334e3d3b00756ae3baa1a"
+    },
+    {
+      "file": "tests/fixtures/recorded_polar_wave_source.json",
+      "bytes": 5497,
+      "sha256": "e5e9bb512dfce1d093909a9327c75b54f4828e6048195b1edbcf7cf48e3b2a57"
+    },
+    {
+      "file": "tests/fixtures/recorded_primitive_layout.json",
+      "bytes": 5198,
+      "sha256": "fd418f7425bd0cd5bf2353bca433491b2b932f487314334424e3be875c2aea5b"
+    },
+    {
+      "file": "tests/fixtures/recorded_projection_dimension_snapshot.json",
+      "bytes": 24825,
+      "sha256": "2079c00ccfa4d5c23d9c738a1422bee98f15b96cf8044960fc226514b8a22db6"
+    },
+    {
+      "file": "tests/fixtures/recorded_radial_attachments.json",
+      "bytes": 3594,
+      "sha256": "dab75a19ac75dc14e38dc63ebb5514985d4bb9e3e430d67921dee2a229b906d2"
+    },
+    {
+      "file": "tests/fixtures/recorded_rectangle_handoff.json",
+      "bytes": 5669,
+      "sha256": "1e5a3de6f85ff5a8cd25d468198f915643360efd3f5f020a8032234ff2138c81"
+    },
+    {
+      "file": "tests/fixtures/recorded_regression_source_handoff.json",
+      "bytes": 4496,
+      "sha256": "ca6dd4de9215047c69c18c96ba706c912b703e1cd552bbd305ff56b03ba85ab5"
+    },
+    {
+      "file": "tests/fixtures/recorded_repair_reference_handoff.json",
+      "bytes": 15506,
+      "sha256": "3b4889b8b528afcd7bd4caa05298dea5bf52dc65c9f06204a757a9502b388516"
+    },
+    {
+      "file": "tests/fixtures/recorded_repetition_source.json",
+      "bytes": 7164,
+      "sha256": "7f60aa26627dbf9569815bd348788b4e31fb0a7891f7acb6e14ada11dfb34c3e"
+    },
+    {
+      "file": "tests/fixtures/recorded_rotational_crossing_handoff.json",
+      "bytes": 3552,
+      "sha256": "2e5b3eeca1ae1bc6e3658f5f107279dc0081b8f5ae5c35652aee501bded1e571"
+    },
+    {
+      "file": "tests/fixtures/recorded_semantic_dispatch.json",
+      "bytes": 1941,
+      "sha256": "7ecd2ab4f07be116a639ea807495c27a57f03e5b75b611dbe1abed793de225df"
+    },
+    {
+      "file": "tests/fixtures/recorded_shallow_notch_audit.json",
+      "bytes": 12444,
+      "sha256": "9f53576dd27cf8d254ac4076bc3b6ebe75e1e8590191b1745d2099eba7b0d018"
+    },
+    {
+      "file": "tests/fixtures/recorded_source_binding_remaining.json",
+      "bytes": 29625,
+      "sha256": "bfedbc9f105149ba41d03ef23df06d8117a96d40850a4f504b6c4dffcd1ccba6"
+    },
+    {
+      "file": "tests/fixtures/recorded_source_proof_gaps.json",
+      "bytes": 18488,
+      "sha256": "42fbc8ab3a357f1c567afe8c0458d7b204e07656145909e8dcdeaab5c7cfa37c"
+    },
+    {
+      "file": "tests/fixtures/recorded_stroke_source.json",
+      "bytes": 2637,
+      "sha256": "0626ca13de46cf3d3e9dddf35521ba9e405499eb87772c2f7d1cd374a13a738b"
+    },
+    {
+      "file": "tests/fixtures/recorded_symmetric_divider.json",
+      "bytes": 3861,
+      "sha256": "e6f0c33c1699dbc42f472caf21ecf77c0a54df85d389b9e49b7974ae7c1cecfb"
+    },
+    {
+      "file": "tests/fixtures/recorded_transfer_source_handoff.json",
+      "bytes": 4720,
+      "sha256": "424924aa5ebe321e0741d03170ad168606dfa8f98db265e07544ecd1a5d7d7b2"
+    },
+    {
+      "file": "tests/fixtures/recorded_valid_tiling.json",
+      "bytes": 8611,
+      "sha256": "e21418b8a336b4c29af122e7ab7bf0a71339982d403dfa85e5dff982ed88bae1"
+    },
+    {
+      "file": "tests/fixtures/recorded_vertex_array_handoff.json",
+      "bytes": 4217,
+      "sha256": "b4421e13cbb4ecb4bde685ab2f5b4f9cb79836645c7421c94be46873f6a1da42"
+    },
+    {
+      "file": "tests/fixtures/recorded_vertex_path_c.json",
+      "bytes": 30543,
+      "sha256": "1cbef6fcabb46318e9965f152c74bdaf515f7d38f535f71a861730d9903e73b3"
+    },
+    {
+      "file": "tests/fixtures/source_delivery_plans.json",
+      "bytes": 2271,
+      "sha256": "4c2ba3946f91c5877d0c82108ae55f642661ef148760ffb337f1abb667419dcd"
+    },
+    {
+      "file": "tests/manual/_run_unsatisfied_relations.py",
+      "bytes": 919,
+      "sha256": "33a0c1cff429e7c0ad1826c81c36d8c027032172f3c75dfa34991be851b9e86c"
+    },
+    {
+      "file": "tests/manual/audit_cad_corpus_run.py",
+      "bytes": 4565,
+      "sha256": "564908b3960be5fce6e56138d4ea8edef08896dbae5f4166a9453ec003e2bacd"
+    },
+    {
+      "file": "tests/manual/cad_acceptance_metrics.py",
+      "bytes": 1771,
+      "sha256": "c7c011d7c0f9afb437e0bfefb747880bcb4c57516e6a6b50c8c5f978e924dbc7"
+    },
+    {
+      "file": "tests/manual/cad_widget_live_worker.py",
+      "bytes": 10097,
+      "sha256": "857adb336a0c2c48a6bc579983c17093a146562abb4d2b0a58b1abaa3be5c8bd"
+    },
+    {
+      "file": "tests/manual/continue_user_cad_edits.py",
+      "bytes": 2869,
+      "sha256": "0bb408ae53c9b76d3baf2b377cbbc1e745b30a3bee8d4e17bb160b6e9309192e"
+    },
+    {
+      "file": "tests/manual/deepseek_flash_budget.py",
+      "bytes": 2419,
+      "sha256": "0b94b6ab7c0f64b6b286e3134f99b010fcdee9b85584d9455154331d17f2400f"
+    },
+    {
+      "file": "tests/manual/diagnose_cad_offline.py",
+      "bytes": 6322,
+      "sha256": "7f1b8a80d39cd7df389629160fd2f6d20413bf58ce1fb5b3f51659e41490614a"
+    },
+    {
+      "file": "tests/manual/eval_budget_store.py",
+      "bytes": 5900,
+      "sha256": "acab81f8a3a06ec1fd2a5f39df33be3e3b8e9aae5adfc5b52d15b5e43a30d435"
+    },
+    {
+      "file": "tests/manual/flash_copy_fixture.py",
+      "bytes": 3779,
+      "sha256": "c132f81321ab3992e7f3d08ebcf70a4e9b584e380eb71034a755b9dae419788b"
+    },
+    {
+      "file": "tests/manual/probe_deepseek_flash.py",
+      "bytes": 3863,
+      "sha256": "f5f3d49360b3079bea281c52e3f4a0f5d19b6b7e2b62f950b372e2de053b11e7"
+    },
+    {
+      "file": "tests/manual/replay_cad_history.py",
+      "bytes": 13854,
+      "sha256": "7c8ebe4303e240efcd9043301eb02c8acaae3069c7aba332a1bf387930e3714e"
+    },
+    {
+      "file": "tests/manual/report_cad_corpus_status.py",
+      "bytes": 1750,
+      "sha256": "d51a856dac69e91f1709c2c9e10be928d77e5c53d3f8d89268fa78148e9eb7af"
+    },
+    {
+      "file": "tests/manual/run_cad_app_corpus.py",
+      "bytes": 2622,
+      "sha256": "1921fab564a654ab79307e0587c13a5cea9812daecf1f020338849ff3f01f994"
+    },
+    {
+      "file": "tests/manual/run_cad_edit_context_regression.py",
+      "bytes": 4094,
+      "sha256": "bec346bafc2282da9cedd37607436385437dfcfdab6df112be8db836278e904a"
+    },
+    {
+      "file": "tests/manual/run_cad_negative_acceptance.py",
+      "bytes": 4374,
+      "sha256": "8633f79b93d2fc7916dfd81d6a7f590064f86a5a2687be91ebbfef87fda5693d"
+    },
+    {
+      "file": "tests/manual/run_cad_product_acceptance.py",
+      "bytes": 14611,
+      "sha256": "771855f064c2d4038390fa83e7e4fe2d95722968442a96a0d08f7459253c53da"
+    },
+    {
+      "file": "tests/manual/run_complex_cad_live.py",
+      "bytes": 15485,
+      "sha256": "23a74b205bc1006e81f383e3698006a6441b2f18af461d34fee9d2ec55c6c8a4"
+    },
+    {
+      "file": "tests/manual/run_everyday_cad_live.py",
+      "bytes": 9673,
+      "sha256": "ae244ebf85e9ee9202bd69b6dc4a5f78a3505bdc777dce8572a90371f91b91b6"
+    },
+    {
+      "file": "tests/manual/run_flash_copy_validation.py",
+      "bytes": 11904,
+      "sha256": "a8c9436f7b715debbf8235cd40ec608f7ab0cca0c5f25ec42f7a6eb88dca86e7"
+    },
+    {
+      "file": "tests/manual/run_live_relation_acceptance.py",
+      "bytes": 5388,
+      "sha256": "7f7bf7450b05a78b8ab71ae60b84036224314b4d4990595ef9d4c664d1eb3c8e"
+    },
+    {
+      "file": "tests/manual/run_recorded_cad_repair.py",
+      "bytes": 10907,
+      "sha256": "a5c8bc6e850c4add70e2807129b51b20ac64d9e82544db87313e70905e472d0e"
+    },
+    {
+      "file": "tests/manual/run_structure_flow_live.py",
+      "bytes": 3030,
+      "sha256": "ab8ec7c52032db72c22560f5705401c50cdc65e4ccd77572b80987b080fa819c"
+    },
+    {
+      "file": "tests/manual/run_user_cad_corpus.py",
+      "bytes": 49091,
+      "sha256": "aece7934fe89deaeda5eff737f0edbd4235c808213fe866ed2adf5e4df93b3c7"
+    },
+    {
+      "file": "tests/manual/summarize_user_cad_corpus.py",
+      "bytes": 7019,
+      "sha256": "807d57a94fa6c5bcc3f30e747625dce16719b355f0ff41a39bb2117c2c68455b"
+    },
+    {
+      "file": "tests/manual/trace_copy_http.py",
+      "bytes": 13501,
+      "sha256": "df34e65d3498dc38604b6fa6c874895897f7c260602c9da8ced8fe2d1ef0ccb0"
+    },
+    {
+      "file": "tests/manual/verify_cardioid_geometry.py",
+      "bytes": 630,
+      "sha256": "f5022b146da74c7532147e4b8774f077e23603ce5a45a8aeed2da01a163a7faa"
+    },
+    {
+      "file": "tests/test_acceptance_boundaries.py",
+      "bytes": 1540,
+      "sha256": "d26b0bab58853e90b1928690f1dc253b1ac7cd9249e4a7c0aca0090d996dfa21"
+    },
+    {
+      "file": "tests/test_agent_acceptance_response.py",
+      "bytes": 3506,
+      "sha256": "132369d87ac9da022f37c60899b6a6bebe2e23f21651f5a1862d3740e6ce45b0"
+    },
+    {
+      "file": "tests/test_agent_attachments.py",
+      "bytes": 3766,
+      "sha256": "6aeec235147f82e8e11736a87231c98ae9984e3d08b274fa27b5cf97dddcbab5"
+    },
+    {
+      "file": "tests/test_agent_completion.py",
+      "bytes": 3941,
+      "sha256": "9208bba6bb6542e9b8c05e2574d4c88ed460d30b2e1827b9540daa6dfd7ec3c5"
+    },
+    {
+      "file": "tests/test_agent_drawings.py",
+      "bytes": 101379,
+      "sha256": "bf7de4bbaa160d22db684db3b7f98535142d4a2a2b8c8cf9e72d699ae5ff713b"
+    },
+    {
+      "file": "tests/test_agent_environment.py",
+      "bytes": 1036,
+      "sha256": "f6951eceba245c1b9de010739acd4948dc47be4aac106a6ac24c5dca52800671"
+    },
+    {
+      "file": "tests/test_agent_evaluation.py",
+      "bytes": 7808,
+      "sha256": "847f5a1a95b4a5f00f806d05b21db78f2a746fe19823048d484d1f9f710832bf"
+    },
+    {
+      "file": "tests/test_agent_failure_policy.py",
+      "bytes": 1235,
+      "sha256": "86c3024eab950c9235d9cc0a5c2b6614672fe0c8ff39f8e407cc93947f2e3e36"
+    },
+    {
+      "file": "tests/test_agent_interruption_policy.py",
+      "bytes": 3938,
+      "sha256": "7c2b9f353bb5d23043f19c6da53f45ffcb60d011cdfaebc27b99df7713ce79bf"
+    },
+    {
+      "file": "tests/test_agent_modes.py",
+      "bytes": 46278,
+      "sha256": "ba0a39264f75656cf51c77401d5641bf9a6fbd257d464b86a6321955feaadf5a"
+    },
+    {
+      "file": "tests/test_agent_orchestration_contract.py",
+      "bytes": 27021,
+      "sha256": "67c61977c2e57f10c1682fd1d4d902f8ace60f7b280e0ff5f1c28f7ee76f7b05"
+    },
+    {
+      "file": "tests/test_agent_plan_chain_evaluation.py",
+      "bytes": 6408,
+      "sha256": "b59bf88920c11990bec541eb2a0ec87fae3dc328e034f727c6cc66e6c8eb6d32"
+    },
+    {
+      "file": "tests/test_agent_plan_models.py",
+      "bytes": 6058,
+      "sha256": "2e53854aaae495b32e6cb807cfeb51b05583e4728db52662e03627e3d0e61d3e"
+    },
+    {
+      "file": "tests/test_agent_plan_orchestrator.py",
+      "bytes": 4352,
+      "sha256": "9336d60e660ba93d5493539b7dfc0081858cfe5ff3343b1308a7fd585cfdef40"
+    },
+    {
+      "file": "tests/test_agent_plan_recovery.py",
+      "bytes": 4543,
+      "sha256": "b6b7ae61a1f005d4ab443f9de17c4e69e851f3cf61e6afed3c3fdee3fe512023"
+    },
+    {
+      "file": "tests/test_agent_plan_runtime.py",
+      "bytes": 7372,
+      "sha256": "88d59dcf9f6ac325fb8671f87f6070200fc6b8588683e21c264a58f9e024c388"
+    },
+    {
+      "file": "tests/test_agent_plan_sqlite_store.py",
+      "bytes": 4222,
+      "sha256": "6535ad8d6e404109eede3fc9ec07a1f4bb2c030ab355931645e9cd7a7916aee8"
+    },
+    {
+      "file": "tests/test_agent_plan_store.py",
+      "bytes": 2766,
+      "sha256": "8e1d1f8ecdfa61e4da06ac439d4b6f20a7b276fe032c1a57eef3ab4b50ec2a82"
+    },
+    {
+      "file": "tests/test_agent_run_api.py",
+      "bytes": 11424,
+      "sha256": "b4aa84a8acafaebdce6d16b591379f6836e98347767a668dbe056268b2ce22a6"
+    },
+    {
+      "file": "tests/test_agent_run_store.py",
+      "bytes": 5620,
+      "sha256": "821acd76bc1d1bb83e532ee1b907896d08ddae3ff293721b01a016c398a0a6dd"
+    },
+    {
+      "file": "tests/test_agent_service_boundaries.py",
+      "bytes": 5713,
+      "sha256": "3262171b2b41a8e74e49f0155019f538990e5f1af7afd044f62af1da57f709ca"
+    },
+    {
+      "file": "tests/test_agent_skills.py",
+      "bytes": 26873,
+      "sha256": "36ba88eb7ef15c242dd5452b2e06d29d273945c3447126a4357a33cc38784771"
+    },
+    {
+      "file": "tests/test_answer_validation.py",
+      "bytes": 9953,
+      "sha256": "62e95947c333f405a5a1f96d614558f52ac58242789529a28f83e875528b03b0"
+    },
+    {
+      "file": "tests/test_arch_boundary_repair_handoff.py",
+      "bytes": 3597,
+      "sha256": "801f287da186224a27a15b8b18698daadae02410aa05ec497541200622d39a26"
+    },
+    {
+      "file": "tests/test_arch_language_handoff.py",
+      "bytes": 3540,
+      "sha256": "b2d138a1351f210cdf94a36c5492e042b7ed8aa4193ac7d98c7c5ac4a27a4a4a"
+    },
+    {
+      "file": "tests/test_arch_source_generalization.py",
+      "bytes": 4997,
+      "sha256": "0ea1afbc7d552d0c6dc2f6f1fdb31bea3e3b44f4d2318fe1c3d7f2b6dee8bedc"
+    },
+    {
+      "file": "tests/test_audit_store.py",
+      "bytes": 1734,
+      "sha256": "f276c5044673b9357ee56799e72d5e4254c58c90d2182694b726ebb70d21f2e9"
+    },
+    {
+      "file": "tests/test_authoritative_candidate_evidence.py",
+      "bytes": 972,
+      "sha256": "75ac60f4b57beb151e4ad37185dd98282bd52721bdbf51a35edbf3adaf453c8c"
+    },
+    {
+      "file": "tests/test_bezier_extrema_v1.py",
+      "bytes": 2250,
+      "sha256": "786c5a46c10e19fcc73243831e46c13dd8a105c28b0e417a974c1d1a84bc6a83"
+    },
+    {
+      "file": "tests/test_bezier_layout_minimum_v1.py",
+      "bytes": 2038,
+      "sha256": "69650477ac698859da5fcac9f5f196264b6fff370ad93843615af0c342cc379d"
+    },
+    {
+      "file": "tests/test_business_measurement_consolidation.py",
+      "bytes": 5068,
+      "sha256": "da8c8e9aa929db4503ed97456c3e7a05aa7875cc2704865c1082587511d6cdbe"
+    },
+    {
+      "file": "tests/test_business_oracles_v2.py",
+      "bytes": 4516,
+      "sha256": "504e60ecc429ab8f394dcac6187e91377624f6e20724875030f67987c594341c"
+    },
+    {
+      "file": "tests/test_c3_c6_c33_repairs.py",
+      "bytes": 3226,
+      "sha256": "2315cba6dde4239d8c70b65d4fffde2e80029c0e6b473cd6925501ddd2e39e58"
+    },
+    {
+      "file": "tests/test_cad_acceptance_metrics.py",
+      "bytes": 1079,
+      "sha256": "9c175349dd01fb3b9abe912b6b85dbc2b7464dc9f2d8649d29532930d4c769b2"
+    },
+    {
+      "file": "tests/test_cad_assertion_evidence_batch.py",
+      "bytes": 828,
+      "sha256": "1268525e092ac8608fe8cc9060bf1d79018b15103e41a7199e25efccd776df13"
+    },
+    {
+      "file": "tests/test_cad_assertions.py",
+      "bytes": 9600,
+      "sha256": "66662e41b80fdb42e13eee9d7e25c91db356ea1e79d8752e256054382dcb39d8"
+    },
+    {
+      "file": "tests/test_cad_candidate_orchestrator.py",
+      "bytes": 9273,
+      "sha256": "3df23b1f64cfe3bc4eb29c4fa8fd659bb1bf12f612bcfa53499a41d59aab45f8"
+    },
+    {
+      "file": "tests/test_cad_clarification_grounding.py",
+      "bytes": 3931,
+      "sha256": "909fe4e187aba856c2b7fbdefb8d6855f335f9cc3e722aee6898921706d32317"
+    },
+    {
+      "file": "tests/test_cad_composition_addition.py",
+      "bytes": 3299,
+      "sha256": "f2dbb75e5533c2dff3a15960f3735985fc2829bd256e8a64940e4cb2f7247417"
+    },
+    {
+      "file": "tests/test_cad_constraint_conflicts.py",
+      "bytes": 1949,
+      "sha256": "7cf7357f4be60f0191137efa6d1f0480f84b46d99c43038d7f548b7d383ffe93"
+    },
+    {
+      "file": "tests/test_cad_constraint_solver.py",
+      "bytes": 11072,
+      "sha256": "45b91614bdf6039c72adc6362a2868261f584b1bc08ff6d9bc01ce2dcc4b9f81"
+    },
+    {
+      "file": "tests/test_cad_construction.py",
+      "bytes": 34832,
+      "sha256": "219a54d070ab0ecebaa668ecb8f8cc81ab50e47369d308cd65127c5cd5fd9b18"
+    },
+    {
+      "file": "tests/test_cad_construction_benchmark.py",
+      "bytes": 5110,
+      "sha256": "6d34227590f7c87ccb8a5a05d2cf866a5971bef2f99b07bad73ed3b8771ed0e8"
+    },
+    {
+      "file": "tests/test_cad_construction_commit.py",
+      "bytes": 9756,
+      "sha256": "2ab1d4a90e2cb36ea7dd731ec2fe33b44adff7424e38825b89ea4ff95a543eea"
+    },
+    {
+      "file": "tests/test_cad_construction_evaluation.py",
+      "bytes": 834,
+      "sha256": "8d28c9b9bf1b5cf00dcce5ecf7369786abc754c14d09fbe22322a2e2144c8b6f"
+    },
+    {
+      "file": "tests/test_cad_construction_interpreter.py",
+      "bytes": 77351,
+      "sha256": "7afff0856c3d1c9a99dad171effa8020d11ab22388190007f3af47dde445c53f"
+    },
+    {
+      "file": "tests/test_cad_copy_http_identity.py",
+      "bytes": 4302,
+      "sha256": "7f2bd0622bf99c194b6ab3468d99c525ad807885f12e8f9b9bd235eeaf827876"
+    },
+    {
+      "file": "tests/test_cad_copy_reference_production.py",
+      "bytes": 5268,
+      "sha256": "f9d152425cebdd2fd09d7dcd6f2c3006b1820868aa50e404e3e9453fdd7dc489"
+    },
+    {
+      "file": "tests/test_cad_corpus_audit.py",
+      "bytes": 1430,
+      "sha256": "225c17fa8bd540610c1244e016e5ef34728ea24350e8ede75d6cca9dd133b5ea"
+    },
+    {
+      "file": "tests/test_cad_counterfactual_guard.py",
+      "bytes": 8711,
+      "sha256": "f8c54a8c9a28300c8bd3de2cefe7a171669faa81f6c332fd46ae75fcf11da831"
+    },
+    {
+      "file": "tests/test_cad_creation_identity.py",
+      "bytes": 2509,
+      "sha256": "03d36d157f142f18845b3da4f51c2c7d3a5c4ac8320def4f8076709cb26b8aac"
+    },
+    {
+      "file": "tests/test_cad_edit_chain.py",
+      "bytes": 6235,
+      "sha256": "568862e6b070d2e0f3d27a1572fb024750de4e7b84bb379e02490a70fa7b50ee"
+    },
+    {
+      "file": "tests/test_cad_edit_gate.py",
+      "bytes": 10302,
+      "sha256": "1cbc233de86a63dc00b1e323e06d823e5bd0be187222de604ff5569aae1d42e4"
+    },
+    {
+      "file": "tests/test_cad_edit_intent.py",
+      "bytes": 4448,
+      "sha256": "97b027f68796ac2d75a698579eba33f31950c49744bddf91ecc01cb5667dc43f"
+    },
+    {
+      "file": "tests/test_cad_edit_interpreter.py",
+      "bytes": 11660,
+      "sha256": "0a76001979e094917e87a76a89a0ad858f3cc7c679c20945942ef0a4ab52f9c6"
+    },
+    {
+      "file": "tests/test_cad_edit_plan.py",
+      "bytes": 5771,
+      "sha256": "43ffd940a702146089f8b43b9ecb07398351034bb8f6a22b13781e1f7cd73efe"
+    },
+    {
+      "file": "tests/test_cad_edit_preview.py",
+      "bytes": 4841,
+      "sha256": "eecb246a872bb43a99ff20dca1ea831968417e99fb44bc6d92e0c160db2014f5"
+    },
+    {
+      "file": "tests/test_cad_edit_relation_acceptance.py",
+      "bytes": 7073,
+      "sha256": "d29610698571175dd578d932336221b7bcf585b0c26272f2dbbcfe301304bd00"
+    },
+    {
+      "file": "tests/test_cad_edit_session.py",
+      "bytes": 7115,
+      "sha256": "1ca91ca0ee3060a5123cae4aa36c05a143bb6ae8557b31b6ed55117b03ae6bd2"
+    },
+    {
+      "file": "tests/test_cad_final_source_contract.py",
+      "bytes": 2492,
+      "sha256": "85a907aa85681ece2786972f7ba5b9dd0d24488b2539ff4922098a680d0dedc0"
+    },
+    {
+      "file": "tests/test_cad_generation_recovery.py",
+      "bytes": 11464,
+      "sha256": "31014a400d26937b82fd52fe3a95dac2991aa04ee2d26fcdf76318fcb8a0dded"
+    },
+    {
+      "file": "tests/test_cad_history_replay.py",
+      "bytes": 1194,
+      "sha256": "694c2efe4f49e550354d05ccff62eee853e48cdfb8f3e42183bd6e39b5f6a859"
+    },
+    {
+      "file": "tests/test_cad_import.py",
+      "bytes": 18962,
+      "sha256": "1c37324a327c5a41e0be50cd9a297e0606094e69cf522e3a7857a8fc2e2cc1b4"
+    },
+    {
+      "file": "tests/test_cad_local_repair.py",
+      "bytes": 11342,
+      "sha256": "640ad10d1355899c20d1b9f48f45e70d46b97ebfe17b63825a931dca0ae4bacf"
+    },
+    {
+      "file": "tests/test_cad_manual_review_http.py",
+      "bytes": 1180,
+      "sha256": "133cb76023aeb9db78a4096df74f49f54f1ab4bce9520b3fefcab07a7ff62c84"
+    },
+    {
+      "file": "tests/test_cad_model_strategy.py",
+      "bytes": 5216,
+      "sha256": "d720039d0df798a0b7b71aaabfdede61d468cd261fada400b036d3fb661c4405"
+    },
+    {
+      "file": "tests/test_cad_object_constraints.py",
+      "bytes": 7781,
+      "sha256": "11f36d94237afba43f6db2129daaef26afc3ceaf6477c6440d41d9017b586320"
+    },
+    {
+      "file": "tests/test_cad_p0_trust_boundary.py",
+      "bytes": 7922,
+      "sha256": "c972df3a12ec3358658e036b336c28bd5a7638a95900aa7b930b4b1e1a6aabee"
+    },
+    {
+      "file": "tests/test_cad_parametric.py",
+      "bytes": 8089,
+      "sha256": "b13cd5db8eedbabc9185d5cf0e3c85e999a2ef134e0d182b6677f4db555aa89b"
+    },
+    {
+      "file": "tests/test_cad_path_relation_acceptance.py",
+      "bytes": 10087,
+      "sha256": "63d9806cc5e2bb2808e2c7b32d4db44c3842035fb05733f741a7fd7cd0ef3b9f"
+    },
+    {
+      "file": "tests/test_cad_pipeline_handoff.py",
+      "bytes": 4390,
+      "sha256": "176c1e98dbf9ec28f91e55eb6532d73bbf5682ab369bafe1131d3a43a4506fa1"
+    },
+    {
+      "file": "tests/test_cad_plan_component_repair.py",
+      "bytes": 4146,
+      "sha256": "5d1cbdc0e8a43237a88c9674e95259e6b8757ee6743e6d6c515ce966e02ec2fd"
+    },
+    {
+      "file": "tests/test_cad_plan_recovery.py",
+      "bytes": 5736,
+      "sha256": "341a461c0e40b733b13945ad3f7f67bb3329b757c7b189c998f29724d096a102"
+    },
+    {
+      "file": "tests/test_cad_plan_verifier.py",
+      "bytes": 5657,
+      "sha256": "c9047ece564b1f4da4bcd38d37bea1504e584b7ea0f790b3e0897ead504321c1"
+    },
+    {
+      "file": "tests/test_cad_preview_telemetry_scope.py",
+      "bytes": 2179,
+      "sha256": "919063548de4e15cd79f279dd0d4fd9df996aae4c7eb297578bdb548c6c29370"
+    },
+    {
+      "file": "tests/test_cad_product_acceptance_runner.py",
+      "bytes": 1881,
+      "sha256": "dd7b6046d4ddb48d96c4876e6256a67b92fa65d5e4bc5ef3f34ae0d3193ca916"
+    },
+    {
+      "file": "tests/test_cad_project_candidates.py",
+      "bytes": 10922,
+      "sha256": "0f525fe96994acb4851b454d386831559dde44cd432ae956c5cee7f43278fca4"
+    },
+    {
+      "file": "tests/test_cad_projection_acceptance.py",
+      "bytes": 14648,
+      "sha256": "fb59ea0370c7b203b2af63b858a9595a3131b5934625425f686fc6c3227f3776"
+    },
+    {
+      "file": "tests/test_cad_relation_acceptance.py",
+      "bytes": 5823,
+      "sha256": "0a0ce60206871e182681021c27fdf2ec035e9caba8804167efda513a2b0826bc"
+    },
+    {
+      "file": "tests/test_cad_repetition_acceptance.py",
+      "bytes": 8523,
+      "sha256": "519afff69b0d3530b2d13215ef3d1178669931160a227dac38423e58a827d404"
+    },
+    {
+      "file": "tests/test_cad_requirement_contract.py",
+      "bytes": 4557,
+      "sha256": "a5501f0ee149904b151d6b1cc4ea731b5a3470d4efc63d7ee54c7da3cc5cd0cd"
+    },
+    {
+      "file": "tests/test_cad_requirement_ledger.py",
+      "bytes": 5697,
+      "sha256": "42b7005b36bf241674e91319b5a35477f64ce8955e7552bc489e4c2bc42f4c8e"
+    },
+    {
+      "file": "tests/test_cad_selected_operations.py",
+      "bytes": 3981,
+      "sha256": "3ecc6b90430e7560c477bebb7f0fd95ef8a17b1d14917f84b481ef2cb29cdd60"
+    },
+    {
+      "file": "tests/test_cad_semantic_acceptance.py",
+      "bytes": 10089,
+      "sha256": "bb71ea591d9ad9cad3c5073fd73ece7e10f6cb268648bc12121d2457fb7b9624"
+    },
+    {
+      "file": "tests/test_cad_shared_points.py",
+      "bytes": 4695,
+      "sha256": "2be0fe435ea3bee4991798e6311923fc18771182de7311d3a9fe7254041add4e"
+    },
+    {
+      "file": "tests/test_cad_sketch_graph.py",
+      "bytes": 10682,
+      "sha256": "477192f043a4ce3bb0df7a456814cf120889865ee4940fbe553eb6ea1df2c98c"
+    },
+    {
+      "file": "tests/test_cad_source_acceptance.py",
+      "bytes": 9835,
+      "sha256": "353c50df3140c53fa00782d513fd3818da60810972adec739f633b0bc3193aba"
+    },
+    {
+      "file": "tests/test_cad_stroke_acceptance.py",
+      "bytes": 3392,
+      "sha256": "e58eb397f5d81f6df07484b9006218fd96193e035a35fdd29920ec30d4354e85"
+    },
+    {
+      "file": "tests/test_cad_structure_contract.py",
+      "bytes": 15895,
+      "sha256": "1f3558c5b122a154f9c9c47b19897f71bd7be22cdbd254c806da0031d84e5ee2"
+    },
+    {
+      "file": "tests/test_cad_target_resolver.py",
+      "bytes": 22320,
+      "sha256": "c0736e9567118c0d0d919d8441c6eaf06c81d40adc1dc2e780ff043a29c841e5"
+    },
+    {
+      "file": "tests/test_cad_template_plan.py",
+      "bytes": 11160,
+      "sha256": "d50af2a006ba9567d7a1e9e449ac1473ca42d11b3606972d0c73fef844d72911"
+    },
+    {
+      "file": "tests/test_cad_tool_contract_handoff.py",
+      "bytes": 15471,
+      "sha256": "1869520bd059a28fe86b16531d573e0c5e9a52e6ad0fbc5b171d1eeafdbe5e6e"
+    },
+    {
+      "file": "tests/test_cad_version_symbols.py",
+      "bytes": 2223,
+      "sha256": "389cf8502401c66fa28de5f799d6e8e522471acb4199a6cefbcd002a2017b257"
+    },
+    {
+      "file": "tests/test_cad_visual_scoring.py",
+      "bytes": 2297,
+      "sha256": "da821d51fb33ce62fa819342702bed63b46f3bf3c2ea7c6af733c07efd7c25f8"
+    },
+    {
+      "file": "tests/test_cad_write_receipt.py",
+      "bytes": 2760,
+      "sha256": "89ee0d8b9f11c4716d962572ef4c0e7457a29a12b1bc8cc7403e3ddb9e1604f3"
+    },
+    {
+      "file": "tests/test_candidate_library_save.py",
+      "bytes": 4941,
+      "sha256": "7abfe467d42f3470bedce9e6f1a7859367bce2988f0007a2a59ff85e01e42987"
+    },
+    {
+      "file": "tests/test_candidate_save.py",
+      "bytes": 1592,
+      "sha256": "ce1801c55b5cf982f7ff04219f3aaee267d0aacd4d58cf35e2297cccb4a0ad53"
+    },
+    {
+      "file": "tests/test_candidate_visibility_gate.py",
+      "bytes": 8391,
+      "sha256": "c6de7e0b6d2dcfb3cda68c1941589acedf14fd6f836fcdfba4f0230e2ca2a826"
+    },
+    {
+      "file": "tests/test_capsule_source_generalization.py",
+      "bytes": 6494,
+      "sha256": "10fe71d9c81f92c454551aa76e37c9c37d19b4cb93059b3c2db0cd15a36966c5"
+    },
+    {
+      "file": "tests/test_circle_group_output_handoff.py",
+      "bytes": 4353,
+      "sha256": "decfe5b5e9fa7fb220dca1b23726622d3ba172d3322d85dbf5bc15a35d6e1d39"
+    },
+    {
+      "file": "tests/test_closed_boundary_oracle_v3.py",
+      "bytes": 1305,
+      "sha256": "cdbb47d9dd3b50191e8953aa4c8a45b56de8a5c4deef0921a6eb9d491b9dbaae"
+    },
+    {
+      "file": "tests/test_component_dimension_scope_handoff.py",
+      "bytes": 4921,
+      "sha256": "d17977f23bae7a0cb5e5b783db41598b1dee5a63c8e6ea5abdde324324e593ae"
+    },
+    {
+      "file": "tests/test_composite_templates.py",
+      "bytes": 13626,
+      "sha256": "c7ee7be20384079fc9049c7b8e6e647f11aa45b3a6f48b72083a9e6054bf072b"
+    },
+    {
+      "file": "tests/test_composition_coverage_handoff.py",
+      "bytes": 5887,
+      "sha256": "0e72737a09c32b9ca7cfd84de402ebaf7e8f8786a62802b0fa40866a30d6a5c4"
+    },
+    {
+      "file": "tests/test_confirmed_source_repair.py",
+      "bytes": 8581,
+      "sha256": "04390f41158194a7165eda5283548ab7f3fb87ae8af93bf2782f2e1f3c980edc"
+    },
+    {
+      "file": "tests/test_constraint_intent_regressions.py",
+      "bytes": 3213,
+      "sha256": "9a25eff7ce1b82b87d67d5a2d9b7124bf13aae32a5be09e344514063ee751030"
+    },
+    {
+      "file": "tests/test_construction_failure_evidence.py",
+      "bytes": 1627,
+      "sha256": "6507248513582f80ae0c5a3c6a7dc2ab363a23ccea5ea67487c46363705eb12d"
+    },
+    {
+      "file": "tests/test_construction_quality.py",
+      "bytes": 4191,
+      "sha256": "96c819062938d19bd6a942aa4c6fd098d044c58d0aec83a69152823e79da95af"
+    },
+    {
+      "file": "tests/test_control_point_source_handoff.py",
+      "bytes": 5558,
+      "sha256": "4b268a900b6fb7c69d4d0cff1907e7b7e7bfb88ecc4bde09009f657083be447b"
+    },
+    {
+      "file": "tests/test_conversation_memory.py",
+      "bytes": 71233,
+      "sha256": "185f8602b4314bbaa08c33245eeb2339b9a42ff1650ac472bb02859dd78b3c50"
+    },
+    {
+      "file": "tests/test_creative_execution.py",
+      "bytes": 26865,
+      "sha256": "e07691418eee83de9ad9a43654f130153e674252c3248556cb1717214838382e"
+    },
+    {
+      "file": "tests/test_creative_projects.py",
+      "bytes": 30432,
+      "sha256": "dfa14f078855e6809cccd5b98f42fd331a476f179b93599cc61135a0dd6ae598"
+    },
+    {
+      "file": "tests/test_curve_evidence_inventory.py",
+      "bytes": 2089,
+      "sha256": "8d37e9ceedc2164e21d993941a2289ae74550fbf5e9a46d27add6a78f86150f3"
+    },
+    {
+      "file": "tests/test_curve_joint_and_array_feedback.py",
+      "bytes": 17443,
+      "sha256": "89028c158be918c4b21fedffccb48bfc8a234ed725bc67d751a7022f6d2c69e5"
+    },
+    {
+      "file": "tests/test_database_maintenance_api.py",
+      "bytes": 1771,
+      "sha256": "dcef3403b56881d2a70991b2d93df63a94a1726abf8875abd26573299d51c41a"
+    },
+    {
+      "file": "tests/test_database_project_chain.py",
+      "bytes": 6712,
+      "sha256": "8d3100199692dd9b0ede3ae6db8fe337c959f418aa86776167699613d36531d8"
+    },
+    {
+      "file": "tests/test_deepseek_flash_budget.py",
+      "bytes": 1677,
+      "sha256": "897b779e22a56acffdf8865f4e6fc6542434774cc2b446e5d0cc66841b75eb3f"
+    },
+    {
+      "file": "tests/test_deepseek_flash_compatibility.py",
+      "bytes": 908,
+      "sha256": "f9c19ceeca9a534554e9ba97dfb0a9c95f6cab9d8bf8cc3f21000b0ae81214bb"
+    },
+    {
+      "file": "tests/test_deepseek_transport.py",
+      "bytes": 1124,
+      "sha256": "b0ea63c2a9304e13122fe9e7bcebdff24a343c2759a7d0cb1329e0faf0d6984e"
+    },
+    {
+      "file": "tests/test_design_requirement_followup.py",
+      "bytes": 35586,
+      "sha256": "1d30420cf76dd796f6614505a9811c37d093e5c2ba87fd77c24aaf11412c8934"
+    },
+    {
+      "file": "tests/test_discovery.py",
+      "bytes": 1552,
+      "sha256": "c6f3ac34a53ea538df63cc2917f6f922430b994f2944d9f6eca0fdb4127f5bee"
+    },
+    {
+      "file": "tests/test_drawing_selection.py",
+      "bytes": 35062,
+      "sha256": "db61e10c536884845a27f942264481d62c6ae15ae074d546986dfe5df3c1fef2"
+    },
+    {
+      "file": "tests/test_drawing_store.py",
+      "bytes": 12546,
+      "sha256": "94ea616e9212e4bc1a3cb2894aa94cd13bf11145fa1ffed9084a5f4051e04f71"
+    },
+    {
+      "file": "tests/test_edit_acceptance_v2.py",
+      "bytes": 1463,
+      "sha256": "98447fc8bc6665bf90e968aba8174190ad889968144691852ff0087033fad065"
+    },
+    {
+      "file": "tests/test_edit_preview_routing.py",
+      "bytes": 2707,
+      "sha256": "00f1fffd076e9b0ce8f1d9372801cc590c5f67cdcd8f69d1eda252e87f11bab0"
+    },
+    {
+      "file": "tests/test_ellipse_axis_handoff.py",
+      "bytes": 5137,
+      "sha256": "40ecc67555ce031d30ce6302d9fd56f2768151c41bf43a5c41ea67905d95eb98"
+    },
+    {
+      "file": "tests/test_failed_source_retention.py",
+      "bytes": 3460,
+      "sha256": "bf9e11c22c34fb63c6f8f920b544062cca07d542860b491a1c397e0959a551db"
+    },
+    {
+      "file": "tests/test_fault_evaluation.py",
+      "bytes": 2258,
+      "sha256": "d0c2d8cf26a1ae502d720600549507271ce8ed233121fb8603765adac1066701"
+    },
+    {
+      "file": "tests/test_frozen_holdout_handoff.py",
+      "bytes": 10796,
+      "sha256": "6b954beba43d0007fadbbdda541bfb9e14129803d09dff187f4930a7ddd2b5bd"
+    },
+    {
+      "file": "tests/test_frozen_release_oracle.py",
+      "bytes": 1195,
+      "sha256": "321a2d0c869f60204d00be0c21b6d458b27f44856a9e7d85e7c26ce21e994590"
+    },
+    {
+      "file": "tests/test_full_segment_replan.py",
+      "bytes": 5238,
+      "sha256": "cb83805b4f71196c10ee2ff7fea314123bd39e77c41a24a0bbd70be795413e23"
+    },
+    {
+      "file": "tests/test_geometry_catalog.py",
+      "bytes": 4202,
+      "sha256": "0912ba0685610d8bed14d5dcb7b33efb848f56f7eed8763a979da0031ef7590f"
+    },
+    {
+      "file": "tests/test_geometry_diff.py",
+      "bytes": 4103,
+      "sha256": "24ea224d59c7feac62fd71da563fa40738b3add398be14484e1913d41fb50bc4"
+    },
+    {
+      "file": "tests/test_heart_acceptance_candidate_v1.py",
+      "bytes": 2149,
+      "sha256": "f9a062674f5ac5ab39b48e96f6c708fd63fdca94ca081e24c5fdbae1d7d04e43"
+    },
+    {
+      "file": "tests/test_heart_candidate_stress.py",
+      "bytes": 1486,
+      "sha256": "1394499fff461faa148f8d1bbdaafba6d300bddaf456b1c0b63f24951ce2f48e"
+    },
+    {
+      "file": "tests/test_heart_candidate_v3.py",
+      "bytes": 1642,
+      "sha256": "f1d3a5013ede736aad3383c8f030282bdcd0b34bde9b7841e832d03173fd06c4"
+    },
+    {
+      "file": "tests/test_heart_candidate_v5.py",
+      "bytes": 1434,
+      "sha256": "0815bf1cacef5d48fa7231986fe01962568c3a2002df4970be8ec21e420b938e"
+    },
+    {
+      "file": "tests/test_heart_remaining_checks_audit.py",
+      "bytes": 2556,
+      "sha256": "b6d817869a47fe565d3f39506db3c10be49e5c39250654d7cece9cf59ba4b9d7"
+    },
+    {
+      "file": "tests/test_heart_shadow_entry_v1.py",
+      "bytes": 2264,
+      "sha256": "5df579af81c882bcc5acf8ecf995b26a472bff4a8cca2a94ba1489c3bb60a738"
+    },
+    {
+      "file": "tests/test_image_drawing_import.py",
+      "bytes": 7050,
+      "sha256": "41b421a8f11c043cef635aecfafeafdc38e10886cabbcf7e6fa07f2e09db161b"
+    },
+    {
+      "file": "tests/test_incremental_cad.py",
+      "bytes": 101883,
+      "sha256": "2c7ff133929c18e23c929f95510dbac5ca56bafecd28e51feb298580754ffee0"
+    },
+    {
+      "file": "tests/test_knowledge_retrieval.py",
+      "bytes": 4135,
+      "sha256": "83a0ec0fa16c880bae217d82881e0d3d3057a6719919f02be42204920a582a68"
+    },
+    {
+      "file": "tests/test_live_heart_shadow.py",
+      "bytes": 2457,
+      "sha256": "93eead351e8ca5c846757c74646d500ec31c116a39c5afad5f8dba9ffd0276d8"
+    },
+    {
+      "file": "tests/test_localization_capabilities.py",
+      "bytes": 2574,
+      "sha256": "0a1f234fe966d56c1f45041753fad25190f74d37086e847bd239d34fe8fc158a"
+    },
+    {
+      "file": "tests/test_logical_topology.py",
+      "bytes": 15747,
+      "sha256": "303792203409f73b330ceb93d96f0f35d4b3e5fea3e7e984df8f932d6cda4621"
+    },
+    {
+      "file": "tests/test_lower_taper_candidate_v2.py",
+      "bytes": 2054,
+      "sha256": "4a2d1d372534ce92701410e7d4c2179597fbdc96a05964e4a736d846324aa5e3"
+    },
+    {
+      "file": "tests/test_lower_taper_sampling_sensitivity.py",
+      "bytes": 1259,
+      "sha256": "1cee74ada8890df6dd54f0f5406f32c3b7e8f537751953a98153fc2e024b6878"
+    },
+    {
+      "file": "tests/test_main_lifespan.py",
+      "bytes": 3976,
+      "sha256": "fe43895257f53ea9a1d7780129efe6245f4102fd90f02f9cf7e331275c7c497b"
+    },
+    {
+      "file": "tests/test_map_adapter.py",
+      "bytes": 5875,
+      "sha256": "faf6067c00492cf51c7161e4ef22a169590a1bd9138335e0cd16948e1719e159"
+    },
+    {
+      "file": "tests/test_measured_semantic_source_handoff.py",
+      "bytes": 5450,
+      "sha256": "c5b9a5f48b033d088b1644d132b4b7c4884023911bbfd2ddf7e3b61e4cdfb576"
+    },
+    {
+      "file": "tests/test_merge_first_three.py",
+      "bytes": 5583,
+      "sha256": "f15f152884d8257371c3662cd5889b76f4a5407354dd3cd7d4d306673d044b1b"
+    },
+    {
+      "file": "tests/test_mirror_offset_array_constraint.py",
+      "bytes": 21416,
+      "sha256": "ef4e2b6efdfd0f4b104e7d2d48e7d761ce9458c732f933fc0780ee7c2aaf75b6"
+    },
+    {
+      "file": "tests/test_mission_reports.py",
+      "bytes": 869,
+      "sha256": "ff552bf6caed3707285aa8f8f3eee525b72c473f237ddeab6351e7d86a62d9f8"
+    },
+    {
+      "file": "tests/test_mission_request_correlation.py",
+      "bytes": 850,
+      "sha256": "1ba1cd0882299c6c4e11350ce499b76a982a66672f28de4d379098a575ebb8df"
+    },
+    {
+      "file": "tests/test_mission_safety.py",
+      "bytes": 23639,
+      "sha256": "69931715819001332dfee8d4f207f909f5efcd275c81713734bfcee3225ff78c"
+    },
+    {
+      "file": "tests/test_model_bounds_authority.py",
+      "bytes": 3308,
+      "sha256": "5db14524def08abace54fdc26de85d8f2bb3c78dfeadc670444ac76edda43e50"
+    },
+    {
+      "file": "tests/test_model_providers.py",
+      "bytes": 2326,
+      "sha256": "dd66f67b1e8b540a6b6cc62ad92bf035984780fb4a15f4b98a7b2fc2f0b8c6f2"
+    },
+    {
+      "file": "tests/test_model_request_gateway.py",
+      "bytes": 2814,
+      "sha256": "b4a6c420a5f2d2bd88dfd4952529cda2d38fa88923988ea1bb80c458a3c4421e"
+    },
+    {
+      "file": "tests/test_named_primitive_edit_binding.py",
+      "bytes": 3244,
+      "sha256": "1eede1872c6caec7197c034cc92ca0fb388d692dfd7573ea17339c8076297996"
+    },
+    {
+      "file": "tests/test_network_manager.py",
+      "bytes": 8301,
+      "sha256": "1014e19e675a5b211d8ef17de1f4f6178a4697a29fffa981415076801756fef8"
+    },
+    {
+      "file": "tests/test_notch_audit.py",
+      "bytes": 682,
+      "sha256": "ff7927c7bc98bce95452f29a44ab54c04c73b3003ee1038ee8416140d1e909b5"
+    },
+    {
+      "file": "tests/test_notch_relation_v1.py",
+      "bytes": 1283,
+      "sha256": "5bb656e9e9e7af2082c148b92f5ba8c1382ebfb8ea43c657776d0a429475cdca"
+    },
+    {
+      "file": "tests/test_open_path_source_generalization.py",
+      "bytes": 6133,
+      "sha256": "48225ec6baf403e9f3943a58da0da2d7dcfa83c82fe540e1a042054b66d285e2"
+    },
+    {
+      "file": "tests/test_outline_binding_handoff.py",
+      "bytes": 3320,
+      "sha256": "82f806071e8ee9621cc6b715ef623249a3d2ffd8173ea8d69633a68921b7ca56"
+    },
+    {
+      "file": "tests/test_outline_delivery_source.py",
+      "bytes": 8168,
+      "sha256": "43a5224f68c74cba77af68c9d321cf940d0498abed558ffddd9eee1707e42c5f"
+    },
+    {
+      "file": "tests/test_output_intent_recovery.py",
+      "bytes": 5124,
+      "sha256": "abd384eaf9e052128a5c880c2b6be80bcf94f79951ad396d82dee63e5ee37074"
+    },
+    {
+      "file": "tests/test_p12_eval_budget.py",
+      "bytes": 4066,
+      "sha256": "44509732c3b863bbcf7fe35b12806101a54b10af90b4ecd785c1b6cdf43eb37a"
+    },
+    {
+      "file": "tests/test_path_source_contract_handoff.py",
+      "bytes": 4702,
+      "sha256": "945e81b93f113857ab059e6ede0e4a92e2a3015bb84a6cb31334a0a1d4aeaaaa"
+    },
+    {
+      "file": "tests/test_planning_unit_contract.py",
+      "bytes": 2078,
+      "sha256": "f9ffb874e51baf5fa0d93683e0d8e10ca48f773564ac3bf2d1a89d9ab5798c26"
+    },
+    {
+      "file": "tests/test_polar_wave_source_handoff.py",
+      "bytes": 5186,
+      "sha256": "0809859729eb2fc07f0860dc5dec327bedd6e30974b21138a3ead2863e228d57"
+    },
+    {
+      "file": "tests/test_primitive_layout_source_handoff.py",
+      "bytes": 6999,
+      "sha256": "6e4aee13e3387b780cb23226b184aa2aed8b609f5d8757cbb9b1499ee103db80"
+    },
+    {
+      "file": "tests/test_production_contract_pilot.py",
+      "bytes": 1279,
+      "sha256": "c458c5ace8cda4c45db3a96569d62de1879402acdb3c85ba10dd19dc6612a492"
+    },
+    {
+      "file": "tests/test_project_endpoint_binding.py",
+      "bytes": 1559,
+      "sha256": "86604356f4eb3421bca8dc3a9ce5dd855e114daf3ee06d4ab6f4f7676b08573a"
+    },
+    {
+      "file": "tests/test_project_lifecycle.py",
+      "bytes": 8524,
+      "sha256": "5c712441d63ed4ae78dfc5a4892faecfcd959a6ed8aed3a9119596c72780cf90"
+    },
+    {
+      "file": "tests/test_project_planning_revision.py",
+      "bytes": 11990,
+      "sha256": "672a8dc86c9adbcee85dc607df13d47e3f0a5081af1d30bc771b2541dfef5840"
+    },
+    {
+      "file": "tests/test_project_transaction_boundary.py",
+      "bytes": 5413,
+      "sha256": "434cf24725fef0dc70a5437508ad414ff2472b948ac68c62fee7b9b192848e53"
+    },
+    {
+      "file": "tests/test_project_user_source_binding.py",
+      "bytes": 1624,
+      "sha256": "c9008e7d814acfe8c0812161d5f18780cb5b620c6fdb32b623416786abba59d0"
+    },
+    {
+      "file": "tests/test_provider_tool_agents.py",
+      "bytes": 48074,
+      "sha256": "eac4f7f4203925cb0f0c0e2d1b647c27459452590841cb29a6c3521104e3497a"
+    },
+    {
+      "file": "tests/test_radial_attachment_source.py",
+      "bytes": 1889,
+      "sha256": "5c2535b3cf30470d0b06a149a5b461d08eaf39ff4468e851c66b3c627ab72a82"
+    },
+    {
+      "file": "tests/test_recorded_cad_repair_inputs.py",
+      "bytes": 912,
+      "sha256": "a7e6fc8b481b77ca7b0b6407a0a79a6e5af12d0e9b0f43f7ac731327d01fb6a9"
+    },
+    {
+      "file": "tests/test_recorded_heart_replay_v4.py",
+      "bytes": 1215,
+      "sha256": "0b2806c88d19dbb4b6aae5bf3cda6caae03e376cab80f6ec13d452c462a7500e"
+    },
+    {
+      "file": "tests/test_rectangle_source_handoff.py",
+      "bytes": 7089,
+      "sha256": "ceb6ec599f8b15ed02f2f0b23bd4a20391026572dfab88ad046a216c275c7cd4"
+    },
+    {
+      "file": "tests/test_regression_source_handoff.py",
+      "bytes": 4048,
+      "sha256": "55c00ea3990aa19ff7e36747ba69fc418b212b01df8f4033a628e915747d35bd"
+    },
+    {
+      "file": "tests/test_relation_pilot.py",
+      "bytes": 5081,
+      "sha256": "2da7c6ef2c3185096502d28ff52da82915b78cbd1192d38091f03054273811bf"
+    },
+    {
+      "file": "tests/test_remaining_source_binding.py",
+      "bytes": 9761,
+      "sha256": "ee079b04a740f60c95f6a6ecf1e568e35c9e3025aa732d876855ebc00d5e7632"
+    },
+    {
+      "file": "tests/test_repair_reference_handoff.py",
+      "bytes": 9554,
+      "sha256": "19eca53fe9ba16752bab773fdf1b2e577a343a0afe331652cd2ea98479ee714e"
+    },
+    {
+      "file": "tests/test_repetition_source_handoff.py",
+      "bytes": 4423,
+      "sha256": "6f33ad6b4bbe3fc263c2798a650565ce51d581aab04386fe551a7f4e5db43526"
+    },
+    {
+      "file": "tests/test_route_optimization_comparison.py",
+      "bytes": 2188,
+      "sha256": "e79eb8cce9cc217391f1d3fe4bcdb91c0462ea7e3fe5cb49c60836cbb1d31173"
+    },
+    {
+      "file": "tests/test_semantic_dispatch_regression.py",
+      "bytes": 2754,
+      "sha256": "3b85f2e767230f2791af9f5288122562028d7c953c9d8b47630a29e53296d5bd"
+    },
+    {
+      "file": "tests/test_single_primitive_source_handoff.py",
+      "bytes": 5725,
+      "sha256": "f78c31643c9853ada5e940b1d8340c7d1ed5ca39e4b45515c2787dbba5922e26"
+    },
+    {
+      "file": "tests/test_source_delivery_precision.py",
+      "bytes": 4464,
+      "sha256": "d88cd600f1cb0c1cea29afeb5fe136658ffc793530089378e8c57bcb8d888669"
+    },
+    {
+      "file": "tests/test_source_readiness_and_invariant_edits.py",
+      "bytes": 9287,
+      "sha256": "7326c1db0bc4930e5e0765d6bd1be16e16a7148d29a44713fc3ed42a901b7264"
+    },
+    {
+      "file": "tests/test_source_size_snapshot_authority.py",
+      "bytes": 2479,
+      "sha256": "c06f061594eaa8520fded3cebeefaa012ca1aea178748d7352cb716719278c9e"
+    },
+    {
+      "file": "tests/test_spatial_partition.py",
+      "bytes": 5968,
+      "sha256": "f2d36bc727d710708451eb6dab49b1f9dccc046af6135b18f3b551aef3b4bb1a"
+    },
+    {
+      "file": "tests/test_stale_project_guard.py",
+      "bytes": 8857,
+      "sha256": "f2e5dfb7151f0ac70eb3e39185b4090e4affbcd6409f84ca33afe5d78fa844e4"
+    },
+    {
+      "file": "tests/test_standard_template_geometry.py",
+      "bytes": 5827,
+      "sha256": "592d7d930efa20e44035e8f007283ea050884b51086e37a471ee70b0b50fb9a9"
+    },
+    {
+      "file": "tests/test_stroke_source_handoff.py",
+      "bytes": 4118,
+      "sha256": "93ad62913bbbdb6b58d13d7aca93d4d111ced4f7dfaa28665d627d2ae171e9ca"
+    },
+    {
+      "file": "tests/test_structured_usage.py",
+      "bytes": 6932,
+      "sha256": "87ac745f8aa1336baff7f61ba4016f57a5dd925557d34c589091edf61a117137"
+    },
+    {
+      "file": "tests/test_symmetric_divider_source.py",
+      "bytes": 1596,
+      "sha256": "3a03c6c536aebda6ebbe5202a9fc8c664032ce4ef81c258f8b44ade13c99b174"
+    },
+    {
+      "file": "tests/test_tangent_endpoint_angles.py",
+      "bytes": 2205,
+      "sha256": "e2620e21ea7fbf0ca3983479b0075999963df49a03e2c4f72b6f283fd36ba420"
+    },
+    {
+      "file": "tests/test_task_store.py",
+      "bytes": 5064,
+      "sha256": "c1193fb5e2441873c2c046303fae3e1bca0d710fd47d14597891fc80384212e4"
+    },
+    {
+      "file": "tests/test_telemetry_contract.py",
+      "bytes": 3896,
+      "sha256": "65a599a5d627641473e8285fab77c3857581cf1c23aa9df846a8a5e4e44c3608"
+    },
+    {
+      "file": "tests/test_telemetry_history.py",
+      "bytes": 1453,
+      "sha256": "0e168cd5f01dfd8257ba2f5cd333d1e972aa90cfef4262d2b719473d054f571c"
+    },
+    {
+      "file": "tests/test_template_acceptance_handoff.py",
+      "bytes": 3986,
+      "sha256": "ba1e425988d5c3e71382284e27001d3e2999834c549cf7af1ba6f3e7101c968d"
+    },
+    {
+      "file": "tests/test_tooling.py",
+      "bytes": 17746,
+      "sha256": "e4b0906ebe72b905ac42178feb997c4e057b7eeee59048a874954f03bc6c05e7"
+    },
+    {
+      "file": "tests/test_trajectory_comparison.py",
+      "bytes": 924,
+      "sha256": "000bf5ba9440c88af25699875f1c421bddf8cb5dec0f21d675d53c9750940a48"
+    },
+    {
+      "file": "tests/test_trig_extrema_v1.py",
+      "bytes": 2124,
+      "sha256": "0c9c08cba07090ef5cdaa78af572c0ed19139ae36b23d2ea421f64fdf72f7abf"
+    },
+    {
+      "file": "tests/test_trig_layout_candidate_v4.py",
+      "bytes": 2700,
+      "sha256": "f2296e1fa79764f97522f374b3caa391096cd02060bc7acc593a7528c2daaaeb"
+    },
+    {
+      "file": "tests/test_user_cad_corpus_runner.py",
+      "bytes": 6606,
+      "sha256": "d8bfb0c6da42de563f36bc466159400ca60ea8899af9f0e94b6d24fc9ef76b6a"
+    },
+    {
+      "file": "tests/test_user_request_limits.py",
+      "bytes": 1416,
+      "sha256": "9c3a5c16a5e2d3999dc6d63dbd51d69aa678a12efbc8a264c179b3e17cbdb569"
+    },
+    {
+      "file": "tests/test_vertex_array_source_handoff.py",
+      "bytes": 5122,
+      "sha256": "2c88d1919dffce2565c81352f1ca963ef6211af54a4e4a957a3ec5ec39116754"
+    },
+    {
+      "file": "tests/test_vertex_path_language_handoff.py",
+      "bytes": 5793,
+      "sha256": "8d6418b2652f8edc48ea3503a72097500ee8b5694d63d2365071a7e6f8d7baac"
+    },
+    {
+      "file": "tests/test_virtual_sim_profile.py",
+      "bytes": 13930,
+      "sha256": "1e5d1cd674b206e09ef6b682520ce34690b51e1cfd08bb720cc6bff10bf3a8b3"
+    },
+    {
+      "file": "tests/test_web_demo.py",
+      "bytes": 1126,
+      "sha256": "fcf379024861c93e18460d1e54e9ec625dd145e34915729d8989bab4d47a0d33"
+    },
+    {
+      "file": "tests/test_xline_ws3_compatibility.py",
+      "bytes": 9901,
+      "sha256": "8e17cf534c1ab256efa758595f19327f8a10299456316c7c17d397ce9d4bbf3b"
+    },
+    {
+      "file": "tools/libredwg-0.14-win64/lib/python3.12/site-packages/LibreDWG.py",
+      "bytes": 1252930,
+      "sha256": "887839cd1e71d558aa2b9045e5ac162424ae110c0853085bb342d5c9f1d499d2"
+    },
+    {
+      "file": "tools/libredwg-0.14-win64/share/libredwg/load_dwg.py",
+      "bytes": 866,
+      "sha256": "411a46cf8372c7820423679b94c2bafb0ceb75377f0bee9f5c0948688487751a"
+    },
+    {
+      "file": "verify_followup.py",
+      "bytes": 755,
+      "sha256": "f2b9063a93e93a04c9f1c44341cf664e463e913def652e00a40cd1f8f7c3a103"
+    },
+    {
+      "file": "xline-agent.env.example",
+      "bytes": 1779,
+      "sha256": "f65cb2d099818c171603dbe12931c93fc26e65be0ee5e324b6a8836ad2323af6"
+    },
+    {
+      "file": "xline-app-backend1.service",
+      "bytes": 564,
+      "sha256": "83ad2ae7f0ba0f6033152473860ebed68c044920703be21897473c60d437f54c"
+    },
+    {
+      "file": "xline-ws3-runtime.service",
+      "bytes": 408,
+      "sha256": "571837eba19879c5cce0a257b6dafe36b3a68c90d183d53cf6cbf4c64d0f0b18"
+    },
+    {
+      "file": "后端代码职责说明.md",
+      "bytes": 10553,
+      "sha256": "810eb2a54e25c374c479880dc3d09e8ba6487f69b60c356188b996a2dd15d663"
+    }
+  ],
+  "credential_scan": {
+    "unresolved_findings": 0,
+    "known_redaction_test_fixture_hits": [
+      {
+        "file": "tests/test_conversation_memory.py",
+        "line": 918
+      }
+    ]
+  },
+  "excluded": "Credentials, runtime state, caches, databases, logs, dependencies and third-party binaries",
+  "line_endings": "backend/.gitattributes disables text conversion to preserve source snapshot bytes"
+}

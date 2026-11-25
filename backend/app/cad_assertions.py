@@ -1,9 +1,8 @@
 """Unified blocking assertions for deterministic CAD candidate persistence."""
 
 from __future__ import annotations
+from .cad_canonical_json import canonical_json_hash
 
-import hashlib
-import json
 from copy import deepcopy
 from typing import Any
 
@@ -14,10 +13,7 @@ from .cad_edit_preview import validate_cad_edit_preview
 
 
 def _fingerprint(value: Any) -> str:
-    payload = json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
+    return canonical_json_hash(value)
 
 
 def _normalized_target(contract: dict[str, Any]) -> dict[str, Any]:

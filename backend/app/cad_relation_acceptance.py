@@ -10,34 +10,44 @@ from .cad_structure_contract import StructureContractError
 
 def extract_named_relations(text, subjects):
     from .cad_source_acceptance import source_texts
-    names='|'.join(re.escape(s) for s in sorted(set(subjects),key=len,reverse=True))
+    subjects=set(subjects)
+    aliases={s:s for s in subjects}
+    for group in ({'圆','圆形'},{'矩形','长方形'}):
+        present=subjects&group
+        if len(present)==1:
+            canonical=next(iter(present))
+            aliases.update({name:canonical for name in group})
+    names='|'.join(re.escape(s) for s in sorted(aliases,key=len,reverse=True))
     if not names:return []
     pair=rf'(?P<a>{names})(?:与|和)(?P<b>{names})'
     patterns=[(pair+r'(?:的)?端点相接','endpoint_connected'),
         (pair+r'(?:内部)?不重叠','interiors_disjoint'),(pair+r'外切','externally_tangent'),
         (rf'(?P<a>{names})位于(?P<b>{names})内部','inside')]
-    for phrase,kind in [('左侧','left_of'),('右侧','right_of'),('上方','above'),('下方','below')]:
+    for phrase,kind in [('左(?:侧|方)','left_of'),('右(?:侧|方)','right_of'),('上方','above'),('下方','below')]:
         patterns.append((rf'(?P<a>{names})完全位于(?P<b>{names})(?:的)?{phrase}',kind))
+        patterns.append((rf'(?P<a>{names})(?:在|位于)(?P<b>{names})(?:的)?正{phrase}','direct_'+kind))
     result=[]
     for i,source in enumerate(source_texts(text)):
         for match in re.finditer(r'[^，,。；;\n]+',source):
             clause=match[0].strip()
             for pattern,kind in patterns:
                 parsed=re.fullmatch(pattern,clause)
-                if parsed and parsed['a']!=parsed['b']:
+                if parsed and aliases[parsed['a']]!=aliases[parsed['b']]:
                     start=match.start()+len(match[0])-len(match[0].lstrip())
-                    result.append({'subjects':[parsed['a'],parsed['b']],'kind':kind,
+                    result.append({'subjects':[aliases[parsed['a']],aliases[parsed['b']]],'kind':kind,
                         'source_id':f'source-{i+1}',
                         'evidence':{'start':start,'end':start+len(clause),'text':clause}})
                     break
     return result
 
 
-def _region(g):
+def _region(g, *, evidence_context=None):
     from .cad_structure_contract import _frame
+    from .cad_geometry_measurements import measured,circle_facts
     if g.get('type')=='circle':
-        return ('circle',(g['center']['x'],g['center']['y']),g['radius'])
-    frame=_frame(g)
+        fact=measured(circle_facts,g,evidence_context=evidence_context)
+        return ('circle',fact['center_mm'],fact['radius_mm'])
+    frame=_frame(g,evidence_context=evidence_context)
     return ('rectangle',frame) if frame else None
 
 
@@ -77,16 +87,17 @@ def _endpoints(g):
     return None
 
 
-def verify_named_relations(text, geometries, bindings):
+def verify_named_relations(text, geometries, bindings, *, evidence_context=None):
     from .cad_construction import construction_geometry_bounds
+    from .cad_geometry_measurements import measured
     by_id={g['id']:g for g in geometries}
     subjects={b['subject']:b['geometry_ids'] for b in bindings}
     checks=[]
     for relation in extract_named_relations(text,subjects):
         ids=[subjects[s][0] for s in relation['subjects']]
         a,b=[by_id[i] for i in ids]
-        kind=relation['kind'];tolerance=.5;valid=None
-        regions=[_region(g) for g in (a,b)]
+        kind=relation['kind'];tolerance=.5;valid=None;measurements={}
+        regions=[_region(g,evidence_context=evidence_context) for g in (a,b)]
         if kind=='inside' and all(regions):valid=_inside(*regions,tolerance)
         elif kind=='interiors_disjoint' and all(regions):valid=_disjoint(*regions,tolerance)
         elif kind=='externally_tangent' and all(r and r[0]=='circle' for r in regions):
@@ -94,14 +105,21 @@ def verify_named_relations(text, geometries, bindings):
         elif kind=='endpoint_connected':
             aa,bb=_endpoints(a),_endpoints(b)
             if aa and bb:valid=min(math.dist(x,y) for x in aa for y in bb)<=tolerance
-        elif kind in {'left_of','right_of','above','below'}:
-            aa,bb=construction_geometry_bounds([a]),construction_geometry_bounds([b])
-            if kind=='left_of':valid=aa['max_x']<=bb['min_x']+tolerance
-            elif kind=='right_of':valid=aa['min_x']>=bb['max_x']-tolerance
-            elif kind=='above':valid=aa['min_y']>=bb['max_y']-tolerance
+        elif kind.removeprefix('direct_') in {'left_of','right_of','above','below'}:
+            aa,bb=[measured(construction_geometry_bounds,[g],evidence_context=evidence_context) for g in (a,b)]
+            direction=kind.removeprefix('direct_')
+            if direction=='left_of':valid=aa['max_x']<=bb['min_x']+tolerance
+            elif direction=='right_of':valid=aa['min_x']>=bb['max_x']-tolerance
+            elif direction=='above':valid=aa['min_y']>=bb['max_y']-tolerance
             else:valid=aa['max_y']<=bb['min_y']+tolerance
+            if kind.startswith('direct_'):
+                axis='x' if direction in {'above','below'} else 'y'
+                error=abs((aa['min_'+axis]+aa['max_'+axis]-bb['min_'+axis]-bb['max_'+axis])/2)
+                valid=valid and error<=tolerance
+                measurements={'alignment_axis':axis,'center_alignment_error_mm':error}
         check={**relation,'geometry_ids':ids,'status':'passed' if valid else 'unverified' if valid is None else 'failed',
             'authority':'backend_measured_geometry','tolerance_mm':tolerance}
+        if measurements:check['measurements']=measurements
         if valid is False:
             raise StructureContractError('原文部件关系不满足：'+relation['evidence']['text'],{'relation_check':check})
         if valid is None:check['reason']='unsupported_primitive_pair'

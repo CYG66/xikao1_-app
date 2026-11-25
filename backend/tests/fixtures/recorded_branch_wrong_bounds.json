@@ -1,0 +1,432 @@
+{
+  "original": "生成一个雪花图案，6条对称分支，每条分支带2个侧枝，最大半径2米",
+  "source": "生成一个雪花图案，6条对称分支，每条分支带2个侧枝，最大半径2米\n中心(0,0)，6条主枝半径均2米、角间隔60度；每条主枝在半径1.2米处有两条长度0.5米、与主枝夹角60度的对称侧枝，坐标单位米。",
+  "plan": {
+    "shared_points": {},
+    "schema_version": "cad.construction-plan.v1",
+    "units": "m",
+    "project_id": null,
+    "source_version": null,
+    "steps": [
+      {
+        "step_id": "s1",
+        "output_ref": "branch0",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch0",
+          "object_type": "drawing_part",
+          "label": "主枝1",
+          "role": "main_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "end": {
+          "x": 2.0,
+          "y": 0.0
+        }
+      },
+      {
+        "step_id": "s2",
+        "output_ref": "branch0_side_a",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch0_side_a",
+          "object_type": "drawing_part",
+          "label": "主枝1侧枝A",
+          "role": "side_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": 1.2,
+          "y": 0.0
+        },
+        "end": {
+          "x": 1.45,
+          "y": 0.4330127018922193
+        }
+      },
+      {
+        "step_id": "s3",
+        "output_ref": "branch0_side_b",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch0_side_b",
+          "object_type": "drawing_part",
+          "label": "主枝1侧枝B",
+          "role": "side_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": 1.2,
+          "y": 0.0
+        },
+        "end": {
+          "x": 1.45,
+          "y": -0.4330127018922193
+        }
+      },
+      {
+        "step_id": "s4",
+        "output_ref": "branch1",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch1",
+          "object_type": "drawing_part",
+          "label": "主枝2",
+          "role": "main_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "end": {
+          "x": 1.0000000000000002,
+          "y": 1.7320508075688772
+        }
+      },
+      {
+        "step_id": "s5",
+        "output_ref": "branch1_side_a",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch1_side_a",
+          "object_type": "drawing_part",
+          "label": "主枝2侧枝A",
+          "role": "side_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": 0.6000000000000001,
+          "y": 1.0392304845413263
+        },
+        "end": {
+          "x": 0.3500000000000002,
+          "y": 1.4722431864335457
+        }
+      },
+      {
+        "step_id": "s6",
+        "output_ref": "branch1_side_b",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch1_side_b",
+          "object_type": "drawing_part",
+          "label": "主枝2侧枝B",
+          "role": "side_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": 0.6000000000000001,
+          "y": 1.0392304845413263
+        },
+        "end": {
+          "x": 1.1,
+          "y": 1.0392304845413263
+        }
+      },
+      {
+        "step_id": "s7",
+        "output_ref": "branch2",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch2",
+          "object_type": "drawing_part",
+          "label": "主枝3",
+          "role": "main_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "end": {
+          "x": -0.9999999999999996,
+          "y": 1.7320508075688774
+        }
+      },
+      {
+        "step_id": "s8",
+        "output_ref": "branch2_side_a",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch2_side_a",
+          "object_type": "drawing_part",
+          "label": "主枝3侧枝A",
+          "role": "side_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": -0.5999999999999998,
+          "y": 1.0392304845413265
+        },
+        "end": {
+          "x": -1.0999999999999996,
+          "y": 1.0392304845413265
+        }
+      },
+      {
+        "step_id": "s9",
+        "output_ref": "branch2_side_b",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch2_side_b",
+          "object_type": "drawing_part",
+          "label": "主枝3侧枝B",
+          "role": "side_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": -0.5999999999999998,
+          "y": 1.0392304845413265
+        },
+        "end": {
+          "x": -0.3499999999999997,
+          "y": 1.4722431864335457
+        }
+      },
+      {
+        "step_id": "s10",
+        "output_ref": "branch3",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch3",
+          "object_type": "drawing_part",
+          "label": "主枝4",
+          "role": "main_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "end": {
+          "x": -2.0,
+          "y": 2.4492935982947064e-16
+        }
+      },
+      {
+        "step_id": "s11",
+        "output_ref": "branch3_side_a",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch3_side_a",
+          "object_type": "drawing_part",
+          "label": "主枝4侧枝A",
+          "role": "side_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": -1.2,
+          "y": 1.4695761589768238e-16
+        },
+        "end": {
+          "x": -1.4500000000000002,
+          "y": -0.4330127018922191
+        }
+      },
+      {
+        "step_id": "s12",
+        "output_ref": "branch3_side_b",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch3_side_b",
+          "object_type": "drawing_part",
+          "label": "主枝4侧枝B",
+          "role": "side_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": -1.2,
+          "y": 1.4695761589768238e-16
+        },
+        "end": {
+          "x": -1.4499999999999997,
+          "y": 0.4330127018922195
+        }
+      },
+      {
+        "step_id": "s13",
+        "output_ref": "branch4",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch4",
+          "object_type": "drawing_part",
+          "label": "主枝5",
+          "role": "main_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "end": {
+          "x": -1.0000000000000009,
+          "y": -1.732050807568877
+        }
+      },
+      {
+        "step_id": "s14",
+        "output_ref": "branch4_side_a",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch4_side_a",
+          "object_type": "drawing_part",
+          "label": "主枝5侧枝A",
+          "role": "side_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": -0.6000000000000005,
+          "y": -1.039230484541326
+        },
+        "end": {
+          "x": -0.3500000000000005,
+          "y": -1.4722431864335452
+        }
+      },
+      {
+        "step_id": "s15",
+        "output_ref": "branch4_side_b",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch4_side_b",
+          "object_type": "drawing_part",
+          "label": "主枝5侧枝B",
+          "role": "side_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": -0.6000000000000005,
+          "y": -1.039230484541326
+        },
+        "end": {
+          "x": -1.1000000000000005,
+          "y": -1.039230484541326
+        }
+      },
+      {
+        "step_id": "s16",
+        "output_ref": "branch5",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch5",
+          "object_type": "drawing_part",
+          "label": "主枝6",
+          "role": "main_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "end": {
+          "x": 1.0000000000000002,
+          "y": -1.7320508075688772
+        }
+      },
+      {
+        "step_id": "s17",
+        "output_ref": "branch5_side_a",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch5_side_a",
+          "object_type": "drawing_part",
+          "label": "主枝6侧枝A",
+          "role": "side_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": 0.6000000000000001,
+          "y": -1.0392304845413263
+        },
+        "end": {
+          "x": 1.1,
+          "y": -1.0392304845413265
+        }
+      },
+      {
+        "step_id": "s18",
+        "output_ref": "branch5_side_b",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "snowflake",
+          "assembly_label": "雪花图案",
+          "object_id": "branch5_side_b",
+          "object_type": "drawing_part",
+          "label": "主枝6侧枝B",
+          "role": "side_branch"
+        },
+        "op": "add_line",
+        "start": {
+          "x": 0.6000000000000001,
+          "y": -1.0392304845413263
+        },
+        "end": {
+          "x": 0.34999999999999987,
+          "y": -1.4722431864335455
+        }
+      }
+    ],
+    "constraints": [],
+    "constraint_backend": "auto",
+    "assertions": [
+      {
+        "kind": "bounds_size",
+        "assertion_id": "a_bounds",
+        "target_ref": null,
+        "width": 4.0,
+        "height": 4.0,
+        "tolerance": 0.001
+      },
+      {
+        "kind": "entity_count",
+        "assertion_id": "a_count",
+        "target_ref": null,
+        "equals": 18
+      }
+    ],
+    "budgets": {
+      "max_steps": 100,
+      "max_entities": 500
+    },
+    "free_outline_layout": []
+  }
+}

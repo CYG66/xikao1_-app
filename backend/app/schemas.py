@@ -285,6 +285,14 @@ class CreativeProjectIterationRequest(BaseModel):
 class CreativeProjectSaveDrawingRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(default="", max_length=160)
+    save_as: bool = False
+    request_id: str | None = Field(default=None, min_length=1, max_length=100, pattern=r"^[A-Za-z0-9_.:-]+$")
+
+    @model_validator(mode="after")
+    def require_copy_request_id(self):
+        if self.save_as and not self.request_id:
+            raise ValueError("另存为需要 request_id，以便安全重试")
+        return self
     conversation_id: str | None = Field(
         default=None, min_length=1, max_length=100, pattern=r"^[A-Za-z0-9_.:-]+$"
     )

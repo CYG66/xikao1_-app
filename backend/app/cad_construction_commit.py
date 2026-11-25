@@ -14,64 +14,21 @@ from .creative_projects import CreativeProjectStore
 from .drawing_store import preview_paths
 from .cad_requirement_ledger import project_requirement_ledger, candidate_requirement_snapshot
 from .cad_construction import execute_construction_plan
-from .cad_requirement_binding import (
-    bind_construction_coverage,
-    unresolved_drawing_creation_requirements,
-)
 
 
 class ConstructionCommitError(ValueError):
     """Raised when an interpretation cannot be committed atomically."""
 
 
-def _validated_write_receipt(
-    persisted: dict[str, Any],
-    *,
-    project_id: str,
-    variant_id: str,
-    expected_before_variant_count: int,
-    require_created: bool,
-) -> dict[str, Any]:
-    """Validate the store-issued receipt after the atomic write."""
-    receipt = persisted.get("write_receipt")
-    if not isinstance(receipt, dict):
-        raise ConstructionCommitError("候选写入缺少可验证的存储回执。")
-    if str(receipt.get("project_id") or "") != project_id:
-        raise ConstructionCommitError("候选写入回执的项目身份不一致。")
-    if str(receipt.get("variant_id") or "") != variant_id:
-        raise ConstructionCommitError("候选写入回执的候选身份不一致。")
-    if not str(receipt.get("authority") or ""):
-        raise ConstructionCommitError("候选写入回执缺少存储权威。")
-    snapshot = persisted.get("project")
-    snapshot_variant_ids = {
-        str(item.get("id"))
-        for item in ((snapshot or {}).get("variants") or [])
-        if isinstance(item, dict)
-    } if isinstance(snapshot, dict) else set()
-    if variant_id not in snapshot_variant_ids:
-        raise ConstructionCommitError("候选写入回执声称的候选不在原子项目快照中。")
-    if receipt.get("created") is True:
-        expected_after = (
-            int(receipt.get("before_variant_count") or 0)
-            - int(receipt.get("superseded_count") or 0)
-            + 1
-        )
-        if receipt.get("after_variant_count") != expected_after:
-            raise ConstructionCommitError("候选写入回执的新增计数不自洽。")
-    elif (
-        receipt.get("after_variant_count") != receipt.get("before_variant_count")
-        or int(receipt.get("superseded_count") or 0) != 0
-    ):
-        raise ConstructionCommitError("候选写入回执的复用计数不自洽。")
-    if require_created:
-        if receipt.get("created") is not True or receipt.get("reused_existing") is not False:
-            raise ConstructionCommitError(
-                "本次请求没有创建新的可用图纸候选；不能复用已有候选满足“新建图纸”。"
-            )
-        if receipt.get("before_variant_count") != expected_before_variant_count:
-            raise ConstructionCommitError("候选写入回执的写入前状态与本次请求不一致。")
-    return receipt
-
+def retain_failed_construction_source(source_text, *, store, owner_conversation_id=None):
+    """Persist user intent only; this is neither a candidate nor acceptance."""
+    ledger=project_requirement_ledger(source_text)
+    return store.create(_project_name(source_text),source_text,
+        requirements={'shape':'generic_2d_cad','construction_mode':'deterministic_ir',
+            'retained_after_generation_failure':True,'source_validation_at_retention':'not_completed',
+            'requirement_ledger':ledger,'requirement_contract':deepcopy(ledger['requirement_contract'])},
+        constraints={'geometry_authority':'deterministic_backend'},
+        missing_parameters=[],owner_conversation_id=owner_conversation_id)
 
 
 def commit_construction_interpretation(
@@ -101,8 +58,6 @@ def commit_construction_interpretation(
     if add_variant is None or get_project is None or (store is None and not project_id):
         raise ConstructionCommitError("缺少候选写入目标。")
     project = get_project(project_id) if project_id else None
-    project_created_in_commit = project is None
-    prior_variant_count = len(project.get("variants") or []) if isinstance(project, dict) else 0
     if project_id:
         if project is None:
             raise ConstructionCommitError("当前项目已不存在，未创建其他项目。")
@@ -115,55 +70,39 @@ def commit_construction_interpretation(
         # candidate sets create their own project so rollback stays isolated.
         if len(candidates) != 1:
             raise ConstructionCommitError("当前项目只接受一个已验证的生产构造计划。")
-
+    if project is None:
+        project = store.create(
+            _project_name(source_text),
+            source_text,
+            requirements={
+                "shape": "generic_2d_cad",
+                "construction_mode": "deterministic_ir",
+                "units": str(candidates[0]["trial_result"]["plan"].get("units") or "m"),
+                "candidate_count": len(candidates),
+                **deepcopy(interpretation.get("project_requirements") or {}),
+            },
+            constraints={
+                "validated_before_persist": True,
+                "geometry_authority": "deterministic_backend",
+            },
+            missing_parameters=[],
+            owner_conversation_id=owner_conversation_id,
+        )
+    interpretation = deepcopy(interpretation)
+    req = project.get("requirements") or {}
+    source_ledger = req.get("requirement_ledger") or project_requirement_ledger(
+        str(project.get("original_prompt") or source_text), req.get("source_followups") or [],
+        missing=project.get("missing_parameters") or [])
+    interpretation["requirement_ledger"] = candidate_requirement_snapshot(
+        source_ledger, {**(interpretation.get("requirement_ledger") or {}),
+                       "source_geometry_acceptance":interpretation.get("source_acceptance") or {}})
     persisted: list[dict[str, Any]] = []
     by_candidate_id: dict[str, dict[str, Any]] = {}
     try:
-        if project is None:
-            project = store.create(
-                _project_name(source_text),
-                source_text,
-                requirements={
-                    "shape": "generic_2d_cad",
-                    "construction_mode": "deterministic_ir",
-                    "units": str(candidates[0]["trial_result"]["plan"].get("units") or "m"),
-                    "candidate_count": len(candidates),
-                    **deepcopy(interpretation.get("project_requirements") or {}),
-                },
-                constraints={
-                    "validated_before_persist": True,
-                    "geometry_authority": "deterministic_backend",
-                },
-                missing_parameters=[],
-                owner_conversation_id=owner_conversation_id,
-            )
-        # Re-execution and binding are part of the same atomic commit boundary
-        # as project creation and candidate persistence.  Any failure here
-        # must reach the rollback below, not escape past it.
-        _refresh_candidate_trials(candidates)
-        req = project.get("requirements") or {}
-        source_ledger = req.get("requirement_ledger") or project_requirement_ledger(
-            str(project.get("original_prompt") or source_text), req.get("source_followups") or [],
-            missing=project.get("missing_parameters") or [])
-        base_interpretation = deepcopy(interpretation)
-        store_for_update = store if store is not None else getattr(add_variant, "__self__", None)
         for index, candidate in enumerate(candidates, start=1):
             trial = candidate["trial_result"]
-            # Pre-bind without claiming a write.  The provisional candidate may
-            # remain review-only until the store returns a real receipt.
-            candidate_interpretation = _candidate_interpretation(
-                source_text,
-                base_interpretation,
-                candidate,
-                source_ledger,
-                project,
-                project_created_in_commit=project_created_in_commit,
-                prior_variant_count=prior_variant_count,
-                candidate_write_in_commit=False,
-                write_receipt=None,
-            )
             committed_plan = trial.get("_construction_plan") if isinstance(trial, dict) else None
-            if isinstance(committed_plan, dict) and not trial.get("_p1_plan_refreshed"):
+            if isinstance(committed_plan, dict):
                 refreshed = execute_construction_plan(committed_plan)
                 trial = {**trial, **refreshed}
             geometries = list(trial.get("geometries") or [])
@@ -186,7 +125,6 @@ def commit_construction_interpretation(
                 "units_normalized": units_note,
             }
             metadata = candidate_metadata or {}
-            provisional_record = _construction_record(candidate_interpretation, candidate, trial)
             persisted_variant = persist_candidate_variant(
                 project_id=str(project["id"]),
                 name=str(metadata.get("title") or candidate.get("title") or f"结构候选 {index}"),
@@ -196,11 +134,12 @@ def commit_construction_interpretation(
                 add_variant=add_variant,
                 get_project=get_project,
                 stored_preview=preview_paths({"lines": geometries}),
-                acceptance_summary=deepcopy(candidate_interpretation.get("acceptance_summary")),
                 logical_objects=list(metadata.get("logical_objects") or trial.get("logical_objects") or []),
                 topology=dict(metadata.get("topology") or trial.get("topology") or {}),
                 **({"instance_contract": metadata["instance_contract"]} if metadata.get("instance_contract") else {}),
-                construction_record=provisional_record,
+                construction_record=_construction_record(
+                    interpretation, candidate, trial
+                ),
                 **({"execution_context": deepcopy(metadata["execution_context"])}
                    if isinstance(metadata.get("execution_context"), dict) else {}),
             )
@@ -209,84 +148,20 @@ def commit_construction_interpretation(
                     str(persisted_variant.get("message") or f"结构候选 {index} 未通过项目写入校验。")
                 )
             variant = persisted_variant["variant"]
-            # A later candidate in the same request sees the earlier writes;
-            # the store receipt must therefore report that exact prior count.
-            expected_before = int(prior_variant_count) + index - 1
-            requires_first_write = bool(
-                unresolved_drawing_creation_requirements(
-                    (candidate_interpretation.get("source_acceptance") or {}).get(
-                        "coverage_evidence"
-                    )
-                )
-                and not project_created_in_commit
-            )
-            receipt = _validated_write_receipt(
-                persisted_variant,
-                project_id=str(project["id"]),
-                variant_id=str(variant.get("id")),
-                expected_before_variant_count=expected_before,
-                require_created=requires_first_write,
-            ) if (
-                isinstance(persisted_variant.get("write_receipt"), dict)
-                or requires_first_write
-            ) else None
-            if receipt is not None and receipt.get("created") is True:
-                # The receipt proves this request created the candidate.  A
-                # still-unverified operation clause may now be rebound against
-                # that proven write inside the same transaction.
-                if requires_first_write:
-                    _rebind_source_acceptance(
-                        source_text,
-                        candidate_interpretation,
-                        candidate,
-                        project,
-                        project_created_in_commit=False,
-                        prior_variant_count=prior_variant_count,
-                        candidate_write_in_commit=True,
-                        write_receipt=receipt,
-                    )
-                final_record = _construction_record(
-                    candidate_interpretation, candidate, trial, write_receipt=receipt
-                )
-                updater = getattr(store_for_update, "update_variant_acceptance_with_receipt", None)
-                if not callable(updater):
-                    raise ConstructionCommitError("候选已创建，但缺少原子验收更新入口。")
-                updated_candidate = updater(
-                    str(project["id"]),
-                    str(variant["id"]),
-                    acceptance_summary=deepcopy(candidate_interpretation.get("acceptance_summary")),
-                    construction_record=final_record,
-                )
-                if not isinstance(updated_candidate, dict) or updated_candidate.get("updated") is not True:
-                    raise ConstructionCommitError("候选已创建，但验收状态无法回写。")
-                variant = updated_candidate["variant"]
             persisted.append(variant)
             by_candidate_id[str(candidate["candidate_id"])] = variant
-        # The post-write readback is part of the same transaction boundary: a
-        # project created by this call must not survive a failed final read.
-        updated = get_project(str(project["id"]))
-        if updated is None:
-            raise ConstructionCommitError("候选已写入，但无法重新读取项目。")
-        reloaded_variants = {
-            str(item.get("id")): item
-            for item in (updated.get("variants") or [])
-            if isinstance(item, dict)
-        }
-        for persisted_variant in persisted:
-            reloaded = reloaded_variants.get(str(persisted_variant.get("id")))
-            if reloaded is None:
-                raise ConstructionCommitError("候选已写入，但回读时不在项目中。")
-            expected_hash = str(persisted_variant.get("geometry_evidence_hash") or "")
-            reloaded_hash = str(reloaded.get("geometry_evidence_hash") or "")
-            if expected_hash and reloaded_hash != expected_hash:
-                raise ConstructionCommitError("候选已写入，但回读的几何哈希不一致。")
     except Exception as exc:
-        if not project_id and isinstance(project, dict) and project.get("id"):
+        if not project_id:
             store.delete(str(project["id"]))
         if isinstance(exc, ConstructionCommitError):
             raise
         raise ConstructionCommitError(str(exc)) from exc
 
+    updated = persisted_variant.get('project')
+    if not isinstance(updated,dict):
+        updated = get_project(str(project["id"]))
+    if updated is None:
+        raise ConstructionCommitError("候选已写入，但无法重新读取项目。")
     recommended = by_candidate_id.get(str(recommended_id or "")) or persisted[0]
     return {
         "schema": "cad.construction-commit.v1",
@@ -308,8 +183,7 @@ def _verified_candidates(
         trial = interpretation.get("trial_result")
         if not isinstance(trial, dict):
             return [], None
-        committed_plan = interpretation.get("plan") or trial.get("plan") or {}
-        trial = {**trial, "_construction_plan": deepcopy(committed_plan)}
+        trial = {**trial, "_construction_plan": deepcopy(interpretation.get("plan") or {})}
         return [{
             "candidate_id": "candidate-1",
             "title": _single_candidate_title(trial),
@@ -331,19 +205,10 @@ def _verified_candidates(
     return candidates, str(evaluation.get("recommended_candidate_id") or "") or None
 
 
-def _summary_passed(summary: Any) -> bool:
-    return bool(
-        isinstance(summary, dict)
-        and summary.get("status") == "passed"
-        and summary.get("review_required") is not True
-    )
-
-
 def _construction_record(
     interpretation: dict[str, Any],
     candidate: dict[str, Any],
     trial: dict[str, Any],
-    write_receipt: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     acceptance = interpretation.get("acceptance_summary")
     if not isinstance(acceptance, dict):
@@ -386,7 +251,6 @@ def _construction_record(
         "composition_validation": deepcopy(interpretation.get("composition_validation")),
         "source_acceptance": deepcopy(interpretation.get("source_acceptance")),
         "acceptance_summary": deepcopy(acceptance),
-        "write_receipt": deepcopy(write_receipt) if isinstance(write_receipt, dict) else None,
         "local_repair_validation": deepcopy(interpretation.get("local_repair_validation")),
         "repair_changes": deepcopy(
             ((interpretation.get("acceptance_summary") or {}).get("repair_changes")
@@ -415,159 +279,6 @@ def _construction_record(
         "graph_validation": deepcopy(trial.get("graph_validation") or {}),
         "sketch_graph": deepcopy(candidate.get("graph")),
     }
-
-
-def _refresh_candidate_trials(candidates: list[dict[str, Any]]) -> None:
-    """Execute the stored plan before binding, so evidence uses final geometry."""
-    for candidate in candidates:
-        trial = candidate.get("trial_result")
-        if not isinstance(trial, dict):
-            continue
-        plan = trial.get("_construction_plan")
-        if not isinstance(plan, dict):
-            continue
-        refreshed = execute_construction_plan(plan)
-        candidate["trial_result"] = {**trial, **refreshed, "_p1_plan_refreshed": True}
-
-
-def _candidate_interpretation(
-    source_text: str,
-    interpretation: dict[str, Any],
-    candidate: dict[str, Any],
-    source_ledger: dict[str, Any],
-    project: dict[str, Any],
-    *,
-    project_created_in_commit: bool,
-    prior_variant_count: int,
-    candidate_write_in_commit: bool = False,
-    write_receipt: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Return an isolated acceptance view for exactly one candidate."""
-    candidate_interpretation = deepcopy(interpretation)
-    _rebind_source_acceptance(
-        source_text,
-        candidate_interpretation,
-        candidate,
-        project,
-        project_created_in_commit=project_created_in_commit,
-        prior_variant_count=prior_variant_count,
-        candidate_write_in_commit=candidate_write_in_commit,
-        write_receipt=write_receipt,
-    )
-    construction_ledger = candidate_interpretation.get("requirement_ledger") or {}
-    candidate_interpretation["requirement_ledger"] = candidate_requirement_snapshot(
-        source_ledger,
-        {**construction_ledger,
-         "source_geometry_acceptance": candidate_interpretation.get("source_acceptance") or {}},
-    )
-    return candidate_interpretation
-
-
-def _rebind_source_acceptance(
-    source_text: str,
-    interpretation: dict[str, Any],
-    candidate: dict[str, Any],
-    project: dict[str, Any],
-    *,
-    project_created_in_commit: bool,
-    prior_variant_count: int,
-    candidate_write_in_commit: bool = False,
-    write_receipt: dict[str, Any] | None = None,
-) -> None:
-    """Attach the project record and measured object binding before persistence.
-
-    The binding is computed from this candidate's final trial result only, so a
-    correct candidate cannot lend its acceptance summary to a different
-    candidate.  Only ordinary, unique-object clauses can be promoted; all
-    ambiguous or missing bindings keep their original blocking state.
-    """
-    source_acceptance = interpretation.get("source_acceptance")
-    if not isinstance(source_acceptance, dict):
-        return
-    coverage = source_acceptance.get("coverage_evidence")
-    if not isinstance(coverage, dict):
-        return
-    trial = candidate.get("trial_result") if isinstance(candidate, dict) else None
-    trial = trial if isinstance(trial, dict) else {}
-    plan = trial.get("plan") if isinstance(trial.get("plan"), dict) else interpretation.get("plan")
-    plan = plan if isinstance(plan, dict) else {}
-    bound = bind_construction_coverage(
-        coverage,
-        logical_objects=list(trial.get("logical_objects") or []),
-        geometries=list(trial.get("geometries") or []),
-        plan_steps=list(plan.get("steps") or []),
-        symbol_table=trial.get("symbol_table") if isinstance(trial.get("symbol_table"), dict) else {},
-        project_evidence={
-            "project_id": str(project.get("id") or ""),
-            "project_status": project.get("status"),
-            "project_exists": bool(project.get("id")),
-            "created_in_this_commit": project_created_in_commit,
-            "prior_variant_count": int(prior_variant_count),
-            "candidate_write_in_commit": candidate_write_in_commit,
-            "write_receipt": deepcopy(write_receipt) if isinstance(write_receipt, dict) else None,
-            "authority": "creative_project_store",
-        },
-    )
-    source_acceptance = deepcopy(source_acceptance)
-    source_acceptance["coverage_evidence"] = bound
-    if bound.get("state") == "complete":
-        clause_ids = {
-            str(item.get("requirement_id"))
-            for item in bound.get("clauses") or []
-            if isinstance(item, dict) and item.get("requirement_id")
-        }
-        remaining_unknown = []
-        for item in source_acceptance.get("unknown_requirements") or []:
-            if not isinstance(item, dict):
-                remaining_unknown.append(item)
-                continue
-            ref = str(
-                item.get("source_requirement_id")
-                or item.get("requirement_id")
-                or ""
-            )
-            if ref and ref in clause_ids:
-                continue
-            remaining_unknown.append(item)
-        source_acceptance["unknown_requirements"] = remaining_unknown
-        if remaining_unknown:
-            # A non-clause unknown requirement is not cleared by object binding.
-            source_acceptance["status"] = "partial"
-            source_acceptance["coverage"] = "complete"
-            source_acceptance["review_required"] = True
-        else:
-            source_acceptance["status"] = "passed"
-            source_acceptance["coverage"] = "complete"
-            source_acceptance["review_required"] = False
-        interpretation["source_acceptance"] = source_acceptance
-        from .cad_construction_interpreter import construction_acceptance_summary
-        interpretation["acceptance_summary"] = construction_acceptance_summary(
-            preflight_structure=interpretation.get("preflight_structure"),
-            structure_contract=interpretation.get("structure_contract"),
-            structure_validation=interpretation.get("structure_validation"),
-            composition_contract=interpretation.get("composition_contract"),
-            composition_validation=interpretation.get("composition_validation"),
-            source_acceptance=source_acceptance,
-            trial_result=trial,
-            source=source_text,
-        )
-        return
-    interpretation["source_acceptance"] = source_acceptance
-    summary = interpretation.get("acceptance_summary")
-    if isinstance(summary, dict):
-        summary = deepcopy(summary)
-        summary["coverage_evidence"] = {
-            "state": bound.get("state"),
-            "verified_requirement_count": bound.get("verified_requirement_count"),
-            "partial_requirement_count": bound.get("partial_requirement_count"),
-            "unverified_requirement_count": bound.get("unverified_requirement_count"),
-            "blocking_requirements": deepcopy(bound.get("blocking_requirements") or []),
-        }
-        summary["status"] = "review_required"
-        summary["review_required"] = True
-        summary["requirement_coverage"] = "unknown"
-        summary["unknown_requirements"] = deepcopy(bound.get("blocking_requirements") or [])
-        interpretation["acceptance_summary"] = summary
 
 
 def _single_candidate_title(trial: dict[str, Any]) -> str:

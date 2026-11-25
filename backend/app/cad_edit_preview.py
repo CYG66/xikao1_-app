@@ -1,9 +1,8 @@
 """Deterministic, read-only preview contracts for CAD candidate edits."""
 
 from __future__ import annotations
+from .cad_canonical_json import canonical_json_hash
 
-import hashlib
-import json
 from copy import deepcopy
 from typing import Any
 
@@ -12,10 +11,7 @@ from .geometry_diff import build_path_impact
 
 
 def _fingerprint(value: Any) -> str:
-    payload = json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
+    return canonical_json_hash(value)
 
 
 def _geometry_ids(items: list[dict[str, Any]]) -> list[int]:

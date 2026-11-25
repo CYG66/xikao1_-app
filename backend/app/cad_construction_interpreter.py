@@ -5,13 +5,12 @@ Evaluation can explicitly bypass deterministic strategies without affecting chat
 """
 
 from __future__ import annotations
+from .cad_length_units import length_factors
 
 from copy import deepcopy
 import json
 import math
 import re
-
-from .cad_plan_component_repair import ComponentRepairError
 
 
 def _coerce_model_payload(value):
@@ -64,7 +63,6 @@ from .cad_source_acceptance import verify_scoped_primitives, extract_scoped_prim
 from .cad_structure_contract import (
     StructureContractError, reference_contract, explicit_dimensions, validate_structure,
     explicit_composition, validate_explicit_composition, validate_plan_structure,
-    legacy_composition_contract, object_inventory_sidecar,
 )
 
 
@@ -134,7 +132,7 @@ def clarify_construction_request(source_text: str) -> dict[str, Any]:
     text = source_text.strip()
     lowered = text.lower()
     shape = next((name for name in (
-        "爱心", "心形", "矩形", "长方形", "正方形", "圆", "椭圆",
+        "爱心", "心形", "矩形", "长方形", "正方形", "椭圆", "圆弧", "圆",
         "圆弧", "弧线", "样条", "贝塞尔", "多边形", "轮廓", "曲线",
         "线段", "折线",
     ) if name in lowered), None)
@@ -179,6 +177,10 @@ def clarify_construction_request(source_text: str) -> dict[str, Any]:
     if explicit_free_curve_scope:
         has_size = True
 
+    from .cad_vertex_acceptance import open_straight_path_requirements
+    path_source=open_straight_path_requirements(text)
+    if path_source.get('coverage')=='complete':
+        shape='折线';has_size=True;curved_shape=False
     if shape is None:
         key = "shape"
         question = "你要生成什么图形？请直接说明对象，例如“生成一个闭合爱心轮廓”。"
@@ -342,139 +344,12 @@ def interpret_sketch_graph_candidates(
     }
 
 
-def _semantic_backend_binding(result: dict[str, Any] | None) -> dict[str, Any]:
-    """Resolve a backend-trusted logical-object binding for semantic acceptance.
-
-    Trust anchor is the construction result produced by ``execute_construction_plan``:
-    its ``logical_objects[*].geometry_refs`` were resolved against the executor's
-    current geometry ids and the object graph was validated backend-side.  A
-    model-declared ``object_id``/label on an individual geometry is never promoted
-    to identity; the identity anchor is the backend-resolved geometry reference
-    list.  Connected components remain a limited fallback inside the verifier and
-    are never treated as the sole identity for arbitrary multi-object drawings.
-
-    Returns a binding descriptor with ``trust`` in ``trusted`` / ``degraded``.
-    A degraded descriptor carries no trusted mapping: the caller must not pretend
-    the binding was verified.
-    """
-    from .logical_topology import validate_logical_object_graph
-    from .cad_semantic_dispatch import active_geometries
-
-    issues: list[dict[str, Any]] = []
-    geometries = result.get("geometries") if isinstance(result, dict) else None
-    objects = result.get("logical_objects") if isinstance(result, dict) else None
-    topology = result.get("topology") if isinstance(result, dict) else None
-
-    if not isinstance(geometries, list) or not geometries:
-        issues.append({"code": "geometry_list_missing",
-                        "detail": "执行结果没有可验收几何。"})
-        return {"trust": "degraded", "logical_objects": None, "topology": None,
-                "issues": issues, "source": None, "graph_validation": None}
-    if not isinstance(objects, list) or not objects:
-        issues.append({"code": "logical_objects_missing",
-                        "detail": "后端执行结果未提供逻辑对象清单；不得把模型自报身份当作可信绑定。"})
-        return {"trust": "degraded", "logical_objects": None, "topology": None,
-                "issues": issues, "source": None, "graph_validation": None}
-
-    validation = validate_logical_object_graph(geometries, objects, topology)
-    if not validation.get("verified"):
-        for error in validation.get("errors", []):
-            issues.append({
-                "code": error.get("code", "logical_graph_invalid"),
-                "detail": error.get("message", ""),
-                "object_id": error.get("object_id"),
-                "geometry_ids": error.get("geometry_ids"),
-            })
-        return {"trust": "degraded", "logical_objects": None, "topology": None,
-                "issues": issues,
-                "source": "execute_construction_plan.logical_objects",
-                "graph_validation": validation}
-
-    active = active_geometries(geometries)
-    active_ids = {geometry.get("id") for geometry in active}
-    owned_ids: set[Any] = set()
-    for obj in objects:
-        if not isinstance(obj, dict):
-            issues.append({"code": "logical_object_not_object",
-                           "detail": "逻辑对象条目结构非法。"})
-            continue
-        refs = obj.get("geometry_refs")
-        if refs is None:
-            refs = obj.get("geometry_ids") or []
-        owned_ids.update(refs)
-    unowned = sorted(active_ids - owned_ids)
-    if unowned:
-        issues.append({"code": "incomplete_membership",
-                       "detail": "存在未归属到任何逻辑对象的活动几何；对象清单不完整。",
-                       "geometry_ids": unowned})
-
-    if issues:
-        return {"trust": "degraded", "logical_objects": None, "topology": None,
-                "issues": issues,
-                "source": "execute_construction_plan.logical_objects",
-                "graph_validation": validation}
-
-    return {"trust": "trusted", "logical_objects": deepcopy(objects),
-            "topology": deepcopy(topology) if isinstance(topology, dict) else None,
-            "issues": [], "source": "execute_construction_plan.logical_objects",
-            "graph_validation": validation}
-
-
-def _verify_semantic_requirements_bound(original_requirement: str, result: dict[str, Any]) -> dict[str, Any]:
-    """Run semantic acceptance with a backend-resolved object binding.
-
-    The mapping is validated before the verifier reads it.  When the binding is
-    missing or unverifiable the verifier falls back to its two-argument form and
-    the result is explicitly marked degraded; a degraded result can never be
-    promoted to an overall PASS.
-    """
-    from .cad_semantic_acceptance import verify_semantic_requirements
-    from .cad_structure_contract import StructureContractError
-
-    binding = _semantic_backend_binding(result)
-    geometries = result.get("geometries") or []
-    kwargs: dict[str, Any] = {}
-    if binding["trust"] == "trusted":
-        kwargs = {"logical_objects": binding["logical_objects"],
-                  "topology": binding["topology"]}
-    try:
-        proof = dict(verify_semantic_requirements(original_requirement, geometries, **kwargs))
-    except StructureContractError as source_error:
-        if binding["trust"] != "degraded":
-            raise
-        # Degraded binding: do not let an exception-derived source verdict be
-        # treated as a clean pass; record an unverified caller-side verdict.
-        proof = {
-            "status": "unverified",
-            "review_required": True,
-            "reason": "caller_binding_unverified",
-            "reason_detail": ("逻辑对象映射缺失、过期或未通过后端图校验；绑定不确定，"
-                              "不得整体验收为通过。"),
-            "checks": [],
-            "source_error": {"message": str(source_error), "details": source_error.details},
-        }
-    proof["binding"] = {
-        "binding_source": binding["source"] if binding["trust"] == "trusted" else "none_unverified_mapping",
-        "binding_trust": binding["trust"],
-        "issues": binding["issues"],
-        "model_declared_object_id_trusted": False,
-        "identity_anchor": "backend_resolved_geometry_refs",
-    }
-    if binding["trust"] == "degraded":
-        proof["review_required"] = True
-        if proof.get("status") == "passed":
-            proof["status"] = "unverified"
-            proof["reason"] = "caller_binding_unverified"
-            proof["reason_detail"] = ("逻辑对象映射缺失、过期或未通过后端图校验；绑定不确定，"
-                                      "不得整体验收为通过。")
-    return proof
-
-
 def interpret_construction_request(
     source_text: str,
     model_callback: ConstructionModelCallback | None = None,
     *,
     force_structured_model: bool = False,
+    _semantic_verifier=None,
     _allow_measured_rotation: bool = True,
     _allow_radial_bounds_repair: bool = True,
     _allow_arc_direction_repair: bool = True,
@@ -498,7 +373,7 @@ def interpret_construction_request(
         snapshot_tail = original_requirement.split(snapshot_marker, 1)[1].strip()
         json_start = snapshot_tail.find("{")
         try:
-            snapshot, _ = json.JSONDecoder().raw_decode(snapshot_tail[json_start:]) if json_start >= 0 else (None, 0)
+            snapshot, snapshot_end = json.JSONDecoder().raw_decode(snapshot_tail[json_start:]) if json_start >= 0 else (None, 0)
         except (TypeError, ValueError):
             snapshot = None
         if isinstance(snapshot, dict):
@@ -510,12 +385,35 @@ def interpret_construction_request(
                 # Persisted confirmed dimensions may predate the follow-up
                 # ledger.  Bind them only when there is one subject; a local
                 # component size must never become a whole-drawing size.
-                if len(local_creation_objects("\n".join(sources))) <= 1 and isinstance(requirements, dict):
+                from .cad_requirement_contract import requirement_contract
+                existing_contract = requirement_contract([
+                    {'source_id':f'original-{i}', 'text':s} for i,s in enumerate(sources)])
+                # A source side/radius is not a bounding width/height. Keep
+                # the old missing-dimension fallback for legacy size answers,
+                # but never upgrade inferred bounds over these explicit facts.
+                nonbounding_size=any(f['field'] in {'side_length','radius','diameter','circumradius'}
+                    for f in existing_contract['facts'])
+                if nonbounding_size and isinstance(requirements,dict):
+                    # The model must see the same authority boundary as the
+                    # verifier, not stale inferred bounding fields in JSON.
+                    clean_snapshot=deepcopy(snapshot)
+                    clean_requirements=clean_snapshot.get('requirements',clean_snapshot)
+                    clean_dimensions=clean_requirements.get('dimensions')
+                    source_fields={f['field'] for f in existing_contract['facts']}
+                    if isinstance(clean_dimensions,dict):
+                        for field in ('width','height'):
+                            if field not in source_fields:clean_dimensions.pop(field+'_m',None)
+                        encoded=snapshot_tail[json_start:json_start+snapshot_end]
+                        text=text.replace(encoded,json.dumps(clean_snapshot,ensure_ascii=False),1)
+                if (len(local_creation_objects("\n".join(sources))) <= 1 and isinstance(requirements, dict)
+                        and not nonbounding_size):
                     dimensions = requirements.get("dimensions")
                     if isinstance(dimensions, dict):
+                        source_fields = {fact['field'] for fact in existing_contract['facts']}
                         labels = {"width_m": "宽度", "height_m": "高度", "radius_m": "半径", "diameter_m": "直径"}
                         confirmed = [f"{label}{dimensions[key]}米" for key, label in labels.items()
-                                     if isinstance(dimensions.get(key), (int, float)) and dimensions[key] > 0]
+                                     if key.removesuffix('_m') not in source_fields
+                                     and isinstance(dimensions.get(key), (int, float)) and dimensions[key] > 0]
                         if confirmed:
                             # A caption before ':' is parsed as an explicit
                             # component name. These committed global values
@@ -523,6 +421,13 @@ def interpret_construction_request(
                             sources.append("，".join(confirmed))
                 original_requirement = "\n".join(sources)
     from .cad_requirement_contract import requirement_contract
+    from .cad_axis_requirements import ellipse_axes
+    axis_requirements = ellipse_axes(original_requirement)
+    if axis_requirements['status'] == 'conflict':
+        return {**_failure('conflicting_axis_dimensions','长轴/短轴或全轴/半轴尺寸存在冲突，请确认。',
+                          'source_requirements',clarification_required=True),
+                'clarification':{'status':'clarification_required','question_key':'size',
+                    'question':'请确认椭圆长轴、短轴的实际全长或半轴长度。'}}
     from .cad_source_acceptance import source_texts
     scalar_contract=requirement_contract([{'source_id':f'request-{i+1}','text':s}
         for i,s in enumerate(source_texts(original_requirement))])
@@ -545,22 +450,25 @@ def interpret_construction_request(
                 'clarification':coordinate_clarification}
     from .cad_semantic_acceptance import semantic_requirements
     user_text='\n'.join(source_texts(original_requirement))
+    if ('圆柱体' in user_text and re.search(r'俯视|顶圆',user_text)
+            and not re.search(r'正投影|多视图|透视|等轴|等距|俯视图.{0,8}侧视图|侧视图.{0,8}俯视图',user_text)):
+        question='请明确圆柱体的投影方式：俯视圆与侧视轮廓两个独立视图，还是能看到顶面的三维效果投影？三维效果还需指定视角或投影约定。'
+        return {**_failure('missing_projection_convention',question,'source_requirements',clarification_required=True),
+                'clarification':{'status':'clarification_required','question_key':'curve_constraints','question':question,'suggested_prompt':question},
+                'provider_attempted':False}
     semantics=semantic_requirements(original_requirement)
+    if (semantics and not coordinate_scale(user_text)['has_scale']
+            and not re.search(rf'{_NUMBER}\s*{_UNIT}',user_text,re.I)
+            and _requested_area_square_metres(user_text) is None
+            and not re.search(r'(?:尺寸|大小)(?:随意|由你决定)|自行决定尺寸',user_text)):
+        names=local_creation_objects(user_text);name=names[0] if names else '该图形'
+        question=f'已识别为{name}。请提供实际整体宽度和高度；模型不会自行编造实际尺寸。'
+        return {**_failure('missing_dimensions',question,'source_requirements',clarification_required=True),
+            'clarification':{'status':'clarification_required','question_key':'size','question':question,
+                'recognized_shape':name,'recognized_size':False,'suggested_prompt':question},'provider_attempted':False}
     structure_contract = reference_contract(original_requirement)
-    legacy_contract = explicit_composition(original_requirement)
-    inventory_sidecar = object_inventory_sidecar(original_requirement)
-    if isinstance(legacy_contract, dict) and isinstance(inventory_sidecar, dict):
-        composition_contract: dict[str, Any] | None = {**legacy_contract, **inventory_sidecar}
-    elif isinstance(legacy_contract, dict):
-        composition_contract = legacy_contract
-    else:
-        composition_contract = inventory_sidecar
-    # Inventory side-cars feed only the ownership reconciliation below; legacy
-    # composition guards must not treat them as an explicit component contract.
-    legacy_composition = legacy_composition_contract(composition_contract)
-    # Multi-object named-component dimension guard runs ahead of the single
-    # subject semantics guard so a compound request is challenged for every
-    # component size before any single-subject "missing_dimensions" reply.
+    composition_contract = explicit_composition(original_requirement)
+    width_m, height_m = explicit_dimensions(original_requirement)
     if composition_contract and composition_contract.get("kind") == "named_components":
         shared = composition_contract.get("dimensions") or {}
         scoped = composition_contract.get("component_dimensions") or {}
@@ -622,16 +530,6 @@ def interpret_construction_request(
                 },
                 "provider_attempted": False,
             }
-    width_m, height_m = explicit_dimensions(original_requirement)
-    if (semantics and not coordinate_scale(user_text)['has_scale']
-            and not re.search(rf'{_NUMBER}\s*{_UNIT}',user_text,re.I)
-            and _requested_area_square_metres(user_text) is None
-            and not re.search(r'(?:尺寸|大小)(?:随意|由你决定)|自行决定尺寸',user_text)):
-        names=local_creation_objects(user_text);name=names[0] if names else '该图形'
-        question=f'已识别为{name}。请提供实际整体宽度和高度；模型不会自行编造实际尺寸。'
-        return {**_failure('missing_dimensions',question,'source_requirements',clarification_required=True),
-            'clarification':{'status':'clarification_required','question_key':'size','question':question,
-                'recognized_shape':name,'recognized_size':False,'suggested_prompt':question},'provider_attempted':False}
     if structure_contract and (width_m is None or height_m is None):
         name = structure_contract["matched_object"]
         question = f"已识别为{name}，将按已核验的制图依据保留全部组成和布局。请提供实际宽度和高度；标准比例不是唯一的实际尺寸。"
@@ -654,14 +552,15 @@ def interpret_construction_request(
     from .cad_template_plan import template_plan_from_text
     from .agent_skills import recognize_drawing_template, recognize_drawing_template_set
     try:
-        template_plan = None if force_structured_model or structure_contract or legacy_composition else template_plan_from_text(original_requirement)
+        template_plan = None if force_structured_model or structure_contract or composition_contract else template_plan_from_text(original_requirement)
     except ValueError as exc:
         return _failure("invalid_template_parameters", str(exc), "parameterized_template")
     # A partially covered template request must never fall back to a primitive
     # parser that would silently construct just the remaining circle/rectangle.
     partial_template = template_plan is None and bool(recognize_drawing_template(original_requirement) or recognize_drawing_template_set(original_requirement))
-    plan = template_plan or (None if force_structured_model or partial_template or structure_contract or legacy_composition or compound_model_request else parse_rule_construction_plan(original_requirement))
+    plan = template_plan or (None if force_structured_model or partial_template or structure_contract or composition_contract or compound_model_request else parse_rule_construction_plan(original_requirement))
     parser = "parameterized_template" if template_plan else "deterministic_rules"
+    junction_source_failure = None
     evidence: list[str] = []
     confidence = 1.0
     assumptions: list[str] = []
@@ -679,10 +578,25 @@ def interpret_construction_request(
         parser = "structured_model"
         payload: dict[str, Any] = {}
         model_text, normalization_facts = normalize_construction_request(text)
+        from .cad_length_units import planning_unit_contract
+        unit_contract=planning_unit_contract(original_requirement)
+        model_text+='\n[统一来源单位契约：plan_values按plan.units直接使用一次，不再按原文单位二次换算；仅为原文参数，不是生成坐标。缺失坐标单位不可猜测，其他来源与模型假设不能覆盖此表]\n'+json.dumps(unit_contract,ensure_ascii=False)
+        from .cad_primitive_layout_acceptance import cylinder_view_requirements
+        cylinder_views=cylinder_view_requirements(original_requirement)
+        if cylinder_views:
+            model_text+='\n[原文两个独立正投影视图的角色与尺寸关系；不提供生成坐标]\n'+json.dumps(cylinder_views,ensure_ascii=False)
+        from .cad_projection_acceptance import projection_requirements
+        projection=projection_requirements(original_requirement)
+        if projection:
+            model_text+='\n[原文投影棱线约束，与独立测量使用同一来源；不提供生成坐标]\n'+json.dumps(projection,ensure_ascii=False)
         from .cad_path_relation_acceptance import perpendicular_arm_requirements
         arm_relations=perpendicular_arm_requirements(original_requirement)
         if arm_relations:
             model_text+='\n[用户尺寸作用域和直角连接关系，非候选坐标或模板]\n'+json.dumps(arm_relations,ensure_ascii=False)
+        from .cad_semantic_source_coverage import source_dimension_relation_guidance
+        dimension_relations=source_dimension_relation_guidance(original_requirement)
+        if dimension_relations:
+            model_text+='\n[由现有来源契约确定性求得的尺寸关系；单位mm，非生成器或候选计划；输出须按plan.units转换，后端仍独立实测]\n'+json.dumps(dimension_relations,ensure_ascii=False)
         from .cad_repetition_acceptance import tiling_structure_requirements
         tiling=tiling_structure_requirements(original_requirement)
         if tiling:
@@ -722,17 +636,19 @@ def interpret_construction_request(
         if structure_contract:
             model_text += "\n[独立结构契约：来自已核验来源，不得删减组成或改写规则]\n" + json.dumps(structure_contract, ensure_ascii=False)
             model_text += "\n根据最新确认宽高将归一化关系转换为构造计划。基准框可平移，坐标y向上。每个组成是独立闭合路径。已有来源已明确星位、星径和朝向，不得再次索要这些信息，不得用仅外框代替完整对象。"
-        if legacy_composition:
-            model_text += "\n[原文明确组成契约，不得省略或替换组成]\n"+json.dumps(legacy_composition,ensure_ascii=False)
+        if composition_contract:
+            model_text += "\n[原文明确组成契约，不得省略或替换组成]\n"+json.dumps(composition_contract,ensure_ascii=False)
         from .cad_requirement_contract import build_requirement_source_index, requirement_contract
         from .cad_source_acceptance import source_texts
         planning_sources = build_requirement_source_index(
             requirement_contract([{'source_id':f'user:{i}','text':s} for i,s in enumerate(source_texts(original_requirement))])
         )
         model_text += "\n[后端只读需求来源索引；source_requirement_refs只能引用这些条目，模型不得创建或修改来源]\n" + json.dumps(planning_sources, ensure_ascii=False)
+        from .cad_requirement_contract import junction_intent_guidance
+        model_text += '\n[连接意图来源权限；由现有来源校验器计算，不是模型假设]\n' + json.dumps(junction_intent_guidance(planning_sources), ensure_ascii=False)
         try:
             payload = model_callback(
-                model_text, _request_construction_schema(text),
+                model_text, _request_construction_schema(text, source_index=planning_sources),
             )
             payload = _coerce_model_payload(deepcopy(payload))
             # Resolve aliases (notably semantic.object_id -> output_ref)
@@ -744,7 +660,7 @@ def interpret_construction_request(
             payload, winding_repairs = bind_sector_winding(payload, original_requirement)
             deterministic_repairs.extend(winding_repairs)
             payload, layout_repairs = compile_composition_plan(
-                payload, legacy_composition, original_requirement
+                payload, composition_contract, original_requirement
             )
             payload, chain_repairs = normalize_composite_path_connections_once(
                 payload, original_requirement
@@ -771,20 +687,11 @@ def interpret_construction_request(
             deterministic_repairs.extend(size_repairs)
             payload, center_repairs = bind_explicit_outline_center(payload, original_requirement)
             deterministic_repairs.extend(center_repairs)
+            from .cad_assertion_authority import reconcile_model_bounds
+            payload, authority_repairs = reconcile_model_bounds(payload, original_requirement)
+            deterministic_repairs.extend(authority_repairs)
             payload = bind_outline_requirements(payload, text)
             interpreted = StructuredConstructionInterpretation.model_validate(payload)
-        except ComponentRepairError as exc:
-            previous_plan = getattr(exc, "previous_plan", None)
-            return {
-                **_failure("component_repair_failed", exc.message, parser),
-                "construction_error": {
-                    "code": exc.code,
-                    "message": exc.message,
-                    "details": deepcopy(exc.details),
-                },
-                "deterministic_repairs": deterministic_repairs,
-                **({"rejected_plan": deepcopy(previous_plan)} if isinstance(previous_plan, dict) else {}),
-            }
         except Exception as exc:
             rejected_plan = payload.get("plan") if isinstance(payload, dict) else None
             reference_diagnostic = None
@@ -848,6 +755,12 @@ def interpret_construction_request(
             if (not _evidence_is_grounded(text, interpreted.evidence_text)
                 or not grounded_shape):
                 return _failure("ungrounded_model_output", "澄清对象无法回指用户原文", parser)
+            from .cad_projection_acceptance import projection_clarification_is_redundant, projection_requirements
+            if projection_clarification_is_redundant(original_requirement,clarification.question):
+                return {**_failure('confirmed_projection_reasked',
+                    '投影约定和尺寸已由原文确认；请使用已确认约束输出构造计划，不得再次询问相同参数。',parser),
+                    'requirements_complete':True,'rejected_clarification':clarification.model_dump(),
+                    'confirmed_projection_requirements':projection_requirements(original_requirement)}
             confirmed_fields = {f['field'] for f in scalar_contract['facts']
                                 if f['status']=='effective' and f['operator']=='eq'}
             if (clarification.question_key == 'curve_constraints'
@@ -875,6 +788,12 @@ def interpret_construction_request(
                                   "suggested_prompt": question},
             }
         if not interpreted.is_construction_request or interpreted.plan is None:
+            from .cad_projection_acceptance import projection_requirements
+            confirmed_projection=projection_requirements(original_requirement)
+            if confirmed_projection and confirmed_projection['projected_edge_length_mm'] is not None:
+                return {**_failure('confirmed_projection_plan_missing',
+                    '原文已明确投影构造、完整棱线数量及尺寸；模型未提交计划属于规划失败，不是用户需求缺失。请按已确认约束输出构造计划。',parser),
+                    'requirements_complete':True,'confirmed_projection_requirements':confirmed_projection}
             return {
                 **_failure(
                 "not_construction_request", "模型未将输入识别为 CAD 构造请求。", parser,
@@ -907,41 +826,54 @@ def interpret_construction_request(
         if local_constraints:
             source_validation=validate_junction_source_refs(local_constraints, source_index)
             if not source_validation['valid']:
-                raise ConstructionPlanError('invalid_junction_source_refs',
-                    '局部连接约束引用了无效或语义不匹配的需求来源。',
-                    details={'source_validation':source_validation})
+                junction_source_failure = {
+                    'source_validation': source_validation, 'allowed_source_index': source_index,
+                    'junction_intent_guidance': junction_intent_guidance(source_index),
+                    'affected_output_refs': [s.output_ref for s in plan.steps if getattr(s, 'junction_constraints', [])],
+                    'repair_instruction': '从只读来源索引中选择语义匹配的source_requirement_refs；不能省略或虚构来源，不能用模型假设授权尖角。保留用户要求和已有几何；修正引用后仍须通过完整验收。',
+                }
 
     try:
+        if junction_source_failure is not None:
+            raise ConstructionPlanError('invalid_junction_source_refs',
+                '局部连接约束引用了无效或语义不匹配的需求来源。',
+                details=junction_source_failure)
         # Reject missing/duplicated components before any coordinate execution.
         # Geometry validation below remains authoritative for dimensions and
         # topology; this phase only validates the model's declared inventory.
         preflight_structure = validate_plan_structure(structure_contract, plan)
-        if legacy_composition:
-            preflight_structure = validate_plan_structure(legacy_composition, plan) or preflight_structure
+        if composition_contract:
+            preflight_structure = validate_plan_structure(composition_contract, plan) or preflight_structure
         from .cad_repetition_acceptance import validate_repetition_plan
         repetition_preflight = validate_repetition_plan(original_requirement, plan)
         if repetition_preflight:
             preflight_structure = repetition_preflight
+        inventory_count=_explicit_line_inventory(original_requirement)
+        if inventory_count is not None and (len(plan.steps)!=inventory_count or any(s.op!='add_line' for s in plan.steps)):
+            raise ConstructionPlanError('source_inventory_mismatch','来源清单要求独立直线图元，不能用一条多段线或模型数量断言替代。',
+                details={'requires_structural_replan':True,'affected_output_refs':[s.output_ref for s in plan.steps],
+                    'required_line_steps':inventory_count,'observed_steps':len(plan.steps),'observed_operations':[s.op for s in plan.steps],
+                    'repair_instruction':'按用户完整直线清单重新编译独立add_line步骤；数量断言须作用于整图，不能绑定单条棱线并要求等于整图数量。保留用户长度、投影及连接要求，不得添加重复或退化边来凑数。'})
         result = execute_construction_plan(plan)
+        from .cad_validation_evidence import ConstructionEvidence
+        evidence_context=ConstructionEvidence()
         if re.search(r'平滑|光滑|smooth|切向连续|C1', original_requirement, re.I):
             for quality in result.get('curve_quality', []):
-                if quality.get('kind') == 'composite' and quality.get('c1') is not True:
+                if quality.get('schema') == 'cad.curve-quality.v1' and quality.get('c1') is not True:
                     raise ConstructionPlanError('smoothness_requirement_failed',
                         '用户要求平滑闭合曲线，但复合路径连接未达到切向连续。',
                         step_id=quality.get('step_id'), details={
                             'affected_output_refs':[quality.get('output_ref')],
-                            'measured_continuity':quality.get('continuity'),
+                            'measured_continuity':quality.get('c1'),
+                            'maximum_tangent_delta_deg':quality.get('maximum_tangent_delta_deg'),
                             'repair_instruction':'仅修复该复合路径的连接控制点，使相邻段达到C1切向连续；保留中心、尺寸和闭合性。'})
         if len(scalar_contract['subjects']) == 1:
-            from .cad_source_acceptance import scalar_fact_scope_needs_object_binding
             overall = construction_geometry_bounds(result['geometries'])
             for fact in scalar_contract['facts']:
                 if (fact['status'] == 'effective' and fact['operator'] == 'eq'
                         and fact['subject'] == scalar_contract['subjects'][0]
                         and fact['field'] in {'width', 'height'}
                         and fact['binding'] == 'single_subject'):
-                    if scalar_fact_scope_needs_object_binding(fact, result.get('logical_objects')):
-                        continue
                     axis = 'x' if fact['field'] == 'width' else 'y'
                     actual = overall['max_'+axis] - overall['min_'+axis]
                     if abs(actual-fact['value_mm']) > .5:
@@ -950,29 +882,80 @@ def interpret_construction_request(
                             details={'field': fact['field'], 'actual_mm': actual,
                                      'expected_mm': fact['value_mm'], 'source_evidence': fact['evidence']})
         try:
-            verify_polar_requirements(polar_requirements(text), result["geometries"])
+            polar_acceptance=verify_polar_requirements(polar_requirements(original_requirement), result["geometries"])
         except ParametricError as exc:
             raise ConstructionPlanError("source_requirement_mismatch", str(exc)) from exc
         try:
-            structure_validation = validate_structure(structure_contract, result["geometries"], width_m, height_m)
-            composition_validation = validate_explicit_composition(legacy_composition, result["geometries"])
-            source_acceptance = verify_scoped_primitives(original_requirement, result["geometries"],result["logical_objects"])
+            structure_validation = validate_structure(structure_contract, result["geometries"], width_m, height_m,evidence_context=evidence_context)
+            composition_validation = evidence_context.measure(validate_explicit_composition,composition_contract,result["geometries"],evidence_context=evidence_context)
+            source_acceptance = verify_scoped_primitives(original_requirement, result["geometries"],result["logical_objects"],evidence_context=evidence_context)
+            from .cad_wave_requirements import verify_wave_requirements
+            wave_acceptance=verify_wave_requirements(original_requirement,result['geometries'])
+            if wave_acceptance['status']!='not_checked':
+                source_acceptance['wave_acceptance']=wave_acceptance
+                if wave_acceptance['coverage']=='complete':source_acceptance['coverage']='complete'
+            if polar_acceptance:
+                source_acceptance['polar_acceptance']=polar_acceptance
+                from .cad_polar_source_coverage import verify_polar_source_coverage
+                polar_source_acceptance=verify_polar_source_coverage(original_requirement,polar_acceptance)
+                if polar_source_acceptance['status']=='passed':
+                    source_acceptance['polar_source_acceptance']=polar_source_acceptance
+                    source_acceptance['coverage']='complete'
+                elif polar_source_acceptance.get('unconsumed_text'):
+                    source_acceptance['polar_source_acceptance']=polar_source_acceptance
             from .cad_source_acceptance import verify_final_source_contract
-            final_source_acceptance=verify_final_source_contract(original_requirement,result['geometries'],result['logical_objects'])
-            source_acceptance['final_source_acceptance']=final_source_acceptance
-            # The final contract is a second view of the same source, not a
-            # parallel requirement system.  Keep its checks nested for audit
-            # and merge only unresolved facts into the one summary gate; the
-            # base report's checks retain the ``source_requirement`` shape
-            # consumed by the candidate requirement ledger.
-            final_unknown=final_source_acceptance.get('unknown_requirements') or []
-            if final_unknown:
-                source_acceptance.setdefault('unknown_requirements',[]).extend(deepcopy(final_unknown))
-                source_acceptance['coverage']='partial'
-                source_acceptance['review_required']=True
-            # Generic explicit Bezier-chain requirements are verified from the
-            # measured curve-quality record, rather than left as unknown just
-            # because source_acceptance only handles primitive dimensions.
+            source_acceptance['final_source_acceptance']=verify_final_source_contract(original_requirement,result['geometries'],result['logical_objects'],evidence_context=evidence_context)
+            if source_acceptance['final_source_acceptance'].get('coverage')=='complete':
+                source_acceptance['coverage']='complete'
+            from .cad_primitive_layout_acceptance import verify_primitive_layout
+            primitive_layout_acceptance=verify_primitive_layout(original_requirement,result['geometries'],evidence_context=evidence_context)
+            if primitive_layout_acceptance['status']=='passed':
+                source_acceptance['primitive_layout_acceptance']=primitive_layout_acceptance
+                source_acceptance['coverage']='complete'
+            elif primitive_layout_acceptance.get('unconsumed_text'):
+                source_acceptance['primitive_layout_acceptance']=primitive_layout_acceptance
+            from .cad_source_acceptance import verify_single_round_primitive
+            primitive_acceptance = verify_single_round_primitive(original_requirement, result['geometries'])
+            if primitive_acceptance['status'] == 'passed':
+                source_acceptance['single_primitive_acceptance'] = primitive_acceptance
+                source_acceptance['coverage'] = 'complete'
+            elif primitive_acceptance.get('unconsumed_text'):
+                source_acceptance['single_primitive_acceptance'] = primitive_acceptance
+            from .cad_rectangle_acceptance import verify_single_rectangle
+            rectangle_acceptance = verify_single_rectangle(original_requirement, result['geometries'],evidence_context=evidence_context)
+            if rectangle_acceptance['status'] == 'passed':
+                source_acceptance['rectangle_acceptance'] = rectangle_acceptance
+                source_acceptance['coverage'] = 'complete'
+            elif rectangle_acceptance.get('unconsumed_text'):
+                source_acceptance['rectangle_acceptance'] = rectangle_acceptance
+            from .cad_vertex_acceptance import verify_vertex_path, verify_open_straight_path
+            open_path_acceptance=verify_open_straight_path(original_requirement,result['geometries'],evidence_context=evidence_context)
+            if open_path_acceptance['status']=='passed':
+                source_acceptance['open_path_acceptance']=open_path_acceptance
+                source_acceptance['coverage']='complete'
+            elif open_path_acceptance.get('unconsumed_text'):
+                source_acceptance['open_path_acceptance']=open_path_acceptance
+            vertex_acceptance = verify_vertex_path(original_requirement, result['geometries'])
+            if vertex_acceptance['status'] == 'passed':
+                source_acceptance['vertex_acceptance'] = vertex_acceptance
+                source_acceptance['coverage'] = 'complete'
+            from .cad_coordinate_requirements import verify_control_point_curve
+            coordinate_acceptance = verify_control_point_curve(original_requirement, result['geometries'])
+            if coordinate_acceptance['status'] == 'passed':
+                source_acceptance['control_point_acceptance'] = coordinate_acceptance
+                source_acceptance['coverage'] = 'complete'
+            from .cad_axis_requirements import verify_ellipse_axes
+            axis_acceptance = verify_ellipse_axes(original_requirement, result['geometries'])
+            if axis_acceptance['status'] == 'passed':
+                source_acceptance['axis_acceptance'] = axis_acceptance
+                source_acceptance['coverage'] = 'complete'
+            from .cad_composition_coverage import verify_composition_coverage
+            composition_acceptance = evidence_context.measure(verify_composition_coverage, original_requirement, result['geometries'], evidence_context=evidence_context)
+            if composition_acceptance['status'] == 'passed':
+                source_acceptance['composition_acceptance'] = composition_acceptance
+                source_acceptance['coverage'] = 'complete'
+            # These are partial measurements of a Bezier chain, never proof
+            # that unrelated clauses or all source requirements were consumed.
             bezier_match = re.search(r'(\d+)\s*段.*?三次\s*Bezier', original_requirement, re.I)
             qualities = result.get('curve_quality') or []
             if bezier_match and len(qualities) == 1:
@@ -986,83 +969,92 @@ def interpret_construction_request(
                 checks.append({'field':'bezier_continuity','expected':'C1','actual':quality.get('continuity_required'),
                                'status':'passed' if quality.get('c1') is True else 'failed',
                                'authority':'backend_measured_curve_quality'})
-                if actual_segments == required and quality.get('c1') is True and not quality.get('self_intersection_count'):
-                    source_acceptance['coverage']='complete'
-                    source_acceptance['unknown_requirements'] = [u for u in source_acceptance.get('unknown_requirements', [])
-                                                                 if u.get('reason') != '需求清单或完整覆盖证据缺失']
             from .cad_path_relation_acceptance import verify_path_relations
-            path_acceptance=verify_path_relations(original_requirement,result['geometries'])
+            path_acceptance=verify_path_relations(original_requirement,result['geometries'],evidence_context=evidence_context)
             if path_acceptance['status']!='not_checked':
                 source_acceptance['path_relation_acceptance']=path_acceptance
+            from .cad_path_relation_acceptance import verify_path_source_coverage
+            path_source=verify_path_source_coverage(original_requirement,path_acceptance,result['geometries'])
+            if path_source['status']=='passed':
+                source_acceptance['path_source_acceptance']=path_source
+                source_acceptance['coverage']='complete'
             from .cad_stroke_acceptance import verify_stroke_requirements
             stroke_acceptance=verify_stroke_requirements(original_requirement,result['geometries'])
             if stroke_acceptance['status']!='not_checked':
                 source_acceptance['stroke_acceptance']=stroke_acceptance
-            semantic_acceptance=_verify_semantic_requirements_bound(original_requirement,result)
-            # Keep an applicable mandatory requirement visible to the summary
-            # even when the whole report is still ``not_checked`` (capability
-            # gap, e.g. star profile).  A report carrying A's explicit
-            # applicability decision is retained as well: a resolved_non_star /
-            # no_signal resolution must survive to the summary so the missing-
-            # report fallback cannot second-guess it; only a report with no
-            # retained signal and no usable decision may be dropped.
-            from .cad_semantic_dispatch import DECISION_TERMS
-            semantic_applicable = semantic_acceptance.get('applicable_requirement_kinds') or []
-            semantic_decision = semantic_acceptance.get('applicability_decision')
-            decision_retained = isinstance(semantic_decision, str) and semantic_decision in DECISION_TERMS
-            if (semantic_acceptance['status']!='not_checked' or semantic_applicable
-                    or decision_retained):
+            from .cad_semantic_acceptance import verify_semantic_requirements
+            from .cad_symmetric_divider_acceptance import verify_symmetric_divider_source
+            divider_acceptance=evidence_context.measure(verify_symmetric_divider_source,original_requirement,result['geometries'],evidence_context=evidence_context)
+            if divider_acceptance['status']=='passed':
+                source_acceptance['divider_acceptance']=divider_acceptance
+                source_acceptance['coverage']='complete'
+            from .cad_radial_attachment_acceptance import verify_radial_attachment_source
+            radial_attachment_acceptance=evidence_context.measure(verify_radial_attachment_source,original_requirement,result['geometries'])
+            if radial_attachment_acceptance['status']=='passed':
+                source_acceptance['radial_attachment_acceptance']=radial_attachment_acceptance
+                source_acceptance['coverage']='complete'
+            from .cad_circle_group_acceptance import verify_circle_group_source
+            circle_group_acceptance=verify_circle_group_source(original_requirement,result['geometries'])
+            if circle_group_acceptance['status']=='passed':
+                source_acceptance['circle_group_acceptance']=circle_group_acceptance
+                source_acceptance['coverage']='complete'
+            semantic_acceptance=evidence_context.measure(_semantic_verifier or verify_semantic_requirements,original_requirement,result['geometries'])
+            if semantic_acceptance['status']!='not_checked':
                 source_acceptance['semantic_acceptance']=semantic_acceptance
+            from .cad_semantic_source_coverage import verify_measured_semantic_coverage
+            semantic_source_acceptance = verify_measured_semantic_coverage(original_requirement, semantic_acceptance,result['geometries'],evidence_context=evidence_context)
+            if semantic_source_acceptance['status'] == 'passed':
+                source_acceptance['semantic_source_acceptance'] = semantic_source_acceptance
+                source_acceptance['coverage'] = 'complete'
+            elif semantic_source_acceptance.get('unconsumed_text'):
+                source_acceptance['semantic_source_acceptance'] = semantic_source_acceptance
+            from .cad_semantic_source_coverage import verify_periodic_outline_source, verify_semicircular_outline_source
+            arch_source = evidence_context.measure(verify_semicircular_outline_source, original_requirement,
+                                                   result['geometries'], evidence_context=evidence_context)
+            if arch_source['status'] == 'passed':
+                source_acceptance['arch_source_acceptance'] = arch_source
+                source_acceptance['coverage'] = 'complete'
+            elif arch_source.get('unconsumed_text'):
+                source_acceptance['arch_source_acceptance'] = arch_source
+            periodic_source = evidence_context.measure(verify_periodic_outline_source, original_requirement,
+                                                       result['geometries'], evidence_context=evidence_context)
+            if periodic_source['status'] == 'passed':
+                source_acceptance['periodic_source_acceptance'] = periodic_source
+                source_acceptance['coverage'] = 'complete'
+            elif periodic_source.get('unconsumed_text'):
+                source_acceptance['periodic_source_acceptance'] = periodic_source
+            from .cad_semantic_source_coverage import verify_polygonal_outline_source
+            polygonal_source=evidence_context.measure(verify_polygonal_outline_source,original_requirement,result['geometries'],evidence_context=evidence_context)
+            if polygonal_source['status']=='passed':
+                source_acceptance['polygonal_source_acceptance']=polygonal_source
+                source_acceptance['coverage']='complete'
+            from .cad_stroke_acceptance import verify_stroke_source_coverage
+            stroke_source_acceptance=verify_stroke_source_coverage(original_requirement,stroke_acceptance,semantic_acceptance)
+            if stroke_source_acceptance['status']=='passed':
+                source_acceptance['stroke_source_acceptance']=stroke_source_acceptance
+                source_acceptance['coverage']='complete'
+            elif stroke_source_acceptance.get('unconsumed_text'):
+                source_acceptance['stroke_source_acceptance']=stroke_source_acceptance
             from .cad_projection_acceptance import verify_projection_requirements
-            projection_acceptance = verify_projection_requirements(original_requirement,result['geometries'])
+            projection_acceptance = evidence_context.measure(verify_projection_requirements,original_requirement,result['geometries'])
             if projection_acceptance['status']!='not_checked':
                 source_acceptance['projection_acceptance']=projection_acceptance
+            from .cad_projection_acceptance import verify_projection_source_coverage
+            projection_source_acceptance=verify_projection_source_coverage(original_requirement,projection_acceptance)
+            if projection_source_acceptance['status']=='passed':
+                source_acceptance['projection_source_acceptance']=projection_source_acceptance
+                source_acceptance['coverage']='complete'
             from .cad_repetition_acceptance import verify_repetition_requirements
-            repetition_acceptance=verify_repetition_requirements(original_requirement,result['geometries'])
+            repetition_acceptance=evidence_context.measure(verify_repetition_requirements,original_requirement,result['geometries'])
             if repetition_acceptance['status']!='not_checked':
                 source_acceptance['repetition_acceptance']=repetition_acceptance
-            # Close the source-requirement loop only after every independent
-            # verifier has run.  This reads their measurements; it never
-            # recognizes a new requirement, creates geometry or relaxes a
-            # verifier.  Any clause without a passed, source-bound measurement
-            # remains blocking.
-            from .cad_source_acceptance import build_requirement_coverage_evidence
-            coverage_evidence = build_requirement_coverage_evidence(
-                original_requirement, source_acceptance)
-            source_acceptance['coverage_evidence'] = coverage_evidence
-            if coverage_evidence.get('state') == 'complete':
-                source_acceptance['status'] = 'passed'
-                source_acceptance['coverage'] = 'complete'
-                source_acceptance['review_required'] = False
-                source_acceptance['unknown_requirements'] = []
-            else:
-                source_acceptance['coverage'] = 'partial'
-                source_acceptance['review_required'] = True
-                closure_fact_ids = {
-                    evidence.get('requirement_id')
-                    for clause in coverage_evidence.get('clauses') or []
-                    for evidence in clause.get('unsupported_evidence') or []
-                }
-                existing = [
-                    item for item in (source_acceptance.get('unknown_requirements') or [])
-                    if not (isinstance(item, dict)
-                            and item.get('source_requirement_id') in closure_fact_ids)
-                ]
-                seen = {(item.get('source_requirement_id'),
-                         item.get('reason')) for item in existing if isinstance(item, dict)}
-                for blocker in coverage_evidence.get('blocking_requirements') or []:
-                    item = {
-                        'source_requirement_id': blocker.get('requirement_id'),
-                        'requirement': blocker.get('requirement'),
-                        'reason': blocker.get('reason'),
-                        'status': blocker.get('status'),
-                        'source': 'requirement_coverage_evidence',
-                    }
-                    key = (item['source_requirement_id'], item['reason'])
-                    if key not in seen:
-                        existing.append(item)
-                        seen.add(key)
-                source_acceptance['unknown_requirements'] = existing
+            from .cad_repetition_source_coverage import verify_repetition_source_coverage
+            repetition_source_acceptance=verify_repetition_source_coverage(original_requirement,repetition_acceptance)
+            if repetition_source_acceptance['status']=='passed':
+                source_acceptance['repetition_source_acceptance']=repetition_source_acceptance
+                source_acceptance['coverage']='complete'
+            elif repetition_source_acceptance.get('unconsumed_text'):
+                source_acceptance['repetition_source_acceptance']=repetition_source_acceptance
         except StructureContractError as exc:
             from .cad_local_repair import build_local_repair_scope
             details = dict(exc.details or {})
@@ -1100,27 +1092,27 @@ def interpret_construction_request(
             diagnostic_plan['assertions']=[]
             try:
                 diagnostic_trial=execute_construction_plan(diagnostic_plan)
+                from .cad_semantic_acceptance import verify_semantic_requirements
                 try:
-                    diagnostic_semantic=_verify_semantic_requirements_bound(original_requirement,diagnostic_trial)
+                    (_semantic_verifier or verify_semantic_requirements)(original_requirement,diagnostic_trial['geometries'])
+                    from .cad_repetition_acceptance import verify_repetition_requirements
+                    verify_repetition_requirements(original_requirement,diagnostic_trial['geometries'])
+                    from .cad_projection_acceptance import verify_projection_requirements
+                    verify_projection_requirements(original_requirement,diagnostic_trial['geometries'])
                 except StructureContractError as source_error:
                     details['independent_source_failure']={
                         'message':str(source_error),'details':source_error.details,
-                        'status':'failed','review_required':True,
                         'diagnostic_only':True,'candidate_accepted':False}
                     details['repair_instruction']=(details.get('repair_instruction','')+
                         ' 同时修复independent_source_failure中的用户需求偏差；仅更改模型断言不能解决实际几何错误。')
-                    exc.details=details
-                else:
-                    # Diagnostic replay only: record status/review_required/reason
-                    # with the backend binding. This trial can never be persisted
-                    # or promoted to a candidate.
-                    details['independent_source_failure']={
-                        'status':diagnostic_semantic.get('status'),
-                        'review_required':diagnostic_semantic.get('review_required'),
-                        'reason':diagnostic_semantic.get('reason'),
-                        'coverage':diagnostic_semantic.get('coverage'),
-                        'binding':diagnostic_semantic.get('binding'),
-                        'diagnostic_only':True,'candidate_accepted':False}
+                    source_ids=set((source_error.details or {}).get('geometry_ids') or [])
+                    if source_ids:
+                        details['affected_output_refs']=sorted(set(details.get('affected_output_refs') or [])|
+                            {ref for ref,ids in diagnostic_trial['symbol_table'].items() if source_ids.intersection(ids)})
+                    if ((source_error.details or {}).get('requires_structural_replan')
+                            and source_ids=={g['id'] for g in diagnostic_trial['geometries']}):
+                        details['requires_structural_replan']=True
+                        details['repair_instruction']+=' 原文结构诊断覆盖全部输出，必须修复实际连接结构，不能只修改断言。'
                     exc.details=details
             except (ConstructionPlanError,ValueError):
                 pass
@@ -1141,7 +1133,7 @@ def interpret_construction_request(
                     verified=interpret_construction_request(source_text,lambda *_:{
                         'schema_version':'cad.construction-interpretation.v1','is_construction_request':True,
                         'plan':corrected,'confidence':confidence,'evidence_text':evidence,'assumptions':assumptions,
-                    },force_structured_model=True,_allow_arc_direction_repair=False)
+                    },force_structured_model=True,_allow_arc_direction_repair=False,_semantic_verifier=_semantic_verifier)
                     if verified.get('status')=='ready':
                         verified.setdefault('deterministic_repairs',[]).append({
                             'kind':'resolve_constrained_arc_branch','output_ref':target['output_ref'],
@@ -1158,12 +1150,13 @@ def interpret_construction_request(
                 corrected['assertions']=[a for a in corrected['assertions'] if a['assertion_id']!=failed.assertion_id]
                 try:
                     trial=execute_construction_plan(corrected)
-                    proof=_verify_semantic_requirements_bound(original_requirement,trial)
+                    from .cad_semantic_acceptance import verify_semantic_requirements
+                    proof=(_semantic_verifier or verify_semantic_requirements)(original_requirement,trial['geometries'])
                     if proof.get('coverage')=='astroid_identity_radius_and_four_cusps':
                         verified=interpret_construction_request(source_text,lambda *_:{
                             'schema_version':'cad.construction-interpretation.v1','is_construction_request':True,
                             'plan':corrected,'confidence':confidence,'evidence_text':evidence,'assumptions':assumptions,
-                        },force_structured_model=True,_allow_radial_bounds_repair=False)
+                        },force_structured_model=True,_allow_radial_bounds_repair=False,_semantic_verifier=_semantic_verifier)
                         if (verified.get('status')=='ready'
                                 and verified['trial_result']['geometries']==trial['geometries']):
                             verified.setdefault('deterministic_repairs',[]).append({
@@ -1178,30 +1171,53 @@ def interpret_construction_request(
                 and not any(f['field'] in {'width','height'} for f in scalar_contract['facts'])):
             failed=next((a for a in plan.assertions if a.assertion_id==exc.assertion_id
                 and a.kind=='bounds_size'),None)
-            from .cad_repetition_acceptance import tooth_boundary_requirements,verify_repetition_requirements
+            from .cad_repetition_acceptance import tooth_boundary_requirements,verify_repetition_requirements,branch_structure_requirements
             from .cad_semantic_acceptance import regular_polygon_requirement
+            from .cad_wave_requirements import wave_requirements,verify_wave_requirements
+            wave_source=wave_requirements(original_requirement)
+            projection_source=bool(re.search(r'等轴|等距投影',original_requirement)
+                                   and re.search(r'投影棱长',original_requirement))
+            polar_source=polar_requirements(original_requirement)
+            branch_source=branch_structure_requirements(original_requirement)
             radial_source=(tooth_boundary_requirements(original_requirement)
-                           or regular_polygon_requirement(original_requirement))
+                           or regular_polygon_requirement(original_requirement) or wave_source or projection_source or polar_source or branch_source)
             if failed is not None and radial_source:
                 corrected=plan.model_dump(mode='json')
                 corrected['assertions']=[a for a in corrected['assertions'] if a['assertion_id']!=failed.assertion_id]
                 try:
                     trial=execute_construction_plan(corrected)
-                    if tooth_boundary_requirements(original_requirement):
+                    if branch_source:
+                        from .cad_repetition_source_coverage import verify_repetition_source_coverage
+                        proof=verify_repetition_requirements(original_requirement,trial['geometries'])
+                        radial_ok=verify_repetition_source_coverage(original_requirement,proof)['status']=='passed'
+                    elif polar_source:
+                        from .cad_polar_source_coverage import verify_polar_source_coverage
+                        proof=verify_polar_requirements(polar_source,trial['geometries'])
+                        radial_ok=verify_polar_source_coverage(original_requirement,proof)['status']=='passed'
+                    elif projection_source:
+                        from .cad_projection_acceptance import verify_projection_requirements,verify_projection_source_coverage
+                        proof=verify_projection_requirements(original_requirement,trial['geometries'])
+                        radial_ok=verify_projection_source_coverage(original_requirement,proof)['status']=='passed'
+                    elif tooth_boundary_requirements(original_requirement):
                         proof=verify_repetition_requirements(original_requirement,trial['geometries'])
                         radial_ok=any(c['name']=='齿形旋转重复关系' for c in proof.get('checks',[]))
+                    elif wave_source:
+                        proof=verify_wave_requirements(original_requirement,trial['geometries'])
+                        radial_ok=proof['status']=='passed'
                     else:
-                        proof=_verify_semantic_requirements_bound(original_requirement,trial)
+                        from .cad_semantic_acceptance import verify_semantic_requirements
+                        proof=(_semantic_verifier or verify_semantic_requirements)(original_requirement,trial['geometries'])
                         radial_ok=proof['status']=='passed'
                     if radial_ok:
                         verified=interpret_construction_request(source_text,lambda *_:{
                             'schema_version':'cad.construction-interpretation.v1','is_construction_request':True,
                             'plan':corrected,'confidence':confidence,'evidence_text':evidence,'assumptions':assumptions,
-                        },force_structured_model=True,_allow_radial_bounds_repair=False)
+                        },force_structured_model=True,_allow_radial_bounds_repair=False,_semantic_verifier=_semantic_verifier)
                         if (verified.get('status')=='ready'
                                 and verified['trial_result']['geometries']==trial['geometries']):
                             verified.setdefault('deterministic_repairs',[]).append({
-                                'kind':'source_radial_acceptance_replaces_unrequested_bounds',
+                                'kind':('source_branch_acceptance_replaces_unrequested_bounds' if branch_source else 'source_polar_acceptance_replaces_unrequested_bounds' if polar_source else 'source_projection_acceptance_replaces_unrequested_bounds' if projection_source else 'source_wave_acceptance_replaces_unrequested_bounds' if wave_source
+                                        else 'source_radial_acceptance_replaces_unrequested_bounds'),
                                 'rejected_model_assertion':failed.model_dump(mode='json'),
                                 'source_evidence':radial_source,'independent_acceptance':proof,
                                 'geometry_unchanged':True,'all_acceptance_reexecuted':True})
@@ -1227,7 +1243,7 @@ def interpret_construction_request(
                 verified = interpret_construction_request(source_text, lambda *_: {
                     'schema_version':'cad.construction-interpretation.v1','is_construction_request':True,
                     'plan':rotated,'confidence':confidence,'evidence_text':evidence,'assumptions':assumptions,
-                }, force_structured_model=True, _allow_measured_rotation=False)
+                }, force_structured_model=True, _allow_measured_rotation=False,_semantic_verifier=_semantic_verifier)
                 if verified.get('status') == 'ready':
                     verified.setdefault('deterministic_repairs', []).append({
                         'kind':'measured_curve_rotation','angle_degrees':angle,
@@ -1237,6 +1253,24 @@ def interpret_construction_request(
         # id. Resolve their exact symbolic target too, so a local error does
         # not cause unrelated components to be regenerated on the next turn.
         details = dict(exc.details or {})
+        # Feasibility rejects duplicates/zero edges before source structure
+        # validation. Still run the existing read-only structural diagnostic;
+        # never suppress the original error or persist diagnostic geometry.
+        if (exc.code in {'drawing_infeasible','logical_graph_invalid'} and details.get('measured_geometries')
+                and not details.get('geometry_evidence_truncated')):
+            from .cad_projection_acceptance import verify_projection_requirements
+            measured_geometry=details['measured_geometries']
+            try:
+                verify_projection_requirements(original_requirement,measured_geometry)
+            except StructureContractError as structural:
+                diagnostic=structural.details or {}
+                details['source_structure_diagnostic']={'message':str(structural),**diagnostic}
+                ids=set(diagnostic.get('geometry_ids') or [])
+                if diagnostic.get('requires_structural_replan') and ids=={g['id'] for g in measured_geometry}:
+                    details['requires_structural_replan']=True
+                    details['affected_output_refs']=sorted(ref for ref,values in details.get('geometry_refs',{}).items() if ids.intersection(values))
+                    details['repair_instruction']=diagnostic.get('repair_instruction',details.get('repair_instruction'))
+            exc.details=details
         if not details.get('affected_output_refs'):
             affected = [step.output_ref for step in plan.steps
                         if step.step_id == getattr(exc, 'step_id', None)]
@@ -1283,117 +1317,37 @@ def interpret_construction_request(
             'rejected_plan':plan.model_dump(mode='json'),'diagnostic_trial_passed':True,
             'normalization_facts':normalization_facts,'persisted':False}
 
-    object_count_report = _logical_object_count_consistency(
-        trial_result=result,
-        composition_contract=composition_contract,
-        structure_contract=structure_contract,
-        scalar_contract=scalar_contract,
-        source=original_requirement,
-        source_acceptance=source_acceptance,
-    )
-    source_acceptance['object_count_consistency_acceptance'] = object_count_report
-    if object_count_report.get('unknown_requirements'):
-        source_acceptance.setdefault('unknown_requirements', []).extend(
-            deepcopy(object_count_report['unknown_requirements']))
-
-    object_identity_report = _object_identity_consistency(
-        trial_result=result,
-        composition_contract=composition_contract,
-        structure_contract=structure_contract,
-        scalar_contract=scalar_contract,
-        source=original_requirement,
-        source_acceptance=source_acceptance,
-    )
-    source_acceptance['object_identity_acceptance'] = object_identity_report
-    if object_identity_report.get('unknown_requirements'):
-        source_acceptance.setdefault('unknown_requirements', []).extend(
-            deepcopy(object_identity_report['unknown_requirements']))
-
     acceptance_summary = construction_acceptance_summary(
         preflight_structure=preflight_structure,
         structure_contract=structure_contract,
         structure_validation=structure_validation,
-        composition_contract=legacy_composition,
+        composition_contract=composition_contract,
         composition_validation=composition_validation,
         source_acceptance=source_acceptance,
         trial_result=result,
-        source=original_requirement,
     )
-
-    # A measured, source-scoped object-count/identity failure is already a
-    # determined, repairable construction failure.  Feed it into the existing
-    # invalid-result repair protocol instead of leaving the top-level status
-    # ``ready`` solely because the plan executed.  Only ``failed`` reports with
-    # an explicit mismatch enter this gate; unverified/unknown evidence never
-    # becomes an automatic retry.
-    repair_error = None
-    if object_count_report.get('status') == 'failed':
-        mismatch = next((u for u in object_count_report.get('unknown_requirements') or []
-                         if u.get('mismatch')), {})
-        expected = mismatch.get('expected_object_count')
-        actual = mismatch.get('actual_object_count')
-        repair_error = {
-            'code': 'object_count_mismatch',
-            'message': f'来源对象数量与后端归属对象不一致（要求 {expected}，实际 {actual}）。',
-            'details': {
-                'reason': mismatch.get('mismatch') or 'object_count_mismatch',
-                'failure_subtype': 'count',
-                'geometry_scope': 'logical_objects',
-                'expected_count': expected,
-                'actual_count': actual,
-                'baseline_source': (object_count_report.get('baseline') or {}).get('source'),
-                'requires_structural_replan': True,
-                'repair_instruction': '按来源清单补齐或删减对象；保留已通过对象的坐标、尺寸、单位、关系及原有断言，修复后重跑全部独立验收。',
-            },
-        }
-    elif object_identity_report.get('status') == 'failed':
-        failed_entries = [e for e in object_identity_report.get('unmatched_entries') or []
-                          if e.get('reason') in {'category_mismatch', 'channel_category_mismatch'}]
-        repair_error = {
-            'code': 'object_identity_mismatch',
-            'message': '来源对象身份与后端测量对象不一致。',
-            'details': {
-                'reason': 'object_identity_mismatch',
-                'failure_subtype': 'identity',
-                'geometry_scope': 'logical_objects',
-                'failed_entries': deepcopy(failed_entries),
-                'requires_structural_replan': True,
-                'repair_instruction': '按来源逐件对象修正类型与身份；保留已通过对象的尺寸、坐标、单位和关系，不得用模型标签替代测量。',
-            },
-        }
-    if repair_error is not None:
-        source_acceptance['repair_gate'] = {'status': 'invalid',
-            'reason': repair_error['details']['reason'],
-            'count_report_status': object_count_report.get('status'),
-            'identity_report_status': object_identity_report.get('status'),
-        }
-        return {
-            **_failure('trial_execution_failed', repair_error['message'], parser),
-            'construction_request_recognized': True,
-            'construction_error': repair_error,
-            'requirements_contract': outline_requirements(text),
-            'deterministic_repairs': deterministic_repairs,
-            'plan': plan.model_dump(mode='json'),
-            'confidence': confidence,
-            'assumptions': deepcopy(assumptions),
-            'source_acceptance': source_acceptance,
-            'acceptance_summary': acceptance_summary,
-            'trial_result': result,
-            'structure_contract': structure_contract,
-            'preflight_structure': preflight_structure,
-            'structure_validation': structure_validation,
-            'composition_contract': composition_contract,
-            'composition_validation': composition_validation,
-        }
-
+    if template_plan is not None:
+        # Fresh chat and project confirmation use the same registered-template
+        # authority. Keep generic source coverage partial; do not fabricate a
+        # full-prose proof or override any independently reported uncertainty.
+        reports = [source_acceptance] + [v for k, v in source_acceptance.items()
+            if k.endswith('_acceptance') and isinstance(v, dict)]
+        blockers = any(r.get('review_required') or r.get('unknown_requirements')
+            or r.get('status') in {'failed', 'unverified', 'review_required'}
+            for r in reports)
+        blockers = blockers or any((r or {}).get('review_required') for r in
+            (preflight_structure, structure_validation, composition_validation))
+        if not blockers:
+            from .cad_template_plan import template_trial_acceptance
+            acceptance_summary = template_trial_acceptance(result)
     return {
         "schema": "cad.construction-interpretation-result.v1",
         "status": "ready",
         "parser": parser,
         "requirement_ledger": bind_geometry_acceptance(
             requirement_ledger(original_requirement, assumptions=assumptions,
-                structure_contract=structure_contract, composition_contract=legacy_composition),
-            legacy_composition, result["geometries"]),
+                structure_contract=structure_contract, composition_contract=composition_contract),
+            composition_contract, result["geometries"],evidence_context=evidence_context),
         "confidence": confidence,
         "evidence_text": evidence,
         "assumptions": assumptions,
@@ -1414,1065 +1368,10 @@ def interpret_construction_request(
     }
 
 
-# Sub-report statuses that never constitute a complete acceptance, even when
-# the producer omitted ``review_required``. This is the single shared gate for
-# every generic ``*_acceptance`` report entering the summary loop.
-# ``not_checked`` is deliberately excluded: a channel with no applicable
-# requirement stays non-blocking; the semantic report's applicability is
-# judged exclusively by A's three-state verdict rather than this set.
-REVIEW_BLOCKING_REPORT_STATUSES = frozenset({"failed", "unverified", "review_required", "partial"})
-
-
-def _report_blocks_review(report: dict[str, Any] | None) -> bool:
-    """Shared gate for generic non-semantic sub-reports in the summary loop."""
-    report = report or {}
-    return (report.get("review_required") is True
-            or report.get("status") in REVIEW_BLOCKING_REPORT_STATUSES)
-
-
-def _logical_object_count_consistency(*, trial_result: dict[str, Any] | None,
-                                      composition_contract: dict[str, Any] | None,
-                                      structure_contract: dict[str, Any] | None,
-                                      scalar_contract: dict[str, Any] | None,
-                                      source: str | None,
-                                      source_acceptance: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Reconcile traceable T1 object-count baselines against backend-owned objects.
-
-    The actual side is grouped by backend ownership (``logical_objects`` /
-    ``geometry_refs`` / topology shared declarations); flat geometry counts are
-    never used.  The baseline side only reads conservative source contracts:
-    the source-side object inventory, explicit composition, vetted reference
-    structure, single-outline requirement.  Attribute counts (edges, teeth,
-    segments, lobes, strip/grid cells) are owned by their producers and are
-    deliberately not read here.
-
-    Inventory state handling:
-    - ``none``: no object-count requirement; fall through to the legacy
-      composition/reference/outline baselines and finally ``not_checked``.
-    - ``incomplete``: unresolved object phrase -> ``unverified`` + review;
-      no failed/missing/extra verdict is fabricated.
-    - ``complete``: reconcile ``logical_object_count`` against the
-      ownership-expanded N_obj; a provable mismatch yields ``failed``.
-
-    Decision order:
-    1. Inventory baseline present and identity verifiable -> compare
-       ownership-grouped object count; mismatch yields ``failed``.
-    2. No inventory baseline but a legacy T1 baseline exists -> same
-       ownership-grouped reconciliation.
-    3. No T1 baseline but the requirement contract exposes multiple declared
-       creation subjects -> weak signal, ``unverified`` only; no inferred
-       numeric conclusion is recorded.
-    4. No T1 baseline and no multi-subject signal -> ``not_checked``, non-blocking.
-    5. Identity missing/ambiguous/dangling/shared-declaration inconsistent ->
-       ``unverified``; no count verdict is fabricated.
-    """
-    from .cad_semantic_dispatch import active_geometries
-
-    trial_result = trial_result or {}
-    geometries = trial_result.get("geometries") or []
-    objects = trial_result.get("logical_objects") or []
-    graph_validation = trial_result.get("graph_validation") or {}
-    topology = trial_result.get("topology") or {}
-
-    active_ids = {
-        geometry.get("id") for geometry in active_geometries(geometries)
-        if geometry.get("id") is not None
-    }
-
-    def _active_refs(obj: dict[str, Any]) -> list[int]:
-        refs = obj.get("geometry_refs")
-        if not isinstance(refs, list):
-            refs = obj.get("geometry_ids") or []
-        normalized = []
-        for ref in refs:
-            try:
-                value = int(ref)
-            except (TypeError, ValueError):
-                continue
-            if value in active_ids:
-                normalized.append(value)
-        return normalized
-
-    # --- Source-side object inventory: three-state contract. ---
-    inventory_state = None
-    inventory_entries: list[dict[str, Any]] = []
-    inventory_count: Any = None
-    if isinstance(composition_contract, dict):
-        inventory_state = composition_contract.get("object_requirements_state")
-        inventory_entries = composition_contract.get("object_requirements") or []
-        inventory_count = composition_contract.get("logical_object_count")
-
-    def _inventory_grouping(entries: list[dict[str, Any]]) -> str:
-        for entry in entries or []:
-            noun = str(entry.get("object_noun") or "")
-            measure = str(entry.get("measure_word") or "")
-            if measure == "组" or "装配" in noun or "组件" in noun:
-                return "assembly"
-        return "object"
-
-    def _unverified_inventory(state: str, reason: str) -> dict[str, Any]:
-        return {
-            "schema": "cad.object-count-consistency.v1",
-            "status": "unverified",
-            "review_required": True,
-            "checks": [],
-            "unknown_requirements": [{
-                "source": "object_inventory",
-                "reason": reason,
-                "entries": deepcopy(inventory_entries),
-            }],
-            "authority": "backend_ownership_and_source_contract",
-            "baseline": {
-                "source": "object_inventory",
-                "contract_kind": "object_inventory",
-                "state": state,
-                "entries": deepcopy(inventory_entries),
-            },
-            "actual_object_count": None,
-            "note": "来源对象数量契约未形成可对账的数量结论，保留不确定性。",
-        }
-
-    baseline: dict[str, Any] | None = None
-    if inventory_state == "incomplete":
-        # Full-or-nothing: an unresolved object phrase stays unverified; no
-        # failed/missing_object/extra_object verdict is fabricated here.
-        return _unverified_inventory(
-            "incomplete",
-            "对象数量要求解析不完整：存在未绑定到已识别对象名词的数量短语，对象数量待人工复核")
-    if inventory_state == "complete":
-        if isinstance(inventory_count, int) and inventory_count >= 1:
-            baseline = {
-                "source": "object_inventory",
-                "contract_kind": "object_inventory",
-                "expected_object_count": inventory_count,
-                "evidence": [entry.get("evidence") for entry in inventory_entries],
-                "entries": deepcopy(inventory_entries),
-                "grouping": _inventory_grouping(inventory_entries),
-            }
-        else:
-            return _unverified_inventory(
-                "complete", "对象数量契约标记为完整，但派生对象数量缺失或不可用，保留不确定性。")
-
-    # A secretly complete scoped-primitive inventory is already measured and
-    # object-bound by ``cad_source_acceptance``.  Consume that evidence instead
-    # of treating the same source as an unknown multi-subject phrase.  It is
-    # used only when no stronger source contract supplied a baseline and its
-    # producer explicitly marked the scope complete.
-    if baseline is None and inventory_state in (None, "none"):
-        scope = (source_acceptance or {}).get("scope_evidence") or {}
-        count_baseline = scope.get("count_baseline") or {}
-        expected = count_baseline.get("expected_object_count")
-        if scope.get("state") == "complete" and isinstance(expected, int) and expected >= 1:
-            baseline = {
-                "source": "source_scoped_primitives",
-                "contract_kind": "measured_source_inventory",
-                "expected_object_count": expected,
-                "evidence": [entry.get("evidence") for entry in scope.get("entries") or []],
-                "entries": deepcopy(scope.get("entries") or []),
-                "grouping": count_baseline.get("grouping") or "object",
-            }
-
-    # --- T1 baseline extraction: no model self-report, no raw text counting. ---
-    if baseline is None and composition_contract:
-        counts = composition_contract.get("counts") or {}
-        if composition_contract.get("kind") == "named_components":
-            names = composition_contract.get("names") or []
-            expected = len(names)
-        else:
-            expected = sum(int(value) for value in counts.values())
-        if expected > 0:
-            baseline = {
-                "source": "explicit_composition",
-                "contract_kind": composition_contract.get("kind"),
-                "expected_object_count": expected,
-                "evidence": composition_contract.get("evidence"),
-            }
-    if baseline is None and isinstance(structure_contract, dict):
-        components = structure_contract.get("components")
-        if isinstance(components, list) and components:
-            baseline = {
-                "source": "reference_structure",
-                "contract_kind": "reference",
-                "expected_object_count": len(components),
-                "evidence": structure_contract.get("reference_sha256"),
-            }
-    if baseline is None:
-        outline = outline_requirements(source)
-        if outline and outline.get("entity_count") is not None:
-            baseline = {
-                "source": "outline_requirement",
-                "contract_kind": "outline",
-                "expected_object_count": int(outline["entity_count"]),
-                "evidence": outline.get("evidence_text"),
-            }
-
-    # --- Ownership-grouped actual object count and identity assessment. ---
-    identity_issues: list[dict[str, Any]] = []
-    owned_active: dict[str, set[int]] = {}
-    if not objects:
-        identity_issues.append({"code": "logical_objects_missing",
-                                "reason": "缺少后端逻辑对象台账，对象身份不可判定"})
-    for obj in objects:
-        object_id = str(obj.get("object_id") or "")
-        if not object_id:
-            identity_issues.append({"code": "invalid_object_id",
-                                    "reason": "存在缺少对象 ID 的逻辑对象"})
-            continue
-        refs = set(_active_refs(obj))
-        owned_active[object_id] = refs
-        if not refs:
-            identity_issues.append({"code": "inactive_object",
-                                    "reason": f"逻辑对象 {object_id} 没有归属活动几何",
-                                    "object_id": object_id})
-    if graph_validation and graph_validation.get("verified") is False:
-        for error in graph_validation.get("errors") or []:
-            identity_issues.append({
-                "code": error.get("code") or "graph_validation_failed",
-                "reason": error.get("message") or "逻辑图校验未通过",
-                "object_id": error.get("object_id"),
-            })
-    owned_ids = set().union(*owned_active.values()) if owned_active else set()
-    unowned_active = sorted(active_ids - owned_ids)
-    if unowned_active:
-        identity_issues.append({"code": "unowned_active_geometry",
-                                "reason": "存在未归属到逻辑对象的活动几何",
-                                "geometry_ids": unowned_active})
-
-    # Declared shared geometries are reconciled by their verified owners;
-    # geometry count and shape similarity never drive the object count.
-    shared_owners: dict[str, list[str]] = {}
-    declared_shared = topology.get("shared_geometries")
-    if not isinstance(declared_shared, list):
-        declared_shared = []
-    known_ids = set(owned_active)
-    for entry in declared_shared:
-        if not isinstance(entry, dict):
-            continue
-        geometry_id = entry.get("geometry_id")
-        owners = [str(value) for value in (entry.get("object_ids") or [])]
-        unknown_owners = sorted(set(owners) - known_ids)
-        if unknown_owners:
-            identity_issues.append({
-                "code": "unknown_shared_owner",
-                "reason": "共享拓扑声明的归属对象不在后端对象台账中",
-                "geometry_ids": [geometry_id],
-                "object_ids": unknown_owners,
-            })
-        shared_owners[str(geometry_id)] = owners
-
-    grouping = (baseline or {}).get("grouping") or "object"
-    obj_by_id = {str(obj.get("object_id") or ""): obj for obj in objects}
-    if grouping == "assembly":
-        assembly_members: dict[str, set[str]] = {}
-        missing_assembly: list[str] = []
-        for object_id, refs in owned_active.items():
-            if not refs:
-                continue
-            assembly_id = str((obj_by_id.get(object_id) or {}).get("assembly_id") or "")
-            if not assembly_id:
-                missing_assembly.append(object_id)
-                continue
-            assembly_members.setdefault(assembly_id, set()).add(object_id)
-        if missing_assembly:
-            identity_issues.append({
-                "code": "missing_assembly_id",
-                "reason": "装配体数量对账要求对象归属 assembly_id，但存在缺少装配体标识的对象",
-                "object_ids": missing_assembly,
-            })
-        actual_object_count = len(assembly_members)
-    else:
-        actual_object_count = sum(1 for refs in owned_active.values() if refs)
-
-    def _report(status: str, *, checks: list[dict[str, Any]] | None = None,
-                unknown: list[dict[str, Any]] | None = None, note: str | None = None,
-                actual: int | None = None) -> dict[str, Any]:
-        return {
-            "schema": "cad.object-count-consistency.v1",
-            "status": status,
-            "review_required": status in {"failed", "unverified"},
-            "checks": checks or [],
-            "unknown_requirements": unknown or [],
-            "authority": "backend_ownership_and_source_contract",
-            "baseline": baseline,
-            "grouping": grouping,
-            "shared_geometry_owners": shared_owners,
-            "actual_object_count": actual if actual is not None else (
-                actual_object_count if objects else None),
-            "note": note,
-        }
-
-    # Case 3: no traceable T1 object-count requirement.
-    if baseline is None:
-        subjects = list((scalar_contract or {}).get("subjects") or [])
-        if len(subjects) >= 2:
-            unknown = [{
-                "source": "requirement_contract",
-                "reason": "数量要求未被结构化契约捕获，仅存在多个已声明创建主体，对象数量待人工复核",
-                "subjects": subjects,
-            }]
-            return _report("unverified", unknown=unknown,
-                           note="T1 数量契约缺失；subjects 为既有解析器输出的弱信号，未推断具体数量。")
-        return _report("not_checked", note="无可追溯的对象数量契约要求，保持原行为。")
-
-    # Case 4: identity undeterminable -> unverified, never fabricate a verdict.
-    if identity_issues:
-        unknown = [{
-            "source": baseline["source"],
-            "reason": "对象身份不可判定，数量对账保留不确定性",
-            "issues": identity_issues,
-        }]
-        return _report("unverified", unknown=unknown,
-                       note="归属台账存在缺失、歧义、悬挂或共享声明不一致，未形成数量结论。")
-
-    # Case 1: reconcile T1 baseline against ownership-grouped N_obj.
-    expected = baseline["expected_object_count"]
-    check_metadata = {
-        "grouping": grouping,
-        "shared_geometry_owners": shared_owners,
-    }
-    if expected == actual_object_count:
-        checks = [{
-            "check_id": "object-count-ownership",
-            "status": "passed",
-            "authority": "backend_ownership_and_source_contract",
-            "expected_object_count": expected,
-            "actual_object_count": actual_object_count,
-            "baseline_source": baseline["source"],
-            **check_metadata,
-        }]
-        return _report("passed", checks=checks)
-
-    mismatch_kind = "missing_object" if actual_object_count < expected else "extra_object"
-    unknown = [{
-        "source": baseline["source"],
-        "reason": f"来源契约要求 {expected} 个对象，后端归属台账为 {actual_object_count} 个对象（{mismatch_kind}）",
-        "expected_object_count": expected,
-        "actual_object_count": actual_object_count,
-        "mismatch": mismatch_kind,
-        "baseline": baseline,
-        **check_metadata,
-    }]
-    checks = [{
-        "check_id": "object-count-ownership",
-        "status": "failed",
-        "authority": "backend_ownership_and_source_contract",
-        "expected_object_count": expected,
-        "actual_object_count": actual_object_count,
-        "baseline_source": baseline["source"],
-        **check_metadata,
-    }]
-    return _report("failed", checks=checks, unknown=unknown)
-
-
-# --- R-IDENTITY-1: object identity acceptance (bounded reconciliation) ------
-# The count report owns the "how many" verdict and is intentionally untouched.
-# This sub-report only decides whether each traceable source object requirement
-# can be bound to a backend object whose measured geometry/topology satisfies
-# it. Model-declared ``object_type``/``label`` are auxiliary hints only and
-# never establish identity; the trust anchor is the backend-resolved geometry
-# reference list behind a validated logical-object graph.
-
-_IDENTITY_CATEGORY_WORDS = {
-    "circle": ("圆", "圆形", "圆孔", "圆点"),
-    "rectangle": ("矩形", "长方形", "正方形", "四边形"),
-    "line": ("线段", "直线"),
-}
-
-_MEASURED_CATEGORIES = {"circle", "rectangle", "line"}
-
-
-def _identity_category_for_noun(noun: str) -> str:
-    noun = str(noun or "").strip()
-    for category, words in _IDENTITY_CATEGORY_WORDS.items():
-        if any(noun == word or noun.startswith(word) for word in words):
-            return category
-    if any(noun == box or noun.startswith(box) for box in ("立方体", "正方体")):
-        return "box_projection"
-    return "named_subject"
-
-
-def _closed_loop_rectangle_frame(lines: list[dict[str, Any]]):
-    """Measure whether line items form one closed orthogonal quadrilateral.
-
-    Reuses the endpoint-incidence reasoning already exercised by the projection
-    channel: a measured geometric property, never a model label. Returns an
-    ``(x, y, width, height)`` frame or ``None``.
-    """
-    if len(lines) < 3:
-        return None
-    adjacency: dict[tuple[float, float], list[tuple[float, float]]] = {}
-
-    def _point(point: dict[str, Any]) -> tuple[float, float]:
-        return (round(float(point["x"]), 6), round(float(point["y"]), 6))
-
-    for line in lines:
-        start, end = line.get("start"), line.get("end")
-        if not isinstance(start, dict) or not isinstance(end, dict):
-            return None
-        a, b = _point(start), _point(end)
-        if a == b:
-            return None
-        adjacency.setdefault(a, []).append(b)
-        adjacency.setdefault(b, []).append(a)
-    if any(len(neighbors) != 2 for neighbors in adjacency.values()):
-        return None
-    origin = next(iter(adjacency))
-    previous = origin
-    current = adjacency[origin][0]
-    visited = [origin]
-    steps = 0
-    while current != origin:
-        visited.append(current)
-        options = [point for point in adjacency[current] if point != previous]
-        if len(options) != 1:
-            return None
-        previous, current = current, options[0]
-        steps += 1
-        if steps > len(lines):
-            return None
-    if len(visited) != len(lines) or len(visited) != 4:
-        return None
-    vectors = []
-    for index, corner in enumerate(visited):
-        nxt = visited[(index + 1) % 4]
-        vectors.append((nxt[0] - corner[0], nxt[1] - corner[1]))
-    for index, vector in enumerate(vectors):
-        other = vectors[(index + 1) % 4]
-        if abs(vector[0] * other[0] + vector[1] * other[1]) > 1e-5:
-            return None
-    xs = [point[0] for point in visited]
-    ys = [point[1] for point in visited]
-    x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
-    if x1 - x0 <= 0 or y1 - y0 <= 0:
-        return None
-    return x0, y0, x1 - x0, y1 - y0
-
-
-def _measured_object_descriptor(obj: dict[str, Any], geometries: list[dict[str, Any]],
-                                active_ids: set[int]) -> dict[str, Any]:
-    refs = {int(ref) for ref in (obj.get("geometry_refs") or obj.get("geometry_ids") or [])}
-    owned = [g for g in geometries
-             if g.get("id") is not None and int(g.get("id")) in refs and int(g.get("id")) in active_ids]
-    circle_geoms = [g for g in owned if g.get("type") == "circle"]
-    if circle_geoms:
-        return {"category": "circle", "evidence_grade": "measured_geometry",
-                "geometry_ids": [g["id"] for g in owned],
-                "detail": "测量到圆几何（圆心/半径由执行器产出）"}
-    from .cad_structure_contract import _frame
-    for geom in owned:
-        if _frame(geom):
-            return {"category": "rectangle", "evidence_grade": "measured_geometry",
-                    "geometry_ids": [g["id"] for g in owned],
-                    "detail": "测量到闭合矩形框"}
-    line_frame = _closed_loop_rectangle_frame([g for g in owned if g.get("type") == "line"])
-    if line_frame:
-        return {"category": "rectangle", "evidence_grade": "measured_geometry",
-                "geometry_ids": [g["id"] for g in owned],
-                "detail": "线段闭合正交四边形（四条线段表达），测量类别为矩形"}
-    if owned and all(g.get("type") == "line" for g in owned):
-        return {"category": "line", "evidence_grade": "measured_geometry",
-                "geometry_ids": [g["id"] for g in owned],
-                "detail": "测量到线段几何"}
-    return {"category": "unclassified", "evidence_grade": "insufficient",
-            "geometry_ids": [g["id"] for g in owned],
-            "detail": "现有测量通道不能判定该对象类别"}
-
-
-def _identity_baseline_entries(*, composition_contract, structure_contract,
-                               scalar_contract,
-                               source_acceptance=None) -> tuple[Any, list[dict[str, Any]], list[str]]:
-    """Collect traceable source object requirements for identity reconciliation.
-
-    Only existing structured channels are read: the source-side inventory,
-    legacy explicit composition counts/names, reference-structure components,
-    and the scoped-primitive evidence that has already measured and bound the
-    source's exact objects. Model self-report, plan step order and flat
-    geometry counts are never a baseline here.
-    """
-    entries: list[dict[str, Any]] = []
-    inventory_state: Any = None
-    count_key_category = {"circle": "circle", "rectangle": "rectangle",
-                         "line": "line", "closed_path": "named_subject"}
-    count_key_noun = {"circle": "圆", "rectangle": "矩形", "line": "线段", "closed_path": "轮廓"}
-    if isinstance(composition_contract, dict):
-        inventory_state = composition_contract.get("object_requirements_state")
-        for item in composition_contract.get("object_requirements") or []:
-            noun = str(item.get("object_noun") or "")
-            try:
-                quantity = int(item.get("quantity") or 1)
-            except (TypeError, ValueError):
-                quantity = 1
-            entries.append({
-                "requirement_id": item.get("requirement_id"),
-                "noun": noun,
-                "quantity": quantity,
-                "category": _identity_category_for_noun(noun),
-                "evidence": item.get("evidence"),
-                "evidence_span": item.get("evidence_span"),
-                "source_id": item.get("source_id"),
-                "baseline_channel": "object_inventory",
-            })
-        counts = composition_contract.get("counts") or {}
-        is_named_components = composition_contract.get("kind") == "named_components"
-        for key, value in counts.items():
-            try:
-                quantity = int(value)
-            except (TypeError, ValueError):
-                continue
-            if quantity <= 0:
-                continue
-            # Named components are already carried by the ``names`` entries;
-            # the generic closed_path count must not duplicate them.
-            if is_named_components and key == "closed_path":
-                continue
-            entries.append({
-                "requirement_id": f"legacy-count:{key}:{quantity}",
-                "noun": count_key_noun.get(key, str(key)),
-                "quantity": quantity,
-                "category": count_key_category.get(key, "named_subject"),
-                "evidence": composition_contract.get("evidence"),
-                "evidence_span": None,
-                "source_id": "legacy_composition",
-                "baseline_channel": "explicit_composition",
-            })
-        for name in composition_contract.get("names") or []:
-            entries.append({
-                "requirement_id": f"legacy-name:{name}",
-                "noun": str(name),
-                "quantity": 1,
-                "category": _identity_category_for_noun(name),
-                "evidence": composition_contract.get("evidence"),
-                "evidence_span": None,
-                "source_id": "legacy_composition",
-                "baseline_channel": "named_components",
-            })
-    if isinstance(structure_contract, dict):
-        for component in structure_contract.get("components") or []:
-            label = str(component.get("name") or component.get("label") or "参考组件")
-            entries.append({
-                "requirement_id": f"reference-component:{label}",
-                "noun": label,
-                "quantity": 1,
-                "category": "named_subject",
-                "evidence": structure_contract.get("reference_sha256"),
-                "evidence_span": None,
-                "source_id": "reference_structure",
-                "baseline_channel": "reference_structure",
-            })
-    scope = (source_acceptance or {}).get("scope_evidence") or {}
-    if not entries and scope.get("state") == "complete":
-        inventory_state = "complete"
-        for item in scope.get("entries") or []:
-            entries.append({
-                "requirement_id": item.get("requirement_id"),
-                "noun": item.get("subject"),
-                "quantity": int(item.get("quantity") or 1),
-                "category": item.get("category") or "named_subject",
-                "evidence": item.get("evidence"),
-                "evidence_span": None,
-                "source_id": "source_scoped_primitives",
-                "baseline_channel": "source_scoped_primitives",
-                "scope_object_ids": deepcopy(item.get("object_ids") or []),
-                "scope_geometry_ids": deepcopy(item.get("geometry_ids") or []),
-                "scope_assembly_ids": deepcopy(item.get("assembly_ids") or []),
-            })
-    subjects = list((scalar_contract or {}).get("subjects") or [])
-    return inventory_state, entries, subjects
-
-
-def _object_identity_consistency(*, trial_result: dict[str, Any] | None,
-                                 composition_contract: dict[str, Any] | None,
-                                 structure_contract: dict[str, Any] | None,
-                                 scalar_contract: dict[str, Any] | None,
-                                 source: str | None,
-                                 source_acceptance: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Bind traceable source object requirements to validated backend objects.
-
-    Verdict tiers:
-    - ``passed``: every applicable entry is bound through measured geometry, a
-      validated template result or an existing applicable source channel.
-    - ``failed``: a credible measured/channel proof shows the actual category
-      violates the requirement.
-    - ``unverified``: only model self-report, missing evidence or an unresolved
-      correspondence; no fabricated category verdict.
-    - ``not_checked``: no applicable identity requirement in any structured
-      channel; non-blocking.
-
-    The 2D projection scope is respected: a 3D solid requirement stays
-    unverified until a 3D channel exists; projection appearance is never used to
-    infer a 3D entity type.
-    """
-    from .cad_semantic_dispatch import active_geometries
-
-    trial_result = trial_result or {}
-    geometries = trial_result.get("geometries") or []
-    source = source or ""
-    source_acceptance = source_acceptance or {}
-
-    binding = _semantic_backend_binding(trial_result)
-    degraded_issues = binding.get("issues") or []
-
-    inventory_state, entries, subjects = _identity_baseline_entries(
-        composition_contract=composition_contract,
-        structure_contract=structure_contract,
-        scalar_contract=scalar_contract,
-        source_acceptance=source_acceptance)
-
-    solid_entity_request = bool(re.search(r"三维|实体|可操作", source))
-    for entry in entries:
-        if solid_entity_request and entry["category"] not in _MEASURED_CATEGORIES:
-            entry["category"] = "solid_entity"
-
-    report: dict[str, Any] = {
-        "schema": "cad.object-identity-acceptance.v1",
-        "status": "not_checked",
-        "review_required": False,
-        "identity_state": "not_applicable",
-        "evidence_grade": "none",
-        "matched_entries": [],
-        "unmatched_entries": [],
-        "unmatched_objects": [],
-        "ambiguous_bindings": [],
-        "checks": [],
-        "unknown_requirements": [],
-        "baseline": {
-            "inventory_state": inventory_state,
-            "entries": deepcopy(entries),
-            "binding_trust": binding.get("trust"),
-        },
-        "note": "",
-    }
-
-    def _finalize(status: str, *, identity_state: str, grade: str, note: str) -> dict[str, Any]:
-        report["status"] = status
-        report["identity_state"] = identity_state
-        report["evidence_grade"] = grade
-        report["review_required"] = status in {"failed", "unverified"}
-        report["note"] = note
-        return report
-
-    if inventory_state == "incomplete":
-        report["unknown_requirements"].append({
-            "source": "object_inventory",
-            "reason": "对象身份要求解析不完整：存在未绑定到已识别对象名词的数量短语，类别绑定待人工复核",
-            "entries": deepcopy(entries),
-        })
-        return _finalize("unverified", identity_state="unbound", grade="insufficient",
-                         note="对象身份契约未形成可对账结论，保留不确定性，未产生类别失败结论。")
-
-    if not entries:
-        if len(subjects) >= 2:
-            report["unknown_requirements"].append({
-                "source": "requirement_contract",
-                "reason": "身份要求未被结构化契约捕获，仅存在多个已声明创建主体，对象对应待人工复核",
-                "subjects": subjects,
-            })
-            return _finalize("unverified", identity_state="unbound", grade="insufficient",
-                             note="T1 身份契约缺失；subjects 为既有解析器弱信号，未推断类别结论。")
-        return _finalize("not_checked", identity_state="not_applicable", grade="none",
-                         note="无可追溯的对象身份要求，保持原行为。")
-
-    if degraded_issues:
-        report["unknown_requirements"].append({
-            "source": "backend_binding",
-            "reason": "对象身份不可判定：归属台账缺失、歧义、悬挂或图校验未通过",
-            "issues": degraded_issues,
-        })
-        return _finalize("unverified", identity_state="unbound", grade="insufficient",
-                         note="后端归属绑定未通过核验，身份对应保留不确定性；未采用模型自报身份补齐。")
-
-    objects = binding["logical_objects"] or []
-    active_ids = {int(g.get("id")) for g in active_geometries(geometries) if g.get("id") is not None}
-    descriptors = {
-        str(obj.get("object_id") or ""): _measured_object_descriptor(obj, geometries, active_ids)
-        for obj in objects if str(obj.get("object_id") or "")
-    }
-
-    projection_report = source_acceptance.get("projection_acceptance") or {}
-    semantic_report = source_acceptance.get("semantic_acceptance") or {}
-
-    def _channel_verdict(category: str) -> tuple[str | None, str]:
-        """Return an existing applicable-channel verdict without re-running it."""
-        if category == "box_projection":
-            if projection_report.get("status") == "passed":
-                return "passed", "verified_projection_channel"
-            if projection_report.get("status") == "failed":
-                return "failed", "verified_projection_channel"
-        if semantic_report.get("applicable_requirement_kinds"):
-            if semantic_report.get("status") == "passed":
-                return "passed", "verified_semantic_channel"
-            if semantic_report.get("status") == "failed":
-                return "failed", "verified_semantic_channel"
-        return None, "insufficient"
-
-    used_object_ids: set[str] = set()
-    matched_entries: list[dict[str, Any]] = []
-    unmatched_entries: list[dict[str, Any]] = []
-    ambiguous_bindings: list[dict[str, Any]] = []
-    any_failed = False
-    any_unverified = False
-
-    # Geometry ids already scoped to an object by an existing applicable channel.
-    # A whole-report channel verdict cannot bind objects its checks never touched.
-    channel_geometry_ids: set[Any] = set()
-    for channel_report in (projection_report, semantic_report):
-        for check in channel_report.get("checks") or []:
-            for geometry_id in check.get("geometry_ids") or []:
-                if geometry_id is not None:
-                    channel_geometry_ids.add(geometry_id)
-        for target in channel_report.get("object_acceptance") or []:
-            for geometry_id in (target.get("target_ref") or {}).get("geometry_ids") or []:
-                if geometry_id is not None:
-                    channel_geometry_ids.add(geometry_id)
-
-    def _bindings(object_ids: list[str]) -> list[dict[str, Any]]:
-        return [{
-            "object_id": object_id,
-            "geometry_ids": descriptors[object_id]["geometry_ids"],
-            "evidence_grade": descriptors[object_id]["evidence_grade"],
-            "detail": descriptors[object_id]["detail"],
-        } for object_id in object_ids]
-
-    for entry in entries:
-        requirement_id = entry["requirement_id"]
-        noun = entry["noun"]
-        quantity = entry["quantity"]
-        category = entry["category"]
-
-        if category in _MEASURED_CATEGORIES or entry.get("scope_object_ids"):
-            prebound = list(entry.get("scope_object_ids") or [])
-            if prebound:
-                invalid = [oid for oid in prebound
-                           if oid not in descriptors or oid in used_object_ids]
-                if invalid or len(prebound) != quantity:
-                    any_unverified = True
-                    unmatched_entries.append({
-                        "requirement_id": requirement_id,
-                        "noun": noun,
-                        "quantity": quantity,
-                        "category": category,
-                        "reason": "source_scope_binding_incomplete",
-                        "detail": "来源逐件测量证据中的对象绑定缺失、重复或已用于其他条目；"
-                                  "未按模型标签补齐。",
-                        "evidence": entry["evidence"],
-                        "invalid_object_ids": invalid,
-                    })
-                    continue
-                measured = [descriptors[oid]["category"] for oid in prebound]
-                if any(value != category for value in measured):
-                    proven = [value for value in measured if value != "unclassified"]
-                    if proven:
-                        any_failed = True
-                        reason = "category_mismatch"
-                        detail = (f"来源逐件测量绑定对象 {', '.join(prebound)}，"
-                                  f"但后端对象类别为 {sorted(set(measured))}，与来源要求 {category} 不一致。")
-                    else:
-                        any_unverified = True
-                        reason = "insufficient_evidence"
-                        detail = "来源逐件测量已绑定对象，但现有类别通道无法判定该对象类型。"
-                    unmatched_entries.append({
-                        "requirement_id": requirement_id,
-                        "noun": noun,
-                        "quantity": quantity,
-                        "category": category,
-                        "reason": reason,
-                        "detail": detail,
-                        "evidence": entry["evidence"],
-                        "matched_object_ids": prebound,
-                    })
-                    continue
-                used_object_ids.update(prebound)
-                matched_entries.append({
-                    "requirement_id": requirement_id,
-                    "noun": noun,
-                    "quantity": quantity,
-                    "category": category,
-                    "object_ids": prebound,
-                    "geometry_ids": [descriptors[oid]["geometry_ids"] for oid in prebound],
-                    "bindings": _bindings(prebound),
-                    "evidence": entry["evidence"],
-                    "evidence_grade": "measured_geometry",
-                    "justification": (
-                        f"来源条目「{noun}」已由逐件几何测量绑定到对象 "
-                        f"{', '.join(prebound)}；对象归属来自执行器台账，"
-                        "类别来自测量几何，未采用模型标签。"),
-                })
-                continue
-            matches = [
-                object_id for object_id, desc in descriptors.items()
-                if object_id not in used_object_ids and desc["category"] == category
-            ]
-            others = [
-                object_id for object_id, desc in descriptors.items()
-                if object_id not in used_object_ids and object_id not in matches
-                and desc["category"] != "unclassified"
-            ]
-            unknowns = [
-                object_id for object_id, desc in descriptors.items()
-                if object_id not in used_object_ids and desc["category"] == "unclassified"
-            ]
-            if len(matches) >= quantity:
-                assigned = matches[:quantity]
-                used_object_ids.update(assigned)
-                justification = (
-                    f"条目「{noun}」要求 {quantity} 个测量类别为{category}的对象；"
-                    f"对象 {', '.join(assigned)} 归属活动几何并通过后端图校验，"
-                    f"测量类别与条目一致；依据为执行器产出几何与归属图，未采用模型标签。"
-                )
-                if quantity > 1:
-                    justification += " 同规格同类对象集合匹配成立，个体配对顺序不唯一。"
-                matched_entries.append({
-                    "requirement_id": requirement_id,
-                    "noun": noun,
-                    "quantity": quantity,
-                    "category": category,
-                    "object_ids": assigned,
-                    "geometry_ids": [descriptors[object_id]["geometry_ids"]
-                                     for object_id in assigned],
-                    "bindings": _bindings(assigned),
-                    "evidence": entry["evidence"],
-                    "evidence_grade": "measured_geometry",
-                    "justification": justification,
-                })
-                if len(matches) > quantity:
-                    ambiguous_bindings.append({
-                        "requirement_id": requirement_id,
-                        "candidate_object_ids": matches,
-                        "reason": "集合匹配成立，个体配对存在多种合法对应，保留歧义不强行确定映射。",
-                    })
-            elif unknowns:
-                # An unclassified object is missing evidence, never a proven wrong
-                # type; the requirement stays unresolved rather than failed.
-                any_unverified = True
-                unmatched_entries.append({
-                    "requirement_id": requirement_id,
-                    "noun": noun,
-                    "quantity": quantity,
-                    "category": category,
-                    "reason": "insufficient_evidence",
-                    "detail": f"仅 {len(matches)} 个对象有自身可信分类证据，其余对象分类未判明；"
-                              "缺少可信几何证据，未按模型标签补齐，也未判为类型错误。",
-                    "evidence": entry["evidence"],
-                    "unmatched_object_ids": unknowns,
-                })
-            elif others:
-                # Scope complete: every remaining object is a classified, proven
-                # mismatch; no unknown object keeps the verdict open.
-                any_failed = True
-                unmatched_entries.append({
-                    "requirement_id": requirement_id,
-                    "noun": noun,
-                    "quantity": quantity,
-                    "category": category,
-                    "reason": "category_mismatch",
-                    "detail": f"作用域完整，测量证据证明已分类对象类别为 "
-                              f"{sorted({descriptors[oid]['category'] for oid in others})}，"
-                              f"与来源要求的 {category} 不一致。",
-                    "evidence": entry["evidence"],
-                    "matched_object_ids": matches,
-                    "other_object_ids": others,
-                })
-            else:
-                any_unverified = True
-                unmatched_entries.append({
-                    "requirement_id": requirement_id,
-                    "noun": noun,
-                    "quantity": quantity,
-                    "category": category,
-                    "reason": "insufficient_evidence",
-                    "detail": "现有测量通道未能为该条目凑齐足够的可信对象；缺少可信几何证据，未按模型标签补齐。",
-                    "evidence": entry["evidence"],
-                })
-            continue
-
-        # Non-measurable scope: defer to an already-verified applicable channel.
-        channel_verdict, channel_grade = _channel_verdict(category)
-        if category == "solid_entity":
-            any_unverified = True
-            unmatched_entries.append({
-                "requirement_id": requirement_id,
-                "noun": noun,
-                "quantity": quantity,
-                "category": category,
-                "reason": "missing_3d_channel",
-                "detail": "当前仅有二维投影/轮廓测量，缺少三维实体可操作性证据；不得由投影外观反推实体类型。",
-                "evidence": entry["evidence"],
-            })
-            continue
-        if channel_verdict == "passed":
-            # Per-object backing: only objects whose current refs intersect the
-            # channel's verified geometry ids may be bound. A whole-report pass
-            # never sweeps uncovered objects.
-            backed = [
-                object_id for object_id, desc in descriptors.items()
-                if object_id not in used_object_ids
-                and channel_geometry_ids.intersection(desc["geometry_ids"])
-            ]
-            if len(backed) >= quantity:
-                assigned = backed[:quantity]
-                used_object_ids.update(assigned)
-                matched_entries.append({
-                    "requirement_id": requirement_id,
-                    "noun": noun,
-                    "quantity": quantity,
-                    "category": category,
-                    "object_ids": assigned,
-                    "geometry_ids": [descriptors[object_id]["geometry_ids"]
-                                     for object_id in assigned],
-                    "bindings": _bindings(assigned),
-                    "evidence": entry["evidence"],
-                    "evidence_grade": channel_grade,
-                    "justification": f"既有适用通道的核验几何落到对象 "
-                                     f"{', '.join(assigned)}；绑定对象来自后端归属台账。",
-                })
-            else:
-                any_unverified = True
-                uncovered = [
-                    object_id for object_id in descriptors
-                    if object_id not in used_object_ids and object_id not in backed
-                ]
-                unmatched_entries.append({
-                    "requirement_id": requirement_id,
-                    "noun": noun,
-                    "quantity": quantity,
-                    "category": category,
-                    "reason": "channel_partial_coverage",
-                    "detail": f"通道结论仅覆盖 {len(backed)} 个对象，缺少 "
-                              f"{quantity - len(backed)} 个对象的对象级通道证据；"
-                              "未覆盖对象不建立身份绑定。",
-                    "evidence": entry["evidence"],
-                    "covered_object_ids": backed,
-                    "uncovered_object_ids": uncovered,
-                })
-        elif channel_verdict == "failed":
-            any_failed = True
-            covered = [
-                object_id for object_id, desc in descriptors.items()
-                if channel_geometry_ids.intersection(desc["geometry_ids"])
-            ]
-            unmatched_entries.append({
-                "requirement_id": requirement_id,
-                "noun": noun,
-                "quantity": quantity,
-                "category": category,
-                "reason": "channel_category_mismatch",
-                "detail": "既有适用验收通道的核验结论证明实际结果违反该条目要求。",
-                "evidence": entry["evidence"],
-                "covered_object_ids": covered,
-            })
-        else:
-            any_unverified = True
-            unmatched_entries.append({
-                "requirement_id": requirement_id,
-                "noun": noun,
-                "quantity": quantity,
-                "category": category,
-                "reason": "insufficient_evidence",
-                "detail": "当前通道缺少可作用于该条目的可信类别证据；身份对应保留不确定性。",
-                "evidence": entry["evidence"],
-            })
-
-    unmatched_objects = [
-        {"object_id": object_id,
-         "measured_category": descriptors[object_id]["category"],
-         "evidence_grade": descriptors[object_id]["evidence_grade"]}
-        for object_id in descriptors if object_id not in used_object_ids
-    ]
-
-    report["matched_entries"] = matched_entries
-    report["unmatched_entries"] = unmatched_entries
-    report["unmatched_objects"] = unmatched_objects
-    report["ambiguous_bindings"] = ambiguous_bindings
-    report["checks"] = [
-        {"check_id": "object-identity-binding", "status": "passed" if matched_entries else "failed",
-         "authority": "backend_measured_geometry_and_validated_binding",
-         "matched_entries": len(matched_entries), "unmatched_entries": len(unmatched_entries)}
-    ]
-
-    if any_failed:
-        return _finalize("failed", identity_state="partial", grade="insufficient",
-                         note="存在经可信证据证明违反来源类别要求的对象；数量对账结论不在本报告内。")
-    if any_unverified or unmatched_entries:
-        return _finalize("unverified", identity_state="partial" if matched_entries else "unbound",
-                         grade="insufficient",
-                         note="部分条目缺少可信类别证据或对应未定；未产生伪造的通过或失败结论。")
-    return _finalize("passed", identity_state="bound", grade="measured_geometry",
-                     note="全部适用条目已通过测量几何/既有适用通道绑定到后端对象。")
-
-
-def _source_recognizes_mandatory_kind(source_text: str | None) -> bool:
-    """Whether the source text itself signals a recognized or ambiguous kind.
-
-    Used only to decide how to treat a missing semantic report: a source with
-    no recognized signal keeps the prior non-blocking behavior when no report
-    is attached; a source that recognizes a mandatory kind, or leaves an
-    unresolved ambiguity, is conservatively blocked.
-
-    The text scans are A's exported functions; this caller never builds a
-    second vocabulary here and never inspects geometry profile.  An ambiguous
-    wording alone does not establish a requirement, but with no report to
-    resolve it the case cannot be released as "no applicable requirement".
-    """
-    if not source_text:
-        return False
-    try:
-        from .cad_semantic_acceptance import semantic_requirements
-        from .cad_semantic_dispatch import (
-            MANDATORY_REQUIREMENT_KINDS,
-            ambiguous_requirement_kinds_from_text,
-            recognized_star_family_unsupported_kinds_from_text,
-            recognized_unverifiable_kinds_from_text,
-        )
-        structured = any((req or {}).get("kind") in MANDATORY_REQUIREMENT_KINDS
-                         for req in semantic_requirements(source_text) or [])
-        explicit = bool(recognized_unverifiable_kinds_from_text(source_text))
-        ambiguous = bool(ambiguous_requirement_kinds_from_text(source_text))
-        family = bool(recognized_star_family_unsupported_kinds_from_text(source_text))
-        return structured or explicit or ambiguous or family
-    except Exception:
-        return False
-
-
-def _semantic_summary_verdict(report: dict[str, Any] | None, source: str | None) -> dict[str, Any]:
-    """Three-state semantic verdict consumed by the summary layer.
-
-    The verdict is delegated entirely to A's ``semantic_requirement_state``;
-    the summary layer never infers applicability from ``coverage`` or the
-    ``review_required`` flag.
-    """
-    from .cad_semantic_dispatch import semantic_requirement_state
-    if isinstance(report, dict):
-        return semantic_requirement_state(report, source)
-    if source and _source_recognizes_mandatory_kind(source):
-        from .cad_semantic_dispatch import (
-            ambiguous_requirement_kinds_from_text,
-            recognized_star_family_unsupported_kinds_from_text,
-            recognized_unverifiable_kinds_from_text,
-        )
-        explicit_kinds = recognized_unverifiable_kinds_from_text(source)
-        ambiguous_kinds = ambiguous_requirement_kinds_from_text(source)
-        family_kinds = recognized_star_family_unsupported_kinds_from_text(source)
-        applicable_kinds = explicit_kinds + [k for k in family_kinds if k not in explicit_kinds]
-        fallback_reasons = ["report_unavailable"]
-        if ambiguous_kinds:
-            fallback_reasons.append("ambiguous_requirement")
-        if family_kinds:
-            fallback_reasons.append("unsupported_semantic_kind")
-        return {"state": "unverified_or_partial",
-                "applicable_requirement_kinds": applicable_kinds,
-                "ambiguous_requirement_kinds": ambiguous_kinds,
-                "recognized_unknown_kinds": [], "review_required": True,
-                "reasons": fallback_reasons, "affected": []}
-    return {"state": "no_applicable_requirement", "applicable_requirement_kinds": [],
-            "ambiguous_requirement_kinds": [],
-            "recognized_unknown_kinds": [], "review_required": False,
-            "reasons": [], "affected": []}
-
-
 def construction_acceptance_summary(
     *, preflight_structure, structure_contract, structure_validation,
     composition_contract, composition_validation, source_acceptance,
-    trial_result=None, source: str | None = None,
+    trial_result=None,
 ):
     """Converge preflight uncertainty with post-execution geometry evidence."""
     # Preflight may legitimately be unable to expand a parametric/composite
@@ -2490,42 +1389,26 @@ def construction_acceptance_summary(
         )
     )
     source_acceptance = source_acceptance or {}
-    coverage_evidence = source_acceptance.get("coverage_evidence")
-    closure_state = coverage_evidence.get("state") if isinstance(coverage_evidence, dict) else None
-    # The semantic report is judged exclusively by A's three-state verdict and
-    # is kept out of the generic report loop; otherwise a legacy no-applicable
-    # report carrying a stray review_required flag would false-fail the
-    # "no mandatory requirement" positive case.
-    semantic_report = source_acceptance.get("semantic_acceptance")
-    all_reports = [source_acceptance]
-    all_reports.extend(
-        value for key, value in source_acceptance.items()
-        if key != "semantic_acceptance" and key.endswith("_acceptance") and isinstance(value, dict)
-    )
     reports = [source_acceptance]
     reports.extend(
         value for key, value in source_acceptance.items()
-        if key != "semantic_acceptance" and key.endswith("_acceptance") and isinstance(value, dict)
-        and not (key == "final_source_acceptance" and closure_state == "complete")
+        if key.endswith("_acceptance") and isinstance(value, dict)
     )
-    from .cad_semantic_dispatch import state_allows_summary_passed
-    semantic_verdict = _semantic_summary_verdict(semantic_report, source)
-    semantic_blocks = not state_allows_summary_passed(semantic_verdict)
-    report_requires_review = any(_report_blocks_review(report) for report in reports)
-    review_required = (preflight_review_required or report_requires_review or semantic_blocks
+    report_requires_review = any(
+        report.get("review_required") is True
+        or report.get("status") in {"failed", "unverified", "review_required"}
+        for report in reports
+    )
+    failed_checks = [deepcopy(check) for report in reports for check in report.get('checks', [])
+                     if isinstance(check, dict) and check.get('status') == 'failed']
+    report_requires_review = report_requires_review or bool(failed_checks)
+    review_required = (preflight_review_required or report_requires_review
         or any((report or {}).get('review_required') is True for report in
-               (preflight_structure,structure_validation,composition_validation)))
+               (structure_validation,composition_validation)))
     verified_checks = sum(
-        1 for report in all_reports for check in report.get("checks", [])
+        1 for report in reports for check in report.get("checks", [])
         if isinstance(check, dict) and check.get("status") == "passed"
     )
-    # A completed requirement-coverage ledger is itself a measured evidence
-    # source.  Ordinary construction clauses are bound to their logical
-    # objects in ``cad_requirement_binding``; counting those verified clauses
-    # keeps the "zero independent checks can never pass" rule without
-    # manufacturing synthetic report checks (which carry a different schema).
-    if isinstance(coverage_evidence, dict):
-        verified_checks += int(coverage_evidence.get("verified_requirement_count") or 0)
     verified_checks += int(
         bool(composition_contract)
         and (composition_validation or {}).get("status") == "passed"
@@ -2538,43 +1421,24 @@ def construction_acceptance_summary(
     )
     # Executability never establishes source requirement coverage. Partial or
     # missing coverage remains reviewable even when every known check passes.
-    if closure_state:
-        coverage_complete = closure_state == 'complete'
-    else:
-        coverage_complete = source_acceptance.get('coverage') in {'complete', 'full'}
+    coverage_complete = source_acceptance.get('coverage') in {'complete', 'full'}
     unknown_requirements = source_acceptance.get('unknown_requirements', [])
-    # Coverage strings are never sole evidence: an applicable semantic
-    # requirement left unverified/partial blocks a complete verdict even when
-    # the producer emitted coverage=complete with no unknown requirements.
-    coverage_complete = coverage_complete and not unknown_requirements and not semantic_blocks
+    coverage_complete = coverage_complete and not unknown_requirements
     review_required = review_required or not coverage_complete
-    coverage_summary = None
-    if isinstance(coverage_evidence, dict):
-        coverage_summary = {
-            "state": coverage_evidence.get("state"),
-            "verified_requirement_count": coverage_evidence.get("verified_requirement_count"),
-            "partial_requirement_count": coverage_evidence.get("partial_requirement_count"),
-            "unverified_requirement_count": coverage_evidence.get("unverified_requirement_count"),
-            "blocking_requirements": deepcopy(coverage_evidence.get("blocking_requirements") or []),
-        }
     return {
         "status": "review_required" if review_required else "passed",
         "review_required": review_required,
         "authority": "backend_measured_geometry",
         "verified_checks": verified_checks,
+        "failed_checks": failed_checks,
         "requirement_coverage": "complete" if coverage_complete else "unknown",
         "unknown_requirements": deepcopy(unknown_requirements) or ([] if coverage_complete else [
             {'source':'source_acceptance','reason':'需求清单或完整覆盖证据缺失'}]),
-        "coverage_evidence": coverage_summary,
         "geometry_validity": 'passed' if (trial_result or {}).get('feasibility',{}).get('ok') is True else 'not_checked',
         "constraint_satisfaction": (trial_result or {}).get('constraint_solve',{}).get('status','not_checked'),
         "assertion_status": ('passed' if (trial_result or {}).get('assertions',{}).get('ok') is True
                              and (trial_result or {}).get('assertions',{}).get('count',0)>0 else 'not_checked'),
         "unverified_geometry_ids": source_acceptance.get("unverified_geometry_ids", []),
-        "semantic_requirement_state": semantic_verdict.get("state"),
-        "semantic_applicable_requirement_kinds": deepcopy(semantic_verdict.get("applicable_requirement_kinds") or []),
-        "semantic_incomplete_objects": deepcopy(semantic_verdict.get("affected") or []),
-        "semantic_incomplete_reasons": deepcopy(semantic_verdict.get("reasons") or []),
     }
 
 
@@ -2867,6 +1731,11 @@ def bind_named_radial_requirements(payload, contract, source_text):
     return payload, repairs
 
 
+def _explicit_line_inventory(text):
+    match=re.search(r'只画(?:可见及隐藏的)?\s*(\d+)\s*条(?:棱线|直线段)',text)
+    return int(match[1]) if match and 2<=int(match[1])<=32 else None
+
+
 def outline_requirements(source_text: str) -> dict[str, Any] | None:
     """Extract explicit periodic-boundary requirements, never generate points.
 
@@ -2907,12 +1776,27 @@ def bind_outline_requirements(payload: dict[str, Any], text: str) -> dict[str, A
         raise ValueError("旋转重复次数与用户明确要求的结构数量不一致。")
     assertions = plan.setdefault("assertions", [])
     assertions[:] = [a for a in assertions if a.get("kind") != "radial_pattern"]
-    assertions.extend([
-        {"kind": "entity_count", "assertion_id": "required-outline-count", "equals": 1},
+    required_assertions = [
+        {"kind": "entity_count", "assertion_id": "required-outline-count", "target_ref": None, "equals": 1},
         {"kind": "closed", "assertion_id": "required-outline-closure", "target_ref": target},
         {"kind": "radial_pattern", "assertion_id": "requested-radial-pattern", "target_ref": target,
          "lobes": requirement["radial_lobes"], "profile":requirement["profile"]},
-    ])
+    ]
+    # Plans may already contain backend-bound assertions after a repair or
+    # replay. Reuse equivalent checks, including serialized default fields.
+    # A colliding identifier on a different constraint must not erase it.
+    identifiers = {a.get('assertion_id') for a in assertions}
+    for assertion in required_assertions:
+        if any(all(existing.get(key) == value for key, value in assertion.items()
+                   if key != 'assertion_id') for existing in assertions):
+            continue
+        identifier = assertion['assertion_id']
+        suffix = 2
+        while assertion['assertion_id'] in identifiers:
+            assertion['assertion_id'] = f'{identifier}-{suffix}'
+            suffix += 1
+        assertions.append(assertion)
+        identifiers.add(assertion['assertion_id'])
     return payload
 
 
@@ -2926,6 +1810,8 @@ def normalize_construction_request(source_text: str) -> tuple[str, list[str]]:
     against ``source_text`` rather than these generated hints.
     """
     facts: list[str] = []
+    if re.search(r'正弦',source_text) and re.search(r'振幅|波幅',source_text):
+        facts.append('振幅/波幅是中线到波峰的最大距离，峰谷总高度是其两倍；波距是横向相邻同相位波峰的距离，不是曲线路径弧长。不能把振幅误当成整体高度。')
     from .cad_coordinate_requirements import coordinate_scale
     if coordinate_scale(source_text)['has_scale']:
         facts.append('控制点或顶点坐标及坐标单位已给定，已确定几何尺度，不再索要外包宽高或半径。必须保留原始点及其角色，控制点不能擅自替换为拟合点。')
@@ -2971,7 +1857,12 @@ def normalize_construction_request(source_text: str) -> tuple[str, list[str]]:
         source_text,
         re.IGNORECASE,
     )
-    if equal:
+    square_side=bool(equal and equal[0].lstrip().startswith('边长'))
+    # A side length is not a bounding-box width/height. Only an explicit
+    # square supports that conversion; polygons, tilings and 3D projections
+    # retain their local metric and are checked by their existing verifiers.
+    if equal and (not square_side or (re.search(r'正方形',source_text)
+                                     and not re.search(r'立方体|长方体|投影',source_text))):
         try:
             size = float(equal.group(1))
         except (TypeError, ValueError):
@@ -3106,7 +1997,7 @@ def normalize_explicit_area_once(
     }]
 
 
-def _request_construction_schema(text: str) -> dict[str, Any]:
+def _request_construction_schema(text: str, *, source_index=None) -> dict[str, Any]:
     """Limit free outlines to one existing boundary primitive.
 
     This changes the model's output contract, not geometry generation. Complex
@@ -3114,6 +2005,42 @@ def _request_construction_schema(text: str) -> dict[str, Any]:
     """
     text=text.split('\n后端试算反馈：',1)[0]
     schema = construction_interpretation_json_schema()
+    from .cad_requirement_contract import build_requirement_source_index, requirement_contract, junction_intent_guidance
+    from .cad_source_acceptance import source_texts
+    if source_index is None:
+        source_index = build_requirement_source_index(requirement_contract([
+            {'source_id': f'user:{i}', 'text': s} for i, s in enumerate(source_texts(text))]))
+    permissions = junction_intent_guidance(source_index)['allowed_source_refs_by_intent']
+    junction = schema['$defs']['JunctionConstraint']
+    choices = []
+    for intent, refs in permissions.items():
+        if not refs:
+            continue
+        branch = deepcopy(junction)
+        properties = branch['properties']
+        properties['intent'] = {'type': 'string', 'enum': [intent]}
+        properties['required_continuity'] = {'type': 'string', 'enum': ['G1', 'C1'] if intent == 'smooth' else ['C0']}
+        properties['source_requirement_refs'] = {'type': 'array', 'minItems': 1, 'maxItems': 20,
+            'items': {'type': 'string', 'enum': refs}}
+        if 'source_requirement_refs' not in branch['required']:
+            branch['required'].append('source_requirement_refs')
+        choices.append(branch)
+    # An empty optional junction list remains valid. With no authorized
+    # intent, no junction item may claim invented source authority.
+    schema['$defs']['JunctionConstraint'] = {'oneOf': choices} if choices else {'not': {}}
+    inventory_count=_explicit_line_inventory(text)
+    if inventory_count is not None:
+        count=inventory_count;defs=schema['$defs'];props=defs['CadConstructionPlan']['properties']
+        props['steps']={'type':'array','minItems':count,'maxItems':count,'items':{'$ref':'#/$defs/AddLineStep'}}
+        props['shared_points']['minProperties']=2
+        defs['CadConstructionPlan'].setdefault('required',[]).append('shared_points')
+        defs['SharedEndpointReference']={'type':'object','properties':{
+            axis:{'type':'string','pattern':r'^@[A-Za-z][A-Za-z0-9_]{0,63}\.'+axis+'$'} for axis in ('x','y')},
+            'required':['x','y'],'additionalProperties':False}
+        for field in ('start','end'):defs['AddLineStep']['properties'][field]={'$ref':'#/$defs/SharedEndpointReference'}
+        if not re.search(r'宽|高',text):
+            props['assertions']={'type':'array','items':{'$ref':'#/$defs/EntityCountAssertion'}}
+        return schema
     from .cad_repetition_acceptance import branch_structure_requirements
     network=branch_structure_requirements(text)
     if network:
@@ -3128,10 +2055,7 @@ def _request_construction_schema(text: str) -> dict[str, Any]:
         # Canonical profiles can contain counters, doors or separate strokes.
         # A single-boundary restriction would make valid plans impossible.
         minimum = max((r.get('representation_contract',{}).get('minimum_path_count',1) for r in semantics),default=1)
-        steps_props = schema['$defs']['CadConstructionPlan']['properties']['steps']
-        steps_props['minItems'] = minimum
-        if minimum == 1:
-            steps_props['maxItems'] = 1
+        schema['$defs']['CadConstructionPlan']['properties']['steps']['minItems'] = minimum
         return schema
     if not ("轮廓" in text and "闭合" in text) or re.search(
         r"坐标|控制点|顶点|半径|直径|相切|平行|垂直|阵列|多个轮廓|两个轮廓", text
@@ -3213,7 +2137,7 @@ def bind_explicit_outline_center(payload, text):
             units = supplied_units
     if not units:
         return payload, []
-    factor = {'毫米':1,'mm':1,'厘米':10,'cm':10,'米':1000,'m':1000}[units[-1].lower()]
+    factor = length_factors('mm')[units[-1].lower()]
     scale = 1000 if plan.get('units','m') == 'm' else 1
     center={'x':float(match[1])*factor/scale,'y':float(match[2])*factor/scale}
     from .cad_requirement_contract import requirement_contract
@@ -3256,6 +2180,36 @@ def normalize_explicit_outline_size_once(
     Fixed coordinates, radii, lengths, area and geometric constraints are not
     eligible. This only handles free control points, never template geometry.
     """
+    from .cad_capsule_acceptance import has_local_axis_dimensions
+    if has_local_axis_dimensions(source_text):
+        # Only an independent, fully consumed source proof can establish that
+        # model-authored bounds used local dimensions in a world-bounds tool.
+        raw=payload.get('plan') if isinstance(payload,dict) else None
+        trial=_trial_plan_without_assertions(raw) if isinstance(raw,dict) else None
+        if not trial:return payload, []
+        from .cad_source_acceptance import verify_final_source_contract
+        try:proof=verify_final_source_contract(source_text,trial['geometries'],trial.get('logical_objects'))
+        except StructureContractError:return payload, []
+        if proof.get('coverage')!='complete':return payload, []
+        values={c.get('field'):c.get('expected') for c in proof.get('checks',[]) if c.get('status')=='passed'}
+        if not all(isinstance(values.get(k),(int,float)) for k in ('length_mm','height_mm')):return payload, []
+        scale=1000 if raw.get('units','m')=='m' else 1
+        ids={g['id'] for g in trial['geometries']};kept=[];changes=[]
+        from .cad_construction import BoundsSizeAssertion,construction_geometry_bounds as measured_world_bounds
+        world=measured_world_bounds(trial['geometries'])
+        world_size=[world['max_x']-world['min_x'],world['max_y']-world['min_y']]
+        for assertion in raw.get('assertions',[]):
+            if assertion.get('kind')!='bounds_size':kept.append(assertion);continue
+            a=BoundsSizeAssertion.model_validate(assertion)
+            selected=ids if a.target_ref is None else set(trial.get('reference_table',trial['symbol_table']).get(a.target_ref,[]))
+            failed_world=max(abs(world_size[0]-a.width*scale),abs(world_size[1]-a.height*scale))>a.tolerance*scale
+            if failed_world and selected==ids and abs(a.width*scale-values['length_mm'])<=.5 and abs(a.height*scale-values['height_mm'])<=.5:
+                changes.append({'kind':'source_local_axis_proof_replaces_world_bounds',
+                    'assertion':deepcopy(assertion),'source_proof':proof,'geometry_unchanged':True})
+            else:kept.append(assertion)
+        if not changes:return payload, []
+        result=deepcopy(payload);result['plan']['assertions']=kept
+        return result,changes
     # Validation feedback is execution evidence, not a new user constraint.
     # An error mentioning a vertex/angle must not disable size fitting on retry.
     source_text = source_text.split("\n后端试算反馈：", 1)[0]
@@ -3366,13 +2320,22 @@ def normalize_composite_path_connections_once(
     schema validation cannot distinguish that omission.  We only prepend the
     preceding explicit endpoint when the enclosing path requires continuity.
     The same pass binds an explicitly top/bottom semicircle to the matching arc
-    direction; it never creates a new segment or a shape-specific generator.
+    direction and aligns free cubic handles at measured non-smooth joints.
+    It never creates a new segment or a shape-specific generator. Every
+    proposed change remains subject to full execution and source acceptance.
     """
     plan = payload.get('plan') if isinstance(payload, dict) else None
     if not isinstance(plan, dict):
         return payload, []
     repaired = deepcopy(payload)
     changes: list[dict[str, Any]] = []
+
+    if plan.get('shared_points') and any(step.get('op') in {'add_composite_path','add_rotational_path'}
+                                        for step in plan.get('steps',[]) if isinstance(step,dict)):
+        from .cad_shared_points import resolve_shared_points
+        repaired['plan']=resolve_shared_points(repaired['plan'])
+        changes.append({'kind':'resolve_shared_points_before_connection_checks',
+                        'point_names':list(plan['shared_points']),'geometry_generated':False})
 
     def arc_point(segment: dict[str, Any], *, end: bool) -> dict[str, float] | None:
         center = segment.get('center')
@@ -3401,8 +2364,15 @@ def normalize_composite_path_connections_once(
         segments = step.get('segments')
         if not isinstance(segments, list):
             continue
+        from .cad_connection_direction import resolve_tangent_arc_directions
+        changes.extend(resolve_tangent_arc_directions(step,source_text))
+        source_points = list(re.finditer(_POINT, source_text))
+        repeated_center = (len(source_points) >= 2
+            and len({tuple(float(v) for v in p.groups()) for p in source_points}) == 1
+            and all(re.search(r'中心(?:在|为|是)?\s*$', source_text[max(0,p.start()-12):p.start()])
+                for p in source_points))
         fixed_source=bool(re.search(r'控制点|顶点|端点|起点|终点|边长|(?:线段|直线|直墙)[^，。；;\n]{0,16}(?:长|长度)',source_text)
-            or len(re.findall(_POINT,source_text))>=2)
+            or (len(source_points)>=2 and not repeated_center))
         if not fixed_source:
             # In a declared continuous path, an arc endpoint is determined
             # analytically; the adjoining free line endpoint is a variable.
@@ -3517,7 +2487,52 @@ def normalize_composite_path_connections_once(
                     changes.append({'kind': 'bind_semicircle_orientation',
                                     'step_id': step.get('step_id'), 'segment_index': index,
                                     'orientation': vertical})
+        if (step.get('op') == 'add_composite_path' and not fixed_source
+                and not plan.get('constraints')
+                and re.search(r'平滑|切向连续|\bC1\b', source_text, re.I)
+                and not re.search(r'参数式|函数|\b[xy]\s*=|尖点|保留.{0,8}尖角|cusp', source_text, re.I)
+                and not any(j.get('intent') not in {None, 'smooth'} for j in step.get('junction_constraints', []))):
+            changes.extend(_align_free_cubic_joints(step))
     return (repaired, changes) if changes else (payload, [])
+
+
+def _align_free_cubic_joints(step: dict[str, Any]) -> list[dict[str, Any]]:
+    """Project free handles onto a shared derivative; preserve all endpoints.
+
+    This is only a proposed coordinate correction. The caller still executes
+    the full plan and all independent source, shape and topology acceptance.
+    Opposite or degenerate tangents have no uniquely defined direction here.
+    """
+    from .cad_construction import AddCompositePathStep, _composite_continuity
+    try:
+        measured = _composite_continuity(AddCompositePathStep.model_validate(step))
+    except ValueError:
+        return []
+    changes = []
+    for joint in measured['failed_joints']:
+        left = step['segments'][joint['left_segment_index']]
+        right = step['segments'][joint['right_segment_index']]
+        if not all(s.get('kind') == 'bezier' and len(s.get('control_points', [])) == 4 for s in (left, right)):
+            continue
+        lp, rp = left['control_points'], right['control_points']
+        points = [ConstructionPoint.model_validate(p) for p in (lp[-2], lp[-1], rp[0], rp[1])]
+        a, end, start, b = points
+        if math.dist((end.x, end.y), (start.x, start.y)) > 1e-12:
+            continue
+        u, v = (end.x-a.x, end.y-a.y), (b.x-start.x, b.y-start.y)
+        if min(math.hypot(*u), math.hypot(*v)) <= 1e-12:
+            continue
+        mean = tuple((x+y)/2 for x, y in zip(u, v))
+        if math.hypot(*mean) <= 1e-12 or any(sum(x*y for x, y in zip(mean, t)) <= 0 for t in (u, v)):
+            continue
+        before = [deepcopy(lp[-2]), deepcopy(rp[1])]
+        lp[-2] = {'x': end.x-mean[0], 'y': end.y-mean[1]}
+        rp[1] = {'x': start.x+mean[0], 'y': start.y+mean[1]}
+        changes.append({'kind': 'align_free_cubic_joint', 'step_id': step['step_id'],
+            'junction_index': joint['junction_index'], 'measurement_before': joint,
+            'handles_before': before, 'handles_after': [deepcopy(lp[-2]), deepcopy(rp[1])],
+            'endpoints_preserved': True, 'segments_preserved': True})
+    return changes
 
 
 def _scale_area_step(step: dict[str, Any], factor: float) -> bool:
@@ -3641,6 +2656,9 @@ def repair_construction_references_once(
 
     records = _construction_reference_records(steps)
     known_refs = {record["output_ref"] for record in records}
+    from .cad_plan_references import plan_reference_catalog
+    explicit_refs, _ = plan_reference_catalog(steps)
+    known_refs.update(explicit_refs)
     repairs: list[dict[str, Any]] = []
     # Preserve misplaced assertions verbatim only when no plan value competes.
     if isinstance(repaired.get("assertions"), list) and not plan.get("assertions"):
@@ -4177,6 +3195,15 @@ def parse_rule_construction_plan(source_text: str) -> CadConstructionPlan | None
     """
     if not any(marker in source_text for marker in _CONSTRUCTION_MARKERS):
         return None
+    from .cad_axis_requirements import ellipse_axes
+    axes = ellipse_axes(source_text)
+    if axes['status']=='complete' and axes['full_source']:
+        values=axes['dimensions'];center=axes['center_m'] or [0,0]
+        return CadConstructionPlan.model_validate({'units':'m','steps':[{
+            'op':'add_ellipse','step_id':'step-1','output_ref':'ellipse',
+            'semantic':{'label':'椭圆'},'center':{'x':center[0],'y':center[1]},
+            'major_radius':values['major_radius_m'],'minor_radius':values['minor_radius_m'],
+            'rotation_deg':axes['rotation_deg'] or 0}]})
     clauses = [
         value.strip() for value in re.split(r"[；;。\n]+", source_text)
         if value.strip()
@@ -4337,8 +3364,7 @@ def _parse_clause(
 
 
 def _to_m(number: str, unit: str) -> float:
-    scale = {"米": 1.0, "m": 1.0, "厘米": 0.01, "cm": 0.01,
-             "毫米": 0.001, "mm": 0.001}
+    scale = length_factors('m', float_values=True)
     return float(number) * scale[unit.lower()]
 
 

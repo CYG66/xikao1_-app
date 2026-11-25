@@ -1,0 +1,115 @@
+{
+  "payload": {
+    "schema_version": "cad.construction-interpretation.v1",
+    "is_construction_request": true,
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "mm",
+      "steps": [
+        {
+          "step_id": "capsule-boundary",
+          "output_ref": "capsule.outline",
+          "semantic": {
+            "assembly_id": "capsule",
+            "assembly_label": "胶囊形闭合边界",
+            "object_id": "capsule.outline",
+            "object_type": "closed_outline",
+            "label": "胶囊形闭合边界",
+            "role": "outer_boundary"
+          },
+          "op": "add_composite_path",
+          "closed": true,
+          "continuity": "C0",
+          "samples_per_curve": 32,
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": "123.769409",
+                "y": "-47.760643"
+              },
+              "end": {
+                "x": "-152.264534",
+                "y": "-38.360837"
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": "-185.388199",
+                "y": "-48.485111"
+              },
+              "radius": 465.0,
+              "start_angle": 197.0,
+              "end_angle": 17.0,
+              "clockwise": false
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": "-24.724132",
+                "y": "-792.204394"
+              },
+              "end": {
+                "x": "259.209898",
+                "y": "-701.322368"
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": "292.333459",
+                "y": "-691.277005"
+              },
+              "radius": 465.0,
+              "start_angle": 17.0,
+              "end_angle": 197.0,
+              "clockwise": false
+            }
+          ]
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "capsule-closed",
+          "target_ref": "capsule.outline"
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "capsule-entity-count",
+          "target_ref": "capsule.outline",
+          "equals": 4
+        },
+        {
+          "kind": "area",
+          "assertion_id": "capsule-area",
+          "target_ref": "capsule.outline",
+          "area": 2928332.71,
+          "tolerance": 5000.0
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "capsule-bounds",
+          "target_ref": "capsule.outline",
+          "width": 3447.05,
+          "height": 1759.66,
+          "tolerance": 100.0
+        }
+      ]
+    },
+    "assumptions": [
+      "沿长轴总长3470mm、短轴总高930mm，故端部半圆半径=930/2=465mm，各直边长度=3470-930=2540mm；两端半圆圆心在局部长轴上距整体中心±1270mm。",
+      "左直边端点为两个半圆的切点：左半圆起点=(-1270+465cos17°, 465sin17°)，左半圆终点为其关于中心的对称点；右半圆为左半圆绕(210,-370)旋转180°，共用相同的两个切点。",
+      "所有坐标在mm单位下直接给出，整体按中心(210,-370)与长轴方向17°一次性旋转到位。",
+      "仅生成预览，不生成任何内部线或车体执行指令。"
+    ],
+    "confidence": 0.93,
+    "evidence_text": [
+      "绘制胶囊形闭合边界，中心位于(210,-370)，长轴相对x轴正向逆时针17度，沿长轴总长3470毫米、短轴总高930毫米。两端各为向外半圆，两条直边与半圆相切；两端半径相同，总长含半圆。不添加内部线，坐标单位毫米。只生成预览，不执行小车。"
+    ],
+    "clarification": null
+  },
+  "source": "绘制胶囊形闭合边界，中心位于(210,-370)，长轴相对x轴正向逆时针17度，沿长轴总长3470毫米、短轴总高930毫米。两端各为向外半圆，两条直边与半圆相切；两端半径相同，总长含半圆。不添加内部线，坐标单位毫米。只生成预览，不执行小车。",
+  "provenance": ".local-dev\\stale-assertion-live-wp2bxao5\\run\\R2-r2-B\\api-response-21c69206-1e79-4b07-8b2e-f4cebc2a1143.json"
+}

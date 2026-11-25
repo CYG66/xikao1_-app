@@ -1,5 +1,6 @@
 """Bounded arithmetic expressions and adaptive sampling; never executes code."""
 from __future__ import annotations
+from .cad_length_units import length_factors
 
 import ast
 import math
@@ -102,6 +103,7 @@ def sample_curve(x_source, y_source, start, end, tolerance, max_points=500):
     Unresolved intervals fail closed instead of silently reducing accuracy.
     """
     x, y = expression(x_source), expression(y_source)
+    from .cad_construction import ConstructionPoint, _point_to_segment_distance
     def point(t):
         p = (x(t), y(t))
         if max(map(abs, p)) > 100000:
@@ -113,15 +115,15 @@ def sample_curve(x_source, y_source, start, end, tolerance, max_points=500):
     def split(a, b, pa, pb, depth=0):
         nonlocal worst, evaluations
         evaluations += 5
-        if evaluations > 16000 or depth > 16 or len(points) >= max_points:
+        if evaluations > max(16000, max_points*16) or depth > 16 or len(points) >= max_points:
             raise ParametricError("曲线在采样预算内无法达到误差要求")
         errors = []
         # Include nonuniform probes so integer-period oscillations cannot
         # trivially alias every point of the initial dyadic grid.
         for fraction in (.211324865405187, .25, .5, .75, .788675134594813):
             p = point(a+(b-a)*fraction)
-            chord = tuple(pa[i]+(pb[i]-pa[i])*fraction for i in (0, 1))
-            errors.append(math.dist(p, chord))
+            errors.append(_point_to_segment_distance(ConstructionPoint(x=p[0],y=p[1]),
+                ConstructionPoint(x=pa[0],y=pa[1]),ConstructionPoint(x=pb[0],y=pb[1])))
         error = max(errors)
         if error <= tolerance:
             worst = max(worst, error)
@@ -149,7 +151,7 @@ def polar_requirements(text):
     origin = re.search(r"从\s*[(（]\s*0\s*[,，]\s*0\s*[)）]|从原点", text)
     if not (turns and radius and origin and ("螺旋" in text or "螺线" in text)):
         return None
-    factor = {"毫米": .001, "mm": .001, "厘米": .01, "cm": .01, "米": 1, "m": 1}[radius[2]]
+    factor = length_factors('m')[radius[2]]
     return {"turns": float(turns[1]), "radius_m": float(radius[1])*factor,
             "linear_radius": "阿基米德" in text or "线性" in text,
             "direction": -1 if "顺时针" in text and "逆时针" not in text else 1 if "逆时针" in text else 0}
@@ -162,6 +164,11 @@ def verify_polar_requirements(requirements, geometries):
     if len(geometries) != 1 or geometries[0].get("type") != "polyline" or geometries[0].get("closed"):
         raise ParametricError("要求一条开放连续路径")
     points = [(p["x"]/1000, p["y"]/1000) for p in geometries[0]["vertices"]]
+    from shapely.geometry import LineString
+    if (len(points)<3 or not all(math.isfinite(v) for p in points for v in p)
+            or any(p.get('bulge',0)!=0 for p in geometries[0]['vertices'])
+            or not LineString(points).is_simple):
+        raise ParametricError('螺旋必须是无自交、无曲边覆盖的开放折线')
     radius = requirements["radius_m"]
     if radius <= 0 or requirements["turns"] <= 0:
         raise ParametricError("圈数和最大半径必须为正数")
@@ -180,6 +187,7 @@ def verify_polar_requirements(requirements, geometries):
         radii.append((r, angle))
     # The user need not specify the initial radial orientation. Extrapolate
     # it to radius zero from the first two samples for linear-radius paths.
+    phase=0.0
     if requirements["linear_radius"] and len(radii) > 1:
         r0, a0 = radii[0]
         r1, a1 = radii[1]
@@ -195,9 +203,38 @@ def verify_polar_requirements(requirements, geometries):
         raise ParametricError("旋转方向不符合要求")
     if abs(max(r for r,a in radii)-radius) > tolerance or abs(radii[-1][0]-radius) > tolerance:
         raise ParametricError("最大半径或终点半径不符合要求")
+    chord_error=0.0
     if requirements["linear_radius"]:
         total_angle = requirements["turns"]*math.tau
         if any(abs(r-radius*abs(a)/total_angle) > tolerance for r,a in radii):
             raise ParametricError("实际半径没有随旋转角度线性增长")
         if any(b[0] < a[0]-tolerance for a,b in zip(radii,radii[1:])):
             raise ParametricError("螺旋半径出现不符合要求的回退")
+        # Vertices on the requested curve do not establish that their straight
+        # connecting segments remain close to it. Probe existing segments;
+        # these points are measurements, never replacement CAD geometry.
+        from scipy.optimize import minimize_scalar
+        angles=[0.0]+[a for r,a in radii]
+        for index,(left,right) in enumerate(zip(points,points[1:])):
+            for fraction in (.25,.5,.75):
+                x=left[0]+fraction*(right[0]-left[0]);y=left[1]+fraction*(right[1]-left[1])
+                lo,hi=sorted((angles[index],angles[index+1]))
+                def squared_distance(theta):
+                    r=radius*abs(theta)/total_angle
+                    return (x-r*math.cos(theta+phase))**2+(y-r*math.sin(theta+phase))**2
+                # A radial residual is ill-conditioned near the origin.
+                # Measure Euclidean distance to the prescribed curve segment.
+                best=min(squared_distance(lo),squared_distance(hi))
+                if hi-lo>1e-12:
+                    fit=minimize_scalar(squared_distance,bounds=(lo,hi),method='bounded')
+                    best=min(best,float(fit.fun))
+                chord_error=max(chord_error,math.sqrt(best))
+        if chord_error>tolerance:
+            raise ParametricError(f'螺旋连接段偏离线性半径关系：误差{chord_error*1000:.3f}mm，容差{tolerance*1000:.3f}mm')
+    return {'status':'passed','coverage':'explicit_origin_winding_radius_only',
+            'requirements':dict(requirements),'geometry_ids':[geometries[0]['id']],
+            'checks':[{'name':'source_origin_winding_and_radius','status':'passed',
+                       'observed_turns':observed,'expected_turns':requirements['turns'],
+                       'final_radius_mm':radii[-1][0]*1000,'max_radius_mm':max(r for r,a in radii)*1000,
+                       'chord_curve_distance_mm':chord_error*1000,'tolerance_mm':tolerance*1000}],
+            'authority':'backend_measured_geometry'}

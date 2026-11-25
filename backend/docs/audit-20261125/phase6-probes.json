@@ -1,0 +1,67 @@
+{
+  "scope": "Injected transport events and bypassed unrelated routing only; real stream loop/request adapter, file preview and config loader. No live API, actual tool dispatch, candidate save or hardware execution.",
+  "stream_termination": [
+    {
+      "case": "unexpected_eof",
+      "input_has_finish_reason": false,
+      "tool_dispatch_boundary_reached": 1,
+      "stream_result_events": [
+        {
+          "type": "result",
+          "ok": true,
+          "message": "dispatcher reached"
+        }
+      ],
+      "structured_adapter": {
+        "rejected": true,
+        "message": "DeepSeek 构造响应提前中断，未收到完成标记。"
+      },
+      "stream_thinking_field": null,
+      "structured_thinking_field": {
+        "type": "disabled"
+      }
+    },
+    {
+      "case": "provider_error_then_eof",
+      "input_has_finish_reason": false,
+      "tool_dispatch_boundary_reached": 1,
+      "stream_result_events": [
+        {
+          "type": "result",
+          "ok": true,
+          "message": "dispatcher reached"
+        }
+      ],
+      "structured_adapter": {
+        "rejected": true,
+        "message": "DeepSeek 流式构造失败：{'message': 'offline upstream aborted'}"
+      },
+      "stream_thinking_field": null,
+      "structured_thinking_field": {
+        "type": "disabled"
+      }
+    }
+  ],
+  "stream_socket_timeout_adapter": {
+    "wrapper_settimeout_calls": 0,
+    "direct_transport_settimeout_calls": 1
+  },
+  "standalone_graph_preservation": {
+    "preparation_ok": true,
+    "message": null,
+    "source_object_count": 2,
+    "source_relation_count": 1,
+    "prepared_objects": [],
+    "prepared_topology": {},
+    "source_unchanged": true
+  },
+  "planning_model_config_roundtrip": {
+    "saved_model": "deepseek-flash",
+    "file_model": "deepseek-flash",
+    "reloaded_model": "deepseek-chat"
+  },
+  "network_guard_calls": {
+    "urlopen": 0,
+    "https_connection": 0
+  }
+}

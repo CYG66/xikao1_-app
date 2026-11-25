@@ -11,14 +11,12 @@ from pathlib import Path
 from typing import Iterator
 
 from .agent_plan_models import ExecutionPlan, PlanEvent, PlanTransition
-from .startup_guard import assert_startup_admitted
 
 
 class SQLiteAgentPlanStore:
     """Persist plans atomically with optimistic revision and event ordering."""
 
     def __init__(self, path: Path) -> None:
-        assert_startup_admitted()
         self.path = Path(path)
         self._lock = threading.RLock()
         self._initialize()

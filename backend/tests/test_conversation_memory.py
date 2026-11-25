@@ -5,14 +5,12 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from pydantic import ValidationError
 
 from app.conversation_memory import ConversationMemoryStore
 from app.schemas import AgentChatRequest
-
-ACCEPTED = {"status": "passed", "review_required": False, "authority": "test_fixture"}
 
 
 class ConversationMemoryStoreTest(unittest.TestCase):
@@ -233,7 +231,7 @@ class ConversationMemoryStoreTest(unittest.TestCase):
         parent = project_store.add_variant(
             project["id"], "四个房间", geometries, "初始候选",
             score_design_variant(geometries), preview_paths({"lines": geometries}),
-            expected_quantity=4, acceptance_summary=ACCEPTED,
+            expected_quantity=4,
         )
         child_geometries = [
             deepcopy(item) for item in geometries
@@ -244,7 +242,6 @@ class ConversationMemoryStoreTest(unittest.TestCase):
             score_design_variant(child_geometries),
             preview_paths({"lines": child_geometries}),
             parent_variant_id=parent["id"], expected_quantity=2,
-            acceptance_summary=ACCEPTED,
         )
         grand_geometries = deepcopy(child_geometries)
         for item in grand_geometries:
@@ -256,7 +253,6 @@ class ConversationMemoryStoreTest(unittest.TestCase):
             score_design_variant(grand_geometries),
             preview_paths({"lines": grand_geometries}),
             parent_variant_id=child["id"], expected_quantity=2,
-            acceptance_summary=ACCEPTED,
         )
         project_store.begin_design_iteration(project["id"], grandchild["id"])
         memory_store.remember("cad-history", "移动第二个图形", {
@@ -323,13 +319,11 @@ class ConversationMemoryStoreTest(unittest.TestCase):
         parent = project_store.add_variant(
             project["id"], "原始方案", geometries, "初始候选",
             score_design_variant(geometries), preview_paths({"lines": geometries}),
-            acceptance_summary=ACCEPTED,
         )
         old_child = project_store.add_variant(
             project["id"], "旧分支", deepcopy(geometries), "旧修改",
             score_design_variant(geometries), preview_paths({"lines": geometries}),
             parent_variant_id=parent["id"],
-            acceptance_summary=ACCEPTED,
         )
         project_store.begin_design_iteration(project["id"], old_child["id"])
         command = {
@@ -353,7 +347,6 @@ class ConversationMemoryStoreTest(unittest.TestCase):
                 project["id"], "新分支", deepcopy(geometries), "新修改",
                 score_design_variant(geometries), preview_paths({"lines": geometries}),
                 parent_variant_id=parent["id"],
-                acceptance_summary=ACCEPTED,
             )
             project_store.begin_design_iteration(project["id"], new_child["id"])
             memory_store.remember("cad-branch", "新修改", {
@@ -375,15 +368,12 @@ class ConversationMemoryStoreTest(unittest.TestCase):
         project = projects.create("切换分支", "原始图", {}, {}, [])
         source = [{"id": 1, "type": "line", "template_instance": 1,
                    "start": {"x": 0, "y": 0}, "end": {"x": 1000, "y": 0}}]
-        first = projects.add_variant(project["id"], "初始", source, "", {}, [],
-            acceptance_summary=ACCEPTED)
+        first = projects.add_variant(project["id"], "初始", source, "", {}, [])
         second = projects.add_variant(
             project["id"], "修改", source, "", {}, [], parent_variant_id=first["id"],
-            acceptance_summary=ACCEPTED,
         )
         third = projects.add_variant(
             project["id"], "其他分支", source, "", {}, [], parent_variant_id=first["id"],
-            acceptance_summary=ACCEPTED,
         )
         projects.begin_design_iteration(project["id"], second["id"])
         self.store.remember("switch-branch", "修改", {
@@ -420,20 +410,16 @@ class ConversationMemoryStoreTest(unittest.TestCase):
             "project_id": "project-1",
             "variant_id": "variant-2",
         }}
-        store = Mock()
-        store.get.return_value = {
+        with patch("app.agent_http_service.get_creative_project_store.get", return_value={
             "status": "designing", "design_base_variant_id": "variant-2",
-        }
-        with patch("app.agent_http_service.get_creative_project_store", return_value=store):
+        }):
             self.assertEqual(
                 _resolve_cad_followup("再向右移动同样距离", memory),
                 "第2个图形向右移动2000毫米",
             )
-        store = Mock()
-        store.get.return_value = {
+        with patch("app.agent_http_service.get_creative_project_store.get", return_value={
             "status": "designing", "design_base_variant_id": "another-variant",
-        }
-        with patch("app.agent_http_service.get_creative_project_store", return_value=store):
+        }):
             self.assertEqual(
                 _resolve_cad_followup("再向右移动同样距离", memory),
                 "再向右移动同样距离",
@@ -459,7 +445,6 @@ class ConversationMemoryStoreTest(unittest.TestCase):
         parent = project_store.add_variant(
             project["id"], "初始方案", geometries, "用于连续修改",
             score_design_variant(geometries), preview_paths({"lines": geometries}),
-            acceptance_summary=ACCEPTED,
         )
         self.assertIsNotNone(parent)
         project_store.begin_design_iteration(project["id"], parent["id"])
@@ -532,7 +517,6 @@ class ConversationMemoryStoreTest(unittest.TestCase):
         parent = project_store.add_variant(
             project["id"], "原始方案", geometries, "纠正基准",
             score_design_variant(geometries), preview_paths({"lines": geometries}),
-            acceptance_summary=ACCEPTED,
         )
         self.assertIsNotNone(parent)
         project_store.begin_design_iteration(project["id"], parent["id"])
@@ -593,7 +577,6 @@ class ConversationMemoryStoreTest(unittest.TestCase):
         parent = project_store.add_variant(
             project["id"], "初始方案", geometries, "用于批量修改",
             score_design_variant(geometries), preview_paths({"lines": geometries}),
-            acceptance_summary=ACCEPTED,
         )
         self.assertIsNotNone(parent)
         project_store.begin_design_iteration(project["id"], parent["id"])

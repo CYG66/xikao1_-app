@@ -1,0 +1,169 @@
+{
+  "date": "2026-11-25",
+  "phase": 4,
+  "meaning": "Human reading of tool-presented complete source. Includes rereads; not novel-line count, whole-repository completion, or formal delivery proof.",
+  "full_modules_completed": [
+    {
+      "file": "app/incremental_cad.py",
+      "lines": 2772,
+      "sha256": "f139191430c59f2fc03c2ca192cbf96e11f25dea5f7eac639a6a92b3c591ad41",
+      "read_ranges_this_phase": [
+        [
+          1,
+          2772
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "app/cad_selected_operations.py",
+      "lines": 81,
+      "sha256": "73af7a3c2bd263f6c755cc8e5376abfa3f1f9fa1ac71e1800661ffa59c0ff18d",
+      "read_ranges_this_phase": [
+        [
+          1,
+          81
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "app/cad_edit_contract.py",
+      "lines": 526,
+      "sha256": "ab20e62bedbe13fa3d6c8e1e7d2a41208ccd44d5af7533b1a4c48bab5a87c77d",
+      "read_ranges_this_phase": [
+        [
+          1,
+          526
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "app/cad_edit_gate.py",
+      "lines": 666,
+      "sha256": "bec690faef4c1b9cefd5dc86204f6416d61e497d4405cf946be0498342fded1f",
+      "read_ranges_this_phase": [
+        [
+          1,
+          666
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "app/cad_edit_plan.py",
+      "lines": 568,
+      "sha256": "827717525e1c5a589f601e0079e71de5e44d8ed98dd937a44422f7a2adeddd39",
+      "read_ranges_this_phase": [
+        [
+          1,
+          568
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "app/cad_edit_intent.py",
+      "lines": 295,
+      "sha256": "865851502a2fc2e16889bd3fd7eddbcc647452db1db4681eed0636f6fd851cd5",
+      "read_ranges_this_phase": [
+        [
+          1,
+          295
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "app/cad_edit_chain.py",
+      "lines": 127,
+      "sha256": "1bf0d08cdb128e80ddc70876467f60e01e0636b53e01929c07d527c3bdb3ec08",
+      "read_ranges_this_phase": [
+        [
+          1,
+          127
+        ]
+      ],
+      "full_module_complete": true
+    }
+  ],
+  "production_module_lines": 5035,
+  "full_test_files_read": [
+    {
+      "file": "tests/test_cad_selected_operations.py",
+      "lines": 70,
+      "sha256": "3ecc6b90430e7560c477bebb7f0fd95ef8a17b1d14917f84b481ef2cb29cdd60",
+      "read_ranges_this_phase": [
+        [
+          1,
+          70
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "tests/test_mirror_offset_array_constraint.py",
+      "lines": 475,
+      "sha256": "ef4e2b6efdfd0f4b104e7d2d48e7d761ce9458c732f933fc0780ee7c2aaf75b6",
+      "read_ranges_this_phase": [
+        [
+          1,
+          475
+        ]
+      ],
+      "full_module_complete": true
+    }
+  ],
+  "test_file_lines": 545,
+  "partial_modules": [
+    {
+      "file": "app/agent_service.py",
+      "lines": 11566,
+      "sha256": "7f28f5ac9aae3606ac3b3e43f8d7a0399cb791061badf3c0b7d4bcfbfeb93a38",
+      "read_ranges_this_phase": [
+        [
+          8261,
+          8470
+        ]
+      ],
+      "full_module_complete": false
+    },
+    {
+      "file": "app/agent_http_service.py",
+      "lines": 1824,
+      "sha256": "018a2ce7c3e6b50e389c1132dbd7c317316a7efe1fd9784c9b6bf2a3f96f3df7",
+      "read_ranges_this_phase": [
+        [
+          371,
+          450
+        ]
+      ],
+      "full_module_complete": false
+    },
+    {
+      "file": "tests/test_incremental_cad.py",
+      "lines": 2092,
+      "sha256": "2c7ff133929c18e23c929f95510dbac5ca56bafecd28e51feb298580754ffee0",
+      "read_ranges_this_phase": [
+        [
+          494,
+          550
+        ]
+      ],
+      "full_module_complete": false
+    }
+  ],
+  "new_evidence": [
+    "phase4-probes.json",
+    "phase4-integrity.json"
+  ],
+  "prior_reading_ledgers_preserved": true,
+  "whole_repository_manual_read_complete": false,
+  "remaining": [
+    "agent_service.py remaining branches",
+    "logical_topology.py remaining branches",
+    "ros_adapter.py remaining branches",
+    "other partially/unread production, tools, evaluation and test files"
+  ]
+}

@@ -1,0 +1,137 @@
+{
+  "provenance": "Unmodified actual deepseek-flash plan from live-corpus-lg4b0awg/C24",
+  "original": "画一个环形交叉路口，外环半径3米，向外伸出4条等角放射线，每条长2米",
+  "followups": [
+    "外环圆心(0,0)，半径3米；向东南西北四方向从圆周向外各延伸2米，坐标单位米。"
+  ],
+  "plan": {
+    "schema_version": "cad.construction-plan.v1",
+    "units": "m",
+    "project_id": null,
+    "source_version": null,
+    "steps": [
+      {
+        "step_id": "ring-outer",
+        "output_ref": "ring_outer",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "roundabout",
+          "assembly_label": "环形交叉路口",
+          "object_id": "outer_ring",
+          "object_type": "drawing_part",
+          "label": "外环圆",
+          "role": "outer_ring"
+        },
+        "op": "add_circle",
+        "center": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "radius": 3.0
+      },
+      {
+        "step_id": "spoke-n",
+        "output_ref": "spoke_n",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "roundabout",
+          "assembly_label": "环形交叉路口",
+          "object_id": "spoke_north",
+          "object_type": "drawing_part",
+          "label": "北向放射线",
+          "role": "radial_spoke"
+        },
+        "op": "add_line",
+        "start": {
+          "x": 0.0,
+          "y": 3.0
+        },
+        "end": {
+          "x": 0.0,
+          "y": 5.0
+        }
+      },
+      {
+        "step_id": "spoke-s",
+        "output_ref": "spoke_s",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "roundabout",
+          "assembly_label": "环形交叉路口",
+          "object_id": "spoke_south",
+          "object_type": "drawing_part",
+          "label": "南向放射线",
+          "role": "radial_spoke"
+        },
+        "op": "add_line",
+        "start": {
+          "x": 0.0,
+          "y": -3.0
+        },
+        "end": {
+          "x": 0.0,
+          "y": -5.0
+        }
+      },
+      {
+        "step_id": "spoke-e",
+        "output_ref": "spoke_e",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "roundabout",
+          "assembly_label": "环形交叉路口",
+          "object_id": "spoke_east",
+          "object_type": "drawing_part",
+          "label": "东向放射线",
+          "role": "radial_spoke"
+        },
+        "op": "add_line",
+        "start": {
+          "x": 3.0,
+          "y": 0.0
+        },
+        "end": {
+          "x": 5.0,
+          "y": 0.0
+        }
+      },
+      {
+        "step_id": "spoke-w",
+        "output_ref": "spoke_w",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "roundabout",
+          "assembly_label": "环形交叉路口",
+          "object_id": "spoke_west",
+          "object_type": "drawing_part",
+          "label": "西向放射线",
+          "role": "radial_spoke"
+        },
+        "op": "add_line",
+        "start": {
+          "x": -3.0,
+          "y": 0.0
+        },
+        "end": {
+          "x": -5.0,
+          "y": 0.0
+        }
+      }
+    ],
+    "constraints": [],
+    "constraint_backend": "auto",
+    "assertions": [
+      {
+        "kind": "entity_count",
+        "assertion_id": "entity-count",
+        "target_ref": null,
+        "equals": 5
+      }
+    ],
+    "budgets": {
+      "max_steps": 100,
+      "max_entities": 500
+    },
+    "free_outline_layout": []
+  }
+}

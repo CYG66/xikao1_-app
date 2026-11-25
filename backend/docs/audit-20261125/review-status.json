@@ -1,0 +1,91 @@
+{
+  "scope": "app, scripts, tools, evaluations, tests and root Python entry points; structural inventory is not manual deep-read completion",
+  "python_file_count": 471,
+  "production_python_files": 149,
+  "production_lines": 63602,
+  "production_definitions": 1717,
+  "production_changed_since_scan": [],
+  "largest_modules": [
+    {
+      "file": "app\\agent_service.py",
+      "lines": 11566
+    },
+    {
+      "file": "app\\cad_construction_interpreter.py",
+      "lines": 3434
+    },
+    {
+      "file": "app\\ros_adapter.py",
+      "lines": 2968
+    },
+    {
+      "file": "app\\incremental_cad.py",
+      "lines": 2772
+    },
+    {
+      "file": "app\\agent_skills.py",
+      "lines": 2490
+    },
+    {
+      "file": "app\\cad_construction.py",
+      "lines": 2111
+    },
+    {
+      "file": "app\\agent_http_service.py",
+      "lines": 1824
+    },
+    {
+      "file": "app\\conversation_memory.py",
+      "lines": 1308
+    },
+    {
+      "file": "app\\creative_projects.py",
+      "lines": 1239
+    },
+    {
+      "file": "app\\creative_workflow.py",
+      "lines": 1214
+    }
+  ],
+  "tests": {
+    "collected": 2782,
+    "passed": 2715,
+    "failed": 63,
+    "skipped": 4,
+    "subtests_passed_separate": 62,
+    "seconds": 546.56,
+    "live_model_calls": false
+  },
+  "manual_full_read_complete": false,
+  "known_remaining_review": [
+    "agent_service.py remaining provider, tool dispatch, physical execution and confirmation branches",
+    "incremental_cad.py remaining parser, chain and execution branches",
+    "ros_adapter.py remaining hardware and mission transitions",
+    "other modules, tools, evaluations and tests not yet manually read in full"
+  ],
+  "new_evidence": [
+    "additional-probes.json",
+    "stream-context-probe.json",
+    "phase2-probes.json",
+    "phase2-navigation-probe.json",
+    "unresolved-global-references.json"
+  ],
+  "all_inventoried_python_changed_since_scan": [],
+  "additional_full_module_read_this_phase": [
+    "app/cad_target_resolver.py",
+    "app/agent_run_store.py",
+    "app/cad_source_acceptance.py",
+    "app/drawing_store.py",
+    "app/cad_assertions.py",
+    "app/cad_constraint_solver.py"
+  ],
+  "phase2_full_modules": [
+    "app/agent_http_service.py",
+    "app/conversation_memory.py",
+    "app/creative_projects.py",
+    "app/creative_workflow.py",
+    "app/database.py",
+    "app/task_store.py"
+  ],
+  "manual_reading_log": "manual-reading-log.json"
+}

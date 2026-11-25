@@ -1,0 +1,249 @@
+[
+  {
+    "case": "C23",
+    "source": "生成一段楼梯轮廓，5级台阶，每级宽0.4米高0.3米\n5级，每级水平0.4米、竖直0.3米，从(0,0)向右向上，坐标单位米。",
+    "original": "生成一段楼梯轮廓，5级台阶，每级宽0.4米高0.3米",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "stair.outline",
+          "output_ref": "stair_profile",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "staircase_profile",
+            "assembly_label": "楼梯轮廓",
+            "object_id": "stair_outline",
+            "object_type": "profile",
+            "label": "5级台阶阶梯轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 0.0,
+              "y": 0.0
+            },
+            {
+              "x": 0.4,
+              "y": 0.0
+            },
+            {
+              "x": 0.4,
+              "y": 0.3
+            },
+            {
+              "x": 0.8,
+              "y": 0.3
+            },
+            {
+              "x": 0.8,
+              "y": 0.6
+            },
+            {
+              "x": 1.2,
+              "y": 0.6
+            },
+            {
+              "x": 1.2,
+              "y": 0.9
+            },
+            {
+              "x": 1.6,
+              "y": 0.9
+            },
+            {
+              "x": 1.6,
+              "y": 1.2
+            },
+            {
+              "x": 2.0,
+              "y": 1.2
+            },
+            {
+              "x": 2.0,
+              "y": 1.5
+            },
+            {
+              "x": 0.0,
+              "y": 1.5
+            }
+          ],
+          "closed": true
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "stair.closed",
+          "target_ref": "stair_profile"
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "stair.count",
+          "target_ref": "stair_profile",
+          "equals": 1
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": "C:\\Users\\29924\\Codes\\cad-eval-20261117\\run\\C23\\step-2.json.project.variants[0].construction_record.plan"
+  },
+  {
+    "case": "C30",
+    "source": "画一段斑马线，6条平行横线，每条长4米宽0.4米，间距0.6米",
+    "original": "画一段斑马线，6条平行横线，每条长4米宽0.4米，间距0.6米",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "zebra.stripe.1",
+          "output_ref": "stripe_1",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "zebra_crossing",
+            "assembly_label": "斑马线",
+            "object_id": "stripe_1",
+            "object_type": "drawing_part",
+            "label": "第1条横线（长4米宽0.4米）",
+            "role": "stripe"
+          },
+          "op": "add_centered_rectangle",
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "width": 4.0,
+          "height": 0.4,
+          "rotation_deg": 0.0
+        },
+        {
+          "step_id": "zebra.stripe.2",
+          "output_ref": "stripe_2",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "zebra_crossing",
+            "assembly_label": "斑马线",
+            "object_id": "stripe_2",
+            "object_type": "drawing_part",
+            "label": "第2条横线（长4米宽0.4米）",
+            "role": "stripe"
+          },
+          "op": "add_centered_rectangle",
+          "center": {
+            "x": 0.0,
+            "y": 1.0
+          },
+          "width": 4.0,
+          "height": 0.4,
+          "rotation_deg": 0.0
+        },
+        {
+          "step_id": "zebra.stripe.3",
+          "output_ref": "stripe_3",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "zebra_crossing",
+            "assembly_label": "斑马线",
+            "object_id": "stripe_3",
+            "object_type": "drawing_part",
+            "label": "第3条横线（长4米宽0.4米）",
+            "role": "stripe"
+          },
+          "op": "add_centered_rectangle",
+          "center": {
+            "x": 0.0,
+            "y": 2.0
+          },
+          "width": 4.0,
+          "height": 0.4,
+          "rotation_deg": 0.0
+        },
+        {
+          "step_id": "zebra.stripe.4",
+          "output_ref": "stripe_4",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "zebra_crossing",
+            "assembly_label": "斑马线",
+            "object_id": "stripe_4",
+            "object_type": "drawing_part",
+            "label": "第4条横线（长4米宽0.4米）",
+            "role": "stripe"
+          },
+          "op": "add_centered_rectangle",
+          "center": {
+            "x": 0.0,
+            "y": 3.0
+          },
+          "width": 4.0,
+          "height": 0.4,
+          "rotation_deg": 0.0
+        },
+        {
+          "step_id": "zebra.stripe.5",
+          "output_ref": "stripe_5",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "zebra_crossing",
+            "assembly_label": "斑马线",
+            "object_id": "stripe_5",
+            "object_type": "drawing_part",
+            "label": "第5条横线（长4米宽0.4米）",
+            "role": "stripe"
+          },
+          "op": "add_centered_rectangle",
+          "center": {
+            "x": 0.0,
+            "y": 4.0
+          },
+          "width": 4.0,
+          "height": 0.4,
+          "rotation_deg": 0.0
+        },
+        {
+          "step_id": "zebra.stripe.6",
+          "output_ref": "stripe_6",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "zebra_crossing",
+            "assembly_label": "斑马线",
+            "object_id": "stripe_6",
+            "object_type": "drawing_part",
+            "label": "第6条横线（长4米宽0.4米）",
+            "role": "stripe"
+          },
+          "op": "add_centered_rectangle",
+          "center": {
+            "x": 0.0,
+            "y": 5.0
+          },
+          "width": 4.0,
+          "height": 0.4,
+          "rotation_deg": 0.0
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": "C:\\Users\\29924\\Codes\\cad-eval-20261117\\run\\C30\\step-2.json.construction_commit.recovery.attempts[0].plan"
+  }
+]

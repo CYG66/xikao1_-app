@@ -1,0 +1,120 @@
+[
+  {
+    "case": "C1",
+    "provenance": "Historical first saved candidate from 2026-11-17 live run; offline fixture only",
+    "source": "生成一条贝塞尔曲线，控制点(0,0)(1,3)(3,3)(4,0)\n坐标单位为米，使用原文给出的四个控制点。",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "s1",
+          "output_ref": "bezier-curve",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "bezier-curve",
+            "assembly_label": "贝塞尔曲线",
+            "object_id": "bezier-curve",
+            "object_type": "curve",
+            "label": "贝塞尔曲线",
+            "role": "outline"
+          },
+          "op": "add_bezier",
+          "control_points": [
+            {
+              "x": 0.0,
+              "y": 0.0
+            },
+            {
+              "x": 1.0,
+              "y": 3.0
+            },
+            {
+              "x": 3.0,
+              "y": 3.0
+            },
+            {
+              "x": 4.0,
+              "y": 0.0
+            }
+          ]
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    }
+  },
+  {
+    "case": "C2",
+    "provenance": "Historical first saved candidate from 2026-11-17 live run; offline fixture only",
+    "source": "画一条闭合样条曲线，控制点(0,0)(1,2)(2,-1)(3,2)(4,0)，平滑闭合\n坐标单位为米，使用原文给出的五个控制点，要求平滑闭合。",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "step.spline.closed",
+          "output_ref": "outline.closed_spline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "closed_spline",
+            "assembly_label": "闭合样条曲线",
+            "object_id": "closed_spline.outline",
+            "object_type": "drawing_part",
+            "label": "闭合样条曲线轮廓",
+            "role": "outline"
+          },
+          "op": "add_spline",
+          "degree": 4,
+          "control_points": [
+            {
+              "x": 0.0,
+              "y": 0.0
+            },
+            {
+              "x": 1.0,
+              "y": 2.0
+            },
+            {
+              "x": 2.0,
+              "y": -1.0
+            },
+            {
+              "x": 3.0,
+              "y": 2.0
+            },
+            {
+              "x": 4.0,
+              "y": 0.0
+            }
+          ],
+          "closed": true
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "assert.closed",
+          "target_ref": "outline.closed_spline"
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    }
+  }
+]

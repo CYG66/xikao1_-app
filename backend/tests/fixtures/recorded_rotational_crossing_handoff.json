@@ -1,0 +1,104 @@
+{
+  "source": "生成一个齿轮轮廓，外径2米，8个齿\n8个等距齿，外径2米，齿根圆直径1.5米，中心(0,0)，各齿齿顶角宽15度。",
+  "payload": {
+    "schema_version": "cad.construction-interpretation.v1",
+    "is_construction_request": true,
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "steps": [
+        {
+          "step_id": "gear-body",
+          "output_ref": "gear_outline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "gear",
+            "assembly_label": "齿轮轮廓",
+            "object_id": "gear_body",
+            "object_type": "drawing_part",
+            "label": "齿轮轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_rotational_path",
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": "0.75",
+                "y": "0"
+              },
+              "end": {
+                "x": "0.9829629131445338",
+                "y": "0.12940952255126037"
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": "0.9829629131445338",
+                "y": "0.12940952255126037"
+              },
+              "end": {
+                "x": "1.0",
+                "y": "0"
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": "1.0",
+                "y": "0"
+              },
+              "end": {
+                "x": "0.8571526546338542",
+                "y": "0.5150015455199954"
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": "0.8571526546338542",
+                "y": "0.5150015455199954"
+              },
+              "end": {
+                "x": "0.5303300858899107",
+                "y": "0.5303300858899107"
+              }
+            }
+          ],
+          "closed": true,
+          "samples_per_curve": 16,
+          "connection_tolerance": 1e-06,
+          "continuity": "C0",
+          "tangent_tolerance_deg": 1.0,
+          "allow_self_intersection": false,
+          "allow_duplicate_segments": false,
+          "max_curvature": null,
+          "max_sampling_error": null,
+          "junction_constraints": [],
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "count": 8,
+          "fit_width": null,
+          "fit_height": null,
+          "constrain_sector_end": true,
+          "direction": "counterclockwise"
+        }
+      ]
+    },
+    "evidence_text": [
+      "生成一个齿轮轮廓，外径2米，8个齿"
+    ],
+    "assumptions": [
+      "外径2米即齿顶圆直径2米，齿顶半径1.0米；齿根圆直径1.5米，齿根半径0.75米；中心在(0,0)。",
+      "8个齿绕中心等距重复，周期角45度；各齿齿顶角宽15度，即齿顶圆弧占15度。",
+      "齿侧采用直线段连接，齿顶角与周期角之间剩余的每侧过渡角为15度，齿根平面位于相邻齿之间。",
+      "一个周期内的开放单元为：齿根起点→齿顶起点→齿顶终点→下一齿根起点，由add_rotational_path旋转8次拼接为单一闭合外边界。",
+      "齿形为近似二维轮廓，不声明为工业渐开线齿形。"
+    ],
+    "confidence": 0.9
+  },
+  "recorded_run": ".local-dev\\live-corpus-2lye7zul\\run\\C14"
+}

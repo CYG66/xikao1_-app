@@ -1,0 +1,832 @@
+[
+  {
+    "source": "画一个半圆拱门的闭合外轮廓。水平底边左端在(-1.36,-0.72)，整体宽3.26米，从底边到拱顶的整体高4.61米；左右两段直墙竖直且等高，顶上用直径3.26米的上半圆连接，整体高度包含这段半圆。不要内部线。坐标单位米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "step-1",
+            "output_ref": "outline",
+            "semantic": {
+              "assembly_id": "arch_gate",
+              "assembly_label": "半圆拱门",
+              "object_id": "arch_gate_outline",
+              "object_type": "closed_outline",
+              "label": "半圆拱门闭合外轮廓",
+              "role": "outer_boundary"
+            },
+            "op": "add_composite_path",
+            "closed": true,
+            "samples_per_curve": 32,
+            "continuity": "C0",
+            "segments": [
+              {
+                "kind": "line",
+                "start": {
+                  "x": "-1.36",
+                  "y": "-0.72"
+                },
+                "end": {
+                  "x": "1.90",
+                  "y": "-0.72"
+                }
+              },
+              {
+                "kind": "line",
+                "start": {
+                  "x": "1.90",
+                  "y": "-0.72"
+                },
+                "end": {
+                  "x": "1.90",
+                  "y": "2.26"
+                }
+              },
+              {
+                "kind": "arc",
+                "center": {
+                  "x": "0.27",
+                  "y": "2.26"
+                },
+                "radius": 1.63,
+                "start_angle": 0,
+                "end_angle": 180,
+                "clockwise": false
+              },
+              {
+                "kind": "line",
+                "start": {
+                  "x": "-1.36",
+                  "y": "2.26"
+                },
+                "end": {
+                  "x": "-1.36",
+                  "y": "-0.72"
+                }
+              }
+            ]
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "assert-closed",
+            "target_ref": "outline"
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "assert-bounds",
+            "target_ref": "outline",
+            "width": 3.26,
+            "height": 4.61,
+            "tolerance": 0.001
+          },
+          {
+            "kind": "entity_count",
+            "assertion_id": "assert-count",
+            "target_ref": "outline",
+            "equals": 1
+          }
+        ]
+      },
+      "evidence_text": [
+        "画一个半圆拱门的闭合外轮廓。水平底边左端在(-1.36,-0.72)，整体宽3.26米，从底边到拱顶的整体高4.61米；左右两段直墙竖直且等高，顶上用直径3.26米的上半圆连接，整体高度包含这段半圆。不要内部线。坐标单位米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "底边左端为(-1.36,-0.72)，整体宽3.26m，因此底边右端x=1.90。",
+        "拱顶整体高4.61m，半圆直径3.26m，故墙高=4.61-1.63=2.98m，墙顶y=2.26m。",
+        "半圆圆心位于(0.27,2.26)，半径1.63m，从0度到180度形成上半圆。",
+        "仅生成单条闭合外边界，不含内部线，符合'不要内部线'。"
+      ],
+      "confidence": 0.98
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V6-r1-B\\api-response-17b492e1-6c92-42d3-8fe6-4efa5df17f7c.json",
+    "response_sha256": "1bbf56ce015cc34747b5f85585f71a2a03892a2b8fabe2d4f77422355c5b026b",
+    "geometry_proof": {
+      "passed": true,
+      "boundary_hausdorff_mm": 0.12273114726246902,
+      "missing_boundary": false,
+      "extra_boundary": false,
+      "duplicate_boundary": false,
+      "sampled_limit_mm": 0.45
+    }
+  },
+  {
+    "source": "画一个半圆拱门的闭合外轮廓。水平底边左端在(-1.36,-0.72)，整体宽3.26米，从底边到拱顶的整体高4.61米；左右两段直墙竖直且等高，顶上用直径3.26米的上半圆连接，整体高度包含这段半圆。不要内部线。坐标单位米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "shared_points": {
+          "P_bottom_left": {
+            "x": -1.36,
+            "y": -0.72
+          },
+          "P_bottom_right": {
+            "x": "@P_bottom_left.x+3.26",
+            "y": "@P_bottom_left.y"
+          },
+          "P_top_left": {
+            "x": "@P_bottom_left.x",
+            "y": "@P_bottom_left.y+1.35"
+          },
+          "P_top_right": {
+            "x": "@P_bottom_right.x",
+            "y": "@P_bottom_left.y+1.35"
+          }
+        },
+        "steps": [
+          {
+            "step_id": "step1",
+            "output_ref": "arch_outline",
+            "semantic": {
+              "assembly_id": "semicircle_arch",
+              "assembly_label": "半圆拱门",
+              "object_id": "arch_outer_outline",
+              "object_type": "drawing_part",
+              "label": "半圆拱门闭合外轮廓",
+              "role": "outer_boundary"
+            },
+            "op": "add_composite_path",
+            "segments": [
+              {
+                "kind": "line",
+                "start": {
+                  "x": "@P_bottom_left.x",
+                  "y": "@P_bottom_left.y"
+                },
+                "end": {
+                  "x": "@P_bottom_right.x",
+                  "y": "@P_bottom_right.y"
+                }
+              },
+              {
+                "kind": "line",
+                "start": {
+                  "x": "@P_bottom_right.x",
+                  "y": "@P_bottom_right.y"
+                },
+                "end": {
+                  "x": "@P_top_right.x",
+                  "y": "@P_top_right.y"
+                }
+              },
+              {
+                "kind": "arc",
+                "center": {
+                  "x": "@P_bottom_left.x+1.63",
+                  "y": "@P_top_left.y"
+                },
+                "radius": 1.63,
+                "start_angle": 0.0,
+                "end_angle": 180.0,
+                "clockwise": false
+              },
+              {
+                "kind": "line",
+                "start": {
+                  "x": "@P_top_left.x",
+                  "y": "@P_top_left.y"
+                },
+                "end": {
+                  "x": "@P_bottom_left.x",
+                  "y": "@P_bottom_left.y"
+                }
+              }
+            ],
+            "closed": true,
+            "samples_per_curve": 32,
+            "continuity": "C0",
+            "allow_self_intersection": false
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "assert_closed",
+            "target_ref": "arch_outline"
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "assert_bounds",
+            "target_ref": "arch_outline",
+            "width": 3.26,
+            "height": 4.61,
+            "tolerance": 0.001
+          },
+          {
+            "kind": "entity_count",
+            "assertion_id": "assert_count",
+            "target_ref": "arch_outline",
+            "equals": 1
+          }
+        ],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 500
+        }
+      },
+      "evidence_text": [
+        "画一个半圆拱门的闭合外轮廓。水平底边左端在(-1.36,-0.72)，整体宽3.26米，从底边到拱顶的整体高4.61米；左右两段直墙竖直且等高，顶上用直径3.26米的上半圆连接，整体高度包含这段半圆。不要内部线。坐标单位米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "上半圆直径等于整体宽3.26米，半径1.63米，圆心位于两墙顶端中点。",
+        "两段竖直直墙等高，墙高等于整体高4.61米减去半圆半径1.63米，即2.98米；但为保证拱顶整体高4.61米，直墙顶面标高取为底边标高加(4.61-1.63)=2.98米，对应半圆顶点在底边以上4.61米。",
+        "底边水平且左端精确位于(-1.36,-0.72)，右端由宽度推导。",
+        "轮廓方向按底边从左到右、右墙向上、半圆逆时针到左墙顶、左墙向下回到起点。"
+      ],
+      "confidence": 0.92
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V6-r1-B\\api-response-5effdf56-1397-4956-8342-0d980e02950f.json",
+    "response_sha256": "616ca13848892329c49fab8c4559494a3643f18054b16d234324d8906cdbb053",
+    "geometry_proof": {
+      "passed": false,
+      "error": "实际尺寸 3.26 x 2.98，要求 3.26 x 4.61"
+    }
+  },
+  {
+    "source": "画一个半圆拱门的闭合外轮廓。水平底边左端在(-1.36,-0.72)，整体宽3.26米，从底边到拱顶的整体高4.61米；左右两段直墙竖直且等高，顶上用直径3.26米的上半圆连接，整体高度包含这段半圆。不要内部线。坐标单位米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "step1",
+            "output_ref": "arch_outline",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": "semicircle_arch",
+              "assembly_label": "半圆拱门",
+              "object_id": "arch_outer_outline",
+              "object_type": "drawing_part",
+              "label": "半圆拱门闭合外轮廓",
+              "role": "outer_boundary"
+            },
+            "op": "add_composite_path",
+            "segments": [
+              {
+                "kind": "line",
+                "start": {
+                  "x": -1.36,
+                  "y": -0.72
+                },
+                "end": {
+                  "x": 1.9,
+                  "y": -0.72
+                }
+              },
+              {
+                "kind": "line",
+                "start": {
+                  "x": 1.9,
+                  "y": -0.72
+                },
+                "end": {
+                  "x": 1.9,
+                  "y": 2.26
+                }
+              },
+              {
+                "kind": "arc",
+                "center": {
+                  "x": 0.27,
+                  "y": 2.26
+                },
+                "radius": 1.63,
+                "start_angle": 0,
+                "end_angle": 180,
+                "clockwise": false
+              },
+              {
+                "kind": "line",
+                "start": {
+                  "x": -1.36,
+                  "y": 2.26
+                },
+                "end": {
+                  "x": -1.36,
+                  "y": -0.72
+                }
+              }
+            ],
+            "closed": true,
+            "samples_per_curve": 32,
+            "connection_tolerance": 1e-06,
+            "continuity": "C0",
+            "tangent_tolerance_deg": 1,
+            "allow_self_intersection": false,
+            "allow_duplicate_segments": false,
+            "max_curvature": null,
+            "max_sampling_error": 0.0002,
+            "junction_constraints": []
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "assert_closed",
+            "target_ref": "arch_outline"
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "assert_bounds",
+            "target_ref": "arch_outline",
+            "width": 3.26,
+            "height": 4.61,
+            "tolerance": 0.001
+          },
+          {
+            "kind": "entity_count",
+            "assertion_id": "assert_count",
+            "target_ref": "arch_outline",
+            "equals": 1
+          }
+        ],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 500
+        },
+        "free_outline_layout": []
+      },
+      "evidence_text": [
+        "画一个半圆拱门的闭合外轮廓。水平底边左端在(-1.36,-0.72)，整体宽3.26米，从底边到拱顶的整体高4.61米；左右两段直墙竖直且等高，顶上用直径3.26米的上半圆连接，整体高度包含这段半圆。不要内部线。坐标单位米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "底边左端(-1.36,-0.72)，宽3.26米，故底边右端x=1.90；半圆直径3.26米，圆心x=0.27。",
+        "拱顶y=2.26=0.27+2.26-0.27=2.26-0.00"
+      ],
+      "confidence": 0.98
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V6-r1-B\\api-response-b9d9be71-d85d-4632-98e8-8c8c262062e1.json",
+    "response_sha256": "09dd63b3d0b9f9f82771b34cfdbee1778e8b87d58819131ce90c647ee1d5c80f",
+    "geometry_proof": {
+      "passed": true,
+      "boundary_hausdorff_mm": 0.12273114726246902,
+      "missing_boundary": false,
+      "extra_boundary": false,
+      "duplicate_boundary": false,
+      "sampled_limit_mm": 0.45
+    }
+  },
+  {
+    "source": "画一个半圆拱门的闭合外轮廓。水平底边左端在(-1.36,-0.72)，整体宽3.26米，从底边到拱顶的整体高4.61米；左右两段直墙竖直且等高，顶上用直径3.26米的上半圆连接，整体高度包含这段半圆。不要内部线。坐标单位米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "arch.outline",
+            "output_ref": "arch.outline",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": "semicircle_arch",
+              "assembly_label": "半圆拱门",
+              "object_id": "arch.outline",
+              "object_type": "drawing_part",
+              "label": "半圆拱门闭合外轮廓",
+              "role": "closed_outer_boundary"
+            },
+            "op": "add_composite_path",
+            "segments": [
+              {
+                "kind": "line",
+                "start": {
+                  "x": -1.36,
+                  "y": -0.72
+                },
+                "end": {
+                  "x": 1.9,
+                  "y": -0.72
+                }
+              },
+              {
+                "kind": "line",
+                "start": {
+                  "x": 1.9,
+                  "y": -0.72
+                },
+                "end": {
+                  "x": 1.9,
+                  "y": 2.98
+                }
+              },
+              {
+                "kind": "arc",
+                "center": {
+                  "x": 0.27,
+                  "y": 2.98
+                },
+                "radius": 1.63,
+                "start_angle": 0,
+                "end_angle": 180,
+                "clockwise": false
+              },
+              {
+                "kind": "line",
+                "start": {
+                  "x": -1.36,
+                  "y": 2.98
+                },
+                "end": {
+                  "x": -1.36,
+                  "y": -0.72
+                }
+              }
+            ],
+            "closed": true,
+            "samples_per_curve": 32,
+            "continuity": "C0"
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "arch.closed",
+            "target_ref": "arch.outline"
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "arch.size",
+            "target_ref": "arch.outline",
+            "width": 3.26,
+            "height": 4.61,
+            "tolerance": 0.01
+          },
+          {
+            "kind": "entity_count",
+            "assertion_id": "arch.count",
+            "target_ref": "arch.outline",
+            "equals": 1
+          }
+        ],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 500
+        },
+        "free_outline_layout": []
+      },
+      "evidence_text": [
+        "画一个半圆拱门的闭合外轮廓。水平底边左端在(-1.36,-0.72)，整体宽3.26米，从底边到拱顶的整体高4.61米；左右两段直墙竖直且等高，顶上用直径3.26米的上半圆连接，整体高度包含这段半圆。不要内部线。坐标单位米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "底边左端为(-1.36,-0.72)，宽3.26米，故底边右端为(1.9,-0.72)，拱心x为0.27。",
+        "总高4.61米含半圆，半圆直径3.26米半径1.63米，故直墙高为4.61-1.63=2.98米，墙顶y=2.98。",
+        "顶部半圆为180度朝上的上半圆弧，连接两墙顶端。"
+      ],
+      "confidence": 0.93
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V6-r2-B\\api-response-1542f306-3412-4997-9c82-1f096ad1e19a.json",
+    "response_sha256": "4af2c339e4e3c5739047e91f7e5ae4942d3249238f39a4e1cd5ffd571c7f4a93",
+    "geometry_proof": {
+      "passed": false,
+      "error": "实际尺寸 3.26 x 5.33，要求 3.26 x 4.61"
+    }
+  },
+  {
+    "source": "画一个半圆拱门的闭合外轮廓。水平底边左端在(-1.36,-0.72)，整体宽3.26米，从底边到拱顶的整体高4.61米；左右两段直墙竖直且等高，顶上用直径3.26米的上半圆连接，整体高度包含这段半圆。不要内部线。坐标单位米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "arch.outline",
+            "output_ref": "arch.outline",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": "semicircle_arch",
+              "assembly_label": "半圆拱门",
+              "object_id": "arch.outline",
+              "object_type": "drawing_part",
+              "label": "半圆拱门闭合外轮廓",
+              "role": "closed_outer_boundary"
+            },
+            "op": "add_composite_path",
+            "segments": [
+              {
+                "kind": "line",
+                "start": {
+                  "x": -1.36,
+                  "y": -0.72
+                },
+                "end": {
+                  "x": 1.9,
+                  "y": -0.72
+                }
+              },
+              {
+                "kind": "line",
+                "start": {
+                  "x": 1.9,
+                  "y": -0.72
+                },
+                "end": {
+                  "x": 1.9,
+                  "y": 1.35
+                }
+              },
+              {
+                "kind": "arc",
+                "center": {
+                  "x": 0.27,
+                  "y": 1.35
+                },
+                "radius": 1.63,
+                "start_angle": 0.0,
+                "end_angle": 180.0,
+                "clockwise": false
+              },
+              {
+                "kind": "line",
+                "start": {
+                  "x": -1.36,
+                  "y": 1.35
+                },
+                "end": {
+                  "x": -1.36,
+                  "y": -0.72
+                }
+              }
+            ],
+            "closed": true,
+            "samples_per_curve": 32,
+            "connection_tolerance": 1e-06,
+            "continuity": "C0",
+            "tangent_tolerance_deg": 1.0,
+            "allow_self_intersection": false,
+            "allow_duplicate_segments": false,
+            "max_curvature": null,
+            "max_sampling_error": 0.0002,
+            "junction_constraints": []
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "arch.closed",
+            "target_ref": "arch.outline"
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "arch.size",
+            "target_ref": "arch.outline",
+            "width": 3.26,
+            "height": 4.61,
+            "tolerance": 0.01
+          },
+          {
+            "kind": "entity_count",
+            "assertion_id": "arch.count",
+            "target_ref": "arch.outline",
+            "equals": 1
+          }
+        ],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 500
+        },
+        "free_outline_layout": []
+      },
+      "evidence_text": [
+        "画一个半圆拱门的闭合外轮廓。水平底边左端在(-1.36,-0.72)，整体宽3.26米，从底边到拱顶的整体高4.61米；左右两段直墙竖直且等高，顶上用直径3.26米的上半圆连接，整体高度包含这段半圆。不要内部线。坐标单位米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "底边左端(-1.36,-0.72)与整体宽3.26米确定右端x=1.90，左右直墙各自竖直。",
+        "拱顶高4.61米，减去上半圆半径1.63米，得直墙顶(拱肩)高度y=1.35米；上半圆圆心为(0.27,1.35)，直径3.26米恰好连接两墙。"
+      ],
+      "confidence": 0.93
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V6-r2-B\\api-response-628d7d42-924b-4e20-96ed-9f579bddafe5.json",
+    "response_sha256": "4ede4756f966749bdd677f2366c2758674c3fa78cfdd004ae244f2826ae48b5d",
+    "geometry_proof": {
+      "passed": false,
+      "error": "实际尺寸 3.26 x 3.7，要求 3.26 x 4.61"
+    }
+  },
+  {
+    "source": "画一个半圆拱门的闭合外轮廓。水平底边左端在(-1.36,-0.72)，整体宽3.26米，从底边到拱顶的整体高4.61米；左右两段直墙竖直且等高，顶上用直径3.26米的上半圆连接，整体高度包含这段半圆。不要内部线。坐标单位米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "arch-outline",
+            "output_ref": "arch_outline",
+            "semantic": {
+              "assembly_id": "semicircular_arch",
+              "assembly_label": "半圆拱门",
+              "object_id": "arch_outer_profile",
+              "object_type": "closed_profile",
+              "label": "半圆拱门闭合外轮廓",
+              "role": "outer_boundary"
+            },
+            "op": "add_composite_path",
+            "segments": [
+              {
+                "kind": "line",
+                "start": {
+                  "x": -1.36,
+                  "y": -0.72
+                },
+                "end": {
+                  "x": 1.9,
+                  "y": -0.72
+                }
+              },
+              {
+                "kind": "line",
+                "start": {
+                  "x": 1.9,
+                  "y": -0.72
+                },
+                "end": {
+                  "x": 1.9,
+                  "y": 2.26
+                }
+              },
+              {
+                "kind": "arc",
+                "center": {
+                  "x": 0.27,
+                  "y": 2.26
+                },
+                "radius": 1.63,
+                "start_angle": 0,
+                "end_angle": 180,
+                "clockwise": false
+              },
+              {
+                "kind": "line",
+                "start": {
+                  "x": -1.36,
+                  "y": 2.26
+                },
+                "end": {
+                  "x": -1.36,
+                  "y": -0.72
+                }
+              }
+            ],
+            "closed": true,
+            "samples_per_curve": 64,
+            "connection_tolerance": 1e-06,
+            "continuity": "C0",
+            "allow_self_intersection": false
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "arch_closed",
+            "target_ref": "arch_outline"
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "arch_bounds",
+            "target_ref": "arch_outline",
+            "width": 3.26,
+            "height": 4.61,
+            "tolerance": 0.001
+          },
+          {
+            "kind": "entity_count",
+            "assertion_id": "arch_single_entity",
+            "target_ref": "arch_outline",
+            "equals": 1
+          }
+        ]
+      },
+      "evidence_text": [
+        "画一个半圆拱门的闭合外轮廓。水平底边左端在(-1.36,-0.72)，整体宽3.26米，从底边到拱顶的整体高4.61米；左右两段直墙竖直且等高，顶上用直径3.26米的上半圆连接，整体高度包含这段半圆。不要内部线。坐标单位米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "直墙等高，总高4.61米中半圆半径1.63米，故直墙高2.98米。",
+        "底边右端由左端加整体宽得(1.9,-0.72)，拱脚在y=2.26。",
+        "仅输出一条闭合外边界，不含内部线。"
+      ],
+      "confidence": 0.97
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V6-r2-B\\api-response-a25846c0-81c7-4712-b814-79e21a1ddad2.json",
+    "response_sha256": "df24ad94face556706b01c90668df7d756113a8739edaea08bebcc57c48fd385",
+    "geometry_proof": {
+      "passed": true,
+      "boundary_hausdorff_mm": 0.12273114726246902,
+      "missing_boundary": false,
+      "extra_boundary": false,
+      "duplicate_boundary": false,
+      "sampled_limit_mm": 0.45
+    }
+  },
+  {
+    "source": "画一个半圆拱门的闭合外轮廓。水平底边左端在(-1.36,-0.72)，整体宽3.26米，从底边到拱顶的整体高4.61米；左右两段直墙竖直且等高，顶上用直径3.26米的上半圆连接，整体高度包含这段半圆。不要内部线。坐标单位米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "arch.base",
+            "output_ref": "arch.base",
+            "semantic": {
+              "assembly_id": "semicircle_arch",
+              "assembly_label": "半圆拱门",
+              "object_id": "arch.outline",
+              "label": "半圆拱门外轮廓闭环",
+              "role": "closed_outer_boundary"
+            },
+            "op": "add_polyline",
+            "vertices": [
+              {
+                "x": "-1.36",
+                "y": "-0.72"
+              },
+              {
+                "x": "1.9",
+                "y": "-0.72"
+              },
+              {
+                "x": "1.9",
+                "y": "2.98"
+              },
+              {
+                "x": "0.27",
+                "y": "4.61"
+              },
+              {
+                "x": "-1.36",
+                "y": "2.98"
+              }
+            ],
+            "closed": true
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "arch.closed",
+            "target_ref": "arch.base"
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "arch.size",
+            "target_ref": "arch.base",
+            "width": 3.26,
+            "height": 5.33,
+            "tolerance": 0.01
+          },
+          {
+            "kind": "entity_count",
+            "assertion_id": "arch.count",
+            "target_ref": "arch.base",
+            "equals": 1
+          }
+        ]
+      },
+      "evidence_text": [
+        "画一个半圆拱门的闭合外轮廓。水平底边左端在(-1.36,-0.72)，整体宽3.26米，从底边到拱顶的整体高4.61米；左右两段直墙竖直且等高，顶上用直径3.26米的上半圆连接，整体高度包含这段半圆。不要内部线。坐标单位米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "半圆直径等于整体宽3.26米，拱顶为半圆最高点",
+        "左右直墙竖直等高，直墙高度为4.61-1.63=2.98米，顶面中心在(0.27,2.98)",
+        "为确保闭合性与避免圆周与直墙接点误差，本计划暂以折线近似半圆；后续可换为arc段精确表达",
+        "只生成预览，不执行小车"
+      ],
+      "confidence": 0.72
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V6-r2-B\\api-response-a9f4b6d1-b97a-44d9-be52-cb6abfe9a629.json",
+    "response_sha256": "112bc2077f87bcec02815fce0b3d87b7587a0cbfb24937bf76c9e9ef2e4cca56",
+    "geometry_proof": {
+      "passed": false,
+      "boundary_hausdorff_mm": 720.0,
+      "missing_boundary": true,
+      "extra_boundary": true,
+      "duplicate_boundary": false,
+      "sampled_limit_mm": 0.45
+    }
+  }
+]

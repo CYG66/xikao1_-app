@@ -13,7 +13,6 @@ from typing import Any
 
 from .task_store import utc_now
 from .database import xline_database
-from .startup_guard import assert_startup_admitted
 from .geometry_diff import build_geometry_diff, build_path_impact
 
 
@@ -25,15 +24,9 @@ class DuplicateDrawingOperationError(RuntimeError):
 
 class DrawingVersionStore:
     def __init__(self, path: Path | None = None) -> None:
-        assert_startup_admitted()
         self._database_enabled = path is None
         configured = os.getenv("XLINE_DRAWING_VERSION_STORE", "").strip()
-        root = (
-            Path(tempfile.gettempdir()) / "xline-agent"
-            if os.name == "nt"
-            else Path(os.getenv("XDG_STATE_HOME", Path.home() / ".local" / "state"))
-            / "xline-agent"
-        )
+        root = Path(tempfile.gettempdir()) / "xline-agent"
         self.path = path or (Path(configured) if configured else root / "drawing_versions.json")
         self._lock = threading.RLock()
         self._items: list[dict[str, Any]] = []
@@ -78,6 +71,17 @@ class DrawingVersionStore:
             self._save()
         return deepcopy(item)
 
+    def _project_series(self, project_id, requested_name, source, metadata):
+        # Names are labels. Stable document identity is scoped to its project;
+        # copies receive an independent id, and planning artifacts stay separate.
+        label = re.sub(r"[^\w\-\u4e00-\u9fff]", "_", self._base_stem(requested_name)).strip("_") or "drawing"
+        identity = f"xline:{project_id}:library" if source == "candidate_save" else f"xline:{project_id}:{source}:{label}"
+        drawing_id = str(metadata.get("drawing_id") or uuid.uuid5(uuid.NAMESPACE_URL, identity))
+        existing = [item for item in self._items
+                    if item.get("drawing_id") == drawing_id and item.get("project_id") == project_id]
+        stem = str(existing[0]["base_name"]) if existing else f"{label[:24]}__{drawing_id.replace('-', '')}"
+        return drawing_id, stem, existing, label
+
     def save_project_candidate(
         self,
         directory: Path,
@@ -107,13 +111,14 @@ class DrawingVersionStore:
             if variant is None:
                 raise ValueError("candidate variant does not exist")
 
-            stem = self._base_stem(requested_name)
-            existing = [item for item in self._items if item.get("base_name") == stem]
+            drawing_id, stem, existing, display_name = self._project_series(
+                project_id, requested_name, source, metadata)
             version_number = max((int(item.get("version", 0)) for item in existing), default=0) + 1
             file_name = f"{stem}_v{version_number:03d}.json"
             encoded = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
             item = {
-                "drawing_id": str(existing[0]["drawing_id"]) if existing else str(uuid.uuid4()),
+                "drawing_id": drawing_id,
+                "display_name": display_name,
                 "base_name": stem,
                 "version": version_number,
                 "file_name": file_name,
@@ -204,13 +209,14 @@ class DrawingVersionStore:
             if project is None or project.get("deleted_at"):
                 raise ValueError("creative project does not exist")
 
-            stem = self._base_stem(requested_name)
-            existing = [item for item in self._items if item.get("base_name") == stem]
+            drawing_id, stem, existing, display_name = self._project_series(
+                project_id, requested_name, source, metadata)
             version_number = max((int(item.get("version", 0)) for item in existing), default=0) + 1
             file_name = f"{stem}_v{version_number:03d}.json"
             encoded = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
             item = {
-                "drawing_id": str(existing[0]["drawing_id"]) if existing else str(uuid.uuid4()),
+                "drawing_id": drawing_id,
+                "display_name": display_name,
                 "base_name": stem,
                 "version": version_number,
                 "file_name": file_name,

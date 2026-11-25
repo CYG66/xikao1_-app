@@ -1,0 +1,56 @@
+{
+  "date": "2026-11-25",
+  "phase": 3,
+  "prior_ledger_preserved": "manual-reading-log.json",
+  "meaning": "Human reading of tool-presented source with unchanged-source carry-forward; not whole-repository manual completion or production delivery verification.",
+  "full_modules_completed": [
+    {
+      "file": "app/cad_construction_interpreter.py",
+      "lines": 3434,
+      "sha256": "e195c1071938eb82b8376d7b00deb6bd6db1c18b7eccd346f4fdc203b7d7e92a",
+      "read_ranges_this_phase": [
+        [
+          341,
+          3190
+        ]
+      ],
+      "unchanged_prior_read_carry_forward": [
+        [
+          1,
+          340
+        ],
+        [
+          3191,
+          3434
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "app/cad_construction.py",
+      "lines": 2111,
+      "sha256": "56ee881a5616d34a22f9cc377b1b3bf8c8f0c07b4298c7f6c20d66e9e3b9ea68",
+      "read_ranges_this_phase": [
+        [
+          1,
+          2111
+        ]
+      ],
+      "unchanged_prior_read_carry_forward": [],
+      "full_module_complete": true
+    }
+  ],
+  "module_lines_total": 5545,
+  "lines_presented_this_phase_including_rereads": 4961,
+  "new_evidence": [
+    "phase3-probes.json",
+    "phase3-integrity.json"
+  ],
+  "whole_repository_manual_read_complete": false,
+  "remaining": [
+    "agent_service.py remaining branches",
+    "incremental_cad.py remaining branches",
+    "ros_adapter.py remaining branches",
+    "other partially/unread modules, tools, evaluations and tests"
+  ]
+}

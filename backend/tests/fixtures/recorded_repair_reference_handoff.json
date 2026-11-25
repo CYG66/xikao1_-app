@@ -1,0 +1,502 @@
+{
+  "component_context": {
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "mm",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "arch_wall_left",
+          "output_ref": "arch_wall_left",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "closed_arch",
+            "assembly_label": "闭合拱门",
+            "object_id": "arch_wall_left",
+            "object_type": "drawing_part",
+            "label": "拱门左侧竖直墙",
+            "role": "outer_boundary"
+          },
+          "op": "add_line",
+          "start": {
+            "x": -50.0,
+            "y": 25.0
+          },
+          "end": {
+            "x": -50.0,
+            "y": 2000.0
+          }
+        },
+        {
+          "step_id": "arch_arc_top",
+          "output_ref": "arch_arc_top",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "closed_arch",
+            "assembly_label": "闭合拱门",
+            "object_id": "arch_arc_top",
+            "object_type": "drawing_part",
+            "label": "拱门顶部上半圆",
+            "role": "outer_boundary"
+          },
+          "op": "add_arc",
+          "center": {
+            "x": 1100.0,
+            "y": 2000.0
+          },
+          "radius": 1150.0,
+          "start_angle": 180.0,
+          "end_angle": 0.0
+        },
+        {
+          "step_id": "arch_wall_right",
+          "output_ref": "arch_wall_right",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "closed_arch",
+            "assembly_label": "闭合拱门",
+            "object_id": "arch_wall_right",
+            "object_type": "drawing_part",
+            "label": "拱门右侧竖直墙",
+            "role": "outer_boundary"
+          },
+          "op": "add_line",
+          "start": {
+            "x": 2250.0,
+            "y": 2000.0
+          },
+          "end": {
+            "x": 2250.0,
+            "y": 25.0
+          }
+        },
+        {
+          "step_id": "arch_bottom",
+          "output_ref": "arch_bottom",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "closed_arch",
+            "assembly_label": "闭合拱门",
+            "object_id": "arch_bottom",
+            "object_type": "drawing_part",
+            "label": "拱门底边",
+            "role": "outer_boundary"
+          },
+          "op": "add_line",
+          "start": {
+            "x": 2250.0,
+            "y": 25.0
+          },
+          "end": {
+            "x": -50.0,
+            "y": 25.0
+          }
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "bounds_size",
+          "assertion_id": "arch_bounds",
+          "target_ref": "assembly:closed_arch",
+          "width": 2300.0,
+          "height": 3150.0,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "arch_closed",
+          "target_ref": "assembly:closed_arch"
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "arch_entity_count",
+          "target_ref": "assembly:closed_arch",
+          "equals": 4
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "construction_error": {
+      "schema": "cad.construction-error.v1",
+      "code": "assertion_failed",
+      "message": "实际尺寸 2300 x 1975，要求 2300 x 3150",
+      "assertion_id": "arch_bounds",
+      "details": {
+        "failures": [
+          {
+            "code": "assertion_failed",
+            "assertion_id": "arch_bounds",
+            "output_ref": "assembly:closed_arch",
+            "geometry_ids": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "expected_assertion": {
+              "kind": "bounds_size",
+              "assertion_id": "arch_bounds",
+              "target_ref": "assembly:closed_arch",
+              "width": 2300.0,
+              "height": 3150.0,
+              "tolerance": 0.001
+            },
+            "measured_bounds_mm": {
+              "min_x": -50.0,
+              "min_y": 25.0,
+              "max_x": 2250.0,
+              "max_y": 2000.0000000000002
+            },
+            "message": "实际尺寸 2300 x 1975，要求 2300 x 3150",
+            "local_repair_possible": true
+          }
+        ],
+        "affected_output_refs": [
+          "assembly:closed_arch"
+        ],
+        "source_requirement_id": null,
+        "evidence_origin": "model_plan_assertions_not_user_requirements",
+        "failed_model_assertion": {
+          "kind": "bounds_size",
+          "assertion_id": "arch_bounds",
+          "target_ref": "assembly:closed_arch",
+          "width": 2300.0,
+          "height": 3150.0,
+          "tolerance": 0.001
+        },
+        "assertion_target_geometry": [
+          {
+            "id": 1,
+            "layer_id": 1,
+            "type": "line",
+            "start": {
+              "x": -50.0,
+              "y": 25.0,
+              "z": 0.0
+            },
+            "end": {
+              "x": -50.0,
+              "y": 2000.0,
+              "z": 0.0
+            }
+          },
+          {
+            "id": 2,
+            "layer_id": 1,
+            "type": "arc",
+            "center": {
+              "x": 1100.0,
+              "y": 2000.0,
+              "z": 0.0
+            },
+            "radius": 1150.0,
+            "start_angle": 180.0,
+            "end_angle": 0.0
+          },
+          {
+            "id": 3,
+            "layer_id": 1,
+            "type": "line",
+            "start": {
+              "x": 2250.0,
+              "y": 2000.0,
+              "z": 0.0
+            },
+            "end": {
+              "x": 2250.0,
+              "y": 25.0,
+              "z": 0.0
+            }
+          },
+          {
+            "id": 4,
+            "layer_id": 1,
+            "type": "line",
+            "start": {
+              "x": 2250.0,
+              "y": 25.0,
+              "z": 0.0
+            },
+            "end": {
+              "x": -50.0,
+              "y": 25.0,
+              "z": 0.0
+            }
+          }
+        ],
+        "assertion_reference_geometry": [],
+        "repair_instruction": "先核对模型自拟断言的对象范围与适用图元。radial_pattern只支持单条闭合多段线，不用于圆或多个对称部件；center_distance测量外包框中心，不是端点距离。修正错误断言仍须通过全部用户来源约束，不得为迎合自拟断言随意改变正确几何。"
+      }
+    }
+  },
+  "component_payload": {
+    "schema_version": "cad.construction-interpretation.v1",
+    "is_construction_request": true,
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "mm",
+      "steps": [
+        {
+          "step_id": "arch_wall_left",
+          "output_ref": "arch_wall_left",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "closed_arch",
+            "assembly_label": "闭合拱门",
+            "object_id": "arch_wall_left",
+            "object_type": "drawing_part",
+            "label": "拱门左侧竖直墙",
+            "role": "outer_boundary"
+          },
+          "op": "add_line",
+          "start": {
+            "x": -50.0,
+            "y": 25.0
+          },
+          "end": {
+            "x": -50.0,
+            "y": 2000.0
+          }
+        },
+        {
+          "step_id": "arch_arc_top",
+          "output_ref": "arch_arc_top",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "closed_arch",
+            "assembly_label": "闭合拱门",
+            "object_id": "arch_arc_top",
+            "object_type": "drawing_part",
+            "label": "拱门顶部上半圆",
+            "role": "outer_boundary"
+          },
+          "op": "add_arc",
+          "center": {
+            "x": 1100.0,
+            "y": 2000.0
+          },
+          "radius": 1150.0,
+          "start_angle": 180.0,
+          "end_angle": 0.0
+        },
+        {
+          "step_id": "arch_wall_right",
+          "output_ref": "arch_wall_right",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "closed_arch",
+            "assembly_label": "闭合拱门",
+            "object_id": "arch_wall_right",
+            "object_type": "drawing_part",
+            "label": "拱门右侧竖直墙",
+            "role": "outer_boundary"
+          },
+          "op": "add_line",
+          "start": {
+            "x": 2250.0,
+            "y": 2000.0
+          },
+          "end": {
+            "x": 2250.0,
+            "y": 25.0
+          }
+        },
+        {
+          "step_id": "arch_bottom",
+          "output_ref": "arch_bottom",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "closed_arch",
+            "assembly_label": "闭合拱门",
+            "object_id": "arch_bottom",
+            "object_type": "drawing_part",
+            "label": "拱门底边",
+            "role": "outer_boundary"
+          },
+          "op": "add_line",
+          "start": {
+            "x": 2250.0,
+            "y": 25.0
+          },
+          "end": {
+            "x": -50.0,
+            "y": 25.0
+          }
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "bounds_size",
+          "assertion_id": "arch_bounds",
+          "target_ref": "assembly:closed_arch",
+          "width": 2300.0,
+          "height": 3150.0,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "arch_closed",
+          "target_ref": "assembly:closed_arch"
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "arch_entity_count",
+          "target_ref": "assembly:closed_arch",
+          "equals": 4
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "evidence_text": [
+      "画闭合拱门的外轮廓：底边从(-50,25)水平向右，总宽230厘米，总高315厘米；两侧是等高竖直墙，顶部为连接两墙的上半圆，半圆直径230厘米，高度已包含在总高中。不画内部线，坐标单位厘米。只生成预览，不执行小车。"
+    ],
+    "assumptions": [
+      "坐标与输入单位均为厘米，换算为毫米；左墙角为(-50,25)，总宽2300mm，左墙竖直段顶到y=2000mm。",
+      "顶部半圆直径=总宽2300mm，半径1150mm；圆心在(1100,2000)；半圆顶到y=3150mm满足总高3150mm。",
+      "模型自拟错误断言arch_bounds保持原ID及原目标，使用2300×3150作为最终验收，后端保留其余断言与部件。"
+    ],
+    "confidence": 0.95
+  },
+  "shared_point_payload": {
+    "schema_version": "cad.construction-interpretation.v1",
+    "is_construction_request": true,
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "mm",
+      "steps": [
+        {
+          "step_id": "capsule-outline",
+          "output_ref": "capsule_outline",
+          "semantic": {
+            "assembly_id": "capsule_stadium",
+            "assembly_label": "胶囊形",
+            "object_id": "capsule_boundary",
+            "label": "胶囊形闭合边界",
+            "role": "outline"
+          },
+          "op": "add_composite_path",
+          "closed": true,
+          "continuity": "C0",
+          "samples_per_curve": 32,
+          "segments": [
+            {
+              "kind": "arc",
+              "center": {
+                "x": "@left_center.x",
+                "y": "@left_center.y"
+              },
+              "radius": "465",
+              "start_angle": "107",
+              "end_angle": "287",
+              "clockwise": true
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": "@pleft.x",
+                "y": "@pleft.y"
+              },
+              "end": {
+                "x": "@pright.x",
+                "y": "@pright.y"
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": "@right_center.x",
+                "y": "@right_center.y"
+              },
+              "radius": "465",
+              "start_angle": "287",
+              "end_angle": "107",
+              "clockwise": true
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": "@qright.x",
+                "y": "@qright.y"
+              },
+              "end": {
+                "x": "@qleft.x",
+                "y": "@qleft.y"
+              }
+            }
+          ]
+        }
+      ],
+      "shared_points": {
+        "left_center": {
+          "x": "210+1270*(-cos(17*pi/180))",
+          "y": "-370+1270*(-sin(17*pi/180))"
+        },
+        "right_center": {
+          "x": "210+1270*cos(17*pi/180)",
+          "y": "-370+1270*sin(17*pi/180)"
+        },
+        "pleft": {
+          "x": "@left_center.x+465*cos(17*pi/180+pi/2)",
+          "y": "@left_center.y+465*sin(17*pi/180+pi/2)"
+        },
+        "pright": {
+          "x": "@right_center.x+465*cos(17*pi/180+pi/2)",
+          "y": "@right_center.y+465*sin(17*pi/180+pi/2)"
+        },
+        "qright": {
+          "x": "@right_center.x+465*cos(17*pi/180-pi/2)",
+          "y": "@right_center.y+465*sin(17*pi/180-pi/2)"
+        },
+        "qleft": {
+          "x": "@left_center.x+465*cos(17*pi/180-pi/2)",
+          "y": "@left_center.y+465*sin(17*pi/180-pi/2)"
+        }
+      },
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "capsule-closed",
+          "target_ref": "capsule_outline"
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "capsule-size",
+          "target_ref": "capsule_outline",
+          "width": 3470,
+          "height": 930,
+          "tolerance": 0.5
+        },
+        {
+          "kind": "radial_pattern",
+          "assertion_id": "capsule-lobes",
+          "target_ref": "capsule_outline",
+          "lobes": 2,
+          "profile": "smooth"
+        }
+      ]
+    },
+    "evidence_text": [
+      "绘制胶囊形闭合边界，中心位于(210,-370)，长轴相对x轴正向逆时针17度，沿长轴总长3470毫米、短轴总高930毫米。两端各为向外半圆，两条直边与半圆相切；两端半径相同，总长含半圆。不添加内部线，坐标单位毫米。只生成预览，不执行小车。"
+    ],
+    "assumptions": [
+      "短轴总高930 mm 作为两端半径2r的约束，故 r=465 mm，直边长度=3470-930=2540 mm，直边在长轴方向关于中心对称各1270 mm。",
+      "长轴方向由17度旋转给出，两端半圆分别沿长轴向两端外凸。",
+      "胶囊作为一条闭合边界用圆弧+直线复合路径表达，不添加任何内部线。"
+    ],
+    "confidence": 0.95
+  }
+}

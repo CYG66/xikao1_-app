@@ -1,0 +1,698 @@
+[
+  {
+    "case": "V2",
+    "source": "依次连接顶点(-78,-12)、(46,-39)、(119,35)、(53,143)、(-69,91)，最后连接回第一个顶点，形成一个闭合五边形。坐标单位厘米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "mm",
+        "steps": [
+          {
+            "step_id": "pentagon-outline",
+            "output_ref": "pentagon_outline",
+            "semantic": {
+              "assembly_id": "closed_pentagon",
+              "assembly_label": "闭合五边形",
+              "object_id": "pentagon_boundary",
+              "object_type": "drawing_part",
+              "label": "闭合五边形边界",
+              "role": "outline"
+            },
+            "op": "add_polyline",
+            "vertices": [
+              {
+                "x": -780,
+                "y": -120
+              },
+              {
+                "x": 460,
+                "y": -390
+              },
+              {
+                "x": 1190,
+                "y": 350
+              },
+              {
+                "x": 530,
+                "y": 1430
+              },
+              {
+                "x": -690,
+                "y": 910
+              }
+            ],
+            "closed": true
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "pentagon_closed",
+            "target_ref": "pentagon_outline"
+          },
+          {
+            "kind": "entity_count",
+            "assertion_id": "pentagon_entity_count",
+            "target_ref": "pentagon_outline",
+            "equals": 1
+          }
+        ]
+      },
+      "evidence_text": [
+        "依次连接顶点(-78,-12)、(46,-39)、(119,35)、(53,143)、(-69,91)，最后连接回第一个顶点，形成一个闭合五边形。坐标单位厘米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "原文坐标单位为厘米，plan.units为毫米，故坐标数值乘以10换算：(-78,-12)→(-780,-120)等。",
+        "按确定性需求规范化，保留原始五个顶点作为折线顶点，闭合成五边形，未替换为拟合点。",
+        "只生成几何预览，不执行任何小车运动指令。"
+      ],
+      "confidence": 0.97
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V2-r1-B\\api-response-a6717607-040a-4f46-aa78-469c96ed01bb.json",
+    "response_sha256": "747847b73783d12da0281046d555b8ea6d45d5542e4428c23c2cc135f066db8d",
+    "independent_geometry": {
+      "passed": true,
+      "boundary_hausdorff_mm": 0.0,
+      "missing_boundary": false,
+      "extra_boundary": false,
+      "duplicate_boundary": false,
+      "sampled_limit_mm": 0.45
+    }
+  },
+  {
+    "case": "V2",
+    "source": "依次连接顶点(-78,-12)、(46,-39)、(119,35)、(53,143)、(-69,91)，最后连接回第一个顶点，形成一个闭合五边形。坐标单位厘米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "mm",
+        "steps": [
+          {
+            "step_id": "pentagon-outline",
+            "output_ref": "pentagon.outline",
+            "semantic": {
+              "assembly_id": "pentagon",
+              "assembly_label": "闭合五边形",
+              "object_id": "pentagon-outline",
+              "object_type": "drawing_part",
+              "label": "闭合五边形轮廓",
+              "role": "outline"
+            },
+            "op": "add_polyline",
+            "vertices": [
+              {
+                "x": -780,
+                "y": -120
+              },
+              {
+                "x": 460,
+                "y": -390
+              },
+              {
+                "x": 1190,
+                "y": 350
+              },
+              {
+                "x": 530,
+                "y": 1430
+              },
+              {
+                "x": -690,
+                "y": 910
+              }
+            ],
+            "closed": true
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "pentagon-closed",
+            "target_ref": "pentagon.outline"
+          },
+          {
+            "kind": "entity_count",
+            "assertion_id": "pentagon-entity-count",
+            "target_ref": "pentagon.outline",
+            "equals": 1
+          }
+        ]
+      },
+      "evidence_text": [
+        "依次连接顶点(-78,-12)、(46,-39)、(119,35)、(53,143)、(-69,91)，最后连接回第一个顶点，形成一个闭合五边形。坐标单位厘米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "原文坐标单位为厘米，plan.units取mm，坐标数值乘10换算。",
+        "按用户给定顺序以直线段依次连接五个顶点并闭合，不添加平滑曲线。"
+      ],
+      "confidence": 0.98
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V2-r1-B\\api-response-b6c9e385-8df8-4a53-8b34-2be3435f5555.json",
+    "response_sha256": "e286b19ad03e4eeb05a42c7c5b7c3f746a1376af413c882207278ffcc2bcf649",
+    "independent_geometry": {
+      "passed": true,
+      "boundary_hausdorff_mm": 0.0,
+      "missing_boundary": false,
+      "extra_boundary": false,
+      "duplicate_boundary": false,
+      "sampled_limit_mm": 0.45
+    }
+  },
+  {
+    "case": "V2",
+    "source": "依次连接顶点(-78,-12)、(46,-39)、(119,35)、(53,143)、(-69,91)，最后连接回第一个顶点，形成一个闭合五边形。坐标单位厘米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "pentagon-outline",
+            "output_ref": "pentagon_outline",
+            "semantic": {
+              "assembly_id": "closed_pentagon",
+              "assembly_label": "闭合五边形",
+              "object_id": "pentagon_outline",
+              "object_type": "drawing_part",
+              "label": "闭合五边形轮廓",
+              "role": "outline"
+            },
+            "op": "add_polyline",
+            "vertices": [
+              {
+                "x": -0.78,
+                "y": -0.12
+              },
+              {
+                "x": 0.46,
+                "y": -0.39
+              },
+              {
+                "x": 1.19,
+                "y": 0.35
+              },
+              {
+                "x": 0.53,
+                "y": 1.43
+              },
+              {
+                "x": -0.69,
+                "y": 0.91
+              }
+            ],
+            "closed": true
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "pentagon-closed",
+            "target_ref": "pentagon_outline"
+          },
+          {
+            "kind": "entity_count",
+            "assertion_id": "pentagon-count",
+            "target_ref": "pentagon_outline",
+            "equals": 1
+          }
+        ]
+      },
+      "evidence_text": [
+        "依次连接顶点(-78,-12)、(46,-39)、(119,35)、(53,143)、(-69,91)，最后连接回第一个顶点，形成一个闭合五边形。坐标单位厘米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "原文坐标单位厘米，按统一来源单位契约换算为plan.units米：将每个坐标值除以100，一次性直接使用。",
+        "顶点按用户给定顺序连线并以闭合多段线回到首点，构成单一边界，不添加装饰或内孔。"
+      ],
+      "confidence": 0.97
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V2-r2-B\\api-response-2fbe0685-ce88-4035-a1b2-fb2f5e126469.json",
+    "response_sha256": "e3f3eb29276e0fc0f241fdc0346b71c6f3b4619f3aaf5e89a738a36b05957a3b",
+    "independent_geometry": {
+      "passed": true,
+      "boundary_hausdorff_mm": 0.0,
+      "missing_boundary": false,
+      "extra_boundary": false,
+      "duplicate_boundary": false,
+      "sampled_limit_mm": 0.45
+    }
+  },
+  {
+    "case": "V2",
+    "source": "依次连接顶点(-78,-12)、(46,-39)、(119,35)、(53,143)、(-69,91)，最后连接回第一个顶点，形成一个闭合五边形。坐标单位厘米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "pentagon-outline",
+            "output_ref": "pentagon_outline",
+            "semantic": {
+              "assembly_id": "closed_pentagon",
+              "assembly_label": "闭合五边形",
+              "object_id": "pentagon_outline",
+              "object_type": "drawing_part",
+              "label": "闭合五边形轮廓",
+              "role": "outer_boundary"
+            },
+            "op": "add_polyline",
+            "vertices": [
+              {
+                "x": -0.78,
+                "y": -0.12
+              },
+              {
+                "x": 0.46,
+                "y": -0.39
+              },
+              {
+                "x": 1.19,
+                "y": 0.35
+              },
+              {
+                "x": 0.53,
+                "y": 1.43
+              },
+              {
+                "x": -0.69,
+                "y": 0.91
+              }
+            ],
+            "closed": true
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "pentagon-closed",
+            "target_ref": "pentagon_outline"
+          },
+          {
+            "kind": "entity_count",
+            "assertion_id": "pentagon-count",
+            "target_ref": "pentagon_outline",
+            "equals": 1
+          }
+        ]
+      },
+      "evidence_text": [
+        "依次连接顶点(-78,-12)、(46,-39)、(119,35)、(53,143)、(-69,91)，最后连接回第一个顶点，形成一个闭合五边形。坐标单位厘米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "按原文坐标单位厘米换算为米：1厘米=0.01米，各顶点坐标乘以0.01。",
+        "顶点按用户给出顺序依次连线并闭合，形成单一闭合五边形。",
+        "仅生成预览几何，不执行小车运动。"
+      ],
+      "confidence": 0.97
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V2-r2-B\\api-response-af975d78-ebc8-4e7c-ab7a-9dc12e8100dc.json",
+    "response_sha256": "7a30cafe61e2a07d40adbd618e111de33a889b6a6a97fcd87a17be087abce80c",
+    "independent_geometry": {
+      "passed": true,
+      "boundary_hausdorff_mm": 0.0,
+      "missing_boundary": false,
+      "extra_boundary": false,
+      "duplicate_boundary": false,
+      "sampled_limit_mm": 0.45
+    }
+  },
+  {
+    "case": "V4",
+    "source": "从(-43,71)出发画折线，先沿与x轴正向成18度的方向走1.28米，再向右转61度接着画760毫米，再向左转73度接着画94厘米，再向右转46度接着画0.58米，再向左转61度接着画111厘米。五段连续连接，末端不连回起点，不加其他图形。坐标单位厘米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "mm",
+        "steps": [
+          {
+            "step_id": "step.polyline.1",
+            "output_ref": "outline.polyline",
+            "semantic": {
+              "assembly_id": "polyline_path",
+              "assembly_label": "折线",
+              "object_id": "polyline_path",
+              "object_type": "drawing_part",
+              "label": "五段连续折线",
+              "role": "outline"
+            },
+            "op": "add_polyline",
+            "vertices": [
+              {
+                "x": -430,
+                "y": 710
+              },
+              {
+                "x": "-430+1280*cos(18*pi/180)",
+                "y": "710+1280*sin(18*pi/180)"
+              },
+              {
+                "x": "-430+1280*cos(18*pi/180)+760*cos((18-61)*pi/180)",
+                "y": "710+1280*sin(18*pi/180)+760*sin((18-61)*pi/180)"
+              },
+              {
+                "x": "-430+1280*cos(18*pi/180)+760*cos((18-61)*pi/180)+940*cos((18-61+73)*pi/180)",
+                "y": "710+1280*sin(18*pi/180)+760*sin((18-61)*pi/180)+940*sin((18-61+73)*pi/180)"
+              },
+              {
+                "x": "-430+1280*cos(18*pi/180)+760*cos((18-61)*pi/180)+940*cos((18-61+73)*pi/180)+580*cos((18-61+73-46)*pi/180)",
+                "y": "710+1280*sin(18*pi/180)+760*sin((18-61)*pi/180)+940*sin((18-61+73)*pi/180)+580*sin((18-61+73-46)*pi/180)"
+              },
+              {
+                "x": "-430+1280*cos(18*pi/180)+760*cos((18-61)*pi/180)+940*cos((18-61+73)*pi/180)+580*cos((18-61+73-46)*pi/180)+1110*cos((18-61+73-46+61)*pi/180)",
+                "y": "710+1280*sin(18*pi/180)+760*sin((18-61)*pi/180)+940*sin((18-61+73)*pi/180)+580*sin((18-61+73-46)*pi/180)+1110*sin((18-61+73-46+61)*pi/180)"
+              }
+            ],
+            "closed": false
+          }
+        ]
+      },
+      "evidence_text": [
+        "从(-43,71)出发画折线，先沿与x轴正向成18度的方向走1.28米，再向右转61度接着画760毫米，再向左转73度接着画94厘米，再向右转46度接着画0.58米，再向左转61度接着画111厘米。五段连续连接，末端不连回起点，不加其他图形。坐标单位厘米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "坐标单位由原文指定为厘米，plan.units取mm，起点(-43,71)cm换算为(-430,710)mm。",
+        "各段长度按确定性需求规范化换算：1.28米=1280mm，760毫米=760mm，94厘米=940mm，0.58米=580mm，111厘米=1110mm。",
+        "方向角按x轴正向为0度、逆时针为正；右转扣减角度，左转累加角度；不使用整体包围盒尺寸假设。"
+      ],
+      "confidence": 0.95
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V4-r1-B\\api-response-4474b276-ca7b-46d7-ad11-2d97fef4e44f.json",
+    "response_sha256": "6bcb76d1cdb298b0d07b1b3f1009516b9dfe23e7d34368efe5adfb6fdb8b6d05",
+    "independent_geometry": {
+      "passed": true,
+      "boundary_hausdorff_mm": 0.0,
+      "missing_boundary": false,
+      "extra_boundary": false,
+      "duplicate_boundary": false,
+      "sampled_limit_mm": 0.45
+    }
+  },
+  {
+    "case": "V4",
+    "source": "从(-43,71)出发画折线，先沿与x轴正向成18度的方向走1.28米，再向右转61度接着画760毫米，再向左转73度接着画94厘米，再向右转46度接着画0.58米，再向左转61度接着画111厘米。五段连续连接，末端不连回起点，不加其他图形。坐标单位厘米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "polyline-1",
+            "output_ref": "polyline-1",
+            "semantic": {
+              "assembly_id": "user_polyline",
+              "assembly_label": "折线",
+              "object_id": "polyline_path",
+              "label": "五段连续折线",
+              "role": "outline"
+            },
+            "op": "add_polyline",
+            "vertices": [
+              {
+                "x": "-0.43",
+                "y": "0.71"
+              },
+              {
+                "x": "-0.43+1.28*cos(18*pi/180)",
+                "y": "0.71+1.28*sin(18*pi/180)"
+              },
+              {
+                "x": "-0.43+1.28*cos(18*pi/180)+0.76*cos((18-61)*pi/180)",
+                "y": "0.71+1.28*sin(18*pi/180)+0.76*sin((18-61)*pi/180)"
+              },
+              {
+                "x": "-0.43+1.28*cos(18*pi/180)+0.76*cos((18-61)*pi/180)+0.94*cos((18-61+73)*pi/180)",
+                "y": "0.71+1.28*sin(18*pi/180)+0.76*sin((18-61)*pi/180)+0.94*sin((18-61+73)*pi/180)"
+              },
+              {
+                "x": "-0.43+1.28*cos(18*pi/180)+0.76*cos((18-61)*pi/180)+0.94*cos((18-61+73)*pi/180)+0.58*cos((18-61+73-46)*pi/180)",
+                "y": "0.71+1.28*sin(18*pi/180)+0.76*sin((18-61)*pi/180)+0.94*sin((18-61+73)*pi/180)+0.58*sin((18-61+73-46)*pi/180)"
+              },
+              {
+                "x": "-0.43+1.28*cos(18*pi/180)+0.76*cos((18-61)*pi/180)+0.94*cos((18-61+73)*pi/180)+0.58*cos((18-61+73-46)*pi/180)+1.11*cos((18-61+73-46+61)*pi/180)",
+                "y": "0.71+1.28*sin(18*pi/180)+0.76*sin((18-61)*pi/180)+0.94*sin((18-61+73)*pi/180)+0.58*sin((18-61+73-46)*pi/180)+1.11*sin((18-61+73-46+61)*pi/180)"
+              }
+            ],
+            "closed": false
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "entity_count",
+            "assertion_id": "one-polyline",
+            "target_ref": "polyline-1",
+            "equals": 1
+          }
+        ]
+      },
+      "evidence_text": [
+        "从(-43,71)出发画折线，先沿与x轴正向成18度的方向走1.28米，再向右转61度接着画760毫米，再向左转73度接着画94厘米，再向右转46度接着画0.58米，再向左转61度接着画111厘米。五段连续连接，末端不连回起点，不加其他图形。坐标单位厘米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "坐标单位厘米，起点(-43,71)cm换算为(-0.43,0.71)m",
+        "长度按确定性需求规范化换算为米，plan.units取m",
+        "初始方向与x轴正向成18度；向右转61度记为方向角减61度，向左转73度记为加73度，向右转46度减46度，向左转61度加61度",
+        "折线五段连续连接，末端不连回起点，不添加其他图形"
+      ],
+      "confidence": 0.97
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V4-r1-B\\api-response-accb104a-2960-446f-aa0c-832556a25cee.json",
+    "response_sha256": "e8748acd3d629e9f607489ba293ae8aada68b3d088266b5cf829cb9fabc72a75",
+    "independent_geometry": {
+      "passed": true,
+      "boundary_hausdorff_mm": 5.084229945850415e-13,
+      "missing_boundary": false,
+      "extra_boundary": false,
+      "duplicate_boundary": false,
+      "sampled_limit_mm": 0.45
+    }
+  },
+  {
+    "case": "V4",
+    "source": "从(-43,71)出发画折线，先沿与x轴正向成18度的方向走1.28米，再向右转61度接着画760毫米，再向左转73度接着画94厘米，再向右转46度接着画0.58米，再向左转61度接着画111厘米。五段连续连接，末端不连回起点，不加其他图形。坐标单位厘米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "cm",
+        "steps": [
+          {
+            "step_id": "polyline_1",
+            "output_ref": "polyline_1",
+            "semantic": {
+              "assembly_id": "polyline_shape",
+              "assembly_label": "折线",
+              "label": "五段连续折线",
+              "object_type": "drawing_part",
+              "role": "outline"
+            },
+            "op": "add_polyline",
+            "vertices": [
+              {
+                "x": -43,
+                "y": 71
+              },
+              {
+                "x": "-43+128*cos(18*pi/180)",
+                "y": "71+128*sin(18*pi/180)"
+              },
+              {
+                "x": "-43+128*cos(18*pi/180)+76*cos(-43*pi/180)",
+                "y": "71+128*sin(18*pi/180)+76*sin(-43*pi/180)"
+              },
+              {
+                "x": "-43+128*cos(18*pi/180)+76*cos(-43*pi/180)+94*cos(30*pi/180)",
+                "y": "71+128*sin(18*pi/180)+76*sin(-43*pi/180)+94*sin(30*pi/180)"
+              },
+              {
+                "x": "-43+128*cos(18*pi/180)+76*cos(-43*pi/180)+94*cos(30*pi/180)+58*cos(-16*pi/180)",
+                "y": "71+128*sin(18*pi/180)+76*sin(-43*pi/180)+94*sin(30*pi/180)+58*sin(-16*pi/180)"
+              },
+              {
+                "x": "-43+128*cos(18*pi/180)+76*cos(-43*pi/180)+94*cos(30*pi/180)+58*cos(-16*pi/180)+111*cos(45*pi/180)",
+                "y": "71+128*sin(18*pi/180)+76*sin(-43*pi/180)+94*sin(30*pi/180)+58*sin(-16*pi/180)+111*sin(45*pi/180)"
+              }
+            ],
+            "closed": false
+          }
+        ]
+      },
+      "evidence_text": [
+        "从(-43,71)出发画折线，先沿与x轴正向成18度的方向走1.28米，再向右转61度接着画760毫米，再向左转73度接着画94厘米，再向右转46度接着画0.58米，再向左转61度接着画111厘米。五段连续连接，末端不连回起点，不加其他图形。坐标单位厘米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "坐标单位为用户指定的厘米，plan.units=cm；起点(-43,71)按厘米直接使用",
+        "长度按原文换算为厘米：1.28米=128，760毫米=76，94厘米=94，0.58米=58，111厘米=111",
+        "方向角度以x轴正方向为0度、逆时针为正；右转61度后方向为18-61=-43度，左转73度后为-43+73=30度，右转46度后为30-46=-16度，左转61度后为-16+61=45度",
+        "折线五段首尾连续，末端不闭合回起点"
+      ],
+      "confidence": 0.95
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V4-r2-B\\api-response-2efab9cc-8e81-4209-852c-de1131328d0e.json",
+    "response_sha256": "bbf21323f804cb8c594b977a777c6c104f787d78ca6c16910d4418c470bfab02",
+    "independent_geometry": {
+      "passed": false,
+      "error": "1 validation error for CadConstructionPlan\nunits\n  Input should be 'm' or 'mm' [type=literal_error, input_value='cm', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.11/v/literal_error"
+    }
+  },
+  {
+    "case": "V4",
+    "source": "从(-43,71)出发画折线，先沿与x轴正向成18度的方向走1.28米，再向右转61度接着画760毫米，再向左转73度接着画94厘米，再向右转46度接着画0.58米，再向左转61度接着画111厘米。五段连续连接，末端不连回起点，不加其他图形。坐标单位厘米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "polyline-1",
+            "output_ref": "polyline-1",
+            "semantic": {
+              "assembly_id": "zigzag_polyline",
+              "assembly_label": "折线",
+              "object_id": "polyline_main",
+              "object_type": "drawing_part",
+              "label": "五段连续折线",
+              "role": "outline"
+            },
+            "op": "add_polyline",
+            "closed": false,
+            "vertices": [
+              {
+                "x": "-0.43",
+                "y": "0.71"
+              },
+              {
+                "x": "-0.43+1.28*cos(18*pi/180)",
+                "y": "0.71+1.28*sin(18*pi/180)"
+              },
+              {
+                "x": "-0.43+1.28*cos(18*pi/180)+0.76*cos(-43*pi/180)",
+                "y": "0.71+1.28*sin(18*pi/180)+0.76*sin(-43*pi/180)"
+              },
+              {
+                "x": "-0.43+1.28*cos(18*pi/180)+0.76*cos(-43*pi/180)+0.94*cos(30*pi/180)",
+                "y": "0.71+1.28*sin(18*pi/180)+0.76*sin(-43*pi/180)+0.94*sin(30*pi/180)"
+              },
+              {
+                "x": "-0.43+1.28*cos(18*pi/180)+0.76*cos(-43*pi/180)+0.94*cos(30*pi/180)+0.58*cos(-16*pi/180)",
+                "y": "0.71+1.28*sin(18*pi/180)+0.76*sin(-43*pi/180)+0.94*sin(30*pi/180)+0.58*sin(-16*pi/180)"
+              },
+              {
+                "x": "-0.43+1.28*cos(18*pi/180)+0.76*cos(-43*pi/180)+0.94*cos(30*pi/180)+0.58*cos(-16*pi/180)+1.11*cos(45*pi/180)",
+                "y": "0.71+1.28*sin(18*pi/180)+0.76*sin(-43*pi/180)+0.94*sin(30*pi/180)+0.58*sin(-16*pi/180)+1.11*sin(45*pi/180)"
+              }
+            ]
+          }
+        ]
+      },
+      "evidence_text": [
+        "从(-43,71)出发画折线，先沿与x轴正向成18度的方向走1.28米，再向右转61度接着画760毫米，再向左转73度接着画94厘米，再向右转46度接着画0.58米，再向左转61度接着画111厘米。五段连续连接，末端不连回起点，不加其他图形。坐标单位厘米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "plan.units采用米，起点(-43,71)厘米换算为(-0.43,0.71)米。",
+        "长度依次为1.28、0.76、0.94、0.58、1.11米；朝向依次为18度、18-61=-43度、-43+73=30度、30-46=-16度、-16+61=45度。",
+        "仅表示折线五个顶点，开放折线不闭合，无其他图形。"
+      ],
+      "confidence": 0.97
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V4-r2-B\\api-response-533448dc-b3db-467e-8318-ff20bae55c2e.json",
+    "response_sha256": "755ac3afa3c4904b3ed6fbd818631bb23dd6204b5b17e6a5b7c3731b605b0829",
+    "independent_geometry": {
+      "passed": true,
+      "boundary_hausdorff_mm": 5.084229945850415e-13,
+      "missing_boundary": false,
+      "extra_boundary": false,
+      "duplicate_boundary": false,
+      "sampled_limit_mm": 0.45
+    }
+  },
+  {
+    "case": "V4",
+    "source": "从(-43,71)出发画折线，先沿与x轴正向成18度的方向走1.28米，再向右转61度接着画760毫米，再向左转73度接着画94厘米，再向右转46度接着画0.58米，再向左转61度接着画111厘米。五段连续连接，末端不连回起点，不加其他图形。坐标单位厘米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "polyline_1",
+            "output_ref": "polyline_1",
+            "semantic": {
+              "assembly_id": "polyline_shape",
+              "assembly_label": "折线",
+              "object_id": "polyline_1",
+              "object_type": "drawing_part",
+              "label": "五段连续折线",
+              "role": "outline"
+            },
+            "op": "add_polyline",
+            "vertices": [
+              {
+                "x": -0.43,
+                "y": 0.71
+              },
+              {
+                "x": "-0.43+1.28*cos(18*pi/180)",
+                "y": "0.71+1.28*sin(18*pi/180)"
+              },
+              {
+                "x": "-0.43+1.28*cos(18*pi/180)+0.76*cos(-43*pi/180)",
+                "y": "0.71+1.28*sin(18*pi/180)+0.76*sin(-43*pi/180)"
+              },
+              {
+                "x": "-0.43+1.28*cos(18*pi/180)+0.76*cos(-43*pi/180)+0.94*cos(30*pi/180)",
+                "y": "0.71+1.28*sin(18*pi/180)+0.76*sin(-43*pi/180)+0.94*sin(30*pi/180)"
+              },
+              {
+                "x": "-0.43+1.28*cos(18*pi/180)+0.76*cos(-43*pi/180)+0.94*cos(30*pi/180)+0.58*cos(-16*pi/180)",
+                "y": "0.71+1.28*sin(18*pi/180)+0.76*sin(-43*pi/180)+0.94*sin(30*pi/180)+0.58*sin(-16*pi/180)"
+              },
+              {
+                "x": "-0.43+1.28*cos(18*pi/180)+0.76*cos(-43*pi/180)+0.94*cos(30*pi/180)+0.58*cos(-16*pi/180)+1.11*cos(45*pi/180)",
+                "y": "0.71+1.28*sin(18*pi/180)+0.76*sin(-43*pi/180)+0.94*sin(30*pi/180)+0.58*sin(-16*pi/180)+1.11*sin(45*pi/180)"
+              }
+            ],
+            "closed": false
+          }
+        ]
+      },
+      "evidence_text": [
+        "从(-43,71)出发画折线，先沿与x轴正向成18度的方向走1.28米，再向右转61度接着画760毫米，再向左转73度接着画94厘米，再向右转46度接着画0.58米，再向左转61度接着画111厘米。五段连续连接，末端不连回起点，不加其他图形。坐标单位厘米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "平面单位为米（plan.units=m）；原文坐标(-43,71)单位为厘米，换算为(-0.43,0.71)米。",
+        "各段长度按确定性需求规范化统一换算为米：1.28米、0.76米、0.94米、0.58米、1.11米。",
+        "方向角按x轴正向为0度、逆时针为正累计：18度；右转61度后为-43度；左转73度后为30度；右转46度后为-16度；左转61度后为45度。",
+        "五段首尾相接为一条开放折线，末端不闭合回起点，不添加其他图形。"
+      ],
+      "confidence": 0.97
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V4-r2-B\\api-response-e6356bb2-c40e-42ab-8b09-c221b9e56476.json",
+    "response_sha256": "41cd499cfa9c4e5d77d84e27ae5a2bd33a70bd5b6e96728f9326aca0b7e71746",
+    "independent_geometry": {
+      "passed": true,
+      "boundary_hausdorff_mm": 5.084229945850415e-13,
+      "missing_boundary": false,
+      "extra_boundary": false,
+      "duplicate_boundary": false,
+      "sampled_limit_mm": 0.45
+    }
+  }
+]

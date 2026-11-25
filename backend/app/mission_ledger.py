@@ -11,12 +11,10 @@ from typing import Any
 
 from .task_store import utc_now
 from .database import xline_database
-from .startup_guard import assert_startup_admitted, startup_recovery_authorized
 
 
 class MissionLedgerStore:
     def __init__(self, path: Path | None = None) -> None:
-        assert_startup_admitted()
         self._database_enabled = path is None
         configured = os.getenv("XLINE_MISSION_LEDGER_STORE", "").strip()
         default_root = (
@@ -29,8 +27,7 @@ class MissionLedgerStore:
         self._lock = threading.RLock()
         self._missions: dict[str, dict[str, Any]] = {}
         self._load()
-        if startup_recovery_authorized():
-            self._interrupt_running()
+        self._interrupt_running()
 
     def create(self, file_name: str, summary: dict[str, Any], segments: list[dict[str, Any]], classify: Any,
                quality: dict[str, Any] | None = None, drawing_version: dict[str, Any] | None = None,

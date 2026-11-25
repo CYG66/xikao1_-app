@@ -1,0 +1,181 @@
+{
+  "date": "2026-11-25",
+  "phase": 6,
+  "meaning": "Human reading of tool-presented source, including rereads. Cumulative ranges are conservatively merged from preserved ledgers; no whole-repository completion claim.",
+  "partial_modules": [
+    {
+      "file": "app/agent_service.py",
+      "lines": 11566,
+      "sha256": "7f28f5ac9aae3606ac3b3e43f8d7a0399cb791061badf3c0b7d4bcfbfeb93a38",
+      "read_ranges_this_phase": [
+        [
+          1,
+          613
+        ],
+        [
+          1258,
+          1385
+        ],
+        [
+          1618,
+          2252
+        ],
+        [
+          2406,
+          2656
+        ],
+        [
+          2806,
+          2995
+        ],
+        [
+          3128,
+          4970
+        ],
+        [
+          11281,
+          11566
+        ]
+      ],
+      "full_module_complete": false
+    }
+  ],
+  "service_lines_presented_this_phase_including_rereads": 3946,
+  "service_cumulative_read_ranges": [
+    [
+      1,
+      5885
+    ],
+    [
+      7411,
+      7900
+    ],
+    [
+      8261,
+      8470
+    ],
+    [
+      10574,
+      11179
+    ],
+    [
+      11281,
+      11566
+    ]
+  ],
+  "service_cumulative_covered_lines": 7477,
+  "service_uncompleted_ranges": [
+    [
+      5886,
+      7410
+    ],
+    [
+      7901,
+      8260
+    ],
+    [
+      8471,
+      10573
+    ],
+    [
+      11180,
+      11280
+    ]
+  ],
+  "full_modules_completed": [
+    {
+      "file": "app/model_request_gateway.py",
+      "lines": 79,
+      "sha256": "190c469e93cbf39aa556c3f6bbe6e7a97e92506a4728ea24bc0577a352f5dc70",
+      "read_ranges_this_phase": [
+        [
+          1,
+          79
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "app/deepseek_transport.py",
+      "lines": 141,
+      "sha256": "36e2831a5a23e30223c73ff89794d87b799a71c6744ff4096132b82becfffc95",
+      "read_ranges_this_phase": [
+        [
+          1,
+          141
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "app/structured_usage.py",
+      "lines": 73,
+      "sha256": "48ac03ba943242f1e3df94964bf2b7c714bb1f94f45d31a2834c156e18a24cfc",
+      "read_ranges_this_phase": [
+        [
+          1,
+          73
+        ]
+      ],
+      "full_module_complete": true
+    }
+  ],
+  "production_module_lines": 293,
+  "full_test_files_read": [
+    {
+      "file": "tests/test_deepseek_transport.py",
+      "lines": 35,
+      "sha256": "b0ea63c2a9304e13122fe9e7bcebdff24a343c2759a7d0cb1329e0faf0d6984e",
+      "read_ranges_this_phase": [
+        [
+          1,
+          35
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "tests/test_cad_model_strategy.py",
+      "lines": 81,
+      "sha256": "d720039d0df798a0b7b71aaabfdede61d468cd261fada400b036d3fb661c4405",
+      "read_ranges_this_phase": [
+        [
+          1,
+          81
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "tests/test_deepseek_flash_compatibility.py",
+      "lines": 20,
+      "sha256": "f9c19ceeca9a534554e9ba97dfb0a9c95f6cab9d8bf8cc3f21000b0ae81214bb",
+      "read_ranges_this_phase": [
+        [
+          1,
+          20
+        ]
+      ],
+      "full_module_complete": true
+    },
+    {
+      "file": "tests/test_deepseek_flash_budget.py",
+      "lines": 37,
+      "sha256": "897b779e22a56acffdf8865f4e6fc6542434774cc2b446e5d0cc66841b75eb3f",
+      "read_ranges_this_phase": [
+        [
+          1,
+          37
+        ]
+      ],
+      "full_module_complete": true
+    }
+  ],
+  "test_file_lines": 173,
+  "new_evidence": [
+    "phase6-probes.json",
+    "phase6-integrity.json"
+  ],
+  "prior_reading_ledgers_preserved": true,
+  "whole_repository_manual_read_complete": false
+}

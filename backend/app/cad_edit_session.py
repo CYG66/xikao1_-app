@@ -4,6 +4,8 @@ import re
 
 
 def fresh_creation(text):
+    from .cad_source_intent import partition_preview_intent
+    text,_=partition_preview_intent(text)
     return bool(re.search(r'(?:新建|重新生成|另画|另建|生成|画一|绘制)',text)) and not bool(re.search(r'同样|复制|副本|新增|添加',text))
 
 

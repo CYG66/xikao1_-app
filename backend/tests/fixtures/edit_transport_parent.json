@@ -1,0 +1,3055 @@
+{
+  "projects": [
+    {
+      "id": "328bfdcd-8af0-4813-be16-9d89e5e347e8",
+      "name": "在同一张图中画三个独立图形。左圆：圆，圆心(-1600,800)，半径340毫米，坐标单位毫米；... · 构造项目",
+      "owner_conversation_id": "E1-r1-B",
+      "original_prompt": "在同一张图中画三个独立图形。左圆：圆，圆心(-1600,800)，半径340毫米，坐标单位毫米；右圆：圆，圆心(2100,800)，半径220毫米，坐标单位毫米；下矩形：矩形，左下角(-400,-1300)，宽900毫米，高650毫米，坐标单位毫米。不要增加连接线或标注。只生成预览，不执行小车。",
+      "requirements": {
+        "shape": "generic_2d_cad",
+        "construction_mode": "deterministic_ir",
+        "units": "mm",
+        "candidate_count": 1
+      },
+      "constraints": {
+        "validated_before_persist": true,
+        "geometry_authority": "deterministic_backend"
+      },
+      "missing_parameters": [],
+      "status": "designing",
+      "variants": [
+        {
+          "write_key": "fd9297b0afa6592ef5dc0ea80e43b212bb2d9e7d74f2956773df1c5e01b7fbaa",
+          "id": "4c06327a-4d43-4df3-bf00-5299335a8ccf",
+          "name": "通用 CAD 构造候选",
+          "rationale": "按已验证的结构化构造计划生成。",
+          "geometries": [
+            {
+              "id": 1,
+              "layer_id": 1,
+              "type": "circle",
+              "center": {
+                "x": -1600.0,
+                "y": 800.0,
+                "z": 0.0
+              },
+              "radius": 340.0
+            },
+            {
+              "id": 2,
+              "layer_id": 1,
+              "type": "circle",
+              "center": {
+                "x": 2100.0,
+                "y": 800.0,
+                "z": 0.0
+              },
+              "radius": 220.0
+            },
+            {
+              "id": 3,
+              "layer_id": 1,
+              "type": "polyline",
+              "vertices": [
+                {
+                  "x": -400.0,
+                  "y": -1300.0,
+                  "z": 0.0
+                },
+                {
+                  "x": 500.0,
+                  "y": -1300.0,
+                  "z": 0.0
+                },
+                {
+                  "x": 500.0,
+                  "y": -650.0,
+                  "z": 0.0
+                },
+                {
+                  "x": -400.0,
+                  "y": -650.0,
+                  "z": 0.0
+                }
+              ],
+              "closed": true
+            }
+          ],
+          "identity_contract": {
+            "schema": "cad.identity.v1",
+            "geometry_ids": [
+              1,
+              2,
+              3
+            ],
+            "instance_ids": [],
+            "geometry_count": 3,
+            "instance_count": 0,
+            "groups": [],
+            "instances_authoritative": false
+          },
+          "assessment": {
+            "score_type": "design_only",
+            "score": 100,
+            "grade": "A",
+            "feasibility": {
+              "ok": true,
+              "errors": [],
+              "warnings": [],
+              "geometry_count": 3,
+              "preview_path_count": 3,
+              "printing_length_m": 5.9686,
+              "topology": {
+                "ok": true,
+                "errors": [],
+                "warnings": [],
+                "open_chain_count": 0,
+                "closed_loop_count": 3,
+                "self_intersection_count": 0,
+                "path_self_intersection_count": 0,
+                "cross_path_intersection_count": 0,
+                "duplicate_geometry_count": 0,
+                "disconnected_component_count": 3,
+                "endpoint_count": 0
+              },
+              "bounds": {
+                "min_x_mm": -1940.0,
+                "max_x_mm": 2320.0,
+                "min_y_mm": -1300.0,
+                "max_y_mm": 1140.0,
+                "width_mm": 4260.0,
+                "height_mm": 2440.0
+              },
+              "boundary_check": {
+                "ok": true,
+                "bounds": {
+                  "min_x_mm": -1940.0,
+                  "max_x_mm": 2320.0,
+                  "min_y_mm": -1300.0,
+                  "max_y_mm": 1140.0,
+                  "width_mm": 4260.0,
+                  "height_mm": 2440.0
+                },
+                "errors": [],
+                "warnings": []
+              }
+            },
+            "metrics": {
+              "estimated_time_sec": 63.7,
+              "estimated_time_min": 1.1,
+              "estimate_speed_mps": 0.1
+            },
+            "project_scale": {
+              "schema": "cad.project-scale.v1",
+              "width_m": 4.26,
+              "height_m": 2.44,
+              "work_zone_size_m": 50.0,
+              "suggested_rows": 1,
+              "suggested_columns": 1,
+              "suggested_zone_count": 1,
+              "maximum_paths_per_zone": 500,
+              "requires_partitioning": false,
+              "reason": "图纸可作为单个施工分区继续规划"
+            },
+            "risks": [],
+            "risk_level": "low",
+            "limitations": [
+              "这是设计阶段估算，不是 ROS2 实际执行时间",
+              "未包含现场障碍物、定位误差和转场路径",
+              "最终喷墨路径必须经过 xline_ws3 ROS2 规划器确认"
+            ],
+            "change_summary": {
+              "geometry_delta": 3,
+              "path_delta": 3,
+              "printing_length_delta_m": 5.9686
+            },
+            "requires_ros_planning_score": true,
+            "construction_validation": {
+              "assertions": {
+                "ok": true,
+                "count": 6
+              },
+              "constraint_solve": {
+                "schema": "cad.constraint-solve.v1",
+                "requested_backend": "auto",
+                "backend": "builtin",
+                "external_backends": {
+                  "builtin": {
+                    "available": true,
+                    "executable": null,
+                    "transport": "in_process"
+                  },
+                  "solvespace": {
+                    "available": false,
+                    "executable": null,
+                    "transport": "isolated_python_worker",
+                    "package": "slvs"
+                  },
+                  "planegcs": {
+                    "available": false,
+                    "executable": null,
+                    "transport": "isolated_python_worker",
+                    "package": "planegcs"
+                  }
+                },
+                "verified": true,
+                "constraint_count": 0,
+                "constraints": [],
+                "native_result": null,
+                "builtin_fallback_constraint_ids": [],
+                "geometry_is_authoritative": true
+              },
+              "curve_quality": {},
+              "graph_validation": {
+                "schema": "cad.logical-validation.v1",
+                "verified": true,
+                "errors": [],
+                "object_count": 3,
+                "shared_geometry_count": 0,
+                "relation_count": 0,
+                "fingerprint": "bd1cfe5ff458718aa07812eae4b62691c4b441a4a3c451930745d84403d9fed8"
+              },
+              "units_normalized": "declared_mm"
+            }
+          },
+          "acceptance_summary": {
+            "status": "passed",
+            "review_required": false,
+            "authority": "backend_measured_geometry",
+            "verified_checks": 7,
+            "failed_checks": [],
+            "requirement_coverage": "complete",
+            "unknown_requirements": [],
+            "geometry_validity": "passed",
+            "constraint_satisfaction": "not_checked",
+            "assertion_status": "passed",
+            "unverified_geometry_ids": []
+          },
+          "preview_paths": [
+            {
+              "namespace": "drawing_preview",
+              "frame_id": "map",
+              "route_type": "printing",
+              "points": [
+                [
+                  -1.26,
+                  0.8
+                ],
+                [
+                  -1.2616371929314532,
+                  0.8333258277120507
+                ],
+                [
+                  -1.2665330046629018,
+                  0.8663307094854836
+                ],
+                [
+                  -1.274640285851049,
+                  0.8986967902665173
+                ],
+                [
+                  -1.2858809589461626,
+                  0.9301123670041306
+                ],
+                [
+                  -1.3001467701215592,
+                  0.9602748905208393
+                ],
+                [
+                  -1.3173003318171346,
+                  0.9888938792266648
+                ],
+                [
+                  -1.3371764458566695,
+                  1.0156937166156395
+                ],
+                [
+                  -1.3595836943965738,
+                  1.0404163056034261
+                ],
+                [
+                  -1.3843062833843607,
+                  1.0628235541433306
+                ],
+                [
+                  -1.4111061207733353,
+                  1.0826996681828653
+                ],
+                [
+                  -1.4397251094791608,
+                  1.0998532298784407
+                ],
+                [
+                  -1.4698876329958694,
+                  1.1141190410538375
+                ],
+                [
+                  -1.5013032097334829,
+                  1.125359714148951
+                ],
+                [
+                  -1.5336692905145164,
+                  1.1334669953370984
+                ],
+                [
+                  -1.5666741722879494,
+                  1.138362807068547
+                ],
+                [
+                  -1.6,
+                  1.1400000000000001
+                ],
+                [
+                  -1.6333258277120508,
+                  1.138362807068547
+                ],
+                [
+                  -1.6663307094854836,
+                  1.1334669953370984
+                ],
+                [
+                  -1.6986967902665173,
+                  1.125359714148951
+                ],
+                [
+                  -1.7301123670041305,
+                  1.1141190410538375
+                ],
+                [
+                  -1.7602748905208394,
+                  1.0998532298784407
+                ],
+                [
+                  -1.7888938792266647,
+                  1.0826996681828656
+                ],
+                [
+                  -1.8156937166156395,
+                  1.0628235541433306
+                ],
+                [
+                  -1.8404163056034262,
+                  1.0404163056034261
+                ],
+                [
+                  -1.8628235541433307,
+                  1.0156937166156395
+                ],
+                [
+                  -1.8826996681828656,
+                  0.9888938792266648
+                ],
+                [
+                  -1.8998532298784407,
+                  0.9602748905208394
+                ],
+                [
+                  -1.9141190410538376,
+                  0.9301123670041306
+                ],
+                [
+                  -1.9253597141489511,
+                  0.8986967902665173
+                ],
+                [
+                  -1.9334669953370984,
+                  0.8663307094854837
+                ],
+                [
+                  -1.938362807068547,
+                  0.8333258277120508
+                ],
+                [
+                  -1.9400000000000002,
+                  0.8
+                ],
+                [
+                  -1.938362807068547,
+                  0.7666741722879494
+                ],
+                [
+                  -1.9334669953370984,
+                  0.7336692905145163
+                ],
+                [
+                  -1.9253597141489511,
+                  0.7013032097334829
+                ],
+                [
+                  -1.9141190410538376,
+                  0.6698876329958695
+                ],
+                [
+                  -1.899853229878441,
+                  0.6397251094791608
+                ],
+                [
+                  -1.8826996681828656,
+                  0.6111061207733354
+                ],
+                [
+                  -1.8628235541433307,
+                  0.5843062833843606
+                ],
+                [
+                  -1.8404163056034264,
+                  0.5595836943965738
+                ],
+                [
+                  -1.8156937166156397,
+                  0.5371764458566696
+                ],
+                [
+                  -1.7888938792266649,
+                  0.5173003318171346
+                ],
+                [
+                  -1.7602748905208394,
+                  0.5001467701215594
+                ],
+                [
+                  -1.7301123670041307,
+                  0.4858809589461626
+                ],
+                [
+                  -1.6986967902665173,
+                  0.474640285851049
+                ],
+                [
+                  -1.6663307094854838,
+                  0.4665330046629017
+                ],
+                [
+                  -1.6333258277120506,
+                  0.46163719293145306
+                ],
+                [
+                  -1.6,
+                  0.46
+                ],
+                [
+                  -1.5666741722879496,
+                  0.46163719293145306
+                ],
+                [
+                  -1.5336692905145164,
+                  0.46653300466290165
+                ],
+                [
+                  -1.501303209733483,
+                  0.474640285851049
+                ],
+                [
+                  -1.4698876329958694,
+                  0.48588095894616257
+                ],
+                [
+                  -1.439725109479161,
+                  0.5001467701215593
+                ],
+                [
+                  -1.4111061207733355,
+                  0.5173003318171345
+                ],
+                [
+                  -1.3843062833843605,
+                  0.5371764458566695
+                ],
+                [
+                  -1.359583694396574,
+                  0.5595836943965738
+                ],
+                [
+                  -1.3371764458566697,
+                  0.5843062833843604
+                ],
+                [
+                  -1.3173003318171346,
+                  0.6111061207733353
+                ],
+                [
+                  -1.3001467701215594,
+                  0.6397251094791607
+                ],
+                [
+                  -1.2858809589461626,
+                  0.6698876329958693
+                ],
+                [
+                  -1.274640285851049,
+                  0.7013032097334828
+                ],
+                [
+                  -1.2665330046629018,
+                  0.7336692905145162
+                ],
+                [
+                  -1.2616371929314532,
+                  0.7666741722879494
+                ],
+                [
+                  -1.26,
+                  0.7999999999999999
+                ]
+              ],
+              "geometry_type": "circle",
+              "bounds": {
+                "min_x": -1.9400000000000002,
+                "min_y": 0.46,
+                "max_x": -1.26,
+                "max_y": 1.1400000000000001
+              },
+              "geometry_id": 1
+            },
+            {
+              "namespace": "drawing_preview",
+              "frame_id": "map",
+              "route_type": "printing",
+              "points": [
+                [
+                  2.3200000000000003,
+                  0.8
+                ],
+                [
+                  2.3189406398678836,
+                  0.8215637708725034
+                ],
+                [
+                  2.3157727616887107,
+                  0.8429198708435482
+                ],
+                [
+                  2.310526873861086,
+                  0.8638626289959818
+                ],
+                [
+                  2.3032534971524834,
+                  0.8841903551203198
+                ],
+                [
+                  2.2940226781566384,
+                  0.9037072821017196
+                ],
+                [
+                  2.28292331470656,
+                  0.9222254512643125
+                ],
+                [
+                  2.270062299739802,
+                  0.939566522516002
+                ],
+                [
+                  2.2555634918610403,
+                  0.9555634918610405
+                ],
+                [
+                  2.239566522516002,
+                  0.9700622997398022
+                ],
+                [
+                  2.2222254512643125,
+                  0.98292331470656
+                ],
+                [
+                  2.2037072821017194,
+                  0.9940226781566381
+                ],
+                [
+                  2.18419035512032,
+                  1.0032534971524831
+                ],
+                [
+                  2.163862628995982,
+                  1.010526873861086
+                ],
+                [
+                  2.1429198708435484,
+                  1.0157727616887107
+                ],
+                [
+                  2.1215637708725033,
+                  1.0189406398678833
+                ],
+                [
+                  2.1,
+                  1.02
+                ],
+                [
+                  2.078436229127497,
+                  1.0189406398678833
+                ],
+                [
+                  2.0570801291564518,
+                  1.0157727616887107
+                ],
+                [
+                  2.0361373710040183,
+                  1.010526873861086
+                ],
+                [
+                  2.0158096448796803,
+                  1.0032534971524831
+                ],
+                [
+                  1.9962927178982806,
+                  0.9940226781566381
+                ],
+                [
+                  1.9777745487356877,
+                  0.98292331470656
+                ],
+                [
+                  1.9604334774839982,
+                  0.9700622997398022
+                ],
+                [
+                  1.9444365081389596,
+                  0.9555634918610405
+                ],
+                [
+                  1.929937700260198,
+                  0.939566522516002
+                ],
+                [
+                  1.91707668529344,
+                  0.9222254512643125
+                ],
+                [
+                  1.905977321843362,
+                  0.9037072821017196
+                ],
+                [
+                  1.896746502847517,
+                  0.8841903551203198
+                ],
+                [
+                  1.8894731261389142,
+                  0.8638626289959818
+                ],
+                [
+                  1.8842272383112895,
+                  0.8429198708435484
+                ],
+                [
+                  1.8810593601321168,
+                  0.8215637708725034
+                ],
+                [
+                  1.8800000000000001,
+                  0.8
+                ],
+                [
+                  1.8810593601321168,
+                  0.7784362291274967
+                ],
+                [
+                  1.8842272383112895,
+                  0.7570801291564518
+                ],
+                [
+                  1.8894731261389142,
+                  0.7361373710040184
+                ],
+                [
+                  1.896746502847517,
+                  0.7158096448796804
+                ],
+                [
+                  1.905977321843362,
+                  0.6962927178982805
+                ],
+                [
+                  1.91707668529344,
+                  0.6777745487356877
+                ],
+                [
+                  1.9299377002601978,
+                  0.660433477483998
+                ],
+                [
+                  1.9444365081389596,
+                  0.6444365081389596
+                ],
+                [
+                  1.960433477483998,
+                  0.629937700260198
+                ],
+                [
+                  1.9777745487356877,
+                  0.6170766852934401
+                ],
+                [
+                  1.9962927178982806,
+                  0.605977321843362
+                ],
+                [
+                  2.0158096448796803,
+                  0.596746502847517
+                ],
+                [
+                  2.0361373710040183,
+                  0.5894731261389141
+                ],
+                [
+                  2.0570801291564518,
+                  0.5842272383112894
+                ],
+                [
+                  2.078436229127497,
+                  0.5810593601321168
+                ],
+                [
+                  2.1,
+                  0.5800000000000001
+                ],
+                [
+                  2.1215637708725033,
+                  0.5810593601321168
+                ],
+                [
+                  2.1429198708435484,
+                  0.5842272383112893
+                ],
+                [
+                  2.163862628995982,
+                  0.5894731261389141
+                ],
+                [
+                  2.18419035512032,
+                  0.596746502847517
+                ],
+                [
+                  2.2037072821017194,
+                  0.605977321843362
+                ],
+                [
+                  2.2222254512643125,
+                  0.6170766852934401
+                ],
+                [
+                  2.239566522516002,
+                  0.6299377002601979
+                ],
+                [
+                  2.2555634918610403,
+                  0.6444365081389596
+                ],
+                [
+                  2.270062299739802,
+                  0.6604334774839979
+                ],
+                [
+                  2.28292331470656,
+                  0.6777745487356875
+                ],
+                [
+                  2.294022678156638,
+                  0.6962927178982805
+                ],
+                [
+                  2.303253497152483,
+                  0.7158096448796801
+                ],
+                [
+                  2.310526873861086,
+                  0.7361373710040183
+                ],
+                [
+                  2.3157727616887107,
+                  0.7570801291564517
+                ],
+                [
+                  2.3189406398678836,
+                  0.7784362291274968
+                ],
+                [
+                  2.3200000000000003,
+                  0.8
+                ]
+              ],
+              "geometry_type": "circle",
+              "bounds": {
+                "min_x": 1.8800000000000001,
+                "min_y": 0.5800000000000001,
+                "max_x": 2.3200000000000003,
+                "max_y": 1.02
+              },
+              "geometry_id": 2
+            },
+            {
+              "namespace": "drawing_preview",
+              "frame_id": "map",
+              "route_type": "printing",
+              "points": [
+                [
+                  -0.4,
+                  -1.3
+                ],
+                [
+                  0.5,
+                  -1.3
+                ],
+                [
+                  0.5,
+                  -0.65
+                ],
+                [
+                  -0.4,
+                  -0.65
+                ],
+                [
+                  -0.4,
+                  -1.3
+                ]
+              ],
+              "geometry_type": "polyline",
+              "bounds": {
+                "min_x": -0.4,
+                "min_y": -1.3,
+                "max_x": 0.5,
+                "max_y": -0.65
+              },
+              "geometry_id": 3
+            }
+          ],
+          "selected": false,
+          "created_at": "2026-11-25T04:23:04.109255+00:00",
+          "logical_objects": [
+            {
+              "object_id": "left_circle_body",
+              "assembly_id": "left_circle",
+              "assembly_label": "左圆",
+              "object_type": "circle",
+              "label": "左圆",
+              "geometry_refs": [
+                1
+              ],
+              "bounds": {
+                "min_x": -1940.0,
+                "min_y": 460.0,
+                "max_x": -1260.0,
+                "max_y": 1140.0
+              },
+              "confirmed": true,
+              "confidence": 1.0
+            },
+            {
+              "object_id": "right_circle_body",
+              "assembly_id": "right_circle",
+              "assembly_label": "右圆",
+              "object_type": "circle",
+              "label": "右圆",
+              "geometry_refs": [
+                2
+              ],
+              "bounds": {
+                "min_x": 1880.0,
+                "min_y": 580.0,
+                "max_x": 2320.0,
+                "max_y": 1020.0
+              },
+              "confirmed": true,
+              "confidence": 1.0
+            },
+            {
+              "object_id": "bottom_rectangle_body",
+              "assembly_id": "bottom_rectangle",
+              "assembly_label": "下矩形",
+              "object_type": "rectangle",
+              "label": "下矩形",
+              "geometry_refs": [
+                3
+              ],
+              "bounds": {
+                "min_x": -400.0,
+                "min_y": -1300.0,
+                "max_x": 500.0,
+                "max_y": -650.0
+              },
+              "confirmed": true,
+              "confidence": 1.0
+            }
+          ],
+          "topology": {
+            "schema_version": "cad.topology.v1",
+            "shared_geometries": [],
+            "relations": []
+          },
+          "execution_context": {
+            "request_id": "22bd603b-fa6b-45f8-b011-f456ee247f8f",
+            "conversation_id": "E1-r1-B",
+            "schema": "cad.execution-context.v1",
+            "project_id": null,
+            "source_variant_id": null,
+            "drawing_selection": null,
+            "operation": "create",
+            "decision_source": "deterministic_generic_cad_creation",
+            "requirement_state": null,
+            "requirements": {},
+            "constraints": {},
+            "contract_version": "57128fbf6bfaf7850b8c3772f700f9189bc7e50825856ca91334d1500cd982d8",
+            "source_index": {
+              "schema": "cad.requirement-source-index.v1",
+              "contract_version": "57128fbf6bfaf7850b8c3772f700f9189bc7e50825856ca91334d1500cd982d8",
+              "request_id": "22bd603b-fa6b-45f8-b011-f456ee247f8f",
+              "project_id": null,
+              "entries": {
+                "user:0": {
+                  "requirement_ref": "user:0",
+                  "source_type": "explicit",
+                  "original_text": "在同一张图中画三个独立图形。左圆：圆，圆心(-1600,800)，半径340毫米，坐标单位毫米；右圆：圆，圆心(2100,800)，半径220毫米，坐标单位毫米；下矩形：矩形，左下角(-400,-1300)，宽900毫米，高650毫米，坐标单位毫米。不要增加连接线或标注。只生成预览，不执行小车。",
+                  "semantic_category": "user_requirement",
+                  "request_id": "22bd603b-fa6b-45f8-b011-f456ee247f8f",
+                  "contract_version": "57128fbf6bfaf7850b8c3772f700f9189bc7e50825856ca91334d1500cd982d8",
+                  "project_id": null,
+                  "source_status": "valid"
+                }
+              }
+            },
+            "sha256": "19385f6c1e671db229ed0907d1e004436f01e6332c7300fef4fac54f7096cc2a"
+          },
+          "execution_context_hash": "19385f6c1e671db229ed0907d1e004436f01e6332c7300fef4fac54f7096cc2a",
+          "parent_version_id": null,
+          "construction_record": {
+            "schema": "cad.construction-record.v1",
+            "template_specifications": [],
+            "parser": "structured_model",
+            "recovery": {
+              "schema": "cad.generation-recovery.v1",
+              "source_sha256": "d0baafc578fe50faac8016a41e442d5584bf1a87fa44c5aa4c57377597d58b2d",
+              "max_repairs": 2,
+              "repair_count": 0,
+              "attempts": [
+                {
+                  "attempt": 1,
+                  "status": "ready",
+                  "confidence": 0.98,
+                  "category": null,
+                  "error": null,
+                  "plan": {
+                    "shared_points": {},
+                    "schema_version": "cad.construction-plan.v1",
+                    "units": "mm",
+                    "project_id": null,
+                    "source_version": null,
+                    "steps": [
+                      {
+                        "step_id": "left_circle",
+                        "output_ref": "left_circle",
+                        "layer_id": 1,
+                        "semantic": {
+                          "assembly_id": "left_circle",
+                          "assembly_label": "左圆",
+                          "object_id": "left_circle_body",
+                          "object_type": "circle",
+                          "label": "左圆",
+                          "role": "outline"
+                        },
+                        "op": "add_circle",
+                        "center": {
+                          "x": -1600.0,
+                          "y": 800.0
+                        },
+                        "radius": 340.0
+                      },
+                      {
+                        "step_id": "right_circle",
+                        "output_ref": "right_circle",
+                        "layer_id": 1,
+                        "semantic": {
+                          "assembly_id": "right_circle",
+                          "assembly_label": "右圆",
+                          "object_id": "right_circle_body",
+                          "object_type": "circle",
+                          "label": "右圆",
+                          "role": "outline"
+                        },
+                        "op": "add_circle",
+                        "center": {
+                          "x": 2100.0,
+                          "y": 800.0
+                        },
+                        "radius": 220.0
+                      },
+                      {
+                        "step_id": "bottom_rectangle",
+                        "output_ref": "bottom_rectangle",
+                        "layer_id": 1,
+                        "semantic": {
+                          "assembly_id": "bottom_rectangle",
+                          "assembly_label": "下矩形",
+                          "object_id": "bottom_rectangle_body",
+                          "object_type": "rectangle",
+                          "label": "下矩形",
+                          "role": "outline"
+                        },
+                        "op": "add_rectangle",
+                        "origin": {
+                          "x": -400.0,
+                          "y": -1300.0
+                        },
+                        "width": 900.0,
+                        "height": 650.0,
+                        "rotation_deg": 0.0
+                      }
+                    ],
+                    "constraints": [],
+                    "constraint_backend": "auto",
+                    "assertions": [
+                      {
+                        "kind": "bounds_size",
+                        "assertion_id": "left_circle_bbox",
+                        "target_ref": "left_circle",
+                        "width": 680.0,
+                        "height": 680.0,
+                        "tolerance": 0.001
+                      },
+                      {
+                        "kind": "bounds_size",
+                        "assertion_id": "right_circle_bbox",
+                        "target_ref": "right_circle",
+                        "width": 440.0,
+                        "height": 440.0,
+                        "tolerance": 0.001
+                      },
+                      {
+                        "kind": "bounds_size",
+                        "assertion_id": "bottom_rectangle_bbox",
+                        "target_ref": "bottom_rectangle",
+                        "width": 900.0,
+                        "height": 650.0,
+                        "tolerance": 0.001
+                      },
+                      {
+                        "kind": "closed",
+                        "assertion_id": "left_circle_closed",
+                        "target_ref": "left_circle"
+                      },
+                      {
+                        "kind": "closed",
+                        "assertion_id": "right_circle_closed",
+                        "target_ref": "right_circle"
+                      },
+                      {
+                        "kind": "entity_count",
+                        "assertion_id": "total_entity_count",
+                        "target_ref": null,
+                        "equals": 3
+                      }
+                    ],
+                    "budgets": {
+                      "max_steps": 100,
+                      "max_entities": 500
+                    },
+                    "free_outline_layout": []
+                  },
+                  "plan_sha256": "aa279031b539bec05b2c23d0ecb4df697c94ccf016302d4920be8e9a59123764"
+                }
+              ],
+              "background_job": null,
+              "source_preserved": true
+            },
+            "confidence": 0.98,
+            "requirements_contract": null,
+            "requirement_ledger": {
+              "schema": "cad.requirement-ledger.v1",
+              "sources": [
+                {
+                  "source_id": "user-1",
+                  "origin": "user",
+                  "sequence": 1,
+                  "text": "在同一张图中画三个独立图形。左圆：圆，圆心(-1600,800)，半径340毫米，坐标单位毫米；右圆：圆，圆心(2100,800)，半径220毫米，坐标单位毫米；下矩形：矩形，左下角(-400,-1300)，宽900毫米，高650毫米，坐标单位毫米。不要增加连接线或标注。只生成预览，不执行小车。",
+                  "sha256": "d0baafc578fe50faac8016a41e442d5584bf1a87fa44c5aa4c57377597d58b2d"
+                }
+              ],
+              "evidence_items": [
+                {
+                  "kind": "quantity",
+                  "source_id": "user-1",
+                  "evidence": {
+                    "start": 7,
+                    "end": 9,
+                    "text": "三个"
+                  },
+                  "clause": "在同一张图中画三个独立图形",
+                  "binding_status": "unresolved",
+                  "verification_status": "not_checked",
+                  "requirement_id": "user-1:req-1"
+                },
+                {
+                  "kind": "position",
+                  "source_id": "user-1",
+                  "evidence": {
+                    "start": 19,
+                    "end": 21,
+                    "text": "圆心"
+                  },
+                  "clause": "圆心(-1600",
+                  "binding_status": "unresolved",
+                  "verification_status": "not_checked",
+                  "requirement_id": "user-1:req-2"
+                },
+                {
+                  "kind": "dimension",
+                  "source_id": "user-1",
+                  "evidence": {
+                    "start": 33,
+                    "end": 40,
+                    "text": "半径340毫米"
+                  },
+                  "clause": "半径340毫米",
+                  "binding_status": "unresolved",
+                  "verification_status": "not_checked",
+                  "requirement_id": "user-1:req-3"
+                },
+                {
+                  "kind": "units",
+                  "source_id": "user-1",
+                  "evidence": {
+                    "start": 41,
+                    "end": 47,
+                    "text": "坐标单位毫米"
+                  },
+                  "clause": "坐标单位毫米",
+                  "binding_status": "unresolved",
+                  "verification_status": "not_checked",
+                  "requirement_id": "user-1:req-4"
+                },
+                {
+                  "kind": "position",
+                  "source_id": "user-1",
+                  "evidence": {
+                    "start": 53,
+                    "end": 55,
+                    "text": "圆心"
+                  },
+                  "clause": "圆心(2100",
+                  "binding_status": "unresolved",
+                  "verification_status": "not_checked",
+                  "requirement_id": "user-1:req-5"
+                },
+                {
+                  "kind": "dimension",
+                  "source_id": "user-1",
+                  "evidence": {
+                    "start": 66,
+                    "end": 73,
+                    "text": "半径220毫米"
+                  },
+                  "clause": "半径220毫米",
+                  "binding_status": "unresolved",
+                  "verification_status": "not_checked",
+                  "requirement_id": "user-1:req-6"
+                },
+                {
+                  "kind": "units",
+                  "source_id": "user-1",
+                  "evidence": {
+                    "start": 74,
+                    "end": 80,
+                    "text": "坐标单位毫米"
+                  },
+                  "clause": "坐标单位毫米",
+                  "binding_status": "unresolved",
+                  "verification_status": "not_checked",
+                  "requirement_id": "user-1:req-7"
+                },
+                {
+                  "kind": "position",
+                  "source_id": "user-1",
+                  "evidence": {
+                    "start": 88,
+                    "end": 90,
+                    "text": "左下"
+                  },
+                  "clause": "左下角(-400",
+                  "binding_status": "unresolved",
+                  "verification_status": "not_checked",
+                  "requirement_id": "user-1:req-8"
+                },
+                {
+                  "kind": "dimension",
+                  "source_id": "user-1",
+                  "evidence": {
+                    "start": 104,
+                    "end": 110,
+                    "text": "宽900毫米"
+                  },
+                  "clause": "宽900毫米",
+                  "binding_status": "unresolved",
+                  "verification_status": "not_checked",
+                  "requirement_id": "user-1:req-9"
+                },
+                {
+                  "kind": "dimension",
+                  "source_id": "user-1",
+                  "evidence": {
+                    "start": 111,
+                    "end": 117,
+                    "text": "高650毫米"
+                  },
+                  "clause": "高650毫米",
+                  "binding_status": "unresolved",
+                  "verification_status": "not_checked",
+                  "requirement_id": "user-1:req-10"
+                },
+                {
+                  "kind": "units",
+                  "source_id": "user-1",
+                  "evidence": {
+                    "start": 118,
+                    "end": 124,
+                    "text": "坐标单位毫米"
+                  },
+                  "clause": "坐标单位毫米",
+                  "binding_status": "unresolved",
+                  "verification_status": "not_checked",
+                  "requirement_id": "user-1:req-11"
+                },
+                {
+                  "kind": "connection",
+                  "source_id": "user-1",
+                  "evidence": {
+                    "start": 129,
+                    "end": 131,
+                    "text": "连接"
+                  },
+                  "clause": "不要增加连接线或标注",
+                  "binding_status": "unresolved",
+                  "verification_status": "not_checked",
+                  "requirement_id": "user-1:req-12"
+                }
+              ],
+              "model_assumptions": [
+                {
+                  "origin": "model",
+                  "text": "坐标单位采用毫米，故plan.units=mm，圆心、左下角与尺寸直接按毫米数值使用。",
+                  "confirmed_by_user": false
+                },
+                {
+                  "origin": "model",
+                  "text": "三个图形为彼此独立对象，各自拥有独立assembly_id，不添加连接线或标注。",
+                  "confirmed_by_user": false
+                }
+              ],
+              "pending_clarifications": [],
+              "coverage": {
+                "status": "partial",
+                "note": "逐轮原文完整保存；参数归属未解析时不自动覆盖或宣称已验收"
+              },
+              "requirement_contract": {
+                "schema": "cad.requirement-contract.v1",
+                "subjects": [
+                  "左圆",
+                  "右圆",
+                  "下矩形"
+                ],
+                "facts": [
+                  {
+                    "fact_id": "user-1:scalar-1:radius:左圆",
+                    "origin": "user",
+                    "source_id": "user-1",
+                    "subject": "左圆",
+                    "field": "radius",
+                    "operator": "eq",
+                    "value_mm": 340.0,
+                    "evidence": {
+                      "start": 33,
+                      "end": 40,
+                      "text": "半径340毫米"
+                    },
+                    "binding": "explicit_subject",
+                    "status": "effective"
+                  },
+                  {
+                    "fact_id": "user-1:scalar-2:radius:右圆",
+                    "origin": "user",
+                    "source_id": "user-1",
+                    "subject": "右圆",
+                    "field": "radius",
+                    "operator": "eq",
+                    "value_mm": 220.0,
+                    "evidence": {
+                      "start": 66,
+                      "end": 73,
+                      "text": "半径220毫米"
+                    },
+                    "binding": "explicit_subject",
+                    "status": "effective"
+                  },
+                  {
+                    "fact_id": "user-1:scalar-3:width:下矩形",
+                    "origin": "user",
+                    "source_id": "user-1",
+                    "subject": "下矩形",
+                    "field": "width",
+                    "operator": "eq",
+                    "value_mm": 900.0,
+                    "evidence": {
+                      "start": 104,
+                      "end": 110,
+                      "text": "宽900毫米"
+                    },
+                    "binding": "explicit_subject",
+                    "status": "effective"
+                  },
+                  {
+                    "fact_id": "user-1:scalar-4:height:下矩形",
+                    "origin": "user",
+                    "source_id": "user-1",
+                    "subject": "下矩形",
+                    "field": "height",
+                    "operator": "eq",
+                    "value_mm": 650.0,
+                    "evidence": {
+                      "start": 111,
+                      "end": 117,
+                      "text": "高650毫米"
+                    },
+                    "binding": "explicit_subject",
+                    "status": "effective"
+                  }
+                ],
+                "sources": [
+                  {
+                    "source_id": "user-1",
+                    "text": "在同一张图中画三个独立图形。左圆：圆，圆心(-1600,800)，半径340毫米，坐标单位毫米；右圆：圆，圆心(2100,800)，半径220毫米，坐标单位毫米；下矩形：矩形，左下角(-400,-1300)，宽900毫米，高650毫米，坐标单位毫米。不要增加连接线或标注。只生成预览，不执行小车。",
+                    "subjects": [
+                      "左圆",
+                      "右圆",
+                      "下矩形"
+                    ],
+                    "clauses": [
+                      {
+                        "text": "在同一张图中画三个独立图形",
+                        "subjects": []
+                      },
+                      {
+                        "text": "左圆：圆",
+                        "subjects": [
+                          "左圆"
+                        ]
+                      },
+                      {
+                        "text": "圆心(-1600",
+                        "subjects": []
+                      },
+                      {
+                        "text": "800)",
+                        "subjects": []
+                      },
+                      {
+                        "text": "半径340毫米",
+                        "subjects": []
+                      },
+                      {
+                        "text": "坐标单位毫米",
+                        "subjects": []
+                      },
+                      {
+                        "text": "右圆：圆",
+                        "subjects": [
+                          "右圆"
+                        ]
+                      },
+                      {
+                        "text": "圆心(2100",
+                        "subjects": []
+                      },
+                      {
+                        "text": "800)",
+                        "subjects": []
+                      },
+                      {
+                        "text": "半径220毫米",
+                        "subjects": []
+                      },
+                      {
+                        "text": "坐标单位毫米",
+                        "subjects": []
+                      },
+                      {
+                        "text": "下矩形：矩形",
+                        "subjects": [
+                          "下矩形"
+                        ]
+                      },
+                      {
+                        "text": "左下角(-400",
+                        "subjects": []
+                      },
+                      {
+                        "text": "-1300)",
+                        "subjects": []
+                      },
+                      {
+                        "text": "宽900毫米",
+                        "subjects": []
+                      },
+                      {
+                        "text": "高650毫米",
+                        "subjects": []
+                      },
+                      {
+                        "text": "坐标单位毫米",
+                        "subjects": []
+                      },
+                      {
+                        "text": "不要增加连接线或标注",
+                        "subjects": []
+                      },
+                      {
+                        "text": "只生成预览",
+                        "subjects": []
+                      },
+                      {
+                        "text": "不执行小车",
+                        "subjects": []
+                      }
+                    ]
+                  }
+                ],
+                "unresolved_fact_ids": [],
+                "raw_requirement_text": "在同一张图中画三个独立图形。左圆：圆，圆心(-1600,800)，半径340毫米，坐标单位毫米；右圆：圆，圆心(2100,800)，半径220毫米，坐标单位毫米；下矩形：矩形，左下角(-400,-1300)，宽900毫米，高650毫米，坐标单位毫米。不要增加连接线或标注。只生成预览，不执行小车。",
+                "effective_fact_ids": [
+                  "user-1:scalar-1:radius:左圆",
+                  "user-1:scalar-2:radius:右圆",
+                  "user-1:scalar-3:width:下矩形",
+                  "user-1:scalar-4:height:下矩形"
+                ],
+                "conflicts": [],
+                "consistent": true,
+                "coverage": {
+                  "status": "partial",
+                  "supported_fields": [
+                    "circumradius",
+                    "diameter",
+                    "height",
+                    "radius",
+                    "side_length",
+                    "width"
+                  ],
+                  "normalized_fields": [
+                    "objects",
+                    "raw_text",
+                    "clauses",
+                    "scoped_scalar_facts",
+                    "unresolved_facts"
+                  ],
+                  "note": "未绑定的尺寸不自动归给整体；位置、数量和连接保留原文、分句及证据账本中"
+                }
+              },
+              "geometry_acceptance": {
+                "status": "not_checked",
+                "checks": []
+              },
+              "derived_requirements": [],
+              "source_geometry_acceptance": {
+                "status": "passed",
+                "coverage": "complete",
+                "inventory_scope": "complete",
+                "unverified_geometry_ids": [],
+                "review_required": false,
+                "checks": [
+                  {
+                    "subject": "左圆",
+                    "source_requirement": {
+                      "subject": "左圆",
+                      "kind": "圆",
+                      "evidence": "左圆：圆，圆心(-1600,800)，半径340毫米，坐标单位毫米",
+                      "center": [
+                        -1600.0,
+                        800.0
+                      ],
+                      "radius": 340.0,
+                      "dimension_evidence": {
+                        "radius": {
+                          "source_id": "source-1",
+                          "evidence": {
+                            "start": 33,
+                            "end": 40,
+                            "text": "半径340毫米"
+                          }
+                        }
+                      }
+                    },
+                    "geometry_ids": [
+                      1
+                    ],
+                    "status": "passed",
+                    "authority": "backend_measured_geometry",
+                    "object_ids": [
+                      "left_circle_body"
+                    ],
+                    "assembly_ids": [
+                      "left_circle"
+                    ]
+                  },
+                  {
+                    "subject": "右圆",
+                    "source_requirement": {
+                      "subject": "右圆",
+                      "kind": "圆",
+                      "evidence": "右圆：圆，圆心(2100,800)，半径220毫米，坐标单位毫米",
+                      "center": [
+                        2100.0,
+                        800.0
+                      ],
+                      "radius": 220.0,
+                      "dimension_evidence": {
+                        "radius": {
+                          "source_id": "source-1",
+                          "evidence": {
+                            "start": 66,
+                            "end": 73,
+                            "text": "半径220毫米"
+                          }
+                        }
+                      }
+                    },
+                    "geometry_ids": [
+                      2
+                    ],
+                    "status": "passed",
+                    "authority": "backend_measured_geometry",
+                    "object_ids": [
+                      "right_circle_body"
+                    ],
+                    "assembly_ids": [
+                      "right_circle"
+                    ]
+                  },
+                  {
+                    "subject": "下矩形",
+                    "source_requirement": {
+                      "subject": "下矩形",
+                      "kind": "矩形",
+                      "evidence": "下矩形：矩形，左下角(-400,-1300)，宽900毫米，高650毫米，坐标单位毫米",
+                      "origin": [
+                        -400.0,
+                        -1300.0
+                      ],
+                      "width": 900.0,
+                      "height": 650.0,
+                      "dimension_evidence": {
+                        "width": {
+                          "source_id": "source-1",
+                          "evidence": {
+                            "start": 104,
+                            "end": 110,
+                            "text": "宽900毫米"
+                          }
+                        },
+                        "height": {
+                          "source_id": "source-1",
+                          "evidence": {
+                            "start": 111,
+                            "end": 117,
+                            "text": "高650毫米"
+                          }
+                        }
+                      }
+                    },
+                    "geometry_ids": [
+                      3
+                    ],
+                    "status": "passed",
+                    "authority": "backend_measured_geometry",
+                    "object_ids": [
+                      "bottom_rectangle_body"
+                    ],
+                    "assembly_ids": [
+                      "bottom_rectangle"
+                    ]
+                  }
+                ],
+                "relation_acceptance": {
+                  "status": "not_checked",
+                  "coverage": "explicit_named_relations_only",
+                  "checks": [],
+                  "review_required": false
+                },
+                "intent_evidence": [
+                  {
+                    "kind": "preview_only",
+                    "start": 136,
+                    "end": 147,
+                    "text": "只生成预览，不执行小车",
+                    "scope": "delivery_intent_only"
+                  }
+                ],
+                "measurement_scope": "fully_consumed_measured_scoped_inventory",
+                "inventory_check": {
+                  "field": "complete_visible_inventory",
+                  "status": "passed",
+                  "expected": 3,
+                  "actual": 3,
+                  "geometry_ids": [
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "final_source_acceptance": {
+                  "status": "partial",
+                  "coverage": "partial",
+                  "checks": [
+                    {
+                      "field": "radius",
+                      "actual_mm": 340.0,
+                      "expected_mm": 340.0,
+                      "operator": "eq",
+                      "tolerance_mm": 0.5,
+                      "source_requirement_id": "user:0:scalar-1:radius:左圆",
+                      "source_evidence": {
+                        "start": 33,
+                        "end": 40,
+                        "text": "半径340毫米"
+                      },
+                      "status": "passed",
+                      "geometry_ids": [
+                        1
+                      ]
+                    },
+                    {
+                      "field": "radius",
+                      "actual_mm": 220.0,
+                      "expected_mm": 220.0,
+                      "operator": "eq",
+                      "tolerance_mm": 0.5,
+                      "source_requirement_id": "user:0:scalar-2:radius:右圆",
+                      "source_evidence": {
+                        "start": 66,
+                        "end": 73,
+                        "text": "半径220毫米"
+                      },
+                      "status": "passed",
+                      "geometry_ids": [
+                        2
+                      ]
+                    },
+                    {
+                      "field": "width",
+                      "actual_mm": 900.0,
+                      "expected_mm": 900.0,
+                      "operator": "eq",
+                      "tolerance_mm": 0.5,
+                      "source_requirement_id": "user:0:scalar-3:width:下矩形",
+                      "source_evidence": {
+                        "start": 104,
+                        "end": 110,
+                        "text": "宽900毫米"
+                      },
+                      "status": "passed",
+                      "geometry_ids": [
+                        3
+                      ]
+                    },
+                    {
+                      "field": "height",
+                      "actual_mm": 650.0,
+                      "expected_mm": 650.0,
+                      "operator": "eq",
+                      "tolerance_mm": 0.5,
+                      "source_requirement_id": "user:0:scalar-4:height:下矩形",
+                      "source_evidence": {
+                        "start": 111,
+                        "end": 117,
+                        "text": "高650毫米"
+                      },
+                      "status": "passed",
+                      "geometry_ids": [
+                        3
+                      ]
+                    }
+                  ],
+                  "unknown_requirements": [],
+                  "review_required": false
+                }
+              },
+              "bound_requirements": [
+                {
+                  "subject": "左圆",
+                  "source_id": "user-1",
+                  "evidence": {
+                    "start": 14,
+                    "end": 47,
+                    "text": "左圆：圆，圆心(-1600,800)，半径340毫米，坐标单位毫米"
+                  },
+                  "geometry_ids": [
+                    1
+                  ],
+                  "verification_status": "passed",
+                  "object_ids": [
+                    "left_circle_body"
+                  ],
+                  "assembly_ids": [
+                    "left_circle"
+                  ],
+                  "scope": "explicit_type_coordinates_dimensions_only",
+                  "dimension_requirements": [
+                    {
+                      "field": "radius",
+                      "value_mm": 340.0,
+                      "source_id": "user-1",
+                      "evidence": {
+                        "start": 33,
+                        "end": 40,
+                        "text": "半径340毫米"
+                      },
+                      "verification_status": "passed"
+                    }
+                  ]
+                },
+                {
+                  "subject": "右圆",
+                  "source_id": "user-1",
+                  "evidence": {
+                    "start": 48,
+                    "end": 80,
+                    "text": "右圆：圆，圆心(2100,800)，半径220毫米，坐标单位毫米"
+                  },
+                  "geometry_ids": [
+                    2
+                  ],
+                  "verification_status": "passed",
+                  "object_ids": [
+                    "right_circle_body"
+                  ],
+                  "assembly_ids": [
+                    "right_circle"
+                  ],
+                  "scope": "explicit_type_coordinates_dimensions_only",
+                  "dimension_requirements": [
+                    {
+                      "field": "radius",
+                      "value_mm": 220.0,
+                      "source_id": "user-1",
+                      "evidence": {
+                        "start": 66,
+                        "end": 73,
+                        "text": "半径220毫米"
+                      },
+                      "verification_status": "passed"
+                    }
+                  ]
+                },
+                {
+                  "subject": "下矩形",
+                  "source_id": "user-1",
+                  "evidence": {
+                    "start": 81,
+                    "end": 124,
+                    "text": "下矩形：矩形，左下角(-400,-1300)，宽900毫米，高650毫米，坐标单位毫米"
+                  },
+                  "geometry_ids": [
+                    3
+                  ],
+                  "verification_status": "passed",
+                  "object_ids": [
+                    "bottom_rectangle_body"
+                  ],
+                  "assembly_ids": [
+                    "bottom_rectangle"
+                  ],
+                  "scope": "explicit_type_coordinates_dimensions_only",
+                  "dimension_requirements": [
+                    {
+                      "field": "width",
+                      "value_mm": 900.0,
+                      "source_id": "user-1",
+                      "evidence": {
+                        "start": 104,
+                        "end": 110,
+                        "text": "宽900毫米"
+                      },
+                      "verification_status": "passed"
+                    },
+                    {
+                      "field": "height",
+                      "value_mm": 650.0,
+                      "source_id": "user-1",
+                      "evidence": {
+                        "start": 111,
+                        "end": 117,
+                        "text": "高650毫米"
+                      },
+                      "verification_status": "passed"
+                    }
+                  ]
+                }
+              ],
+              "bound_relations": [],
+              "revision_sha256": "702a5a75ad5fd542fa1735a36170fc5463028b0558f713eab9612975b91aaba2"
+            },
+            "structure_contract": null,
+            "structure_validation": null,
+            "composition_contract": null,
+            "composition_validation": null,
+            "source_acceptance": {
+              "status": "passed",
+              "coverage": "complete",
+              "inventory_scope": "complete",
+              "unverified_geometry_ids": [],
+              "review_required": false,
+              "checks": [
+                {
+                  "subject": "左圆",
+                  "source_requirement": {
+                    "subject": "左圆",
+                    "kind": "圆",
+                    "evidence": "左圆：圆，圆心(-1600,800)，半径340毫米，坐标单位毫米",
+                    "center": [
+                      -1600.0,
+                      800.0
+                    ],
+                    "radius": 340.0,
+                    "dimension_evidence": {
+                      "radius": {
+                        "source_id": "source-1",
+                        "evidence": {
+                          "start": 33,
+                          "end": 40,
+                          "text": "半径340毫米"
+                        }
+                      }
+                    }
+                  },
+                  "geometry_ids": [
+                    1
+                  ],
+                  "status": "passed",
+                  "authority": "backend_measured_geometry",
+                  "object_ids": [
+                    "left_circle_body"
+                  ],
+                  "assembly_ids": [
+                    "left_circle"
+                  ]
+                },
+                {
+                  "subject": "右圆",
+                  "source_requirement": {
+                    "subject": "右圆",
+                    "kind": "圆",
+                    "evidence": "右圆：圆，圆心(2100,800)，半径220毫米，坐标单位毫米",
+                    "center": [
+                      2100.0,
+                      800.0
+                    ],
+                    "radius": 220.0,
+                    "dimension_evidence": {
+                      "radius": {
+                        "source_id": "source-1",
+                        "evidence": {
+                          "start": 66,
+                          "end": 73,
+                          "text": "半径220毫米"
+                        }
+                      }
+                    }
+                  },
+                  "geometry_ids": [
+                    2
+                  ],
+                  "status": "passed",
+                  "authority": "backend_measured_geometry",
+                  "object_ids": [
+                    "right_circle_body"
+                  ],
+                  "assembly_ids": [
+                    "right_circle"
+                  ]
+                },
+                {
+                  "subject": "下矩形",
+                  "source_requirement": {
+                    "subject": "下矩形",
+                    "kind": "矩形",
+                    "evidence": "下矩形：矩形，左下角(-400,-1300)，宽900毫米，高650毫米，坐标单位毫米",
+                    "origin": [
+                      -400.0,
+                      -1300.0
+                    ],
+                    "width": 900.0,
+                    "height": 650.0,
+                    "dimension_evidence": {
+                      "width": {
+                        "source_id": "source-1",
+                        "evidence": {
+                          "start": 104,
+                          "end": 110,
+                          "text": "宽900毫米"
+                        }
+                      },
+                      "height": {
+                        "source_id": "source-1",
+                        "evidence": {
+                          "start": 111,
+                          "end": 117,
+                          "text": "高650毫米"
+                        }
+                      }
+                    }
+                  },
+                  "geometry_ids": [
+                    3
+                  ],
+                  "status": "passed",
+                  "authority": "backend_measured_geometry",
+                  "object_ids": [
+                    "bottom_rectangle_body"
+                  ],
+                  "assembly_ids": [
+                    "bottom_rectangle"
+                  ]
+                }
+              ],
+              "relation_acceptance": {
+                "status": "not_checked",
+                "coverage": "explicit_named_relations_only",
+                "checks": [],
+                "review_required": false
+              },
+              "intent_evidence": [
+                {
+                  "kind": "preview_only",
+                  "start": 136,
+                  "end": 147,
+                  "text": "只生成预览，不执行小车",
+                  "scope": "delivery_intent_only"
+                }
+              ],
+              "measurement_scope": "fully_consumed_measured_scoped_inventory",
+              "inventory_check": {
+                "field": "complete_visible_inventory",
+                "status": "passed",
+                "expected": 3,
+                "actual": 3,
+                "geometry_ids": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "final_source_acceptance": {
+                "status": "partial",
+                "coverage": "partial",
+                "checks": [
+                  {
+                    "field": "radius",
+                    "actual_mm": 340.0,
+                    "expected_mm": 340.0,
+                    "operator": "eq",
+                    "tolerance_mm": 0.5,
+                    "source_requirement_id": "user:0:scalar-1:radius:左圆",
+                    "source_evidence": {
+                      "start": 33,
+                      "end": 40,
+                      "text": "半径340毫米"
+                    },
+                    "status": "passed",
+                    "geometry_ids": [
+                      1
+                    ]
+                  },
+                  {
+                    "field": "radius",
+                    "actual_mm": 220.0,
+                    "expected_mm": 220.0,
+                    "operator": "eq",
+                    "tolerance_mm": 0.5,
+                    "source_requirement_id": "user:0:scalar-2:radius:右圆",
+                    "source_evidence": {
+                      "start": 66,
+                      "end": 73,
+                      "text": "半径220毫米"
+                    },
+                    "status": "passed",
+                    "geometry_ids": [
+                      2
+                    ]
+                  },
+                  {
+                    "field": "width",
+                    "actual_mm": 900.0,
+                    "expected_mm": 900.0,
+                    "operator": "eq",
+                    "tolerance_mm": 0.5,
+                    "source_requirement_id": "user:0:scalar-3:width:下矩形",
+                    "source_evidence": {
+                      "start": 104,
+                      "end": 110,
+                      "text": "宽900毫米"
+                    },
+                    "status": "passed",
+                    "geometry_ids": [
+                      3
+                    ]
+                  },
+                  {
+                    "field": "height",
+                    "actual_mm": 650.0,
+                    "expected_mm": 650.0,
+                    "operator": "eq",
+                    "tolerance_mm": 0.5,
+                    "source_requirement_id": "user:0:scalar-4:height:下矩形",
+                    "source_evidence": {
+                      "start": 111,
+                      "end": 117,
+                      "text": "高650毫米"
+                    },
+                    "status": "passed",
+                    "geometry_ids": [
+                      3
+                    ]
+                  }
+                ],
+                "unknown_requirements": [],
+                "review_required": false
+              }
+            },
+            "acceptance_summary": {
+              "status": "passed",
+              "review_required": false,
+              "authority": "backend_measured_geometry",
+              "verified_checks": 7,
+              "failed_checks": [],
+              "requirement_coverage": "complete",
+              "unknown_requirements": [],
+              "geometry_validity": "passed",
+              "constraint_satisfaction": "not_checked",
+              "assertion_status": "passed",
+              "unverified_geometry_ids": []
+            },
+            "local_repair_validation": null,
+            "repair_changes": null,
+            "evidence_text": [
+              "在同一张图中画三个独立图形。左圆：圆，圆心(-1600,800)，半径340毫米，坐标单位毫米；右圆：圆，圆心(2100,800)，半径220毫米，坐标单位毫米；下矩形：矩形，左下角(-400,-1300)，宽900毫米，高650毫米，坐标单位毫米。不要增加连接线或标注。只生成预览，不执行小车。"
+            ],
+            "assumptions": [
+              "坐标单位采用毫米，故plan.units=mm，圆心、左下角与尺寸直接按毫米数值使用。",
+              "三个图形为彼此独立对象，各自拥有独立assembly_id，不添加连接线或标注。"
+            ],
+            "normalization_facts": [
+              "单位换算：340毫米 = 0.34米。",
+              "单位换算：220毫米 = 0.22米。",
+              "单位换算：900毫米 = 0.9米。",
+              "单位换算：650毫米 = 0.65米。"
+            ],
+            "deterministic_repairs": [],
+            "candidate_id": "candidate-1",
+            "plan": {
+              "shared_points": {},
+              "schema_version": "cad.construction-plan.v1",
+              "units": "mm",
+              "project_id": null,
+              "source_version": null,
+              "steps": [
+                {
+                  "step_id": "left_circle",
+                  "output_ref": "left_circle",
+                  "layer_id": 1,
+                  "semantic": {
+                    "assembly_id": "left_circle",
+                    "assembly_label": "左圆",
+                    "object_id": "left_circle_body",
+                    "object_type": "circle",
+                    "label": "左圆",
+                    "role": "outline"
+                  },
+                  "op": "add_circle",
+                  "center": {
+                    "x": -1600.0,
+                    "y": 800.0
+                  },
+                  "radius": 340.0
+                },
+                {
+                  "step_id": "right_circle",
+                  "output_ref": "right_circle",
+                  "layer_id": 1,
+                  "semantic": {
+                    "assembly_id": "right_circle",
+                    "assembly_label": "右圆",
+                    "object_id": "right_circle_body",
+                    "object_type": "circle",
+                    "label": "右圆",
+                    "role": "outline"
+                  },
+                  "op": "add_circle",
+                  "center": {
+                    "x": 2100.0,
+                    "y": 800.0
+                  },
+                  "radius": 220.0
+                },
+                {
+                  "step_id": "bottom_rectangle",
+                  "output_ref": "bottom_rectangle",
+                  "layer_id": 1,
+                  "semantic": {
+                    "assembly_id": "bottom_rectangle",
+                    "assembly_label": "下矩形",
+                    "object_id": "bottom_rectangle_body",
+                    "object_type": "rectangle",
+                    "label": "下矩形",
+                    "role": "outline"
+                  },
+                  "op": "add_rectangle",
+                  "origin": {
+                    "x": -400.0,
+                    "y": -1300.0
+                  },
+                  "width": 900.0,
+                  "height": 650.0,
+                  "rotation_deg": 0.0
+                }
+              ],
+              "constraints": [],
+              "constraint_backend": "auto",
+              "assertions": [
+                {
+                  "kind": "bounds_size",
+                  "assertion_id": "left_circle_bbox",
+                  "target_ref": "left_circle",
+                  "width": 680.0,
+                  "height": 680.0,
+                  "tolerance": 0.001
+                },
+                {
+                  "kind": "bounds_size",
+                  "assertion_id": "right_circle_bbox",
+                  "target_ref": "right_circle",
+                  "width": 440.0,
+                  "height": 440.0,
+                  "tolerance": 0.001
+                },
+                {
+                  "kind": "bounds_size",
+                  "assertion_id": "bottom_rectangle_bbox",
+                  "target_ref": "bottom_rectangle",
+                  "width": 900.0,
+                  "height": 650.0,
+                  "tolerance": 0.001
+                },
+                {
+                  "kind": "closed",
+                  "assertion_id": "left_circle_closed",
+                  "target_ref": "left_circle"
+                },
+                {
+                  "kind": "closed",
+                  "assertion_id": "right_circle_closed",
+                  "target_ref": "right_circle"
+                },
+                {
+                  "kind": "entity_count",
+                  "assertion_id": "total_entity_count",
+                  "target_ref": null,
+                  "equals": 3
+                }
+              ],
+              "budgets": {
+                "max_steps": 100,
+                "max_entities": 500
+              },
+              "free_outline_layout": []
+            },
+            "assertions": {
+              "ok": true,
+              "count": 6
+            },
+            "constraint_solve": {
+              "schema": "cad.constraint-solve.v1",
+              "requested_backend": "auto",
+              "backend": "builtin",
+              "external_backends": {
+                "builtin": {
+                  "available": true,
+                  "executable": null,
+                  "transport": "in_process"
+                },
+                "solvespace": {
+                  "available": false,
+                  "executable": null,
+                  "transport": "isolated_python_worker",
+                  "package": "slvs"
+                },
+                "planegcs": {
+                  "available": false,
+                  "executable": null,
+                  "transport": "isolated_python_worker",
+                  "package": "planegcs"
+                }
+              },
+              "verified": true,
+              "constraint_count": 0,
+              "constraints": [],
+              "native_result": null,
+              "builtin_fallback_constraint_ids": [],
+              "geometry_is_authoritative": true
+            },
+            "symbol_table": {
+              "left_circle": [
+                1
+              ],
+              "right_circle": [
+                2
+              ],
+              "bottom_rectangle": [
+                3
+              ]
+            },
+            "geometry_hash": "a3e78c37123a1acb2483b140de89713dfe059491fa0e8a4066e337052baa9da1",
+            "curve_quality": {},
+            "feasibility": {
+              "ok": true,
+              "errors": [],
+              "warnings": [],
+              "geometry_count": 3,
+              "preview_path_count": 3,
+              "printing_length_m": 5.9686,
+              "topology": {
+                "ok": true,
+                "errors": [],
+                "warnings": [],
+                "open_chain_count": 0,
+                "closed_loop_count": 3,
+                "self_intersection_count": 0,
+                "path_self_intersection_count": 0,
+                "cross_path_intersection_count": 0,
+                "duplicate_geometry_count": 0,
+                "disconnected_component_count": 3,
+                "endpoint_count": 0
+              },
+              "bounds": {
+                "min_x_mm": -1940.0,
+                "max_x_mm": 2320.0,
+                "min_y_mm": -1300.0,
+                "max_y_mm": 1140.0,
+                "width_mm": 4260.0,
+                "height_mm": 2440.0
+              },
+              "boundary_check": {
+                "ok": true,
+                "bounds": {
+                  "min_x_mm": -1940.0,
+                  "max_x_mm": 2320.0,
+                  "min_y_mm": -1300.0,
+                  "max_y_mm": 1140.0,
+                  "width_mm": 4260.0,
+                  "height_mm": 2440.0
+                },
+                "errors": [],
+                "warnings": []
+              }
+            },
+            "graph_validation": {
+              "schema": "cad.logical-validation.v1",
+              "verified": true,
+              "errors": [],
+              "object_count": 3,
+              "shared_geometry_count": 0,
+              "relation_count": 0,
+              "fingerprint": "bd1cfe5ff458718aa07812eae4b62691c4b441a4a3c451930745d84403d9fed8"
+            },
+            "sketch_graph": null,
+            "version_symbols": {
+              "status": "bound",
+              "project_id": "328bfdcd-8af0-4813-be16-9d89e5e347e8",
+              "variant_id": "4c06327a-4d43-4df3-bf00-5299335a8ccf",
+              "geometry_hash": "a3e78c37123a1acb2483b140de89713dfe059491fa0e8a4066e337052baa9da1",
+              "symbol_table": {
+                "left_circle": [
+                  1
+                ],
+                "right_circle": [
+                  2
+                ],
+                "bottom_rectangle": [
+                  3
+                ]
+              },
+              "cardinality": {
+                "left_circle": "one",
+                "right_circle": "one",
+                "bottom_rectangle": "one"
+              }
+            }
+          },
+          "requirement_ledger": {
+            "schema": "cad.requirement-ledger.v1",
+            "sources": [
+              {
+                "source_id": "user-1",
+                "origin": "user",
+                "sequence": 1,
+                "text": "在同一张图中画三个独立图形。左圆：圆，圆心(-1600,800)，半径340毫米，坐标单位毫米；右圆：圆，圆心(2100,800)，半径220毫米，坐标单位毫米；下矩形：矩形，左下角(-400,-1300)，宽900毫米，高650毫米，坐标单位毫米。不要增加连接线或标注。只生成预览，不执行小车。",
+                "sha256": "d0baafc578fe50faac8016a41e442d5584bf1a87fa44c5aa4c57377597d58b2d"
+              }
+            ],
+            "evidence_items": [
+              {
+                "kind": "quantity",
+                "source_id": "user-1",
+                "evidence": {
+                  "start": 7,
+                  "end": 9,
+                  "text": "三个"
+                },
+                "clause": "在同一张图中画三个独立图形",
+                "binding_status": "unresolved",
+                "verification_status": "not_checked",
+                "requirement_id": "user-1:req-1"
+              },
+              {
+                "kind": "position",
+                "source_id": "user-1",
+                "evidence": {
+                  "start": 19,
+                  "end": 21,
+                  "text": "圆心"
+                },
+                "clause": "圆心(-1600",
+                "binding_status": "unresolved",
+                "verification_status": "not_checked",
+                "requirement_id": "user-1:req-2"
+              },
+              {
+                "kind": "dimension",
+                "source_id": "user-1",
+                "evidence": {
+                  "start": 33,
+                  "end": 40,
+                  "text": "半径340毫米"
+                },
+                "clause": "半径340毫米",
+                "binding_status": "unresolved",
+                "verification_status": "not_checked",
+                "requirement_id": "user-1:req-3"
+              },
+              {
+                "kind": "units",
+                "source_id": "user-1",
+                "evidence": {
+                  "start": 41,
+                  "end": 47,
+                  "text": "坐标单位毫米"
+                },
+                "clause": "坐标单位毫米",
+                "binding_status": "unresolved",
+                "verification_status": "not_checked",
+                "requirement_id": "user-1:req-4"
+              },
+              {
+                "kind": "position",
+                "source_id": "user-1",
+                "evidence": {
+                  "start": 53,
+                  "end": 55,
+                  "text": "圆心"
+                },
+                "clause": "圆心(2100",
+                "binding_status": "unresolved",
+                "verification_status": "not_checked",
+                "requirement_id": "user-1:req-5"
+              },
+              {
+                "kind": "dimension",
+                "source_id": "user-1",
+                "evidence": {
+                  "start": 66,
+                  "end": 73,
+                  "text": "半径220毫米"
+                },
+                "clause": "半径220毫米",
+                "binding_status": "unresolved",
+                "verification_status": "not_checked",
+                "requirement_id": "user-1:req-6"
+              },
+              {
+                "kind": "units",
+                "source_id": "user-1",
+                "evidence": {
+                  "start": 74,
+                  "end": 80,
+                  "text": "坐标单位毫米"
+                },
+                "clause": "坐标单位毫米",
+                "binding_status": "unresolved",
+                "verification_status": "not_checked",
+                "requirement_id": "user-1:req-7"
+              },
+              {
+                "kind": "position",
+                "source_id": "user-1",
+                "evidence": {
+                  "start": 88,
+                  "end": 90,
+                  "text": "左下"
+                },
+                "clause": "左下角(-400",
+                "binding_status": "unresolved",
+                "verification_status": "not_checked",
+                "requirement_id": "user-1:req-8"
+              },
+              {
+                "kind": "dimension",
+                "source_id": "user-1",
+                "evidence": {
+                  "start": 104,
+                  "end": 110,
+                  "text": "宽900毫米"
+                },
+                "clause": "宽900毫米",
+                "binding_status": "unresolved",
+                "verification_status": "not_checked",
+                "requirement_id": "user-1:req-9"
+              },
+              {
+                "kind": "dimension",
+                "source_id": "user-1",
+                "evidence": {
+                  "start": 111,
+                  "end": 117,
+                  "text": "高650毫米"
+                },
+                "clause": "高650毫米",
+                "binding_status": "unresolved",
+                "verification_status": "not_checked",
+                "requirement_id": "user-1:req-10"
+              },
+              {
+                "kind": "units",
+                "source_id": "user-1",
+                "evidence": {
+                  "start": 118,
+                  "end": 124,
+                  "text": "坐标单位毫米"
+                },
+                "clause": "坐标单位毫米",
+                "binding_status": "unresolved",
+                "verification_status": "not_checked",
+                "requirement_id": "user-1:req-11"
+              },
+              {
+                "kind": "connection",
+                "source_id": "user-1",
+                "evidence": {
+                  "start": 129,
+                  "end": 131,
+                  "text": "连接"
+                },
+                "clause": "不要增加连接线或标注",
+                "binding_status": "unresolved",
+                "verification_status": "not_checked",
+                "requirement_id": "user-1:req-12"
+              }
+            ],
+            "model_assumptions": [
+              {
+                "origin": "model",
+                "text": "坐标单位采用毫米，故plan.units=mm，圆心、左下角与尺寸直接按毫米数值使用。",
+                "confirmed_by_user": false
+              },
+              {
+                "origin": "model",
+                "text": "三个图形为彼此独立对象，各自拥有独立assembly_id，不添加连接线或标注。",
+                "confirmed_by_user": false
+              }
+            ],
+            "pending_clarifications": [],
+            "coverage": {
+              "status": "partial",
+              "note": "逐轮原文完整保存；参数归属未解析时不自动覆盖或宣称已验收"
+            },
+            "requirement_contract": {
+              "schema": "cad.requirement-contract.v1",
+              "subjects": [
+                "左圆",
+                "右圆",
+                "下矩形"
+              ],
+              "facts": [
+                {
+                  "fact_id": "user-1:scalar-1:radius:左圆",
+                  "origin": "user",
+                  "source_id": "user-1",
+                  "subject": "左圆",
+                  "field": "radius",
+                  "operator": "eq",
+                  "value_mm": 340.0,
+                  "evidence": {
+                    "start": 33,
+                    "end": 40,
+                    "text": "半径340毫米"
+                  },
+                  "binding": "explicit_subject",
+                  "status": "effective"
+                },
+                {
+                  "fact_id": "user-1:scalar-2:radius:右圆",
+                  "origin": "user",
+                  "source_id": "user-1",
+                  "subject": "右圆",
+                  "field": "radius",
+                  "operator": "eq",
+                  "value_mm": 220.0,
+                  "evidence": {
+                    "start": 66,
+                    "end": 73,
+                    "text": "半径220毫米"
+                  },
+                  "binding": "explicit_subject",
+                  "status": "effective"
+                },
+                {
+                  "fact_id": "user-1:scalar-3:width:下矩形",
+                  "origin": "user",
+                  "source_id": "user-1",
+                  "subject": "下矩形",
+                  "field": "width",
+                  "operator": "eq",
+                  "value_mm": 900.0,
+                  "evidence": {
+                    "start": 104,
+                    "end": 110,
+                    "text": "宽900毫米"
+                  },
+                  "binding": "explicit_subject",
+                  "status": "effective"
+                },
+                {
+                  "fact_id": "user-1:scalar-4:height:下矩形",
+                  "origin": "user",
+                  "source_id": "user-1",
+                  "subject": "下矩形",
+                  "field": "height",
+                  "operator": "eq",
+                  "value_mm": 650.0,
+                  "evidence": {
+                    "start": 111,
+                    "end": 117,
+                    "text": "高650毫米"
+                  },
+                  "binding": "explicit_subject",
+                  "status": "effective"
+                }
+              ],
+              "sources": [
+                {
+                  "source_id": "user-1",
+                  "text": "在同一张图中画三个独立图形。左圆：圆，圆心(-1600,800)，半径340毫米，坐标单位毫米；右圆：圆，圆心(2100,800)，半径220毫米，坐标单位毫米；下矩形：矩形，左下角(-400,-1300)，宽900毫米，高650毫米，坐标单位毫米。不要增加连接线或标注。只生成预览，不执行小车。",
+                  "subjects": [
+                    "左圆",
+                    "右圆",
+                    "下矩形"
+                  ],
+                  "clauses": [
+                    {
+                      "text": "在同一张图中画三个独立图形",
+                      "subjects": []
+                    },
+                    {
+                      "text": "左圆：圆",
+                      "subjects": [
+                        "左圆"
+                      ]
+                    },
+                    {
+                      "text": "圆心(-1600",
+                      "subjects": []
+                    },
+                    {
+                      "text": "800)",
+                      "subjects": []
+                    },
+                    {
+                      "text": "半径340毫米",
+                      "subjects": []
+                    },
+                    {
+                      "text": "坐标单位毫米",
+                      "subjects": []
+                    },
+                    {
+                      "text": "右圆：圆",
+                      "subjects": [
+                        "右圆"
+                      ]
+                    },
+                    {
+                      "text": "圆心(2100",
+                      "subjects": []
+                    },
+                    {
+                      "text": "800)",
+                      "subjects": []
+                    },
+                    {
+                      "text": "半径220毫米",
+                      "subjects": []
+                    },
+                    {
+                      "text": "坐标单位毫米",
+                      "subjects": []
+                    },
+                    {
+                      "text": "下矩形：矩形",
+                      "subjects": [
+                        "下矩形"
+                      ]
+                    },
+                    {
+                      "text": "左下角(-400",
+                      "subjects": []
+                    },
+                    {
+                      "text": "-1300)",
+                      "subjects": []
+                    },
+                    {
+                      "text": "宽900毫米",
+                      "subjects": []
+                    },
+                    {
+                      "text": "高650毫米",
+                      "subjects": []
+                    },
+                    {
+                      "text": "坐标单位毫米",
+                      "subjects": []
+                    },
+                    {
+                      "text": "不要增加连接线或标注",
+                      "subjects": []
+                    },
+                    {
+                      "text": "只生成预览",
+                      "subjects": []
+                    },
+                    {
+                      "text": "不执行小车",
+                      "subjects": []
+                    }
+                  ]
+                }
+              ],
+              "unresolved_fact_ids": [],
+              "raw_requirement_text": "在同一张图中画三个独立图形。左圆：圆，圆心(-1600,800)，半径340毫米，坐标单位毫米；右圆：圆，圆心(2100,800)，半径220毫米，坐标单位毫米；下矩形：矩形，左下角(-400,-1300)，宽900毫米，高650毫米，坐标单位毫米。不要增加连接线或标注。只生成预览，不执行小车。",
+              "effective_fact_ids": [
+                "user-1:scalar-1:radius:左圆",
+                "user-1:scalar-2:radius:右圆",
+                "user-1:scalar-3:width:下矩形",
+                "user-1:scalar-4:height:下矩形"
+              ],
+              "conflicts": [],
+              "consistent": true,
+              "coverage": {
+                "status": "partial",
+                "supported_fields": [
+                  "circumradius",
+                  "diameter",
+                  "height",
+                  "radius",
+                  "side_length",
+                  "width"
+                ],
+                "normalized_fields": [
+                  "objects",
+                  "raw_text",
+                  "clauses",
+                  "scoped_scalar_facts",
+                  "unresolved_facts"
+                ],
+                "note": "未绑定的尺寸不自动归给整体；位置、数量和连接保留原文、分句及证据账本中"
+              }
+            },
+            "geometry_acceptance": {
+              "status": "not_checked",
+              "checks": []
+            },
+            "derived_requirements": [],
+            "source_geometry_acceptance": {
+              "status": "passed",
+              "coverage": "complete",
+              "inventory_scope": "complete",
+              "unverified_geometry_ids": [],
+              "review_required": false,
+              "checks": [
+                {
+                  "subject": "左圆",
+                  "source_requirement": {
+                    "subject": "左圆",
+                    "kind": "圆",
+                    "evidence": "左圆：圆，圆心(-1600,800)，半径340毫米，坐标单位毫米",
+                    "center": [
+                      -1600.0,
+                      800.0
+                    ],
+                    "radius": 340.0,
+                    "dimension_evidence": {
+                      "radius": {
+                        "source_id": "source-1",
+                        "evidence": {
+                          "start": 33,
+                          "end": 40,
+                          "text": "半径340毫米"
+                        }
+                      }
+                    }
+                  },
+                  "geometry_ids": [
+                    1
+                  ],
+                  "status": "passed",
+                  "authority": "backend_measured_geometry",
+                  "object_ids": [
+                    "left_circle_body"
+                  ],
+                  "assembly_ids": [
+                    "left_circle"
+                  ]
+                },
+                {
+                  "subject": "右圆",
+                  "source_requirement": {
+                    "subject": "右圆",
+                    "kind": "圆",
+                    "evidence": "右圆：圆，圆心(2100,800)，半径220毫米，坐标单位毫米",
+                    "center": [
+                      2100.0,
+                      800.0
+                    ],
+                    "radius": 220.0,
+                    "dimension_evidence": {
+                      "radius": {
+                        "source_id": "source-1",
+                        "evidence": {
+                          "start": 66,
+                          "end": 73,
+                          "text": "半径220毫米"
+                        }
+                      }
+                    }
+                  },
+                  "geometry_ids": [
+                    2
+                  ],
+                  "status": "passed",
+                  "authority": "backend_measured_geometry",
+                  "object_ids": [
+                    "right_circle_body"
+                  ],
+                  "assembly_ids": [
+                    "right_circle"
+                  ]
+                },
+                {
+                  "subject": "下矩形",
+                  "source_requirement": {
+                    "subject": "下矩形",
+                    "kind": "矩形",
+                    "evidence": "下矩形：矩形，左下角(-400,-1300)，宽900毫米，高650毫米，坐标单位毫米",
+                    "origin": [
+                      -400.0,
+                      -1300.0
+                    ],
+                    "width": 900.0,
+                    "height": 650.0,
+                    "dimension_evidence": {
+                      "width": {
+                        "source_id": "source-1",
+                        "evidence": {
+                          "start": 104,
+                          "end": 110,
+                          "text": "宽900毫米"
+                        }
+                      },
+                      "height": {
+                        "source_id": "source-1",
+                        "evidence": {
+                          "start": 111,
+                          "end": 117,
+                          "text": "高650毫米"
+                        }
+                      }
+                    }
+                  },
+                  "geometry_ids": [
+                    3
+                  ],
+                  "status": "passed",
+                  "authority": "backend_measured_geometry",
+                  "object_ids": [
+                    "bottom_rectangle_body"
+                  ],
+                  "assembly_ids": [
+                    "bottom_rectangle"
+                  ]
+                }
+              ],
+              "relation_acceptance": {
+                "status": "not_checked",
+                "coverage": "explicit_named_relations_only",
+                "checks": [],
+                "review_required": false
+              },
+              "intent_evidence": [
+                {
+                  "kind": "preview_only",
+                  "start": 136,
+                  "end": 147,
+                  "text": "只生成预览，不执行小车",
+                  "scope": "delivery_intent_only"
+                }
+              ],
+              "measurement_scope": "fully_consumed_measured_scoped_inventory",
+              "inventory_check": {
+                "field": "complete_visible_inventory",
+                "status": "passed",
+                "expected": 3,
+                "actual": 3,
+                "geometry_ids": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "final_source_acceptance": {
+                "status": "partial",
+                "coverage": "partial",
+                "checks": [
+                  {
+                    "field": "radius",
+                    "actual_mm": 340.0,
+                    "expected_mm": 340.0,
+                    "operator": "eq",
+                    "tolerance_mm": 0.5,
+                    "source_requirement_id": "user:0:scalar-1:radius:左圆",
+                    "source_evidence": {
+                      "start": 33,
+                      "end": 40,
+                      "text": "半径340毫米"
+                    },
+                    "status": "passed",
+                    "geometry_ids": [
+                      1
+                    ]
+                  },
+                  {
+                    "field": "radius",
+                    "actual_mm": 220.0,
+                    "expected_mm": 220.0,
+                    "operator": "eq",
+                    "tolerance_mm": 0.5,
+                    "source_requirement_id": "user:0:scalar-2:radius:右圆",
+                    "source_evidence": {
+                      "start": 66,
+                      "end": 73,
+                      "text": "半径220毫米"
+                    },
+                    "status": "passed",
+                    "geometry_ids": [
+                      2
+                    ]
+                  },
+                  {
+                    "field": "width",
+                    "actual_mm": 900.0,
+                    "expected_mm": 900.0,
+                    "operator": "eq",
+                    "tolerance_mm": 0.5,
+                    "source_requirement_id": "user:0:scalar-3:width:下矩形",
+                    "source_evidence": {
+                      "start": 104,
+                      "end": 110,
+                      "text": "宽900毫米"
+                    },
+                    "status": "passed",
+                    "geometry_ids": [
+                      3
+                    ]
+                  },
+                  {
+                    "field": "height",
+                    "actual_mm": 650.0,
+                    "expected_mm": 650.0,
+                    "operator": "eq",
+                    "tolerance_mm": 0.5,
+                    "source_requirement_id": "user:0:scalar-4:height:下矩形",
+                    "source_evidence": {
+                      "start": 111,
+                      "end": 117,
+                      "text": "高650毫米"
+                    },
+                    "status": "passed",
+                    "geometry_ids": [
+                      3
+                    ]
+                  }
+                ],
+                "unknown_requirements": [],
+                "review_required": false
+              }
+            },
+            "bound_requirements": [
+              {
+                "subject": "左圆",
+                "source_id": "user-1",
+                "evidence": {
+                  "start": 14,
+                  "end": 47,
+                  "text": "左圆：圆，圆心(-1600,800)，半径340毫米，坐标单位毫米"
+                },
+                "geometry_ids": [
+                  1
+                ],
+                "verification_status": "passed",
+                "object_ids": [
+                  "left_circle_body"
+                ],
+                "assembly_ids": [
+                  "left_circle"
+                ],
+                "scope": "explicit_type_coordinates_dimensions_only",
+                "dimension_requirements": [
+                  {
+                    "field": "radius",
+                    "value_mm": 340.0,
+                    "source_id": "user-1",
+                    "evidence": {
+                      "start": 33,
+                      "end": 40,
+                      "text": "半径340毫米"
+                    },
+                    "verification_status": "passed"
+                  }
+                ]
+              },
+              {
+                "subject": "右圆",
+                "source_id": "user-1",
+                "evidence": {
+                  "start": 48,
+                  "end": 80,
+                  "text": "右圆：圆，圆心(2100,800)，半径220毫米，坐标单位毫米"
+                },
+                "geometry_ids": [
+                  2
+                ],
+                "verification_status": "passed",
+                "object_ids": [
+                  "right_circle_body"
+                ],
+                "assembly_ids": [
+                  "right_circle"
+                ],
+                "scope": "explicit_type_coordinates_dimensions_only",
+                "dimension_requirements": [
+                  {
+                    "field": "radius",
+                    "value_mm": 220.0,
+                    "source_id": "user-1",
+                    "evidence": {
+                      "start": 66,
+                      "end": 73,
+                      "text": "半径220毫米"
+                    },
+                    "verification_status": "passed"
+                  }
+                ]
+              },
+              {
+                "subject": "下矩形",
+                "source_id": "user-1",
+                "evidence": {
+                  "start": 81,
+                  "end": 124,
+                  "text": "下矩形：矩形，左下角(-400,-1300)，宽900毫米，高650毫米，坐标单位毫米"
+                },
+                "geometry_ids": [
+                  3
+                ],
+                "verification_status": "passed",
+                "object_ids": [
+                  "bottom_rectangle_body"
+                ],
+                "assembly_ids": [
+                  "bottom_rectangle"
+                ],
+                "scope": "explicit_type_coordinates_dimensions_only",
+                "dimension_requirements": [
+                  {
+                    "field": "width",
+                    "value_mm": 900.0,
+                    "source_id": "user-1",
+                    "evidence": {
+                      "start": 104,
+                      "end": 110,
+                      "text": "宽900毫米"
+                    },
+                    "verification_status": "passed"
+                  },
+                  {
+                    "field": "height",
+                    "value_mm": 650.0,
+                    "source_id": "user-1",
+                    "evidence": {
+                      "start": 111,
+                      "end": 117,
+                      "text": "高650毫米"
+                    },
+                    "verification_status": "passed"
+                  }
+                ]
+              }
+            ],
+            "bound_relations": [],
+            "revision_sha256": "702a5a75ad5fd542fa1735a36170fc5463028b0558f713eab9612975b91aaba2"
+          },
+          "logical_object_validation": {
+            "schema": "cad.logical-validation.v1",
+            "verified": true,
+            "errors": [],
+            "object_count": 3,
+            "shared_geometry_count": 0,
+            "relation_count": 0,
+            "fingerprint": "bd1cfe5ff458718aa07812eae4b62691c4b441a4a3c451930745d84403d9fed8"
+          },
+          "reference_mapping": {
+            "creation_binding": {
+              "project_id": "328bfdcd-8af0-4813-be16-9d89e5e347e8",
+              "variant_id": "4c06327a-4d43-4df3-bf00-5299335a8ccf",
+              "parent_variant_id": null,
+              "geometry_hash": "a3e78c37123a1acb2483b140de89713dfe059491fa0e8a4066e337052baa9da1"
+            },
+            "creation_events": []
+          }
+        }
+      ],
+      "created_at": "2026-11-25T04:23:04.079406+00:00",
+      "updated_at": "2026-11-25T04:23:04.110765+00:00",
+      "events": [
+        {
+          "at": "2026-11-25T04:23:04.079406+00:00",
+          "type": "created",
+          "message": "项目已创建，状态为 ready_for_design"
+        },
+        {
+          "at": "2026-11-25T04:23:04.110765+00:00",
+          "type": "variant_added",
+          "message": "新增方案：通用 CAD 构造候选"
+        }
+      ],
+      "requirement_state": {
+        "schema": "cad.requirement-state.v1",
+        "status": "ready",
+        "missing": [],
+        "conflicts": [],
+        "revision": "4853c2370fed4f0ba98d5b03f5d676e395e45d2c32c5fe5dff33629754fe2a4d"
+      }
+    }
+  ]
+}

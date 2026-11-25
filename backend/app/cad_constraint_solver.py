@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from .cad_plan_references import REFERENCE_DESCRIPTION
 
 
 class ConstraintSolveError(ValueError):
@@ -39,8 +40,8 @@ class _StrictModel(BaseModel):
 
 class _BinaryConstraint(_StrictModel):
     constraint_id: str = Field(min_length=1, max_length=64)
-    target_ref: str = Field(min_length=1, max_length=128)
-    reference_ref: str = Field(min_length=1, max_length=128)
+    target_ref: str = Field(min_length=1, max_length=256, description=REFERENCE_DESCRIPTION + '约束目标必须恰含一个图元；仅目标可变。')
+    reference_ref: str = Field(min_length=1, max_length=256, description=REFERENCE_DESCRIPTION + '约束参考必须恰含一个图元。')
     tolerance: float = Field(default=0.001, gt=0.0, le=1000.0)
 
     @model_validator(mode="after")
@@ -74,7 +75,15 @@ class EqualSizeConstraint(_BinaryConstraint):
 
 class CenterDistanceConstraint(_BinaryConstraint):
     kind: Literal["center_distance"]
-    distance: float = Field(ge=0.0, le=100000.0)
+    distance: float = Field(ge=0.0, le=100000.0,
+        description='约束使用图元固有center（圆、圆弧、椭圆），其他图元使用坐标外包框中心；按plan.units计。与center_distance断言的集合外包框中心定义不同。')
+
+
+class EndpointCoincidentConstraint(_BinaryConstraint):
+    """Rigidly translate one open primitive to an explicitly selected endpoint."""
+    kind: Literal['endpoint_coincident'] = Field(description='仅builtin；只平移单一目标，保留长度、半径、方向，参考不变；不保证相切或其他关系。')
+    target_endpoint: Literal['start', 'end']
+    reference_endpoint: Literal['start', 'end']
 
 
 ConstructionConstraint = Annotated[
@@ -85,6 +94,7 @@ ConstructionConstraint = Annotated[
         EqualRadiusConstraint,
         EqualSizeConstraint,
         CenterDistanceConstraint,
+        EndpointCoincidentConstraint,
     ],
     Field(discriminator="kind"),
 ]
@@ -135,6 +145,32 @@ def solve_geometric_constraints(
             f"约束求解后端 {selected} 当前不可用",
         )
 
+    for constraint in constraints:
+        target = _single_geometry(geometries, symbol_table, constraint.target_ref, constraint.constraint_id)
+        reference = _single_geometry(geometries, symbol_table, constraint.reference_ref, constraint.constraint_id)
+        if target['id'] == reference['id']:
+            raise ConstraintSolveError('constraint_overlapping_references',
+                '目标与参考引用了同一图元，不能通过不同别名施加自引用约束', constraint_id=constraint.constraint_id)
+        if isinstance(constraint, EndpointCoincidentConstraint):
+            if selected != 'builtin':
+                raise ConstraintSolveError('constraint_backend_kind_unsupported',
+                    '端点重合目前只由builtin后端执行；未调用原生后端或隐式回退', constraint_id=constraint.constraint_id)
+            _endpoint(target, constraint.target_endpoint, constraint.constraint_id)
+            _endpoint(reference, constraint.reference_endpoint, constraint.constraint_id)
+
+    # A bounding box midpoint of an open path is not a concentric centre.
+    # Validate before either native or built-in solving can move any geometry.
+    for constraint in constraints:
+        if isinstance(constraint, ConcentricConstraint):
+            for ref in (constraint.target_ref,constraint.reference_ref):
+                g=_single_geometry(geometries,symbol_table,ref,constraint.constraint_id)
+                if g.get('type')=='line' or (g.get('type') in {'polyline','spline'} and not g.get('closed')):
+                    error=ConstraintSolveError('constraint_geometry_type_unsupported',
+                        f'同心约束不能绑定开放路径 {ref} 的外包框中心；请引用实际圆/圆弧或闭合对象。',constraint_id=constraint.constraint_id)
+                    error.details={'affected_output_refs':[constraint.target_ref,constraint.reference_ref],
+                        'inapplicable_constraint':constraint.model_dump(mode='json'),
+                        'repair_instruction':'修正模型自拟约束的对象范围，不得把开放曲线路径的外包框中心当成局部圆弧圆心；保留来源要求并重新验证。'}
+                    raise error
     solved = deepcopy(geometries)
     native_report: dict[str, Any] | None = None
     fallback_ids: list[str] = []
@@ -317,11 +353,15 @@ def _single_geometry(
             constraint_id=constraint_id,
         )
     if len(ids) != 1:
-        raise ConstraintSolveError(
+        error = ConstraintSolveError(
             "constraint_requires_single_geometry",
             f"约束引用 {output_ref} 包含 {len(ids)} 个图元，当前约束要求单图元",
             constraint_id=constraint_id,
         )
+        error.details = {'reference': output_ref, 'geometry_ids': list(ids),
+                         'required_cardinality': 1, 'actual_cardinality': len(ids),
+                         'repair_instruction': '当前约束只接受单图元；请引用明确部件，不得从整体中任取一个图元或删除其余部件。'}
+        raise error
     geometry_id = int(ids[0])
     for geometry in geometries:
         if int(geometry.get("id", -1)) == geometry_id:
@@ -337,6 +377,11 @@ def _apply_constraint(
     target: dict[str, Any], reference: dict[str, Any],
     constraint: ConstructionConstraint, unit_scale: float,
 ) -> None:
+    if isinstance(constraint, EndpointCoincidentConstraint):
+        tx, ty = _endpoint(target, constraint.target_endpoint, constraint.constraint_id)
+        rx, ry = _endpoint(reference, constraint.reference_endpoint, constraint.constraint_id)
+        _translate(target, rx-tx, ry-ty)
+        return
     if isinstance(constraint, ConcentricConstraint):
         tx, ty = _center(target)
         rx, ry = _center(reference)
@@ -387,6 +432,9 @@ def _constraint_residual(
     target: dict[str, Any], reference: dict[str, Any],
     constraint: ConstructionConstraint, unit_scale: float,
 ) -> tuple[float, str]:
+    if isinstance(constraint, EndpointCoincidentConstraint):
+        return math.dist(_endpoint(target, constraint.target_endpoint, constraint.constraint_id),
+                         _endpoint(reference, constraint.reference_endpoint, constraint.constraint_id)), 'endpoint_distance_mm'
     if isinstance(constraint, ConcentricConstraint):
         tx, ty = _center(target); rx, ry = _center(reference)
         return math.hypot(tx - rx, ty - ry), "distance_mm"
@@ -406,6 +454,26 @@ def _constraint_residual(
         tx, ty = _center(target); rx, ry = _center(reference)
         return abs(math.hypot(tx - rx, ty - ry) - constraint.distance * unit_scale), "distance_delta_mm"
     return math.inf, "unsupported"
+
+
+def _endpoint(geometry, selector, constraint_id):
+    kind = geometry.get('type')
+    if kind == 'line':
+        point = geometry[selector]
+    elif kind == 'polyline' and not geometry.get('closed') and len(geometry.get('vertices', [])) >= 2:
+        point = geometry['vertices'][0 if selector == 'start' else -1]
+    elif kind == 'arc':
+        delta = float(geometry['end_angle']) - float(geometry['start_angle'])
+        if abs(delta % 360) < 1e-9:
+            raise ConstraintSolveError('constraint_geometry_type_unsupported',
+                '零扫角或整圆没有唯一开放端点', constraint_id=constraint_id)
+        angle = math.radians(float(geometry[selector + '_angle']))
+        return (float(geometry['center']['x']) + float(geometry['radius'])*math.cos(angle),
+                float(geometry['center']['y']) + float(geometry['radius'])*math.sin(angle))
+    else:
+        raise ConstraintSolveError('constraint_geometry_type_unsupported',
+            '端点重合只支持直线、开放多段线和非整圆圆弧；不猜测圆或闭合对象的端点', constraint_id=constraint_id)
+    return float(point['x']), float(point['y'])
 
 
 def _points(geometry: dict[str, Any]) -> list[dict[str, Any]]:

@@ -198,6 +198,12 @@ def _normalize_shape_value(shape: Any, prompt: str) -> Any:
     """Map a descriptive shape value onto a generator-supported enum."""
     text = str(shape or "").strip().lower()
     prompt_text = str(prompt or "").strip().lower()
+    # Preserve specific construction primitives before the generic 圆 alias.
+    specific = text or prompt_text
+    if '椭圆' in specific or 'ellipse' in specific:
+        return 'ellipse'
+    if '圆弧' in specific or specific == 'arc':
+        return 'arc'
     if text in _KNOWN_SHAPE_VALUES:
         return shape
     for enum_value, keywords in _SHAPE_ENUM_HINTS:

@@ -2,6 +2,8 @@
 
 这是划线小车 App 的 FastAPI + rclpy 后端。
 
+Windows 上的独立 CAD 研发环境使用 `dev.ps1`，配置和命令见 [本地开发说明](docs/LOCAL_DEVELOPMENT.md)。
+
 ## 功能
 
 - HTTP 接口：状态查询、平板底盘控制、喷码机控制、LN150 控制、规划与 Action 任务执行

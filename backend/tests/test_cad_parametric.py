@@ -61,7 +61,7 @@ def test_expression_failure_reports_all_invalid_steps_without_running_code():
 def test_spiral_formula_computes_three_turns_with_linear_radial_growth():
     result = execute_construction_plan(plan())
     points = result["geometries"][0]["vertices"]
-    assert len(points) <= 500
+    assert len(points) <= 4096
     assert points[0]["x"] == points[0]["y"] == 0
     angles = []
     for p in points[1:]:

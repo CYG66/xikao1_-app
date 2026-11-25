@@ -1,0 +1,249 @@
+[
+  {
+    "case": "C7",
+    "source": "画一个矩形宽4米高2米，在四个角各放一个半径0.5米的圆\n矩形宽4米、高2米，四个圆半径均为0.5米，圆心分别位于矩形四个顶点。",
+    "original": "画一个矩形宽4米高2米，在四个角各放一个半径0.5米的圆",
+    "followup": "矩形宽4米、高2米，四个圆半径均为0.5米，圆心分别位于矩形四个顶点。",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "rect-1",
+          "output_ref": "rect_body",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "corner_rect_circles",
+            "assembly_label": "矩形与四角圆",
+            "object_id": "rect_body",
+            "object_type": "drawing_part",
+            "label": "宽4米高2米矩形",
+            "role": "body"
+          },
+          "op": "add_centered_rectangle",
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "width": 4.0,
+          "height": 2.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "step_id": "circle-tl",
+          "output_ref": "circle_tl",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "corner_rect_circles",
+            "assembly_label": "矩形与四角圆",
+            "object_id": "circle_tl",
+            "object_type": "drawing_part",
+            "label": "左上角圆",
+            "role": "corner_circle"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": -2.0,
+            "y": 1.0
+          },
+          "radius": 0.5
+        },
+        {
+          "step_id": "circle-tr",
+          "output_ref": "circle_tr",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "corner_rect_circles",
+            "assembly_label": "矩形与四角圆",
+            "object_id": "circle_tr",
+            "object_type": "drawing_part",
+            "label": "右上角圆",
+            "role": "corner_circle"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": 2.0,
+            "y": 1.0
+          },
+          "radius": 0.5
+        },
+        {
+          "step_id": "circle-bl",
+          "output_ref": "circle_bl",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "corner_rect_circles",
+            "assembly_label": "矩形与四角圆",
+            "object_id": "circle_bl",
+            "object_type": "drawing_part",
+            "label": "左下角圆",
+            "role": "corner_circle"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": -2.0,
+            "y": -1.0
+          },
+          "radius": 0.5
+        },
+        {
+          "step_id": "circle-br",
+          "output_ref": "circle_br",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "corner_rect_circles",
+            "assembly_label": "矩形与四角圆",
+            "object_id": "circle_br",
+            "object_type": "drawing_part",
+            "label": "右下角圆",
+            "role": "corner_circle"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": 2.0,
+            "y": -1.0
+          },
+          "radius": 0.5
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "entity_count",
+          "assertion_id": "count-entities",
+          "target_ref": null,
+          "equals": 5
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "bounds-rect",
+          "target_ref": "rect_body",
+          "width": 4.0,
+          "height": 2.0,
+          "tolerance": 0.001
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": "historical first saved plan; known door mismatch must remain rejected after followup"
+  },
+  {
+    "case": "C16",
+    "source": "生成一个房子轮廓，宽4米高3米，屋顶是三角形，下面加一个门\n总宽4米、总高3米；墙体左下角(0,0)，宽4米高2米；屋顶顶点(0,2)(2,3)(4,2)；门左下角(1.5,0)，宽1米高1.5米，坐标单位米。",
+    "original": "生成一个房子轮廓，宽4米高3米，屋顶是三角形，下面加一个门",
+    "followup": "总宽4米、总高3米；墙体左下角(0,0)，宽4米高2米；屋顶顶点(0,2)(2,3)(4,2)；门左下角(1.5,0)，宽1米高1.5米，坐标单位米。",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "house.outline",
+          "output_ref": "house_outline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "house",
+            "assembly_label": "房子轮廓",
+            "object_id": "house.outline",
+            "object_type": "drawing_part",
+            "label": "房子外轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 0.0,
+              "y": 0.0
+            },
+            {
+              "x": 4.0,
+              "y": 0.0
+            },
+            {
+              "x": 4.0,
+              "y": 2.0
+            },
+            {
+              "x": 2.0,
+              "y": 3.0
+            },
+            {
+              "x": 0.0,
+              "y": 2.0
+            }
+          ],
+          "closed": true
+        },
+        {
+          "step_id": "house.door",
+          "output_ref": "house_door",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "house",
+            "assembly_label": "房子轮廓",
+            "object_id": "house.door",
+            "object_type": "drawing_part",
+            "label": "门",
+            "role": "door"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 1.0,
+              "y": 0.0
+            },
+            {
+              "x": 3.0,
+              "y": 0.0
+            },
+            {
+              "x": 3.0,
+              "y": 1.2
+            },
+            {
+              "x": 1.0,
+              "y": 1.2
+            }
+          ],
+          "closed": true
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "bounds_size",
+          "assertion_id": "house_bounds",
+          "target_ref": "house_outline",
+          "width": 4.0,
+          "height": 3.0,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "house_closed",
+          "target_ref": "house_outline"
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "door_closed",
+          "target_ref": "house_door"
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": "historical first saved plan; known door mismatch must remain rejected after followup"
+  }
+]

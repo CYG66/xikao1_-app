@@ -15,8 +15,6 @@ KillSignal=SIGINT
 TimeoutStopSec=15
 Environment=PYTHONUNBUFFERED=1
 Environment=XLINE_EMBEDDED_DISCOVERY=0
-Environment=XLINE_DEPLOYMENT_PROFILE=production
-Environment=XLINE_STARTUP_RECOVERY_MODE=disabled
 
 [Install]
 WantedBy=multi-user.target

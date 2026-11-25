@@ -1,5 +1,6 @@
 """Source-backed component contracts. Checks geometry; never constructs it."""
 from __future__ import annotations
+from .cad_length_units import length_factors
 
 from copy import deepcopy
 import hashlib
@@ -36,14 +37,10 @@ def validate_plan_structure(contract, plan):
                 {'phase':'preflight_structure','expected_components':contract.get('names'),
                  'observed_steps':len(steps)})
     elif contract.get('counts'):
-        # A logical-object contract owns the object count, not the number of
-        # literal construction steps.  Four line steps may legitimately
-        # describe one rectangle object, so plan-step count is not authority.
-        if contract.get('count_unit') != 'logical_object':
-            expected=sum(contract['counts'].values())
-            if len(steps)!=expected:
-                raise StructureContractError('结构计划组成数量与需求不一致',
-                    {'phase':'preflight_structure','expected_count':expected,'observed_steps':len(steps)})
+        expected=sum(contract['counts'].values())
+        if len(steps)!=expected:
+            raise StructureContractError('结构计划组成数量与需求不一致',
+                {'phase':'preflight_structure','expected_count':expected,'observed_steps':len(steps)})
     refs=[s.get('output_ref') for s in steps]
     if any(not isinstance(ref,str) or not ref for ref in refs) or len(set(refs))!=len(refs):
         raise StructureContractError('结构计划存在缺失或重复的组成标识', {'phase':'preflight_structure'})
@@ -113,173 +110,38 @@ def reference_contract(text):
 def explicit_dimensions(text):
     """Only use user-supplied dimensions; a reference ratio is not a size."""
     source = text.split("\n后端试算反馈：", 1)[0]
+    from .cad_requirement_contract import requirement_contract
+    contract = requirement_contract([{'source_id':'size-source','text':source}])
+    subjects = contract['subjects']
+    if len(subjects)>1:
+        shared = {}
+        for field in ('width','height'):
+            facts = [f for f in contract['facts'] if f['status']=='effective'
+                and f['operator']=='eq' and f['field']==field and f['binding']=='explicit_shared']
+            if {f['subject'] for f in facts}==set(subjects) and len({f['value_mm'] for f in facts})==1:
+                shared[field] = facts[0]['value_mm']/1000
+        return shared.get('width'),shared.get('height')
+    if len(subjects)==1:
+        scoped = {f['field']:f['value_mm']/1000 for f in contract['facts']
+            if f['status']=='effective' and f['subject']==subjects[0]
+            and f['operator']=='eq' and f['field'] in {'width','height'}}
+        if scoped:
+            return scoped.get('width'),scoped.get('height')
+        if any(f['status']=='effective' and f['subject']!=subjects[0] for f in contract['facts']):
+            return None,None
     def value(label):
         matches = re.findall("(?:"+label+r")(?:度)?\s*(?:为|是|=|：|:)?\s*(\d+(?:\.\d+)?)\s*(毫米|厘米|米|mm|cm|m)", source)
         if not matches:
             return None
         number, unit = matches[-1]
-        return float(number)*{"毫米":.001,"mm":.001,"厘米":.01,"cm":.01,"米":1,"m":1}[unit]
+        return float(number)*length_factors('m')[unit]
     width,height=value("宽|长"),value("高")
     shared=re.search(r"(?:长宽|宽高|长和宽|宽和高)(?:均|都)?(?:为|是)?\s*(\d+(?:\.\d+)?)\s*(毫米|厘米|米|mm|cm|m)",source)
     if shared:
-        size=float(shared[1])*{"毫米":.001,"mm":.001,"厘米":.01,"cm":.01,"米":1,"m":1}[shared[2]]
+        size=float(shared[1])*length_factors('m')[shared[2]]
         width=width if width is not None else size
         height=height if height is not None else size
     return width,height
-
-
-# --- Source-side logical-object count inventory -----------------------------
-# The object-noun space below reuses vocabulary already classified by existing
-# channels (projection box nouns, primitive kinds, repetition/feature nouns).
-# No general NLP vocabulary and no dedicated object parser are introduced.
-_BOX_OBJECT_NOUNS = ("立方体", "正方体")
-_PRIMITIVE_OWNED_NOUNS = ("矩形", "长方形", "正方形", "圆形", "圆", "线段", "直线",
-    "圆弧", "三角形", "多边形", "五角星", "六边形", "五边形", "四边形", "椭圆",
-    "圆孔", "圆点", "孔")
-_ATTRIBUTE_FEATURE_NOUNS = ("棱", "边", "面", "顶点", "齿", "花瓣", "凸瓣", "波瓣", "瓣",
-    "段", "单元", "分支", "支臂", "臂", "横线", "条带", "网格", "齿顶", "齿根", "角")
-_NOUN_MODIFIERS = ("相交", "相同", "等大", "竖直", "水平", "大", "小", "红", "蓝", "内", "外", "长", "短")
-_NOUN_STOP_TAILS = ("并排", "组成", "轮廓", "图案", "形状", "的", "等", "大", "小")
-_DIGIT_WORDS = {"零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5,
-                "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
-_OBJECT_QTY_RE = re.compile(
-    r"(?P<qty>\d+|[一二两三四五六七八九十])\s*(?P<measure>个|块|张|朵|颗|幅|组)"
-    r"\s*(?P<noun>[^\s和与及，,。；;\n]{1,6})")
-_CREATION_VERB = re.compile(r"生成|创建|新建|绘制|画出|画|设计")
-
-
-def _normalize_object_noun(raw):
-    """Strip existing-channel modifiers, conjunction tails and relation tails."""
-    noun = re.split(r"[和与及]", raw)[0]
-    changed = True
-    while changed:
-        changed = False
-        for mod in _NOUN_MODIFIERS:
-            if noun.startswith(mod):
-                noun = noun[len(mod):]
-                changed = True
-    for tail in _NOUN_STOP_TAILS:
-        if noun.endswith(tail):
-            noun = noun[:-len(tail)]
-    return noun
-
-
-def _classify_object_noun(noun):
-    if any(noun.startswith(attr) for attr in _ATTRIBUTE_FEATURE_NOUNS):
-        return "attribute_feature"
-    if any(noun == box or noun.startswith(box) for box in _BOX_OBJECT_NOUNS):
-        return "object"
-    if any(noun == prim or noun.startswith(prim) for prim in _PRIMITIVE_OWNED_NOUNS):
-        return "primitive_owned"
-    return "ambiguous"
-
-
-def _object_requirement_inventory(source):
-    """Extract source-bound logical-object count requirements.
-
-    State semantics (auditable via ``object_requirements_audit``):
-    - ``none``: no object quantity requirement; numbers/measure words only
-      modify attributes or repetition features, or belong to owned primitives.
-    - ``complete``: every detectable object quantity phrase was captured with
-      a recognized object noun; ``logical_object_count`` is the summed quantity.
-    - ``incomplete``: at least one quantity phrase could not be bound to a
-      recognized object noun; full-or-nothing, ``logical_object_count`` is None.
-
-    The baseline comes only from source text. Plan step counts, plan semantic
-    identities, array rows/columns, template quantity, entity-count assertions
-    and flat geometry instances are never read here.
-    """
-    audit = []
-    entries = []
-    ambiguous = []
-    clauses = re.split(r"[，,。；;\n]", source)
-    verb_idx = {i for i, clause in enumerate(clauses) if _CREATION_VERB.search(clause)}
-    allowed = set(verb_idx)
-    for index in list(verb_idx):
-        allowed.update({index - 1, index + 1})
-
-    offset = 0
-    for clause_index, clause in enumerate(clauses):
-        for match in _OBJECT_QTY_RE.finditer(clause):
-            qty_token = match.group("qty")
-            measure = match.group("measure")
-            noun = _normalize_object_noun(match.group("noun"))
-            disposition = _classify_object_noun(noun) if noun else "ambiguous"
-            if clause_index not in allowed:
-                disposition = "out_of_creation_slot"
-            span = [offset + match.start(), offset + match.end()]
-            evidence = match.group(0)
-            # Provenance check: the source slice at the recorded span must
-            # equal the captured phrase. A mismatch means the span anchor is
-            # not trustworthy; keep the phrase unresolved instead of building
-            # a binding basis on a drifted position.
-            evidence_valid = source[span[0]:span[1]] == evidence
-            record = {
-                "evidence": evidence,
-                "qty": qty_token,
-                "measure_word": measure,
-                "object_noun": noun,
-                "disposition": disposition,
-                "span": span,
-                "source_clause_index": clause_index,
-                "evidence_valid": evidence_valid,
-            }
-            audit.append(record)
-
-            quantity = (int(qty_token) if qty_token.isdigit()
-                         else _DIGIT_WORDS.get(qty_token))
-            if quantity is not None and quantity < 2:
-                # A single-object phrase is not an object-count requirement;
-                # an ambiguous single noun must not force an incomplete state.
-                record["disposition"] = "single_object"
-                continue
-            if not evidence_valid:
-                record["disposition"] = "evidence_mismatch"
-                ambiguous.append(record)
-                continue
-            if disposition == "ambiguous" or quantity is None:
-                record["disposition"] = "ambiguous"
-                ambiguous.append(record)
-                continue
-            if disposition != "object":
-                continue
-            entry_index = len(entries) + 1
-            entries.append({
-                "requirement_id": f"request-0:object-{entry_index}:{disposition}",
-                "object_noun": noun,
-                "quantity": quantity,
-                "measure_word": measure,
-                "expected_category": disposition,
-                "evidence": evidence,
-                "evidence_span": span,
-                "source_clause_index": clause_index,
-                "source_id": "request-0",
-            })
-        offset += len(clause) + 1
-
-    # All occurrence positions of the same captured phrase, for repeated-phrase
-    # disambiguation. The entry identity is anchored by its evidence span; the
-    # category suffix in the local id is a readable hint, not a stable source
-    # identity.
-    occurrences_by_evidence: dict[str, list[list[int]]] = {}
-    for record in audit:
-        occurrences_by_evidence.setdefault(record["evidence"], []).append(record["span"])
-    for entry in entries:
-        entry["evidence_occurrences"] = occurrences_by_evidence.get(entry["evidence"], [entry["evidence_span"]])
-
-    if ambiguous:
-        state = "incomplete"
-    elif entries:
-        state = "complete"
-    else:
-        state = "none"
-    logical_count = sum(entry["quantity"] for entry in entries) if state == "complete" else None
-    return {
-        "object_requirements": entries,
-        "object_requirements_state": state,
-        "logical_object_count": logical_count,
-        "object_requirements_audit": audit,
-    }
 
 
 def explicit_composition(text):
@@ -287,22 +149,14 @@ def explicit_composition(text):
 
     This conservative grammar declines expressions it cannot fully scope;
     it is not a catalog of objects and does not manufacture geometry.
-    Unresolved object nouns are kept out of this legacy contract; they are
-    exposed through :func:`object_inventory_sidecar` for ownership
-    reconciliation only.
     """
     source=text.split("\n后端试算反馈：",1)[0]
-    def _merge(contract):
-        # Legacy grammar contract only. The inventory side-car rides on a
-        # separate channel so legacy boolean guards keep their baseline
-        # semantics when the object noun could not be resolved.
-        return contract
     number=r"(\d+|[一二两三四五六七八九十])"
     def count(token):
         return int(token) if token.isdigit() else 2 if token=="两" else "零一二三四五六七八九十".index(token)
     def metric(label):
         match=re.search("(?:"+label+r")(?:均|都)?(?:为|是|=|：|:)?\s*(\d+(?:\.\d+)?)\s*(毫米|厘米|米|mm|cm|m)",source)
-        return float(match[1])*{"毫米":.001,"mm":.001,"厘米":.01,"cm":.01,"米":1,"m":1}[match[2]] if match else None
+        return float(match[1])*length_factors('m')[match[2]] if match else None
     width,height=explicit_dimensions(source)
     dimensions={"width_m":width,"height_m":height,"radius_m":metric("半径"),
                 "row_pitch_m":metric("行距"),"column_pitch_m":metric("列距"),
@@ -315,14 +169,39 @@ def explicit_composition(text):
     for field,key in (('radius','radius_m'),('width','width_m'),('height','height_m')):
         if any(field in part for part in scoped_primitives):
             dimensions.pop(key,None)
+    # The unified source contract already binds inner/outer and named scopes.
+    # A component scalar is never a shared dimension of its entire inventory.
+    from .cad_requirement_contract import requirement_contract
+    from .cad_source_acceptance import source_texts
+    scalar_contract=requirement_contract([{'source_id':f'composition:{i}','text':s}
+                                         for i,s in enumerate(source_texts(text))])
+    # Width/height already use explicit_dimensions' common-type scope. Here
+    # remove only a named circle's radius, not a whole-type dimension (e.g.
+    # the one rectangle in a rectangle-plus-four-circles drawing).
+    if any(f['field']=='radius' and f['binding']=='explicit_subject'
+           and f['subject'] not in {'圆','圆形'} and f['status']=='effective'
+           for f in scalar_contract['facts']):
+        dimensions.pop('radius_m',None)
     array=re.search(number+r"\s*行\s*"+number+r"\s*列",source)
     if array and "矩形" in source:
         rows,cols=map(count,array.groups())
         if min(rows,cols)>0 and rows*cols<=500:
-            return _merge({"kind":"rectangular_array","counts":{"rectangle":rows*cols},"rows":rows,"columns":cols,
-                    "evidence":array.group(0),"dimensions":dimensions})
-    if "矩形" in source and re.search(r"(?:四|4)\s*个?角.*(?:圆|circle)",source):
-        return _merge({"kind":"corner_placement","counts":{"rectangle":1,"circle":4},"evidence":source,"dimensions":dimensions})
+            return {"kind":"rectangular_array","counts":{"rectangle":rows*cols},"rows":rows,"columns":cols,
+                    "evidence":array.group(0),"dimensions":dimensions}
+    # Placement needs an affirmative action and an independent circle noun.
+    # "四角圆角半径" / "四角做圆弧过渡" describe rounding, not four circles;
+    # arbitrary text between corner and circle also swallowed negations.
+    corner_circle_pattern = (
+        r"(?:四|4)\s*个?角(?:上|处)?\s*(?:各|分别)?\s*"
+        r"(?:放置|放|画|绘制|添加)\s*(?:(?:一|1)个)?\s*"
+        r"(?:半径\s*\d+(?:\.\d+)?\s*(?:毫米|厘米|米|mm|cm|m)\s*的?)?"
+        r"圆(?:形)?(?!角|弧)")
+    corner_circles = any(
+        re.search(corner_circle_pattern, clause)
+        and not re.search(r"不要|不需要|不应|不能|不必|禁止|(?<!分)别(?:在|放|画)", clause)
+        for clause in re.split(r"[，,。；;\n]", source))
+    if "矩形" in source and corner_circles:
+        return {"kind":"corner_placement","counts":{"rectangle":1,"circle":4},"evidence":source,"dimensions":dimensions}
     circles=re.search(number+r"\s*个\s*(?:相交的?|相同的?|等大的?)?圆",source)
     if circles and count(circles[1])>=2:
         # A noun-modified count (e.g. circles serving as eyes) describes a
@@ -331,38 +210,19 @@ def explicit_composition(text):
         # of inventing an exact whole-drawing count or sharing its radius.
         suffix=source[circles.end():]
         if re.match(r"点|形|作为|用作|的?(?:眼|孔|窗|灯|轮)",suffix) or "圆弧" in source:
-            return _merge(None)
+            return None
         counts={"circle":count(circles[1])}
         if re.search(r"矩形|长方形|正方形",source):
             rectangle=re.search(number+r"\s*个\s*(?:竖直|水平|相同|等大|的)*\s*(?:矩形|长方形|正方形)",source)
             if not rectangle:
                 # A circle-only inventory is not authoritative for a mixed
                 # drawing. Decline rather than reject legitimate extra parts.
-                return _merge(None)
+                return None
             counts["rectangle"]=count(rectangle[1])
         if re.search(r"三角形|线段|刻度线|五角星",source):
-            return _merge(None)
-        return _merge({"kind":"component_count","counts":counts,"evidence":circles.group(0),
-                "dimensions":dimensions,"intersecting":"相交" in source})
-    rectangles=re.search(
-        number+r"\s*(?:个|块|张)\s*(?:并排|竖直|水平|相同|等大|的)*\s*(?:矩形|长方形|正方形)",
-        source)
-    if rectangles and count(rectangles[1])>=2:
-        # A rectangle count is authoritative only for a rectangle-only
-        # inventory. In a mixed drawing the same phrase may name a subset,
-        # so decline instead of asserting a whole-drawing component count.
-        if re.search(r"圆(?:形|弧)?|三角形|多边形|五角星|线段|直线",source):
-            return _merge(None)
-        return _merge({"kind":"component_count",
-                "counts":{"rectangle":count(rectangles[1])},
-                "count_unit":"logical_object",
-                "count_authority":"object_ownership",
-                "evidence":rectangles.group(0),"dimensions":dimensions,
-                "dimension_scope":("overall" if re.search(
-                    r"整体|总(?:体)?(?:宽|高|长|尺寸)|外包|外形|外廓|包围盒",source)
-                    else "component" if re.search(
-                        r"每个|各个|各|分别|均为|都为",source)
-                    else "ambiguous")})
+            return None
+        return {"kind":"component_count","counts":counts,"evidence":circles.group(0),
+                "dimensions":dimensions,"intersecting":"相交" in source}
     # A plainly enumerated line inventory is independently measurable.  Keep
     # this grammar narrow: a line count in a mixed drawing is only a subset,
     # not authority to reject the other required primitives.
@@ -372,8 +232,8 @@ def explicit_composition(text):
     )
     if lines and count(lines[1]) >= 2:
         if re.search(r"矩形|长方形|正方形|圆(?:形|弧)?|三角形|多边形|五角星", source):
-            return _merge(None)
-        return _merge({
+            return None
+        return {
             "kind": "line_inventory",
             "counts": {"line": count(lines[1])},
             "evidence": lines.group(0),
@@ -384,7 +244,7 @@ def explicit_composition(text):
                 else "horizontal" if lines[2] == "水平"
                 else None
             ),
-        })
+        }
     names=local_creation_objects(source)
     if len(names)>=2:
         from .cad_source_acceptance import source_texts
@@ -401,7 +261,7 @@ def explicit_composition(text):
                 part=clause[start+len(name):end];w,h=explicit_dimensions(part)
                 radius=re.search(r'外接圆半径\s*(\d+(?:\.\d+)?)\s*(毫米|厘米|米|mm|cm|m)',part)
                 values={k:v for k,v in (('width_m',w),('height_m',h)) if v is not None}
-                if radius:values['circumradius_m']=float(radius[1])*{'毫米':.001,'厘米':.01,'米':1,'mm':.001,'cm':.01,'m':1}[radius[2]]
+                if radius:values['circumradius_m']=float(radius[1])*length_factors('m')[radius[2]]
                 if values:scoped.setdefault(name,{}).update(values)
         from .cad_requirement_contract import requirement_contract
         scalar=requirement_contract([{'source_id':f'part-source-{i+1}','text':s} for i,s in enumerate(source_texts(text))])
@@ -415,56 +275,20 @@ def explicit_composition(text):
                 shared.pop(key)
         center_spacing=re.findall(r'中心(?:水平)?(?:相距|距离|间距|距)(?:为|是)?\s*(\d+(?:\.\d+)?)\s*(毫米|厘米|米|mm|cm|m)',user_source)
         spacing=re.search(r"(?:间距|净距)(?:为|是)?\s*(\d+(?:\.\d+)?)\s*(毫米|厘米|米|mm|cm|m)",user_source)
-        gap_m=float(spacing[1])*{'毫米':.001,'厘米':.01,'米':1,'mm':.001,'cm':.01,'m':1}[spacing[2]] if spacing else None
+        gap_m=float(spacing[1])*length_factors('m')[spacing[2]] if spacing else None
         if center_spacing:
-            value,unit=center_spacing[-1];gap_m=float(value)*{'毫米':.001,'厘米':.01,'米':1,'mm':.001,'cm':.01,'m':1}[unit]
-        return _merge({"kind":"named_components","counts":{"closed_path":len(names)},"names":names,
+            value,unit=center_spacing[-1];gap_m=float(value)*length_factors('m')[unit]
+        return {"kind":"named_components","counts":{"closed_path":len(names)},"names":names,
                 "dimensions":shared,"component_dimensions":scoped,"evidence":user_source,
                 "gap_m":gap_m,
                 "gap_reference":"center" if center_spacing or re.search(r"中心(?:间)?距",user_source) else "edge",
-                "left_to_right":bool(re.search(re.escape(names[0])+r"在左",source) and re.search(re.escape(names[1])+r"在右",source))})
-    return _merge(None)
+                "left_to_right":bool(re.search(re.escape(names[0])+r"在左",source) and re.search(re.escape(names[1])+r"在右",source))}
+    return None
 
 
-def object_inventory_sidecar(text):
-    """Source-side logical-object requirement for ownership reconciliation.
-
-    Returns ``None`` when the source carries no object-count requirement.
-    The side-car is consumed only by the backend ownership reconciliation;
-    legacy routing, plan compilation, preflight and ledger binding must not
-    treat it as an explicit composition contract.
-    """
-    source = text.split("\n后端试算反馈：", 1)[0]
-    inventory = _object_requirement_inventory(source)
-    if inventory["object_requirements_state"] == "none":
-        return None
-    return dict(inventory)
-
-
-def legacy_composition_contract(contract):
-    """Return the contract only when it carries a legacy explicit composition.
-
-    The ``object_inventory`` side-car records a source-side logical-object
-    requirement for the backend ownership reconciliation. Legacy routing
-    guards, plan compilation, preflight and ledger binding must treat it as
-    absent; the reconciliation path still reads the raw inventory fields from
-    the original contract itself.
-    """
-    if not isinstance(contract, dict):
-        return None
-    if contract.get("kind") == "object_inventory":
-        return None
-    if not (contract.get("counts") or contract.get("names")
-            or contract.get("rows") or contract.get("columns")
-            or contract.get("kind")):
-        return None
-    inventory_fields = ("object_requirements", "object_requirements_state",
-                         "logical_object_count", "object_requirements_audit")
-    return {key: value for key, value in contract.items()
-            if key not in inventory_fields}
-
-
-def validate_explicit_composition(contract, geometries):
+def validate_explicit_composition(contract, geometries, *, evidence_context=None):
+    from .cad_validation_evidence import ConstructionEvidence
+    if evidence_context is None:evidence_context=ConstructionEvidence()
     if contract is None:
         return None
     # Independent topology gate: component counts and dimensions are not
@@ -489,20 +313,12 @@ def validate_explicit_composition(contract, geometries):
             raise StructureContractError("组成图形存在自交，无法通过几何验收", {
                 "geometry_id": geometry.get("id")
             })
-    rectangles=[g for g in geometries if _frame(g) is not None]
+    rectangles=[g for g in geometries if _frame(g,evidence_context=evidence_context) is not None]
     circles=[g for g in geometries if g.get("type")=="circle"]
     lines=[g for g in geometries if g.get("type")=="line"]
     observed={"rectangle":len(rectangles),"circle":len(circles),"line":len(lines),
               "closed_path":sum(bool(_points(g)) or g.get("type") in {"circle","ellipse"} for g in geometries)}
-    # Object-inventory contracts carry logical-object count requirements only;
-    # the type-count gate owns primitive inventory, and the execution-side
-    # ownership reconciliation is the final object-count verdict.
-    if contract.get("kind") == "object_inventory":
-        return {"status": "passed", "object_inventory": True, "observed_counts": observed}
-    logical_object_count = contract.get("count_unit") == "logical_object"
-    if not logical_object_count and (
-            len(geometries) != sum(contract["counts"].values())
-            or any(observed[k] != n for k, n in contract["counts"].items())):
+    if len(geometries)!=sum(contract["counts"].values()) or any(observed[k]!=n for k,n in contract["counts"].items()):
         raise StructureContractError("实际组成数量或类型不符合原文要求",
                                      {"expected_counts":contract["counts"],"observed_counts":observed})
     dimensions=contract.get("dimensions",{})
@@ -593,19 +409,10 @@ def validate_explicit_composition(contract, geometries):
                         raise StructureContractError("组成间距不符合用户要求（未注明中心距时按边缘净距校验）")
         _validate_geometric_relationships(contract, geometries)
         return {"status":"passed","component_names":contract["names"],"gap_reference":contract["gap_reference"],"observed_counts":observed}
-    if contract.get("dimension_scope")=="overall":
-        from .cad_construction import construction_geometry_bounds
-        overall=construction_geometry_bounds(geometries)
-        for key,actual in (("width_m",overall["max_x"]-overall["min_x"]),
-                            ("height_m",overall["max_y"]-overall["min_y"])):
-            if key in dimensions and abs(actual-dimensions[key]*1000)>.5:
-                raise StructureContractError("整体尺寸不符合原文要求",
-                    {"dimension":key,"expected_mm":dimensions[key]*1000,"actual_mm":actual})
-    elif contract.get("dimension_scope")=="component":
-        for g in rectangles:
-            x,y,w,h=_frame(g)
-            if any(key in dimensions and abs(actual-dimensions[key]*1000)>.5 for key,actual in (("width_m",w),("height_m",h))):
-                raise StructureContractError("矩形组成尺寸不符合原文要求")
+    for g in rectangles:
+        x,y,w,h=_frame(g,evidence_context=evidence_context)
+        if any(key in dimensions and abs(actual-dimensions[key]*1000)>.5 for key,actual in (("width_m",w),("height_m",h))):
+            raise StructureContractError("矩形组成尺寸不符合原文要求")
     if "radius_m" in dimensions and any(abs(g["radius"]-dimensions["radius_m"]*1000)>.5 for g in circles):
         raise StructureContractError("圆的半径不符合原文要求")
     if len(circles)==2:
@@ -624,7 +431,7 @@ def validate_explicit_composition(contract, geometries):
                 raise StructureContractError("圆必须与矩形四个顶点一一对应，不能重叠或漏角")
             remaining.remove(matches[0])
     elif contract["kind"]=="rectangular_array":
-        frames=[_frame(g) for g in rectangles]
+        frames=[_frame(g,evidence_context=evidence_context) for g in rectangles]
         xs=sorted({round(x+w/2,2) for x,y,w,h in frames})
         ys=sorted({round(y+h/2,2) for x,y,w,h in frames})
         if len(xs)!=contract["columns"] or len(ys)!=contract["rows"]:
@@ -636,13 +443,7 @@ def validate_explicit_composition(contract, geometries):
             if key in dimensions and any(abs(b-a-dimensions[key]*1000)>.5 for a,b in zip(axis,axis[1:])):
                 raise StructureContractError("阵列中心间距不符合原文要求")
     _validate_geometric_relationships(contract, geometries)
-    return {
-        "status": "deferred" if logical_object_count else "passed",
-        "count_unit": "logical_object" if logical_object_count else "primitive",
-        "count_authority": contract.get("count_authority") if logical_object_count else "primitive_inventory",
-        "expected_counts": contract["counts"],
-        "observed_counts": observed,
-    }
+    return {"status":"passed","expected_counts":contract["counts"],"observed_counts":observed}
 
 
 def _validate_geometric_relationships(contract, geometries):
@@ -690,41 +491,22 @@ def _validate_geometric_relationships(contract, geometries):
 
 
 def _points(g):
-    if g.get("type") != "polyline" or not g.get("closed"):
-        return []
-    points = [(p["x"], p["y"]) for p in g.get("vertices", [])]
-    if len(points)>1 and math.dist(points[0], points[-1]) < 1e-6:
-        points.pop()
-    return points
+    from .cad_geometry_measurements import closed_polyline_points
+    return closed_polyline_points(g)
 
 
 def _corners(points):
     """Discard collinear sampling vertices without accepting curved edges."""
-    result=[]
-    for i,p in enumerate(points):
-        a,b=points[i-1],points[(i+1)%len(points)]
-        ux,uy=p[0]-a[0],p[1]-a[1]
-        vx,vy=b[0]-p[0],b[1]-p[1]
-        if abs(ux*vy-uy*vx)>1e-7*max(1,math.hypot(ux,uy)*math.hypot(vx,vy)) or ux*vx+uy*vy<0:
-            result.append(p)
-    return result
+    from .cad_geometry_measurements import straight_polyline_corners
+    return straight_polyline_corners(points)
 
 
-def _frame(g):
-    points=_corners(_points(g))
-    if len(points)!=4:
-        return None
-    xs,ys=zip(*points)
-    x0,x1,y0,y1=min(xs),max(xs),min(ys),max(ys)
-    if x1-x0<=0 or y1-y0<=0:
-        return None
-    expected=[(x0,y0),(x1,y0),(x1,y1),(x0,y1)]
-    if not all(any(math.dist(p,q)<1e-5 for p in points) for q in expected):
-        return None
-    return x0,y0,x1-x0,y1-y0
+def _frame(g, *, evidence_context=None):
+    from .cad_geometry_measurements import measured,rectangle_frame
+    return measured(rectangle_frame,g,evidence_context=evidence_context)
 
 
-def validate_structure(contract, geometries, width_m=None, height_m=None):
+def validate_structure(contract, geometries, width_m=None, height_m=None, *, evidence_context=None):
     """One-to-one matching by measured shape and location, never by labels."""
     if contract is None:
         return None
@@ -732,7 +514,7 @@ def validate_structure(contract, geometries, width_m=None, height_m=None):
     if len(geometries)!=len(components):
         raise StructureContractError(f"实际组成数量{len(geometries)}，要求{len(components)}；不得遗漏或增加组成部分",
                                      {"expected_components":[c["id"] for c in components],"observed_count":len(geometries)})
-    frames=[(i,f) for i,g in enumerate(geometries) if (f:=_frame(g)) is not None]
+    frames=[(i,f) for i,g in enumerate(geometries) if (f:=_frame(g,evidence_context=evidence_context)) is not None]
     if len(frames)!=1:
         raise StructureContractError("需要唯一矩形基准框")
     frame_index,(x0,y0,w,h)=frames[0]

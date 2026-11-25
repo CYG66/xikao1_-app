@@ -1,5 +1,6 @@
 # Local credentials and runtime state
 .local-ai-test/
+.local-dev/
 .env
 .env.*
 !.env.example

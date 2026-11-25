@@ -1,0 +1,161 @@
+[
+  {
+    "case": "C11",
+    "source": "画一条正弦波浪线，长5米，波幅0.5米，波距1米\n总长5米，振幅0.5米，相邻波峰间距1米，共5个周期。",
+    "original": "画一条正弦波浪线，长5米，波幅0.5米，波距1米",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "wave.sine",
+          "output_ref": "sine_wave",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "sine_wave",
+            "assembly_label": "正弦波浪线",
+            "object_id": "sine_wave_path",
+            "object_type": "drawing_part",
+            "label": "正弦波浪线",
+            "role": "open_curve"
+          },
+          "op": "add_parametric_curve",
+          "x_expression": "t",
+          "y_expression": "0.25*sin(2*pi*t)",
+          "t_start": "0",
+          "t_end": "5",
+          "max_sampling_error": 0.001,
+          "closed": false
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "bounds_size",
+          "assertion_id": "wave.bounds",
+          "target_ref": "sine_wave",
+          "width": 5.0,
+          "height": 0.5,
+          "tolerance": 0.001
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": "C:\\Users\\29924\\Codes\\cad-eval-20261117\\run\\C11\\step-2.json.project.variants[0].construction_record.plan"
+  },
+  {
+    "case": "C12",
+    "source": "生成一个阿基米德螺旋线，从(0,0)出发，旋转3圈，最大半径2米\n坐标单位为米，从原点开始，逆时针旋转3圈，半径从0线性增长到2米。",
+    "original": "生成一个阿基米德螺旋线，从(0,0)出发，旋转3圈，最大半径2米",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "spiral.main",
+          "output_ref": "spiral_main",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "archimedean_spiral",
+            "assembly_label": "阿基米德螺旋线",
+            "object_id": "spiral_main",
+            "object_type": "curve",
+            "label": "阿基米德螺旋线主曲线",
+            "role": "outline"
+          },
+          "op": "add_parametric_curve",
+          "x_expression": "(2/(6*pi))*t*cos(t)",
+          "y_expression": "(2/(6*pi))*t*sin(t)",
+          "t_start": "0",
+          "t_end": "6*pi",
+          "max_sampling_error": 0.001,
+          "closed": false
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": "C:\\Users\\29924\\Codes\\cad-eval-20261117\\run\\C12\\step-2.json.project.variants[0].construction_record.plan"
+  },
+  {
+    "case": "C19",
+    "source": "生成一个心形线（cardioid），尖点朝下，最大宽度3米\n尖点朝下的心形线，最大宽度3米，闭合，坐标单位米。",
+    "original": "生成一个心形线（cardioid），尖点朝下，最大宽度3米",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "cardioid-outline",
+          "output_ref": "cardioid_outline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "cardioid",
+            "assembly_label": "心形线",
+            "object_id": "cardioid-outline",
+            "object_type": "closed_outline",
+            "label": "心形线单一闭合外轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_parametric_curve",
+          "x_expression": "(3.27308019746551e-10)*(1.5*cos(t)*(1-cos(t)))-(1)*(1.5*sin(t)*(1-cos(t)))",
+          "y_expression": "(1)*(1.5*cos(t)*(1-cos(t)))+(3.27308019746551e-10)*(1.5*sin(t)*(1-cos(t)))",
+          "t_start": "0",
+          "t_end": "2*pi",
+          "max_sampling_error": 0.001,
+          "closed": true
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "cardioid-closed",
+          "target_ref": "cardioid_outline"
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "explicit-outline-size",
+          "target_ref": "cardioid_outline",
+          "width": 3.0,
+          "height": 2.598020171520857,
+          "tolerance": 0.001
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": [
+        {
+          "target_ref": "cardioid_outline",
+          "width": 3.0,
+          "height": 2.598020171520857,
+          "right_of_ref": null,
+          "gap": 0.0,
+          "gap_reference": "edge",
+          "center": null
+        }
+      ]
+    },
+    "provenance": "C:\\Users\\29924\\Codes\\cad-eval-20261117\\run\\C19\\step-2.json.project.variants[0].construction_record.plan"
+  }
+]

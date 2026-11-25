@@ -1,0 +1,314 @@
+[
+  {
+    "source": "画两个同心圆，共用圆心(0.74,-1.26)，外圆半径0.86米，内圆半径0.32米。仅保留两个圆的轮廓，不加任何标注。坐标单位米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "outer-circle",
+            "output_ref": "outer_circle",
+            "semantic": {
+              "assembly_id": "concentric_circles",
+              "assembly_label": "两个同心圆",
+              "object_id": "outer_circle",
+              "object_type": "drawing_part",
+              "label": "外圆",
+              "role": "outer_outline"
+            },
+            "op": "add_circle",
+            "center": {
+              "x": 0.74,
+              "y": -1.26
+            },
+            "radius": 0.86
+          },
+          {
+            "step_id": "inner-circle",
+            "output_ref": "inner_circle",
+            "semantic": {
+              "assembly_id": "concentric_circles",
+              "assembly_label": "两个同心圆",
+              "object_id": "inner_circle",
+              "object_type": "drawing_part",
+              "label": "内圆",
+              "role": "inner_outline"
+            },
+            "op": "add_circle",
+            "center": {
+              "x": 0.74,
+              "y": -1.26
+            },
+            "radius": 0.32
+          }
+        ],
+        "constraints": [
+          {
+            "constraint_id": "concentric-circles",
+            "kind": "concentric",
+            "target_ref": "inner_circle",
+            "reference_ref": "outer_circle"
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "entity_count",
+            "assertion_id": "entity-count-two-circles",
+            "target_ref": "assembly:concentric_circles",
+            "equals": 2
+          }
+        ]
+      },
+      "evidence_text": [
+        "画两个同心圆，共用圆心(0.74,-1.26)，外圆半径0.86米，内圆半径0.32米。仅保留两个圆的轮廓，不加任何标注。坐标单位米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "两个圆为同一整体的内外轮廓，共享assembly_id，但分别作为独立部件输出。"
+      ],
+      "confidence": 0.99
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V1-r1-B\\api-response-7a88d0c5-ef3f-4e4d-a125-940a2239fa9b.json",
+    "response_sha256": "24ca04e3d3eaf686151e21df6ba89eb423492da6166613e04b4a63b5287bf8e4"
+  },
+  {
+    "source": "画两个同心圆，共用圆心(0.74,-1.26)，外圆半径0.86米，内圆半径0.32米。仅保留两个圆的轮廓，不加任何标注。坐标单位米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "step-outer-circle",
+            "output_ref": "outer_circle",
+            "semantic": {
+              "assembly_id": "concentric_circles",
+              "assembly_label": "两个同心圆",
+              "object_id": "outer_circle",
+              "label": "外圆",
+              "object_type": "drawing_part",
+              "role": "outer_outline"
+            },
+            "op": "add_circle",
+            "center": {
+              "x": 0.74,
+              "y": -1.26
+            },
+            "radius": 0.86
+          },
+          {
+            "step_id": "step-inner-circle",
+            "output_ref": "inner_circle",
+            "semantic": {
+              "assembly_id": "concentric_circles",
+              "assembly_label": "两个同心圆",
+              "object_id": "inner_circle",
+              "label": "内圆",
+              "object_type": "drawing_part",
+              "role": "inner_outline"
+            },
+            "op": "add_circle",
+            "center": {
+              "x": 0.74,
+              "y": -1.26
+            },
+            "radius": 0.32
+          }
+        ],
+        "constraints": [
+          {
+            "constraint_id": "c-concentric",
+            "target_ref": "inner_circle",
+            "reference_ref": "outer_circle",
+            "kind": "concentric"
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "entity_count",
+            "assertion_id": "a-count",
+            "target_ref": "assembly:concentric_circles",
+            "equals": 2
+          },
+          {
+            "kind": "center_distance",
+            "assertion_id": "a-center",
+            "target_ref": "outer_circle",
+            "reference_ref": "inner_circle",
+            "distance": 0,
+            "tolerance": 0.001
+          }
+        ]
+      },
+      "evidence_text": [
+        "画两个同心圆，共用圆心(0.74,-1.26)，外圆半径0.86米，内圆半径0.32米。仅保留两个圆的轮廓，不加任何标注。坐标单位米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "两圆共用圆心(0.74,-1.26)，单位为米。",
+        "仅生成两个圆的轮廓，不添加标注或装饰。"
+      ],
+      "confidence": 0.98
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V1-r1-B\\api-response-a318a61d-c0cb-485c-9828-98b2a06a8070.json",
+    "response_sha256": "dade9f11be080cd554ecb0de52730a6a0b1dcea66f0784475ad08e68305e65df"
+  },
+  {
+    "source": "画两个同心圆，共用圆心(0.74,-1.26)，外圆半径0.86米，内圆半径0.32米。仅保留两个圆的轮廓，不加任何标注。坐标单位米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "outer_circle",
+            "output_ref": "outer_circle",
+            "semantic": {
+              "assembly_id": "two_concentric_circles",
+              "assembly_label": "两个同心圆",
+              "object_id": "outer_circle",
+              "label": "外圆",
+              "role": "外轮廓",
+              "object_type": "drawing_part"
+            },
+            "op": "add_circle",
+            "center": {
+              "x": 0.74,
+              "y": -1.26
+            },
+            "radius": 0.86
+          },
+          {
+            "step_id": "inner_circle",
+            "output_ref": "inner_circle",
+            "semantic": {
+              "assembly_id": "two_concentric_circles",
+              "assembly_label": "两个同心圆",
+              "object_id": "inner_circle",
+              "label": "内圆",
+              "role": "内轮廓",
+              "object_type": "drawing_part"
+            },
+            "op": "add_circle",
+            "center": {
+              "x": 0.74,
+              "y": -1.26
+            },
+            "radius": 0.32
+          }
+        ],
+        "constraints": [
+          {
+            "constraint_id": "concentric_center",
+            "target_ref": "inner_circle",
+            "reference_ref": "outer_circle",
+            "kind": "concentric"
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "entity_count",
+            "assertion_id": "count_two_circles",
+            "target_ref": "assembly:two_concentric_circles",
+            "equals": 2
+          }
+        ]
+      },
+      "evidence_text": [
+        "画两个同心圆，共用圆心(0.74,-1.26)，外圆半径0.86米，内圆半径0.32米。仅保留两个圆的轮廓，不加任何标注。坐标单位米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "按确定性需求规范化，plan.units设为m，半径0.86和0.32直接以米使用。",
+        "两个圆仅保留轮廓，不添加标注、尺寸线或中心线。",
+        "仅生成预览，不输出执行小车指令。"
+      ],
+      "confidence": 0.98
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V1-r2-B\\api-response-74a400a6-a7d6-4858-a5cb-b86f5485fa28.json",
+    "response_sha256": "fbc5b3addf74a57801970a3afff15344688c64d4842f90e8849a89b7fbaaacfd"
+  },
+  {
+    "source": "画两个同心圆，共用圆心(0.74,-1.26)，外圆半径0.86米，内圆半径0.32米。仅保留两个圆的轮廓，不加任何标注。坐标单位米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "outer_circle",
+            "output_ref": "outer_circle",
+            "semantic": {
+              "assembly_id": "concentric_circles",
+              "assembly_label": "同心圆",
+              "object_id": "outer_ring",
+              "label": "外圆轮廓",
+              "role": "outer_outline"
+            },
+            "op": "add_circle",
+            "center": {
+              "x": 0.74,
+              "y": -1.26
+            },
+            "radius": 0.86
+          },
+          {
+            "step_id": "inner_circle",
+            "output_ref": "inner_circle",
+            "semantic": {
+              "assembly_id": "concentric_circles",
+              "assembly_label": "同心圆",
+              "object_id": "inner_ring",
+              "label": "内圆轮廓",
+              "role": "inner_outline"
+            },
+            "op": "add_circle",
+            "center": {
+              "x": 0.74,
+              "y": -1.26
+            },
+            "radius": 0.32
+          }
+        ],
+        "constraints": [
+          {
+            "constraint_id": "concentric_center",
+            "target_ref": "inner_circle",
+            "reference_ref": "outer_circle",
+            "kind": "concentric"
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "entity_count",
+            "assertion_id": "two_circles_only",
+            "equals": 2
+          },
+          {
+            "kind": "center_distance",
+            "assertion_id": "shared_center",
+            "target_ref": "outer_circle",
+            "reference_ref": "inner_circle",
+            "distance": 0
+          }
+        ]
+      },
+      "evidence_text": [
+        "画两个同心圆，共用圆心(0.74,-1.26)，外圆半径0.86米，内圆半径0.32米。仅保留两个圆的轮廓，不加任何标注。坐标单位米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "外圆与内圆为同一整体‘同心圆’的两个独立轮廓，不合并为环带填充。",
+        "按用户要求仅输出两个圆轮廓，不添加任何标注、尺寸线或额外图元。"
+      ],
+      "confidence": 0.98
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-fpdpdxpg\\run\\V1-r2-B\\api-response-c47c3a8d-a3c5-4883-b448-e7c54cd2f024.json",
+    "response_sha256": "0fd84cf232430324526b87b93522d15affed1a7ee04a7280483a1790b857cae5"
+  }
+]

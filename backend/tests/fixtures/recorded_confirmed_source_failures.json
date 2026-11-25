@@ -1,0 +1,147 @@
+{
+  "A10": {
+    "source": "生成一个五角星轮廓\n五角星外接圆半径2米，内外半径比0.381966，尖角朝上。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "star.outline",
+            "output_ref": "star_outline",
+            "semantic": {
+              "assembly_id": "five_pointed_star",
+              "assembly_label": "五角星轮廓",
+              "object_id": "star_outline",
+              "label": "五角星闭合外轮廓",
+              "role": "outer_boundary"
+            },
+            "op": "add_polyline",
+            "closed": true,
+            "vertices": [
+              {
+                "x": "0",
+                "y": "2"
+              },
+              {
+                "x": "0.760845",
+                "y": "0.618034"
+              },
+              {
+                "x": "1.902113",
+                "y": "0.618034"
+              },
+              {
+                "x": "1.175571",
+                "y": "-0.618034"
+              },
+              {
+                "x": "1.231946",
+                "y": "-2"
+              },
+              {
+                "x": "0",
+                "y": "-0.763932"
+              },
+              {
+                "x": "-1.231946",
+                "y": "-2"
+              },
+              {
+                "x": "-1.175571",
+                "y": "-0.618034"
+              },
+              {
+                "x": "-1.902113",
+                "y": "0.618034"
+              },
+              {
+                "x": "-0.760845",
+                "y": "0.618034"
+              }
+            ]
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "bounds_size",
+            "assertion_id": "star.bbox",
+            "target_ref": "star_outline",
+            "width": 3.804226,
+            "height": 4.0,
+            "tolerance": 0.001
+          },
+          {
+            "kind": "closed",
+            "assertion_id": "star.closed",
+            "target_ref": "star_outline"
+          },
+          {
+            "kind": "radial_pattern",
+            "assertion_id": "star.lobes",
+            "target_ref": "star_outline",
+            "lobes": 5,
+            "profile": "polygonal"
+          },
+          {
+            "kind": "entity_count",
+            "assertion_id": "star.entity_count",
+            "equals": 1
+          }
+        ]
+      },
+      "evidence_text": [
+        "生成一个五角星轮廓"
+      ],
+      "assumptions": [
+        "五角星外接圆半径2米，内外半径比0.381966，尖角朝上",
+        "外接圆圆心置于局部原点，第一外顶点位于y轴正向以朝向尖角",
+        "内外顶点按pi/5弧度交替分布，共10个顶点形成5个径向尖峰"
+      ],
+      "confidence": 0.95
+    }
+  },
+  "C27": {
+    "source": "画一个立方体的透视轮廓，边长2米\n二维等轴投影，三个投影轴夹角120度，各投影棱长2米，只画可见及隐藏的12条棱线。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "confidence": 0.62,
+      "evidence_text": [
+        "画一个立方体的透视轮廓，边长2米"
+      ],
+      "assumptions": [
+        "采用二维等轴投影：三条投影轴方向分别为(1,0)、(-0.5,0.866025)、(-0.5,-0.866025)，任意两条有向轴夹角120度，无向夹角60度。",
+        "每条投影棱线长度均为2米。",
+        "立方体12条棱线全部绘制（可见与隐藏各6条）。",
+        "公共基点取原点，各顶点由基点加三条轴向量整数组合生成。"
+      ],
+      "clarification": {
+        "question_key": "standard_spec",
+        "question": "请确认立方体透视投影的视角约定：是否采用二维等轴投影、三条投影轴夹角120度且每条投影棱线在图纸上仍为2米？",
+        "recognized_shape": "立方体的透视轮廓"
+      }
+    }
+  },
+  "C27_nonrequest": {
+    "source": "画一个立方体的透视轮廓，边长2米\n二维等轴投影，三个投影轴夹角120度，各投影棱长2米，只画可见及隐藏的12条棱线。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "confidence": 0.9,
+      "evidence_text": [
+        "画一个立方体的透视轮廓，边长2米"
+      ],
+      "assumptions": [
+        "按补充约束采用二维等轴投影：三条投影轴方向取0°、120°、240°，每条投影棱线长为2米，三轴方向单位向量两两点积绝对值为0.5（有向夹角120°，无向直线夹角60°）。",
+        "立方体共12条棱线，按三个平行族×每族4条绘制，每条棱线只绘制一次，包含可见与隐藏棱线，不使用重复线。",
+        "基于共同基点O=(0,0)，三条轴向量u=(2,0)、v=(2*cos(120°),2*sin(120°))、w=(2*cos(240°),2*sin(240°))，用向量和定义8个共享顶点，所有棱线引用同名共享点。",
+        "投影棱长指轴向量的长度（2米），不是整体轴对齐包围盒的宽高；不添加bounds_size断言以免与径向投影矛盾。",
+        "投影平面朝向作为建模选择；若用户期望特定观察方向可在后续覆盖。",
+        "边长2米在毫米约束层面为2000mm，输出坐标统一使用m。"
+      ]
+    }
+  }
+}

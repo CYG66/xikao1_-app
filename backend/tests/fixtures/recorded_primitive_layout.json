@@ -1,0 +1,174 @@
+[
+  {
+    "case": "A11",
+    "source": "生成一个圆形和一个矩形，圆形在矩形正上方\n圆半径1米，圆心(0,3)；矩形左下角(-1,-1)，宽2米、高2米；坐标单位米，两个独立图形。",
+    "original": "生成一个圆形和一个矩形，圆形在矩形正上方",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "step.circle",
+          "output_ref": "circle_outer",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "circle",
+            "assembly_label": "圆形",
+            "object_id": "circle_main",
+            "object_type": "drawing_part",
+            "label": "圆形边界",
+            "role": "closed_outline"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": 0.0,
+            "y": 3.0
+          },
+          "radius": 1.0
+        },
+        {
+          "step_id": "step.rectangle",
+          "output_ref": "rect_outer",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "rectangle",
+            "assembly_label": "矩形",
+            "object_id": "rect_main",
+            "object_type": "drawing_part",
+            "label": "矩形边界",
+            "role": "closed_outline"
+          },
+          "op": "add_rectangle",
+          "origin": {
+            "x": -1.0,
+            "y": -1.0
+          },
+          "width": 2.0,
+          "height": 2.0,
+          "rotation_deg": 0.0
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "bounds_size",
+          "assertion_id": "assert.rect.bounds",
+          "target_ref": "rect_outer",
+          "width": 2.0,
+          "height": 2.0,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "assert.circle.closed",
+          "target_ref": "circle_outer"
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "assert.rect.closed",
+          "target_ref": "rect_outer"
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "assert.total.entities",
+          "target_ref": null,
+          "equals": 2
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": "C:\\Users\\29924\\Codes\\cad-eval-20261117\\run\\A11\\step-3.json.construction_commit.recovery.attempts[0].plan"
+  },
+  {
+    "case": "C15",
+    "source": "画一个圆环，外圆半径2米，内圆半径1米\n外圆半径2米、内圆半径1米，均圆心(0,0)，坐标单位米。",
+    "original": "画一个圆环，外圆半径2米，内圆半径1米",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "outer_circle",
+          "output_ref": "annulus_outer",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "annulus",
+            "assembly_label": "圆环",
+            "object_id": "annulus_outer",
+            "object_type": "drawing_part",
+            "label": "圆环外圆",
+            "role": "outer_boundary"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2.0
+        },
+        {
+          "step_id": "inner_circle",
+          "output_ref": "annulus_inner",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "annulus",
+            "assembly_label": "圆环",
+            "object_id": "annulus_inner",
+            "object_type": "drawing_part",
+            "label": "圆环内圆",
+            "role": "inner_boundary"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 1.0
+        }
+      ],
+      "constraints": [
+        {
+          "constraint_id": "concentric_annulus",
+          "target_ref": "annulus_inner",
+          "reference_ref": "annulus_outer",
+          "tolerance": 0.001,
+          "kind": "concentric"
+        }
+      ],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "outer_closed",
+          "target_ref": "annulus_outer"
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "inner_closed",
+          "target_ref": "annulus_inner"
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "annulus_entity_count",
+          "target_ref": null,
+          "equals": 2
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": "C:\\Users\\29924\\Codes\\cad-eval-20261117\\run\\C15\\step-3.json.variants[0].construction_record.plan"
+  }
+]

@@ -1,0 +1,395 @@
+{
+  "provenance": "Frozen pre-merge table values and existing canonical JSON/SHA256 protocol; source manifest .local-dev/merge-first-three-before-gfyis2fi/manifest.json",
+  "unit_tables": [
+    {
+      "file": "app\\agent_service.py",
+      "line": 4006,
+      "target_unit": "mm",
+      "float_values": true,
+      "include_gongfen": true,
+      "encoded": "{\"cm\": 10.0, \"m\": 1000.0, \"mm\": 1.0, \"公分\": 10.0, \"厘米\": 10.0, \"毫米\": 1.0, \"米\": 1000.0}"
+    },
+    {
+      "file": "app\\cad_axis_requirements.py",
+      "line": 8,
+      "target_unit": "m",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 0.01, \"m\": 1, \"mm\": 0.001, \"厘米\": 0.01, \"毫米\": 0.001, \"米\": 1}"
+    },
+    {
+      "file": "app\\cad_circle_group_acceptance.py",
+      "line": 22,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_composition_addition.py",
+      "line": 19,
+      "target_unit": "mm",
+      "float_values": true,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10.0, \"m\": 1000.0, \"mm\": 1.0, \"厘米\": 10.0, \"毫米\": 1.0, \"米\": 1000.0}"
+    },
+    {
+      "file": "app\\cad_composition_coverage.py",
+      "line": 21,
+      "target_unit": "m",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 0.01, \"m\": 1, \"mm\": 0.001, \"厘米\": 0.01, \"毫米\": 0.001, \"米\": 1}"
+    },
+    {
+      "file": "app\\cad_construction_interpreter.py",
+      "line": 3084,
+      "target_unit": "m",
+      "float_values": true,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 0.01, \"m\": 1.0, \"mm\": 0.001, \"厘米\": 0.01, \"毫米\": 0.001, \"米\": 1.0}"
+    },
+    {
+      "file": "app\\cad_construction_interpreter.py",
+      "line": 1951,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_coordinate_requirements.py",
+      "line": 35,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_edit_interpreter.py",
+      "line": 146,
+      "target_unit": "mm",
+      "float_values": true,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10.0, \"m\": 1000.0, \"mm\": 1.0, \"厘米\": 10.0, \"毫米\": 1.0, \"米\": 1000.0}"
+    },
+    {
+      "file": "app\\cad_parametric.py",
+      "line": 152,
+      "target_unit": "m",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 0.01, \"m\": 1, \"mm\": 0.001, \"厘米\": 0.01, \"毫米\": 0.001, \"米\": 1}"
+    },
+    {
+      "file": "app\\cad_path_relation_acceptance.py",
+      "line": 161,
+      "target_unit": "m",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 0.01, \"m\": 1, \"mm\": 0.001, \"厘米\": 0.01, \"毫米\": 0.001, \"米\": 1}"
+    },
+    {
+      "file": "app\\cad_polar_source_coverage.py",
+      "line": 13,
+      "target_unit": "m",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 0.01, \"m\": 1, \"mm\": 0.001, \"厘米\": 0.01, \"毫米\": 0.001, \"米\": 1}"
+    },
+    {
+      "file": "app\\cad_primitive_layout_acceptance.py",
+      "line": 10,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_projection_acceptance.py",
+      "line": 93,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_projection_acceptance.py",
+      "line": 55,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_radial_attachment_acceptance.py",
+      "line": 12,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_rectangle_acceptance.py",
+      "line": 16,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_repetition_acceptance.py",
+      "line": 15,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_repetition_source_coverage.py",
+      "line": 8,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_requirement_contract.py",
+      "line": 118,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_semantic_acceptance.py",
+      "line": 17,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_semantic_acceptance.py",
+      "line": 31,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_semantic_acceptance.py",
+      "line": 109,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_semantic_acceptance.py",
+      "line": 96,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_semantic_source_coverage.py",
+      "line": 26,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_source_acceptance.py",
+      "line": 31,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_source_acceptance.py",
+      "line": 302,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_source_acceptance.py",
+      "line": 271,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_source_acceptance.py",
+      "line": 246,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_stroke_acceptance.py",
+      "line": 12,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_structure_contract.py",
+      "line": 136,
+      "target_unit": "m",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 0.01, \"m\": 1, \"mm\": 0.001, \"厘米\": 0.01, \"毫米\": 0.001, \"米\": 1}"
+    },
+    {
+      "file": "app\\cad_structure_contract.py",
+      "line": 140,
+      "target_unit": "m",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 0.01, \"m\": 1, \"mm\": 0.001, \"厘米\": 0.01, \"毫米\": 0.001, \"米\": 1}"
+    },
+    {
+      "file": "app\\cad_structure_contract.py",
+      "line": 158,
+      "target_unit": "m",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 0.01, \"m\": 1, \"mm\": 0.001, \"厘米\": 0.01, \"毫米\": 0.001, \"米\": 1}"
+    },
+    {
+      "file": "app\\cad_structure_contract.py",
+      "line": 264,
+      "target_unit": "m",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 0.01, \"m\": 1, \"mm\": 0.001, \"厘米\": 0.01, \"毫米\": 0.001, \"米\": 1}"
+    },
+    {
+      "file": "app\\cad_structure_contract.py",
+      "line": 266,
+      "target_unit": "m",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 0.01, \"m\": 1, \"mm\": 0.001, \"厘米\": 0.01, \"毫米\": 0.001, \"米\": 1}"
+    },
+    {
+      "file": "app\\cad_structure_contract.py",
+      "line": 250,
+      "target_unit": "m",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 0.01, \"m\": 1, \"mm\": 0.001, \"厘米\": 0.01, \"毫米\": 0.001, \"米\": 1}"
+    },
+    {
+      "file": "app\\cad_symmetric_divider_acceptance.py",
+      "line": 41,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_vertex_acceptance.py",
+      "line": 14,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\cad_wave_requirements.py",
+      "line": 11,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\incremental_cad.py",
+      "line": 86,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    },
+    {
+      "file": "app\\incremental_cad.py",
+      "line": 881,
+      "target_unit": "mm",
+      "float_values": false,
+      "include_gongfen": false,
+      "encoded": "{\"cm\": 10, \"m\": 1000, \"mm\": 1, \"厘米\": 10, \"毫米\": 1, \"米\": 1000}"
+    }
+  ],
+  "fingerprints": [
+    {
+      "input": null,
+      "sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "input": true,
+      "sha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
+    },
+    {
+      "input": false,
+      "sha256": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa"
+    },
+    {
+      "input": 0,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "input": 1,
+      "sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+    },
+    {
+      "input": 1.0,
+      "sha256": "d0ff5974b6aa52cf562bea5921840c032a860a91a3512f7fe8f768f6bbe005f6"
+    },
+    {
+      "input": -0.0,
+      "sha256": "c26617c7ccbcaa6631b45d851b8cf56e21d2ca624bdb1193afdbd4b560702cec"
+    },
+    {
+      "input": "中文",
+      "sha256": "ae5501d6922ab917c22d22b489ec065bd1ac48244a124277f858fba6f722efd5"
+    },
+    {
+      "input": [],
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "input": {},
+      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    },
+    {
+      "input": {
+        "标签": "爱心",
+        "x": 1.0
+      },
+      "sha256": "f904f087fb9780fcfc0b6062407b182373c29c404acd86489bdc9688aaecb803"
+    },
+    {
+      "input": [
+        {
+          "id": 1,
+          "center": {
+            "x": 1.0,
+            "y": -2
+          },
+          "selected": false
+        }
+      ],
+      "sha256": "20b7bb07a8d670896bf4292033d4367d5fff7164d66a6a86bbb048af08c97a68"
+    }
+  ]
+}

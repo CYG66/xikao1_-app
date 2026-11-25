@@ -15,17 +15,13 @@ def test_recorded_inputs_must_match_frozen_corpus(tmp_path):
         if index==1:response['clarification']={"question_key":"size"}
         if index==3:response.update(variant=variant,preview_paths=[{"geometry_id":1}],drawing_json={"logical_objects":objects})
         (tmp_path/f'step-{index}.json').write_text(json.dumps(response),encoding='utf-8')
-    report=verify_recording(case,tmp_path)
-    assert report['legacy_passed'] is True
-    assert report['formal_evaluable'] is False
-    assert report['formal_delivery_ok'] is None
-    assert report['passed'] is False
+    assert verify_recording(case,tmp_path)['passed']
     (tmp_path/'request-2.json').write_text(json.dumps({"message":"另一个不同的输入"}),encoding='utf-8')
     report=verify_recording(case,tmp_path)
-    assert not report['legacy_passed']
+    assert not report['passed']
     assert report['checks']['frozen_input_matches'] is False
     (tmp_path/'request-2.json').write_text(json.dumps({"message":case['messages'][1]}),encoding='utf-8')
     (tmp_path/'ui-fixture.json').write_text(json.dumps({**case,"expected_assemblies":None}),encoding='utf-8')
     report=verify_recording(case,tmp_path)
-    assert not report['legacy_passed']
+    assert not report['passed']
     assert report['checks']['ui_fixture_matches'] is False

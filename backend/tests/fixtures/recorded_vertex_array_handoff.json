@@ -1,0 +1,135 @@
+[
+  {
+    "case": "C4",
+    "source": "画一个三角形轮廓，顶点(0,0)(3,0)(1.5,2.6)\n坐标单位为米，使用原文给出的三个顶点，闭合。",
+    "original": "画一个三角形轮廓，顶点(0,0)(3,0)(1.5,2.6)",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "step.triangle.outline",
+          "output_ref": "triangle_outline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "triangle_outline",
+            "assembly_label": "三角形轮廓",
+            "object_id": "triangle_outline.body",
+            "object_type": "drawing_part",
+            "label": "三角形轮廓闭合折线",
+            "role": "outline"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": 0.0,
+              "y": 0.0
+            },
+            {
+              "x": 3.0,
+              "y": 0.0
+            },
+            {
+              "x": 1.5,
+              "y": 2.6
+            }
+          ],
+          "closed": true
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "assert.triangle.closed",
+          "target_ref": "triangle_outline"
+        },
+        {
+          "kind": "entity_count",
+          "assertion_id": "assert.triangle.entity_count",
+          "target_ref": "triangle_outline",
+          "equals": 1
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": "C:\\Users\\29924\\Codes\\cad-eval-20261117\\run\\C4\\step-3.json.construction_commit.recovery.attempts[0].plan"
+  },
+  {
+    "case": "C8",
+    "source": "生成3行4列矩形阵列，每个矩形宽1米高0.6米，行距1.2米列距1.5米\n3行4列，各矩形宽1米、高0.6米；相邻中心行距1.2米、列距1.5米。",
+    "original": "生成3行4列矩形阵列，每个矩形宽1米高0.6米，行距1.2米列距1.5米",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "rect.base",
+          "output_ref": "rect.base",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "rect_array_3x4",
+            "assembly_label": "3行4列矩形阵列",
+            "object_id": "rect_base",
+            "object_type": "drawing_part",
+            "label": "基础矩形（宽1米高0.6米）",
+            "role": "array_source"
+          },
+          "op": "add_centered_rectangle",
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "width": 1.0,
+          "height": 0.6,
+          "rotation_deg": 0.0
+        },
+        {
+          "step_id": "rect.array",
+          "output_ref": "rect.array",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "rect_array_3x4",
+            "assembly_label": "3行4列矩形阵列",
+            "object_id": "rect_array",
+            "object_type": "drawing_part",
+            "label": "3行4列矩形阵列",
+            "role": "array"
+          },
+          "op": "rectangular_array",
+          "source_ref": "rect.base",
+          "rows": 3,
+          "columns": 4,
+          "row_spacing": 1.2,
+          "column_spacing": 1.5,
+          "include_source": true
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "entity_count",
+          "assertion_id": "assert.entity_count",
+          "target_ref": "rect.array",
+          "equals": 12
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": "C:\\Users\\29924\\Codes\\cad-eval-20261117\\run\\C8\\step-3.json.construction_commit.recovery.attempts[0].plan"
+  }
+]

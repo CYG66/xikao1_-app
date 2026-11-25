@@ -252,7 +252,6 @@ class CreativeProjectStoreTest(unittest.TestCase):
             child = store.add_variant(
                 project["id"], "加长", target, "", {"score": 90}, [],
                 parent_variant_id=parent["id"], logical_objects=objects,
-                acceptance_summary=ACCEPTED,
             )
         self.assertEqual(child["revision_contract"]["status"], "verified")
         child["logical_objects"][0]["label"] = "被篡改的名称"
@@ -343,7 +342,6 @@ class CreativeProjectStoreTest(unittest.TestCase):
             child = store.add_variant(
                 project["id"], "加长", target, "加长一倍", {"score": 90}, [],
                 parent_variant_id=parent["id"],
-                acceptance_summary=ACCEPTED,
             )
 
         verified = verify_variant_revision_for_planning(child)

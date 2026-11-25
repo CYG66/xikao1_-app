@@ -1,0 +1,246 @@
+{
+  "cad_construction.py": [
+    {
+      "class": "ConstructionSemantic",
+      "field": "object_type",
+      "annotation": "str",
+      "line": 118
+    },
+    {
+      "class": "AddLineStep",
+      "field": "op",
+      "annotation": "Literal['add_line']",
+      "line": 131
+    },
+    {
+      "class": "AddPolylineStep",
+      "field": "op",
+      "annotation": "Literal['add_polyline']",
+      "line": 137
+    },
+    {
+      "class": "AddRectangleStep",
+      "field": "op",
+      "annotation": "Literal['add_rectangle']",
+      "line": 143
+    },
+    {
+      "class": "AddCenteredRectangleStep",
+      "field": "op",
+      "annotation": "Literal['add_centered_rectangle']",
+      "line": 151
+    },
+    {
+      "class": "AddCircleStep",
+      "field": "op",
+      "annotation": "Literal['add_circle']",
+      "line": 159
+    },
+    {
+      "class": "AddArcStep",
+      "field": "op",
+      "annotation": "Literal['add_arc']",
+      "line": 165
+    },
+    {
+      "class": "AddEllipseStep",
+      "field": "op",
+      "annotation": "Literal['add_ellipse']",
+      "line": 173
+    },
+    {
+      "class": "AddBezierStep",
+      "field": "op",
+      "annotation": "Literal['add_bezier']",
+      "line": 189
+    },
+    {
+      "class": "AddSplineStep",
+      "field": "op",
+      "annotation": "Literal['add_spline']",
+      "line": 200
+    },
+    {
+      "class": "CompositeLineSegment",
+      "field": "kind",
+      "annotation": "Literal['line']",
+      "line": 213
+    },
+    {
+      "class": "CompositeBezierSegment",
+      "field": "kind",
+      "annotation": "Literal['bezier']",
+      "line": 219
+    },
+    {
+      "class": "CompositeSplineSegment",
+      "field": "kind",
+      "annotation": "Literal['spline']",
+      "line": 230
+    },
+    {
+      "class": "CompositeArcSegment",
+      "field": "kind",
+      "annotation": "Literal['arc']",
+      "line": 243
+    },
+    {
+      "class": "AddCompositePathStep",
+      "field": "op",
+      "annotation": "Literal['add_composite_path']",
+      "line": 278
+    },
+    {
+      "class": "AddRotationalPathStep",
+      "field": "op",
+      "annotation": "Literal['add_rotational_path']",
+      "line": 321
+    },
+    {
+      "class": "AddParametricCurveStep",
+      "field": "op",
+      "annotation": "Literal['add_parametric_curve']",
+      "line": 455
+    },
+    {
+      "class": "RectangularArrayStep",
+      "field": "op",
+      "annotation": "Literal['rectangular_array']",
+      "line": 465
+    },
+    {
+      "class": "AddTemplateStep",
+      "field": "op",
+      "annotation": "Literal['add_template']",
+      "line": 500
+    },
+    {
+      "class": "EntityCountAssertion",
+      "field": "kind",
+      "annotation": "Literal['entity_count']",
+      "line": 519
+    },
+    {
+      "class": "BoundsSizeAssertion",
+      "field": "kind",
+      "annotation": "Literal['bounds_size']",
+      "line": 526
+    },
+    {
+      "class": "ClosedAssertion",
+      "field": "kind",
+      "annotation": "Literal['closed']",
+      "line": 535
+    },
+    {
+      "class": "RadialPatternAssertion",
+      "field": "kind",
+      "annotation": "Literal['radial_pattern']",
+      "line": 542
+    },
+    {
+      "class": "CenterDistanceAssertion",
+      "field": "kind",
+      "annotation": "Literal['center_distance']",
+      "line": 551
+    },
+    {
+      "class": "AreaAssertion",
+      "field": "kind",
+      "annotation": "Literal['area']",
+      "line": 561
+    }
+  ],
+  "cad_constraint_solver.py": [
+    {
+      "class": "ConcentricConstraint",
+      "field": "kind",
+      "annotation": "Literal['concentric']",
+      "line": 55
+    },
+    {
+      "class": "ParallelConstraint",
+      "field": "kind",
+      "annotation": "Literal['parallel']",
+      "line": 59
+    },
+    {
+      "class": "PerpendicularConstraint",
+      "field": "kind",
+      "annotation": "Literal['perpendicular']",
+      "line": 64
+    },
+    {
+      "class": "EqualRadiusConstraint",
+      "field": "kind",
+      "annotation": "Literal['equal_radius']",
+      "line": 69
+    },
+    {
+      "class": "EqualSizeConstraint",
+      "field": "kind",
+      "annotation": "Literal['equal_size']",
+      "line": 73
+    },
+    {
+      "class": "CenterDistanceConstraint",
+      "field": "kind",
+      "annotation": "Literal['center_distance']",
+      "line": 77
+    },
+    {
+      "class": "EndpointCoincidentConstraint",
+      "field": "kind",
+      "annotation": "Literal['endpoint_coincident']",
+      "line": 84
+    }
+  ],
+  "cad_edit_contract.py": [
+    {
+      "class": "CadEditTarget",
+      "field": "scope",
+      "annotation": "Literal['instance', 'geometry', 'logical_object']",
+      "line": 22
+    },
+    {
+      "class": "CadEditSelector",
+      "field": "kind",
+      "annotation": "Literal['semantic_within_target', 'geometry_within_target']",
+      "line": 122
+    },
+    {
+      "class": "CadEditCommand",
+      "field": "operation",
+      "annotation": "CadEditOperation",
+      "line": 145
+    }
+  ],
+  "cad_edit_interpreter.py": [
+    {
+      "class": "StructuredCadTarget",
+      "field": "scope",
+      "annotation": "Literal['instance', 'logical_object', 'semantic', 'attribute', 'unresolved']",
+      "line": 19
+    },
+    {
+      "class": "StructuredCadTarget",
+      "field": "object_type",
+      "annotation": "Literal['parking_space', 'room', 'basketball_court', 'badminton_court'] | None",
+      "line": 23
+    },
+    {
+      "class": "StructuredCadInterpretation",
+      "field": "operation",
+      "annotation": "Literal['translate', 'rotate', 'scale', 'resize', 'duplicate', 'align', 'delete', 'retain', 'mirror', 'offset', 'array', 'constraint'] | None",
+      "line": 88
+    }
+  ],
+  "agent_plan_models.py": [
+    {
+      "class": "AgentTargetRef",
+      "field": "scope",
+      "annotation": "Literal['project', 'variant', 'instance', 'logical_object', 'geometry', 'path', 'device']",
+      "line": 58
+    }
+  ]
+}

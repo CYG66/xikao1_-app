@@ -1,0 +1,130 @@
+{
+  "T3": {
+    "source": "画圆：圆心(-0.72,1.48)，直径1.86米。只要圆的轮廓，不要尺寸标注。坐标单位米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "circle-1",
+            "output_ref": "circle_outline",
+            "semantic": {
+              "assembly_id": "circle_obj",
+              "assembly_label": "圆",
+              "object_id": "circle_outline",
+              "object_type": "drawing_part",
+              "label": "圆轮廓",
+              "role": "outline"
+            },
+            "op": "add_circle",
+            "center": {
+              "x": -0.72,
+              "y": 1.48
+            },
+            "radius": 0.93
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "circle_closed",
+            "target_ref": "circle_outline"
+          }
+        ]
+      },
+      "evidence_text": [
+        "画圆：圆心(-0.72,1.48)，直径1.86米。只要圆的轮廓，不要尺寸标注。坐标单位米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "半径为直径1.86米的一半，即0.93米。",
+        "仅输出圆轮廓，无尺寸标注。",
+        "只生成预览，不执行小车。"
+      ],
+      "confidence": 0.99
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-vo4fxnsd\\run\\T3-r1-B\\api-response-524cc7b9-752c-4040-b1c8-c835d60fe92d.json"
+  },
+  "T4": {
+    "source": "从(38,-47)出发画折线，先沿与x轴正向成-32度的方向走173厘米，再向左转78度接着画92厘米，再向右转41度接着画137厘米。三段连在一起，末端不连回起点，不加其他图形。坐标单位厘米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "shared_points": {
+          "p0": {
+            "x": 3.8,
+            "y": -4.7
+          },
+          "p1": {
+            "x": "@p0.x+1.73*cos(-32*pi/180)",
+            "y": "@p0.y+1.73*sin(-32*pi/180)"
+          },
+          "p2": {
+            "x": "@p1.x+0.92*cos(46*pi/180)",
+            "y": "@p1.y+0.92*sin(46*pi/180)"
+          },
+          "p3": {
+            "x": "@p2.x+1.37*cos(5*pi/180)",
+            "y": "@p2.y+1.37*sin(5*pi/180)"
+          }
+        },
+        "steps": [
+          {
+            "step_id": "polyline-1",
+            "output_ref": "polyline_main",
+            "semantic": {
+              "assembly_id": "polyline_open",
+              "assembly_label": "折线",
+              "object_id": "polyline_open_body",
+              "label": "三段连续折线",
+              "role": "outline"
+            },
+            "op": "add_polyline",
+            "vertices": [
+              {
+                "x": "@p0.x",
+                "y": "@p0.y"
+              },
+              {
+                "x": "@p1.x",
+                "y": "@p1.y"
+              },
+              {
+                "x": "@p2.x",
+                "y": "@p2.y"
+              },
+              {
+                "x": "@p3.x",
+                "y": "@p3.y"
+              }
+            ],
+            "closed": false
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "entity_count",
+            "assertion_id": "ec-1",
+            "target_ref": "polyline_main",
+            "equals": 1
+          }
+        ]
+      },
+      "evidence_text": [
+        "从(38,-47)出发画折线，先沿与x轴正向成-32度的方向走173厘米，再向左转78度接着画92厘米，再向右转41度接着画137厘米。三段连在一起，末端不连回起点，不加其他图形。坐标单位厘米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "按确定性需求规范化，173厘米=1.73米、92厘米=0.92米、137厘米=1.37米，plan.units取米。",
+        "起点(38,-47)厘米换算为(3.8,-4.7)米，其余顶点由方向角与长度按数学表达式精确计算。",
+        "第一段方向角-32度；左转78度后为46度；右转41度后为5度。"
+      ],
+      "confidence": 0.95
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-vo4fxnsd\\run\\T4-r1-B\\api-response-0c0bd444-98ed-4551-9a3d-42ec4479eb4c.json"
+  }
+}

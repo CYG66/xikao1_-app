@@ -3,6 +3,7 @@
 This is a partial executable view over the immutable source ledger. Unknown
 phrasing remains unresolved rather than becoming a whole-drawing dimension.
 """
+from .cad_length_units import length_factors
 import math
 import hashlib
 import json
@@ -45,6 +46,9 @@ def requirement_contract(sources):
                 clauses.append({'text':clause,'subjects':[]})
             for name in local_creation_objects(clause):
                 name = re.sub(r'[（(][A-Za-z][A-Za-z\s-]*[）)]', '', name).strip()
+                # Dimensions are predicates of the object, not part of its
+                # identity (矩形宽4米高2米 / 半径2米的圆形).
+                name = PATTERN.sub('', name).strip(' 的、')
                 if (name and len(name)<=32 and not re.search(r'[：:（(]|图纸|方案',name)
                     and name not in declared):declared.append(name)
             heading=re.match(r'\s*([^：:]{1,24})[：:]\s*',clause)
@@ -73,6 +77,8 @@ def requirement_contract(sources):
             targets=[];scope='unresolved'
             normalized_prefix=PATTERN.sub('',prefix).strip(' 、')
             normalized_prefix=re.sub(r'^(?:请把|请将|把|将)','',normalized_prefix).strip()
+            normalized_prefix=re.sub(r'^(?:请|帮我|请帮我)?\s*(?:生成|创建|新建|绘制|画出|画)\s*'
+                r'(?:[一二两三四五六七八九十\d]+\s*[个条朵张颗幅块])?\s*','',normalized_prefix).strip()
             named=[]
             for name in subjects:
                 alias=re.sub(r'(?:的)?轮廓$','',re.sub(r'^(?:大写|小写)','',name))
@@ -87,11 +93,38 @@ def requirement_contract(sources):
                 targets=subjects;scope='single_subject'
             colon=re.fullmatch(r'([^：:]{1,24})[：:]\s*',prefix)
             if colon:targets=[colon[1].strip()];scope='explicit_subject'
+            end=min((p for c in '，,。；;\n' if (p:=text.find(c,match.end()))>=0),default=len(text))
+            if (scope=='single_subject' and re.match(r'^(?:请|帮我|请帮我)?\s*(?:生成|创建|新建|绘制|画出|画)',prefix)
+                    and subjects[0] in text[match.end():end]):
+                # Dimensions can precede the primitive noun in one command.
+                scope='explicit_subject'
+            # Commas in a component's coordinates or dimension list must not
+            # reset its scope to the whole drawing. Strong clause boundaries
+            # end this inheritance; no scope is guessed across them.
+            segment=re.split(r'[；;。\n]',text[:match.start()])[-1]
+            component=re.match(r'\s*([^，,：:（）()\d]{1,24}?)(?:左下角|圆心|中心|顶点|控制点|[：:])',segment)
+            if component:
+                label=component[1].strip()
+                if label and not re.match(r'^(?:请|生成|创建|新建|绘制|画|整体|总)',label):
+                    targets=[label];scope='explicit_subject'
+            # Explicit inner/outer circle qualifiers name component scopes,
+            # not a radius of the whole drawing. A list separator may precede
+            # the qualifier after a repeated dimension in the same clause.
+            if match['field'] in {'半径','直径'}:
+                circle_role=re.search(r'(?:^|、)(内圆|外圆)(?:的)?$',normalized_prefix)
+                if circle_role:
+                    targets=[circle_role[1]];scope='explicit_subject'
             operator=('lte' if match['qualifier']=='最大' or match['relation'] in {'不超过','至多'} else
                       'gte' if match['qualifier']=='最小' or match['relation'] in {'至少','不小于'} else 'eq')
-            value=float(match['value'])*{'毫米':1,'厘米':10,'米':1000,'mm':1,'cm':10,'m':1000}[match['unit'].lower()]
+            value=float(match['value'])*length_factors('mm')[match['unit'].lower()]
             valid=math.isfinite(value) and value>0
             field=FIELDS[match['field']]
+            all_text='\n'.join(s['text'] for s in sources)
+            if '圆柱体' in all_text and '两个独立正投影视图' in all_text:
+                if field=='height' and scope=='single_subject' and not re.search(r'整体|总',normalized_prefix):
+                    targets=['侧视轮廓'];scope='explicit_view'
+                elif field=='radius' and normalized_prefix.endswith('底面'):
+                    targets=['俯视圆'];scope='explicit_view'
             if (field == 'width' and scope == 'single_subject'
                     and '整体' not in normalized_prefix
                     and re.search(r'(?:两|[二三四五六七八九]|\d+)\s*(?:条|个)?\s*(?:臂|分支|支臂)', text)):
@@ -173,6 +206,21 @@ def validate_junction_source_refs(junction_constraints, source_index):
         if not allowed: invalid.append(result)
     return {'schema':'cad.junction-source-validation.v1','constraints':results,
             'valid':not invalid,'invalid_count':len(invalid)}
+
+
+def junction_intent_guidance(source_index):
+    """Expose the existing source validator's permissions before generation.
+
+    This supplies no geometry and grants no new authority. Actual local
+    references and geometry must still pass their existing validation.
+    """
+    allowed = {}
+    for intent in ('smooth', 'intentional_cusp', 'intentional_corner'):
+        allowed[intent] = [ref for ref in (source_index.get('entries') or {})
+            if validate_junction_source_refs([{'intent': intent,
+                'source_requirement_refs': [ref]}], source_index)['valid']]
+    return {'allowed_source_refs_by_intent': allowed,
+        'instruction': '用户明确的连接要求优先于图形名称的惯常画法和模型假设。只有列出的语义匹配来源可供对应intent引用；空列表表示没有该意图的来源授权，不能反复保留该意图或伪造引用。用户要求平滑时，不得因默认造型习惯添加C0尖点；应调整自由控制柄和曲线比例以同时满足形态、平滑及尺寸。显式局部例外须绑定其实际位置，不能扩大到其他接缝；若用户要求确实冲突则具体澄清。此表不是局部位置授权，也不能代替实际几何验收。'}
 
 
 def inherit_requirement_source_index(previous_index, current_contract, *, request_id=None,

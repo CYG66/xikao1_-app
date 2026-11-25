@@ -27,7 +27,7 @@ from .cad_constraint_solver import (
 from .logical_topology import validate_logical_object_graph
 from .tooling import CadGeometry
 from .cad_parametric import ParametricError, expression, sample_curve
-from .cad_topology_safety import analyze_composite_segments
+from .cad_plan_references import REFERENCE_DESCRIPTION, bind_plan_references
 
 
 MAX_CONSTRUCTION_STEPS = 100
@@ -135,7 +135,7 @@ class AddLineStep(ConstructionStepBase):
 
 class AddPolylineStep(ConstructionStepBase):
     op: Literal["add_polyline"]
-    vertices: list[ConstructionPoint] = Field(min_length=2, max_length=500)
+    vertices: list[ConstructionPoint] = Field(min_length=2, max_length=4096)
     closed: bool = False
 
 
@@ -518,14 +518,14 @@ ConstructionStep = Annotated[
 class EntityCountAssertion(_StrictModel):
     kind: Literal["entity_count"]
     assertion_id: str = Field(min_length=1, max_length=64)
-    target_ref: str | None = Field(default=None, min_length=1, max_length=128)
+    target_ref: str | None = Field(default=None, min_length=1, max_length=256, description=REFERENCE_DESCRIPTION + '省略表示全部图元；计物理图元数，不是顶点或边数。')
     equals: int = Field(ge=0, le=MAX_CONSTRUCTION_ENTITIES)
 
 
 class BoundsSizeAssertion(_StrictModel):
     kind: Literal["bounds_size"]
     assertion_id: str = Field(min_length=1, max_length=64)
-    target_ref: str | None = Field(default=None, min_length=1, max_length=128)
+    target_ref: str | None = Field(default=None, min_length=1, max_length=256, description=REFERENCE_DESCRIPTION + '测量选中集合的轴对齐外包框，宽高使用plan.units；省略表示全部。')
     width: float = Field(ge=0.0, le=100000.0)
     height: float = Field(ge=0.0, le=100000.0)
     tolerance: float = Field(default=0.001, ge=0.0, le=1000.0)
@@ -534,13 +534,15 @@ class BoundsSizeAssertion(_StrictModel):
 class ClosedAssertion(_StrictModel):
     kind: Literal["closed"]
     assertion_id: str = Field(min_length=1, max_length=64)
-    target_ref: str = Field(min_length=1, max_length=128)
+    target_ref: str = Field(min_length=1, max_length=256, description=REFERENCE_DESCRIPTION +
+        '闭合原生图元可直接验证；多个开放线段/圆弧必须组成唯一、无重复边或分叉的闭合边界。')
 
 
 class RadialPatternAssertion(_StrictModel):
     kind: Literal["radial_pattern"]
     assertion_id: str = Field(min_length=1, max_length=64)
-    target_ref: str = Field(min_length=1, max_length=128)
+    target_ref: str = Field(min_length=1, max_length=256,
+        description=REFERENCE_DESCRIPTION + "仅引用一条实际闭合多段线边界，测量其径向凸瓣/顶点重复；不支持原生圆、开放分割线或多图元分支网络。")
     lobes: int = Field(ge=2, le=100)
     profile: Literal["smooth", "polygonal"] = "smooth"
 
@@ -548,16 +550,17 @@ class RadialPatternAssertion(_StrictModel):
 class CenterDistanceAssertion(_StrictModel):
     kind: Literal["center_distance"]
     assertion_id: str = Field(min_length=1, max_length=64)
-    target_ref: str = Field(min_length=1, max_length=128)
-    reference_ref: str = Field(min_length=1, max_length=128)
-    distance: float = Field(ge=0.0, le=100000.0)
+    target_ref: str = Field(min_length=1, max_length=256, description=REFERENCE_DESCRIPTION)
+    reference_ref: str = Field(min_length=1, max_length=256, description=REFERENCE_DESCRIPTION)
+    distance: float = Field(ge=0.0, le=100000.0,
+        description="两个引用对象各自轴对齐外包框中心之间的距离，单位为plan.units。不是线段长度、端点到圆心距离或端点径向距离。")
     tolerance: float = Field(default=0.001, ge=0.0, le=1000.0)
 
 
 class AreaAssertion(_StrictModel):
     kind: Literal["area"]
     assertion_id: str = Field(min_length=1, max_length=64)
-    target_ref: str = Field(min_length=1, max_length=128)
+    target_ref: str = Field(min_length=1, max_length=256, description=REFERENCE_DESCRIPTION + '对各自闭合图元的面积求和，不计算开放线弧组合或几何布尔并集；单位为plan.units平方。')
     area: float = Field(gt=0.0, le=10_000_000_000.0)
     tolerance: float = Field(default=0.01, ge=0.0, le=1_000_000.0)
 
@@ -578,10 +581,10 @@ class ConstructionBudgets(_StrictModel):
 
 class FreeOutlineLayout(_StrictModel):
     """Fit an existing free outline, then place it relative to another one."""
-    target_ref: str = Field(min_length=1, max_length=128)
+    target_ref: str = Field(min_length=1, max_length=256, description=REFERENCE_DESCRIPTION + '可写目标只支持一条闭合多段线。')
     width: float | None = Field(default=None,gt=0, le=100000)
     height: float | None = Field(default=None,gt=0, le=100000)
-    right_of_ref: str | None = None
+    right_of_ref: str | None = Field(default=None, min_length=1, max_length=256, description=REFERENCE_DESCRIPTION + '只读参考可包含多个图元，使用整体外包框。')
     gap: float = Field(default=0, ge=0, le=100000)
     gap_reference: Literal["edge", "center"] = "edge"
     center: ConstructionPoint | None = None
@@ -598,6 +601,16 @@ class FreeOutlineLayout(_StrictModel):
 
 
 class CadConstructionPlan(_StrictModel):
+    shared_points: dict[str, ConstructionPoint] = Field(default_factory=dict,max_length=64,
+        description='可选共享点表。坐标用@point_name.x和@point_name.y引用，允许受限数学表达式和无环依赖；单位同plan.units。共享端点应引用同一个点，不能独立猜测坐标。')
+
+    @model_validator(mode='before')
+    @classmethod
+    def resolve_coordinate_references(cls,value):
+        from .cad_shared_points import resolve_shared_points
+        from .cad_precision import bounded_sampling
+        return resolve_shared_points(bounded_sampling(value))
+
     schema_version: Literal["cad.construction-plan.v1"] = "cad.construction-plan.v1"
     units: Literal["m", "mm"] = "m"
     project_id: str | None = Field(default=None, min_length=1, max_length=128)
@@ -611,6 +624,11 @@ class CadConstructionPlan(_StrictModel):
 
     @model_validator(mode="after")
     def validate_plan_graph(self) -> "CadConstructionPlan":
+        from .cad_precision import SAMPLING_MM
+        limit=SAMPLING_MM/(1000 if self.units=='m' else 1)
+        for step in self.steps:
+            if step.op in {'add_composite_path','add_rotational_path','add_parametric_curve'}:
+                step.max_sampling_error=min(step.max_sampling_error or limit,limit)
         if len(self.steps) > self.budgets.max_steps:
             raise ValueError("steps exceed budgets.max_steps")
         from .cad_plan_references import plan_reference_errors
@@ -631,6 +649,8 @@ def execute_construction_plan(
     validation raises ``ConstructionPlanError`` and returns no partial result.
     """
     validated = plan if isinstance(plan, CadConstructionPlan) else CadConstructionPlan.model_validate(plan)
+    from .cad_plan_references import plan_reference_catalog
+    reference_catalog, _ = plan_reference_catalog(validated.steps)
     scale = 1000.0 if validated.units == "m" else 1.0
     geometries: list[dict[str, Any]] = []
     refs: dict[str, list[int]] = {}
@@ -648,9 +668,10 @@ def execute_construction_plan(
                 if not start < end or end-start > 100000:
                     raise ParametricError("参数区间必须有限递增且跨度不超过100000")
                 points, error = sample_curve(step.x_expression, step.y_expression,
-                                             start, end, step.max_sampling_error)
+                                             start, end, step.max_sampling_error, max_points=4096)
                 sampling_tolerance=step.max_sampling_error
-                layout=next((item for item in validated.free_outline_layout if item.target_ref==step.output_ref),None)
+                layout=next((item for item in validated.free_outline_layout
+                             if reference_catalog.get(item.target_ref)==[step.output_ref]),None)
                 if layout is not None and layout.width is not None:
                     width=max(p[0] for p in points)-min(p[0] for p in points)
                     height=max(p[1] for p in points)-min(p[1] for p in points)
@@ -662,7 +683,7 @@ def execute_construction_plan(
                             # covered; never accept a scaled error bound.
                             sampling_tolerance=step.max_sampling_error/amplification*.8
                             for _ in range(4):
-                                points,error=sample_curve(step.x_expression,step.y_expression,start,end,sampling_tolerance)
+                                points,error=sample_curve(step.x_expression,step.y_expression,start,end,sampling_tolerance,max_points=4096)
                                 if error*amplification <= step.max_sampling_error:
                                     break
                                 sampling_tolerance*=.5
@@ -701,6 +722,17 @@ def execute_construction_plan(
                     for pair in exc.details['conflicts']:
                         pair['seed_segment_indices']=[i%size for i in pair['expanded_segment_indices']]
                         pair['rotation_instances']=[i//size for i in pair['expanded_segment_indices']]
+                    exc.details['affected_seed_segment_indices']=sorted({
+                        i for pair in exc.details['conflicts'] for i in pair['seed_segment_indices']})
+                    exc.details['effective_seed_segments']=[s.model_dump(mode='json') for s in step.segments[:size]]
+                    exc.details['rotation_center']=rotational_source.center.model_dump(mode='json')
+                    exc.details['rotation_direction']=rotational_source.direction
+                    exc.details['constrain_sector_end']=rotational_source.constrain_sector_end
+                    exc.details['repair_instruction']+=(
+                        ' add_rotational_path仅编辑原始单元segments；affected_seed_segment_indices是该数组的零起算索引，'
+                        'rotation_instances是展开副本编号，edge_indices是采样小边编号，不能用作原始段索引。'
+                        'effective_seed_segments是端点约束生效后的实际单元，不是替代答案；'
+                        '修正时同时保持相邻段连接及周期首尾旋转关系，不能只移动一个相交小边或改副本。')
                 raise
         predicted_count = _predicted_entity_count(step, refs)
         if len(geometries) + predicted_count > validated.budgets.max_entities:
@@ -775,6 +807,7 @@ def execute_construction_plan(
         if created_ids:
             next_id = max(created_ids) + 1
 
+    refs = bind_plan_references(validated.steps, refs)
     _apply_free_outline_layout(validated.free_outline_layout, geometries, refs, scale, curve_quality)
     try:
         geometries, constraint_solve = solve_geometric_constraints(
@@ -785,16 +818,11 @@ def execute_construction_plan(
             backend=validated.constraint_backend,
         )
     except ConstraintSolveError as exc:
-        diagnostics = {"category": exc.category}
-        if getattr(exc, "reports", None):
-            diagnostics["reports"] = exc.reports
-        if getattr(exc, "failed_constraints", None):
-            diagnostics["failed_constraints"] = exc.failed_constraints
         raise ConstructionPlanError(
             exc.code,
             exc.message,
             constraint_id=exc.constraint_id,
-            details=diagnostics,
+            details=getattr(exc,'details',None),
         ) from exc
     _refresh_logical_object_bounds(objects, geometries)
     if len(objects)==1 and not objects[0].get('assembly_id') and set(objects[0].get('geometry_refs') or [])=={g['id'] for g in geometries}:
@@ -822,10 +850,23 @@ def execute_construction_plan(
     except ConstructionPlanError as exc:
         # Report identity errors alongside the first geometric assertion so
         # one bounded model repair can address both, rather than hiding one.
+        failed=next((a for a in validated.assertions if a.assertion_id==exc.assertion_id),None)
+        if failed is not None:
+            selected_ids=refs.get(failed.target_ref,[]) if failed.target_ref else [g['id'] for g in geometries]
+            exc.details={**(exc.details or {}),'failed_model_assertion':failed.model_dump(mode='json'),
+                'assertion_target_geometry':[deepcopy(g) for g in geometries if g['id'] in selected_ids],
+                'assertion_reference_geometry':[deepcopy(g) for g in geometries
+                    if g['id'] in refs.get(getattr(failed,'reference_ref',None),[])],
+                'repair_instruction':'先核对模型自拟断言的对象范围与适用图元。radial_pattern只支持单条闭合多段线，不用于圆或多个对称部件；center_distance测量外包框中心，不是端点距离。修正错误断言仍须通过全部用户来源约束，不得为迎合自拟断言随意改变正确几何。'}
         if not graph_validation['verified']:
             exc.details={**(exc.details or {}),'logical_graph_validation':graph_details}
         raise
     if not graph_validation["verified"]:
+        # Identity validation must not hide already measured geometry from
+        # read-only source diagnostics during the bounded repair turn.
+        graph_details.update({'authority':'backend_measured_geometry',
+            'geometry_refs':deepcopy(refs),'measured_geometries':deepcopy(geometries[:20]),
+            'geometry_evidence_truncated':len(geometries)>20})
         raise ConstructionPlanError(
             "logical_graph_invalid",
             str(graph_validation["errors"]),
@@ -833,8 +874,18 @@ def execute_construction_plan(
         )
     feasibility = check_drawing_feasibility(geometries)
     if not feasibility["ok"]:
+        signatures={};duplicates=[]
+        for geometry in geometries:
+            if geometry.get('type')!='line':continue
+            key=tuple(sorted(tuple(round(float(geometry[p][k]),6) for k in ('x','y')) for p in ('start','end')))
+            if key in signatures:duplicates.append([signatures[key],geometry['id']])
+            else:signatures[key]=geometry['id']
         raise ConstructionPlanError(
             "drawing_infeasible", "；".join(feasibility["errors"]),
+            details={'authority':'backend_measured_geometry','duplicate_line_pairs':duplicates,
+                     'geometry_refs':deepcopy(refs),'measured_geometries':deepcopy(geometries[:20]),
+                     'geometry_evidence_truncated':len(geometries)>20,
+                     'repair_instruction':'重复边对以实际几何ID报告；结合geometry_refs核对源步骤和共享顶点。先选择一致的轴向量，用同一基点与向量和计算共享顶点；每对顶点只连一条边。不得直接删边来满足完整边数，修复后仍须验证来源要求的数量、长度及连接。'},
         )
     return {
         "schema": "cad.construction-result.v1",
@@ -842,7 +893,11 @@ def execute_construction_plan(
         "geometries": deepcopy(geometries),
         "logical_objects": deepcopy(objects),
         "topology": topology,
-        "symbol_table": deepcopy(refs),
+        # Durable output symbols retain their original one-entry-per-step
+        # semantics. Typed object/assembly aliases are a derived lookup table,
+        # not extra objects for downstream enumeration or area normalization.
+        "symbol_table": {step.output_ref: deepcopy(refs[step.output_ref]) for step in validated.steps},
+        "reference_table": deepcopy(refs),
         "assertions": {"ok": True, "count": len(validated.assertions)},
         "constraint_solve": constraint_solve,
         "curve_quality": curve_quality,
@@ -872,11 +927,14 @@ def construction_geometry_area(
 
 def _apply_free_outline_layout(layout, geometries, refs, scale, curve_quality=()):
     by_id = {g["id"]:g for g in geometries}
-    def target(ref):
+    def target(ref, *, writable=True):
         selected = [by_id[i] for i in refs.get(ref, [])]
-        if len(selected) != 1 or selected[0].get("type") != "polyline" or not selected[0].get("closed"):
-            raise ConstructionPlanError("invalid_layout_target", "自由轮廓布局必须绑定唯一闭合多段线")
-        return selected[0]
+        if not selected or (writable and (len(selected) != 1 or selected[0].get("type") != "polyline" or not selected[0].get("closed"))):
+            raise ConstructionPlanError("invalid_layout_target", "自由轮廓布局必须绑定唯一闭合多段线" if writable else "布局参照必须包含实际图元",
+                details={'layout_ref':ref,'reference_only':not writable,
+                    'actual_types':[g['type'] for g in selected],
+                    'repair_instruction':'自由轮廓缩放和移动的target_ref须为闭合多段线；原生圆的位置和尺寸通过自身center/radius表达。right_of_ref仅作只读外包框参照，可选择单图元或整体集合。修正错误布局条目，不得删减用户所需图元。'})
+        return selected[0] if writable else selected
     for item in layout:
         g = target(item.target_ref)
         b = _bounds([g])
@@ -886,7 +944,7 @@ def _apply_free_outline_layout(layout, geometries, refs, scale, curve_quality=()
         resize=item.width is not None
         amplification=max(item.width*scale/w,item.height*scale/h) if resize else 1.0
         for quality in curve_quality:
-            if quality.get("output_ref") != item.target_ref:
+            if refs.get(quality.get("output_ref")) != refs.get(item.target_ref):
                 continue
             field="observed_sampling_error" if quality.get("kind")=="parametric" else "maximum_sampling_error"
             error=quality[field]*amplification
@@ -901,7 +959,10 @@ def _apply_free_outline_layout(layout, geometries, refs, scale, curve_quality=()
                 p["x"]=cx+(p["x"]-cx)*item.width*scale/w
                 p["y"]=cy+(p["y"]-cy)*item.height*scale/h
         if item.right_of_ref is not None:
-            reference=_bounds([target(item.right_of_ref)])
+            if set(refs[item.target_ref]) & set(refs[item.right_of_ref]):
+                raise ConstructionPlanError('invalid_layout_target', '布局目标与只读参照共享实际图元，不能相对自身定位',
+                    details={'target_ref':item.target_ref,'right_of_ref':item.right_of_ref})
+            reference=_bounds(target(item.right_of_ref,writable=False))
             current=_bounds([g])
             dx=(reference["max_x"]+item.gap*scale-current["min_x"] if item.gap_reference=="edge"
                 else (reference["min_x"]+reference["max_x"])/2+item.gap*scale-cx)
@@ -1110,6 +1171,18 @@ def _sample_composite_path(step: AddCompositePathStep) -> list[ConstructionPoint
                 details={'segment_index':index,'start_angle_degrees':segment.start_angle,
                     'end_angle_degrees':segment.end_angle,
                     'repair_instruction':'零跨度圆弧不是完整圆。若该段没有长度，应从连接计划中移除；若需要圆弧，按相邻端点计算正确角度。完整圆须明确360度跨度，不能靠重复采样生成。'})
+    pairs = [(i-1, i) for i in range(1, len(segments))]
+    if step.closed:
+        pairs.append((len(segments)-1, 0))
+    disconnected = []
+    for left, right in pairs:
+        end, start = _segment_end(segments[left]), _segment_start(segments[right])
+        gap = _point_distance(end, start)
+        if gap > step.connection_tolerance:
+            disconnected.append({'previous_segment': left+1, 'next_segment': right+1,
+                'previous_end': end.model_dump(), 'next_start': start.model_dump(), 'gap': gap})
+    connection_evidence = {'disconnected_joints': disconnected, 'coordinate_unit': 'plan.units',
+        'repair_instruction': '同时修复全部disconnected_joints，不能只修首个断点。复用已有shared_points，以@name.x和@name.y使相邻段端点引用同一共享点；闭合路径首尾也引用同一点。固定用户端点不可移动，若固定点冲突则返回具体冲突。不得添加连接线或改变用户形态来绕过检查；修复后仍检查平滑、自交及全部来源要求。'}
     for index in range(1, len(segments)):
         previous = _segment_end(segments[index - 1])
         current = _segment_start(segments[index])
@@ -1118,7 +1191,7 @@ def _sample_composite_path(step: AddCompositePathStep) -> list[ConstructionPoint
                 "disconnected_composite_path",
                 f"复合路径第 {index} 段与第 {index + 1} 段端点未连接",
                 step_id=step.step_id,
-                details={"previous_segment": index, "next_segment": index + 1,
+                details={**connection_evidence,"previous_segment": index, "next_segment": index + 1,
                          "previous_end": previous.model_dump(), "next_start": current.model_dump(),
                          "gap": _point_distance(previous, current), "tolerance": step.connection_tolerance},
             )
@@ -1129,7 +1202,7 @@ def _sample_composite_path(step: AddCompositePathStep) -> list[ConstructionPoint
             "open_composite_path",
             "复合闭合路径的首尾端点未连接",
             step_id=step.step_id,
-            details={"previous_segment": len(segments), "next_segment": 1,
+            details={**connection_evidence,"previous_segment": len(segments), "next_segment": 1,
                      "previous_end": _segment_end(segments[-1]).model_dump(),
                      "next_start": _segment_start(segments[0]).model_dump(),
                      "tolerance": step.connection_tolerance},
@@ -1165,12 +1238,6 @@ def _validate_composite_path_quality(
     self_intersection_count = _self_intersection_count(
         edges, closed=step.closed, tolerance=step.connection_tolerance,details=intersection_pairs,
     )
-    safety_report = analyze_composite_segments(
-        [segment.model_dump(mode="json") for segment in step.segments],
-        tolerance=step.connection_tolerance,
-        closed=step.closed,
-    )
-    curve_contacts = [contact.as_dict() for contact in safety_report.contacts]
     continuity = _composite_continuity(step)
     effective = step.effective_junction_constraints()
     required_by_joint = {item['junction_index']: item['required_continuity'] for item in effective}
@@ -1197,38 +1264,15 @@ def _validate_composite_path_quality(
             step_id=step.step_id,
             details=conflict_details(duplicate_pairs),
         )
-    affected_segments = {i for pair in intersection_pairs for i in pair}
-    for contact in curve_contacts:
-        affected_segments.update(contact["segment_indices"])
-    verified_contacts = [
-        contact for contact in curve_contacts
-        if contact["kind"] != "near_contact"
-    ]
-    has_contact = bool(self_intersection_count) or bool(curve_contacts)
-    if (has_contact or safety_report.unresolved) and not step.allow_self_intersection:
-        unresolved_only = safety_report.unresolved and not has_contact
-        safety_details = {
-            **conflict_details(intersection_pairs),
-            "curve_contacts": curve_contacts,
-            "affected_segment_indices": sorted(affected_segments),
-            "failure_scope": (
-                "unresolved_topology" if unresolved_only
-                else "intersecting_segments_only"
-            ),
-        }
-        if safety_report.unresolved:
-            safety_details["unresolved_topology"] = True
-            safety_details["escalation"] = "replan_or_human_review"
+    if self_intersection_count and not step.allow_self_intersection:
         raise ConstructionPlanError(
             "self_intersecting_composite_path",
-            (
-                f"复合路径包含 {self_intersection_count + len(verified_contacts)} "
-                "处已确认自相交或接触"
-                if not unresolved_only
-                else "复合路径拓扑尚未判定，需重规划或人工复核"
-            ),
+            f"复合路径包含 {self_intersection_count} 处自相交",
             step_id=step.step_id,
-            details=safety_details,
+            details={**conflict_details(intersection_pairs),
+                'affected_sample_edge_indices': sorted({i for pair in intersection_pairs for i in pair}),
+                'affected_segment_indices': sorted({owners[i] for pair in intersection_pairs for i in pair}),
+                'failure_scope': 'intersecting_segments_only'},
         )
     if failed_required:
         raise ConstructionPlanError(
@@ -1280,9 +1324,6 @@ def _validate_composite_path_quality(
         ),
         "self_intersection_count": self_intersection_count,
         "duplicate_segment_count": duplicate_count,
-        "curve_contact_count": len(curve_contacts),
-        "curve_contacts": curve_contacts,
-        "topology_unresolved": safety_report.unresolved,
         "maximum_curvature": round(maximum_curvature, 9),
         "maximum_sampling_error": round(maximum_sampling_error, 9),
         "max_sampling_error": step.max_sampling_error,
@@ -1843,15 +1884,21 @@ def _run_single_assertion(
                     f"实际尺寸 {width:g} x {height:g}，要求 {assertion.width:g} x {assertion.height:g}",
                 )
         elif isinstance(assertion, ClosedAssertion):
-            if not selected or any(
-                item.get("type") not in {"circle", "ellipse"}
-                and not (
-                    item.get("type") in {"polyline", "spline"}
-                    and item.get("closed") is True
-                )
+            individually_closed = bool(selected) and all(
+                item.get("type") in {"circle", "ellipse"}
+                or (item.get("type") in {"polyline", "spline"} and item.get("closed") is True)
                 for item in selected
-            ):
-                _fail_assertion(assertion, "目标包含未闭合图元")
+            )
+            if not individually_closed:
+                from .cad_path_relation_acceptance import assemble_closed_boundary
+                from .cad_structure_contract import StructureContractError
+                try:
+                    assemble_closed_boundary(selected)
+                except StructureContractError as exc:
+                    raise ConstructionPlanError(
+                        'assertion_failed', '目标未组成唯一闭合边界', assertion_id=assertion.assertion_id,
+                        details={'boundary_validation': exc.details, 'target_ref': assertion.target_ref},
+                    ) from exc
         elif isinstance(assertion, RadialPatternAssertion):
             if len(selected) != 1 or selected[0].get("type") != "polyline" or not selected[0].get("closed"):
                 _fail_assertion(assertion, "径向重复轮廓必须是一条可验证的闭合多段线")

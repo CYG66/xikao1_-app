@@ -1,0 +1,150 @@
+[
+  {
+    "file": "_parse_test.py",
+    "sha256": "8ff8b228eb9044d6e6106c8138aef12fd00ecb0adb1b2cb145e5c42aa49201af",
+    "lines": 24,
+    "imports": [
+      "import sys, json",
+      "from app.incremental_cad import parse_incremental_edit"
+    ],
+    "top_definitions": [
+      "out"
+    ]
+  },
+  {
+    "file": "_tmp_chat.py",
+    "sha256": "82e126f61fbc174e8f9b7de811e106883895d1d84c0b3cc1710d78eed8f1c95d",
+    "lines": 12,
+    "imports": [
+      "from pathlib import Path",
+      "from tempfile import TemporaryDirectory",
+      "from unittest.mock import patch",
+      "from app.agent_service import RobotAgentService",
+      "from app.creative_projects import CreativeProjectStore"
+    ],
+    "top_definitions": []
+  },
+  {
+    "file": "_tmp_coord.py",
+    "sha256": "6172d2660e9d779d2af8a5ce56fa6bb33c9ad9215438117a6373768d56674538",
+    "lines": 5,
+    "imports": [
+      "from app.cad_coordinate_requirements import coordinate_scale",
+      "from app.cad_construction_interpreter import clarify_construction_request"
+    ],
+    "top_definitions": []
+  },
+  {
+    "file": "_tmp_parse.py",
+    "sha256": "6a7e11d44d2391a05e2808c4f51ba93d89fa1a0915f8fdc6a83ee5d69cea4dbc",
+    "lines": 6,
+    "imports": [
+      "from app.cad_construction_interpreter import parse_rule_construction_plan, clarify_construction_request, interpret_construction_request"
+    ],
+    "top_definitions": []
+  },
+  {
+    "file": "_tmp_probe.py",
+    "sha256": "874a43ebad4e00d935b439af38fc42113d08a55fc4733d274855497588f896a1",
+    "lines": 4,
+    "imports": [
+      "from app.cad_structure_contract import explicit_composition",
+      "import pprint"
+    ],
+    "top_definitions": []
+  },
+  {
+    "file": "review_all_steps.py",
+    "sha256": "003a6553f1828acb85b915192bfeab6a9ec15128890fc246d67951d0982db41a",
+    "lines": 104,
+    "imports": [
+      "import io, json, sys, re",
+      "from app.incremental_cad import parse_incremental_edit",
+      "from app.cad_target_resolver import resolve_cad_target"
+    ],
+    "top_definitions": [
+      "check",
+      "read"
+    ]
+  },
+  {
+    "file": "run_cad_construction_benchmark.py",
+    "sha256": "a792fd915ffe432767083df7b9e849aa3b902b3263b214f47d11c01facecdc34",
+    "lines": 104,
+    "imports": [
+      "from __future__ import annotations",
+      "import argparse",
+      "from copy import deepcopy",
+      "import json",
+      "import os",
+      "from pathlib import Path",
+      "import sys",
+      "from app.agent_service import RobotAgentService",
+      "from app.agent_service_config import DEFAULT_MODELS, PROVIDER_MODEL_ENV, PROVIDERS",
+      "from app.cad_construction_evaluation import DEFAULT_CONSTRUCTION_BENCHMARK_PATH, evaluate_construction_interpretation, load_construction_benchmark, run_construction_benchmark"
+    ],
+    "top_definitions": [
+      "_configure_console_encoding",
+      "_arguments",
+      "main"
+    ]
+  },
+  {
+    "file": "run_cad_evaluation.py",
+    "sha256": "ee3689349269a6a28f886c5b589d0f09cbfe0dcee9fe06660e4c802d162276e6",
+    "lines": 29,
+    "imports": [
+      "from __future__ import annotations",
+      "import json",
+      "import sys",
+      "from app.agent_evaluation import DEFAULT_CAD_CORPUS_PATH, run_policy_evaluation",
+      "from app.agent_service import RobotAgentService"
+    ],
+    "top_definitions": [
+      "main"
+    ]
+  },
+  {
+    "file": "run_extended_deepseek_benchmark.py",
+    "sha256": "21f65519c71aecae115ec544d8491c8655654deb32864b870919494051ddde79",
+    "lines": 64,
+    "imports": [
+      "from __future__ import annotations",
+      "import json",
+      "import sys",
+      "import time",
+      "from pathlib import Path",
+      "from app.agent_service import RobotAgentService",
+      "from app.cad_construction_evaluation import evaluate_construction_interpretation, load_construction_benchmark, run_construction_benchmark"
+    ],
+    "top_definitions": [
+      "main"
+    ]
+  },
+  {
+    "file": "run_extended_rule_benchmark.py",
+    "sha256": "2f8afb77d4fe93948ae6f1b6d8c904ef862a3ce87010be4165964b776618aa0c",
+    "lines": 62,
+    "imports": [
+      "from __future__ import annotations",
+      "import json",
+      "import sys",
+      "from pathlib import Path",
+      "from app.agent_service import RobotAgentService",
+      "from app.cad_construction_evaluation import run_construction_benchmark, load_construction_benchmark"
+    ],
+    "top_definitions": [
+      "main"
+    ]
+  },
+  {
+    "file": "verify_followup.py",
+    "sha256": "f2b9063a93e93a04c9f1c44341cf664e463e913def652e00a40cd1f8f7c3a103",
+    "lines": 16,
+    "imports": [
+      "import io, sys",
+      "from app.incremental_cad import resolve_incremental_followup"
+    ],
+    "top_definitions": []
+  }
+]

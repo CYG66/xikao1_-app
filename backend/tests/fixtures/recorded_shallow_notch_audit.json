@@ -1,0 +1,388 @@
+[
+  {
+    "response_index": 3,
+    "source": "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米\n中心(2,3)，宽4米、高4米，坐标单位米。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "heart-outline",
+            "output_ref": "heart_outline",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": "heart",
+              "assembly_label": "爱心",
+              "object_id": "heart_boundary",
+              "object_type": "closed_outline",
+              "label": "爱心外轮廓",
+              "role": "outer_boundary"
+            },
+            "op": "add_parametric_curve",
+            "x_expression": "2 + 2*sin(t)",
+            "y_expression": "3 - 2*cos(t) - 0.6*cos(2*t) + 1.1",
+            "t_start": "0",
+            "t_end": "2*pi",
+            "max_sampling_error": 0.0005,
+            "closed": true
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "heart-closed",
+            "target_ref": "heart_outline"
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "explicit-outline-size",
+            "target_ref": "heart_outline",
+            "width": 4.0,
+            "height": 4.0,
+            "tolerance": 0.01
+          }
+        ],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 500
+        },
+        "free_outline_layout": [
+          {
+            "target_ref": "heart_outline",
+            "width": 4.0,
+            "height": 4.0,
+            "right_of_ref": null,
+            "gap": 0.0,
+            "gap_reference": "edge",
+            "center": {
+              "x": 2.0,
+              "y": 3.0
+            }
+          }
+        ]
+      },
+      "evidence_text": [
+        "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米"
+      ],
+      "assumptions": [
+        "采用经典心形参数式 x=2+2sin t，y=3-2cos t-0.6cos2t+1.1 表达单一闭合边界：t=0 处为顶部中央凹口，t在0到pi之间为右瓣与右下半，t=pi处为底部尖点，左半对称，曲线整周期平滑且仅遍历边界一次。",
+        "该公式在t=0给y最大值3.7、t=pi给最小值0.3，t=pi/2与3pi/2给左右极值x=4与0，故包围盒宽4、高3.4；为满足用户宽4高4，先由后端按明确整体宽高做仿射调整，使包围盒精确为4x4并中心落在(2,3)。",
+        "形公式属建模选择，不改变用户指定的整体尺寸与中心。"
+      ],
+      "confidence": 0.86
+    }
+  },
+  {
+    "response_index": 5,
+    "source": "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米\n中心(2,3)，宽4米、高4米，坐标单位米。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "heart.outline.1",
+            "output_ref": "heart_outline",
+            "semantic": {
+              "assembly_id": "heart.main",
+              "assembly_label": "爱心",
+              "object_id": "heart.outline",
+              "object_type": "drawing_part",
+              "label": "爱心平滑闭合外轮廓",
+              "role": "outer_boundary"
+            },
+            "op": "add_composite_path",
+            "closed": true,
+            "continuity": "C1",
+            "samples_per_curve": 32,
+            "segments": [
+              {
+                "kind": "bezier",
+                "control_points": [
+                  {
+                    "x": 2.0,
+                    "y": 1.0
+                  },
+                  {
+                    "x": 0.284314,
+                    "y": 2.213398
+                  },
+                  {
+                    "x": 0.0,
+                    "y": 3.624022
+                  },
+                  {
+                    "x": 0.0,
+                    "y": 4.366268
+                  }
+                ]
+              },
+              {
+                "kind": "bezier",
+                "control_points": [
+                  {
+                    "x": 0.0,
+                    "y": 4.366268
+                  },
+                  {
+                    "x": 0.0,
+                    "y": 5.287674
+                  },
+                  {
+                    "x": 0.74,
+                    "y": 5.0
+                  },
+                  {
+                    "x": 2.0,
+                    "y": 5.0
+                  }
+                ]
+              },
+              {
+                "kind": "bezier",
+                "control_points": [
+                  {
+                    "x": 2.0,
+                    "y": 5.0
+                  },
+                  {
+                    "x": 3.26,
+                    "y": 5.0
+                  },
+                  {
+                    "x": 4.0,
+                    "y": 5.287674
+                  },
+                  {
+                    "x": 4.0,
+                    "y": 4.366268
+                  }
+                ]
+              },
+              {
+                "kind": "bezier",
+                "control_points": [
+                  {
+                    "x": 4.0,
+                    "y": 4.366268
+                  },
+                  {
+                    "x": 4.0,
+                    "y": 3.624022
+                  },
+                  {
+                    "x": 3.715686,
+                    "y": 2.213398
+                  },
+                  {
+                    "x": 2.0,
+                    "y": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "heart.closed",
+            "target_ref": "heart_outline"
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "heart.bounds",
+            "target_ref": "heart_outline",
+            "width": 4.0,
+            "height": 4.0,
+            "tolerance": 0.01
+          }
+        ]
+      },
+      "evidence_text": [
+        "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米"
+      ],
+      "assumptions": [
+        "爱心中心(2,3)为整体外包框中心，宽4米高4米为整体轴对齐外包框尺寸。",
+        "采用经典心形比例：顶部尖点位于y=5（上极值），凹口最低点位于y=4.366268，底部尖点位于y=1（下极值），左右极值x=0与x=4。",
+        "顶部凹口与底部尖点为对称轴上的平滑连接点，控制柄水平以保持C1连续，不引入额外尖角。"
+      ],
+      "confidence": 0.86
+    }
+  },
+  {
+    "response_index": 7,
+    "source": "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米\n中心(2,3)，宽4米、高4米，坐标单位米。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "heart.outline.1",
+            "output_ref": "heart_outline",
+            "layer_id": 1,
+            "semantic": {
+              "assembly_id": "heart.main",
+              "assembly_label": "爱心",
+              "object_id": "heart.outline",
+              "object_type": "drawing_part",
+              "label": "爱心平滑闭合外轮廓",
+              "role": "outer_boundary"
+            },
+            "op": "add_composite_path",
+            "segments": [
+              {
+                "kind": "bezier",
+                "control_points": [
+                  {
+                    "x": 2.0,
+                    "y": 1.0
+                  },
+                  {
+                    "x": 1.34,
+                    "y": 1.0
+                  },
+                  {
+                    "x": 0.0,
+                    "y": 2.2
+                  },
+                  {
+                    "x": 0.0,
+                    "y": 3.5
+                  }
+                ]
+              },
+              {
+                "kind": "bezier",
+                "control_points": [
+                  {
+                    "x": 0.0,
+                    "y": 3.5
+                  },
+                  {
+                    "x": 0.0,
+                    "y": 4.55
+                  },
+                  {
+                    "x": 0.82,
+                    "y": 5.0
+                  },
+                  {
+                    "x": 2.0,
+                    "y": 5.0
+                  }
+                ]
+              },
+              {
+                "kind": "bezier",
+                "control_points": [
+                  {
+                    "x": 2.0,
+                    "y": 5.0
+                  },
+                  {
+                    "x": 3.18,
+                    "y": 5.0
+                  },
+                  {
+                    "x": 4.0,
+                    "y": 4.55
+                  },
+                  {
+                    "x": 4.0,
+                    "y": 3.5
+                  }
+                ]
+              },
+              {
+                "kind": "bezier",
+                "control_points": [
+                  {
+                    "x": 4.0,
+                    "y": 3.5
+                  },
+                  {
+                    "x": 4.0,
+                    "y": 2.2
+                  },
+                  {
+                    "x": 2.66,
+                    "y": 1.0
+                  },
+                  {
+                    "x": 2.0,
+                    "y": 1.0
+                  }
+                ]
+              }
+            ],
+            "closed": true,
+            "samples_per_curve": 32,
+            "connection_tolerance": 1e-06,
+            "continuity": "C0",
+            "tangent_tolerance_deg": 1.0,
+            "allow_self_intersection": false,
+            "allow_duplicate_segments": false,
+            "max_curvature": null,
+            "max_sampling_error": null,
+            "junction_constraints": []
+          }
+        ],
+        "constraints": [],
+        "constraint_backend": "auto",
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "heart.closed",
+            "target_ref": "heart_outline"
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "heart.bounds",
+            "target_ref": "heart_outline",
+            "width": 4.0,
+            "height": 4.0,
+            "tolerance": 0.001
+          }
+        ],
+        "budgets": {
+          "max_steps": 100,
+          "max_entities": 500
+        },
+        "free_outline_layout": [
+          {
+            "target_ref": "heart_outline",
+            "width": 4.0,
+            "height": 4.0,
+            "right_of_ref": null,
+            "gap": 0.0,
+            "gap_reference": "edge",
+            "center": {
+              "x": 2.0,
+              "y": 3.0
+            }
+          }
+        ]
+      },
+      "evidence_text": [
+        "生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米"
+      ],
+      "assumptions": [
+        "爱心为单一闭合外轮廓，四个三次贝塞尔段：左瓣、顶部凹口、右瓣、底部尖端；关于x=2左右对称。",
+        "顶部中央凹口为(2,5)，底部尖端为(2,1)，左右两个凸瓣峰值分别接近x=0与x=4，宽度与高度由free_outline_layout仿射调整为4米×4米并居中于(2,3)。",
+        "连接处采用C0（凹口与底部尖端为用户要求的尖点，不添加C1断言），其余过渡通过控制柄方向保持平滑外观。"
+      ],
+      "confidence": 0.9
+    }
+  }
+]

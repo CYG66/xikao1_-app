@@ -155,6 +155,20 @@ def resolve_logical_object_target(
     selector: dict[str, Any], logical_objects: list[dict[str, Any]]
 ) -> dict[str, Any]:
     """Resolve spatial language against confirmed logical objects."""
+    label=str(selector.get('label') or '').strip()
+    if label:
+        named=[o for o in logical_objects if isinstance(o,dict) and o.get('confirmed') is not False
+               and str(o.get('label') or '').strip()==label]
+        if len(named)>1:
+            return {'status':'needs_clarification','reason':'duplicate_logical_label',
+                    'question':'多个对象名称相同，请在画布点选目标。','candidate_object_ids':[o['object_id'] for o in named]}
+        if len(named)==1:
+            obj=named[0];ids=sorted({int(v) for v in obj.get('geometry_refs') or [] if str(v).isdigit()})
+            if not ids:
+                return {'status':'needs_clarification','reason':'named_object_geometry_missing','question':'该对象缺少当前图元引用，请重新选择。'}
+            return {'status':'resolved','object_id':str(obj['object_id']),'object_ids':[str(obj['object_id'])],
+                    'label':label,'geometry_ids':ids,'confidence':1.0,'reason':'unique_confirmed_label',
+                    'scoring':_authoritative_scoring(candidate_kind='logical_object',candidate_ids=[str(obj['object_id'])],evidence_kind='unique_confirmed_label')}
     object_type = str(selector.get("object_type") or "").strip()
     candidates = [
         item for item in logical_objects

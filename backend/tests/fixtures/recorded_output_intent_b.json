@@ -1,0 +1,126 @@
+{
+  "U1": {
+    "source": "请画一个圆，圆心(2.36,-1.14)，半径0.57米。只保留圆的外边界，不要任何标注。坐标单位米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "m",
+        "steps": [
+          {
+            "step_id": "circle-1",
+            "output_ref": "circle_outer",
+            "semantic": {
+              "assembly_id": "circle_r057",
+              "assembly_label": "圆",
+              "object_id": "circle_outer",
+              "object_type": "drawing_part",
+              "label": "圆外边界",
+              "role": "outer_boundary"
+            },
+            "op": "add_circle",
+            "center": {
+              "x": 2.36,
+              "y": -1.14
+            },
+            "radius": 0.57
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "entity_count",
+            "assertion_id": "single_circle",
+            "target_ref": "circle_outer",
+            "equals": 1
+          },
+          {
+            "kind": "bounds_size",
+            "assertion_id": "circle_bounds",
+            "target_ref": "circle_outer",
+            "width": 1.14,
+            "height": 1.14,
+            "tolerance": 0.001
+          }
+        ]
+      },
+      "evidence_text": [
+        "请画一个圆，圆心(2.36,-1.14)，半径0.57米。只保留圆的外边界，不要任何标注。坐标单位米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "坐标与半径直接采用plan.units=米，不再二次换算。",
+        "仅输出圆的单一闭合外边界，无标注、中心线或内部构造。",
+        "圆为原生图元，其轴对齐外包框宽高均为直径1.14米。"
+      ],
+      "confidence": 0.99
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-lbndly5w\\run\\U1-r1-B\\api-response-2881686b-b6fe-4003-9246-94da9953345a.json"
+  },
+  "U5": {
+    "source": "生成一个闭合多边形，顶点(-140,220)(940,-160)(1510,830)(160,1210)，坐标单位毫米。只生成预览，不执行小车。",
+    "payload": {
+      "schema_version": "cad.construction-interpretation.v1",
+      "is_construction_request": true,
+      "plan": {
+        "schema_version": "cad.construction-plan.v1",
+        "units": "mm",
+        "steps": [
+          {
+            "step_id": "poly1",
+            "output_ref": "outline_polygon",
+            "semantic": {
+              "assembly_id": "closed_polygon",
+              "assembly_label": "闭合多边形",
+              "object_id": "polygon_outline",
+              "label": "闭合多边形轮廓",
+              "object_type": "drawing_part",
+              "role": "outline"
+            },
+            "op": "add_polyline",
+            "vertices": [
+              {
+                "x": -140,
+                "y": 220
+              },
+              {
+                "x": 940,
+                "y": -160
+              },
+              {
+                "x": 1510,
+                "y": 830
+              },
+              {
+                "x": 160,
+                "y": 1210
+              }
+            ],
+            "closed": true
+          }
+        ],
+        "assertions": [
+          {
+            "kind": "closed",
+            "assertion_id": "poly_closed",
+            "target_ref": "outline_polygon"
+          },
+          {
+            "kind": "entity_count",
+            "assertion_id": "poly_entity_count",
+            "target_ref": "outline_polygon",
+            "equals": 1
+          }
+        ]
+      },
+      "evidence_text": [
+        "生成一个闭合多边形，顶点(-140,220)(940,-160)(1510,830)(160,1210)，坐标单位毫米。只生成预览，不执行小车。"
+      ],
+      "assumptions": [
+        "坐标按 plan.units=mm 直接使用用户给定顶点，不做二次换算。",
+        "多边形按给定顶点顺序依次连线并闭合，不添加额外装饰。"
+      ],
+      "confidence": 0.99
+    },
+    "provenance": ".local-dev\\transfer-holdout-live-lbndly5w\\run\\U5-r1-B\\api-response-0f19c014-b2bd-4716-a983-fb005cb5bbe8.json"
+  }
+}

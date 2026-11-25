@@ -1,5 +1,5 @@
 from app.geometry_catalog import build_geometry_catalog
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from app.agent_service import robot_agent
 
@@ -118,14 +118,11 @@ def test_advanced_project_context_includes_active_variant_catalog():
             "id": "variant-1",
             "name": "当前方案",
             "geometries": basketball_geometries(),
-            "acceptance_summary": {"status": "passed", "review_required": False, "authority": "test_fixture"},
         }],
         "design_base_variant_id": "variant-1",
     }
 
-    store = Mock()
-    store.get.return_value = project
-    with patch("app.agent_service.get_creative_project_store", return_value=store):
+    with patch("app.agent_service.get_creative_project_store.get", return_value=project):
         context = robot_agent._advanced_project_context("project-1")
 
     assert "geometry.catalog.v1" in context

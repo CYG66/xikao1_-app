@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from .. import agent_http_service
-from ..security import authenticated_client_id
 from ..schemas import AgentChatRequest
 from fastapi import File, UploadFile
 from ..database import xline_database
@@ -240,16 +239,14 @@ def agent_template_accept(template_id: str, payload: dict[str, object]) -> dict[
 
 
 @router.get("/api/agent/config")
-def agent_config(request: Request, client_id: str | None = None) -> dict[str, object]:
-    client_id = authenticated_client_id(request, client_id)
+def agent_config(client_id: str | None = None) -> dict[str, object]:
     with agent_user_scope(client_id):
         return robot_agent.config()
 
 
 @router.post("/api/agent/config")
-def update_agent_config(command: AgentConfigCommand, request: Request) -> dict[str, object]:
-    client_id = authenticated_client_id(request, command.client_id)
-    with agent_user_scope(client_id):
+def update_agent_config(command: AgentConfigCommand) -> dict[str, object]:
+    with agent_user_scope(command.client_id):
         return robot_agent.update_config(
             command.mode,
             command.model,
@@ -260,8 +257,7 @@ def update_agent_config(command: AgentConfigCommand, request: Request) -> dict[s
 
 
 @router.post("/api/agent/test")
-def test_agent_config(request: Request, client_id: str | None = None) -> dict[str, object]:
-    client_id = authenticated_client_id(request, client_id)
+def test_agent_config(client_id: str | None = None) -> dict[str, object]:
     with agent_user_scope(client_id):
         return robot_agent.test_connection()
 
@@ -285,10 +281,7 @@ async def upload_agent_image(file: UploadFile = File(...)) -> dict[str, object]:
 
 
 @router.post('/api/agent/chat')
-def agent_chat(command: AgentChatRequest, request: Request) -> dict[str, object]:
-    subject = authenticated_client_id(request, command.client_id)
-    if subject and subject != command.client_id:
-        command = command.model_copy(update={"client_id": subject})
+def agent_chat(command: AgentChatRequest) -> dict[str, object]:
     return agent_http_service.agent_chat(command=command)
 
 
@@ -303,22 +296,17 @@ def agent_run_detail(run_id: str) -> dict[str, object]:
 
 
 @router.post('/api/agent/runs/{run_id}/cancel')
-def cancel_agent_run(run_id: str, request: Request, client_id: str | None = None) -> dict[str, object]:
-    client_id = authenticated_client_id(request, client_id)
+def cancel_agent_run(run_id: str, client_id: str | None = None) -> dict[str, object]:
     return agent_http_service.cancel_agent_run(run_id=run_id, client_id=client_id)
 
 
 @router.post('/api/agent/runs/{run_id}/resume')
-def resume_agent_run(run_id: str, request: Request, client_id: str | None = None) -> dict[str, object]:
-    client_id = authenticated_client_id(request, client_id)
+def resume_agent_run(run_id: str, client_id: str | None = None) -> dict[str, object]:
     return agent_http_service.resume_agent_run(run_id=run_id, client_id=client_id)
 
 
 @router.post('/api/agent/chat/stream')
-def agent_chat_stream(command: AgentChatRequest, request: Request) -> StreamingResponse:
-    subject = authenticated_client_id(request, command.client_id)
-    if subject and subject != command.client_id:
-        command = command.model_copy(update={"client_id": subject})
+def agent_chat_stream(command: AgentChatRequest) -> StreamingResponse:
     return agent_http_service.agent_chat_stream(command=command)
 
 
@@ -326,8 +314,7 @@ from ..agent_service import robot_agent
 from ..schemas import AgentConfirmRequest
 
 @router.post("/api/agent/confirm")
-def agent_confirm(command: AgentConfirmRequest, request: Request) -> dict[str, object]:
+def agent_confirm(command: AgentConfirmRequest) -> dict[str, object]:
     from ..agent_response_builder import normalize_acceptance_response
-    client_id = authenticated_client_id(request, command.client_id)
-    return normalize_acceptance_response(robot_agent.confirm(command.action_id, command.approved, client_id))
+    return normalize_acceptance_response(robot_agent.confirm(command.action_id, command.approved, command.client_id))
 

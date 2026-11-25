@@ -1,6 +1,7 @@
 """Strict model-output adapter for CAD edit language outside rule coverage."""
 
 from __future__ import annotations
+from .cad_length_units import length_factors
 
 from copy import deepcopy
 import math
@@ -143,8 +144,7 @@ def _numbered_instances(text: str) -> set[int]:
 
 
 def _distance_values_mm(text: str) -> list[float]:
-    scales = {"米": 1000.0, "m": 1000.0, "厘米": 10.0, "cm": 10.0,
-              "毫米": 1.0, "mm": 1.0}
+    scales = length_factors('mm', float_values=True)
     return [
         float(number) * scales[unit.lower()]
         for number, unit in re.findall(

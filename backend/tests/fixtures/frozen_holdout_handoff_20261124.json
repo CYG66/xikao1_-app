@@ -1,0 +1,345 @@
+{
+  "L3": {
+    "source": "从(-0.65,0.35)出发画折线，先沿与x轴正向成24度的方向走2.15米，再向右转63度接着画0.95米。两段连在一起，末端不连回起点，不加其他图形。坐标单位米。",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "step.1",
+          "output_ref": "outline.polyline",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "polyline_24deg_63deg",
+            "assembly_label": "折线",
+            "object_id": "polyline_body",
+            "object_type": "drawing_part",
+            "label": "两段相连折线",
+            "role": "outline"
+          },
+          "op": "add_polyline",
+          "vertices": [
+            {
+              "x": -0.65,
+              "y": 0.35
+            },
+            {
+              "x": 1.3141227339315917,
+              "y": 1.2244837826129702
+            },
+            {
+              "x": 2.052411397315714,
+              "y": 0.6266294111156248
+            }
+          ],
+          "closed": false
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": ".local-dev\\frozen-release-live-h84i_x2a\\run\\holdout\\L3-r1-B\\projects.json"
+  },
+  "L7": {
+    "source": "在同一张图中画两个独立图形。左圆：圆，圆心(-2.5,0)，半径0.6米，坐标单位米；右矩形：矩形，左下角(1,-0.5)，宽1.8米，高1.1米，坐标单位米。不要增加连接线或标注。",
+    "plan": {
+      "shared_points": {},
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "project_id": null,
+      "source_version": null,
+      "steps": [
+        {
+          "step_id": "step-circle-left",
+          "output_ref": "outline_circle_left",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "left_circle",
+            "assembly_label": "左圆",
+            "object_id": "circle_left",
+            "object_type": "circle",
+            "label": "左圆",
+            "role": "outline"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": -2.5,
+            "y": 0.0
+          },
+          "radius": 0.6
+        },
+        {
+          "step_id": "step-rect-right",
+          "output_ref": "outline_rect_right",
+          "layer_id": 1,
+          "semantic": {
+            "assembly_id": "right_rectangle",
+            "assembly_label": "右矩形",
+            "object_id": "rect_right",
+            "object_type": "rectangle",
+            "label": "右矩形",
+            "role": "outline"
+          },
+          "op": "add_rectangle",
+          "origin": {
+            "x": 1.0,
+            "y": -0.5
+          },
+          "width": 1.8,
+          "height": 1.1,
+          "rotation_deg": 0.0
+        }
+      ],
+      "constraints": [],
+      "constraint_backend": "auto",
+      "assertions": [
+        {
+          "kind": "bounds_size",
+          "assertion_id": "assert_rect_size",
+          "target_ref": "outline_rect_right",
+          "width": 1.8,
+          "height": 1.1,
+          "tolerance": 0.001
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "assert_circle_closed",
+          "target_ref": "outline_circle_left"
+        }
+      ],
+      "budgets": {
+        "max_steps": 100,
+        "max_entities": 500
+      },
+      "free_outline_layout": []
+    },
+    "provenance": ".local-dev\\frozen-release-live-h84i_x2a\\run\\holdout\\L7-r1-B\\projects.json"
+  },
+  "L8": {
+    "source": "绘制两个同心圆，外圆半径1.7米，内圆半径0.65米，共同圆心(0.4,-0.7)，坐标单位米。只保留内外两个圆，不加其他线条。",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "steps": [
+        {
+          "step_id": "outer_circle",
+          "output_ref": "outer_circle",
+          "semantic": {
+            "assembly_id": "concentric_circles",
+            "assembly_label": "两个同心圆",
+            "object_id": "outer_circle",
+            "object_type": "drawing_part",
+            "label": "外圆",
+            "role": "outer"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": 0.4,
+            "y": -0.7
+          },
+          "radius": 1.7
+        },
+        {
+          "step_id": "inner_circle",
+          "output_ref": "inner_circle",
+          "semantic": {
+            "assembly_id": "concentric_circles",
+            "assembly_label": "两个同心圆",
+            "object_id": "inner_circle",
+            "object_type": "drawing_part",
+            "label": "内圆",
+            "role": "inner"
+          },
+          "op": "add_circle",
+          "center": {
+            "x": 0.4,
+            "y": -0.7
+          },
+          "radius": 0.65
+        }
+      ],
+      "constraints": [
+        {
+          "constraint_id": "concentric_1",
+          "target_ref": "inner_circle",
+          "reference_ref": "outer_circle",
+          "kind": "concentric"
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "entity_count",
+          "assertion_id": "count_2",
+          "equals": 2
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "outer_closed",
+          "target_ref": "outer_circle"
+        },
+        {
+          "kind": "closed",
+          "assertion_id": "inner_closed",
+          "target_ref": "inner_circle"
+        }
+      ]
+    },
+    "provenance": ".local-dev\\frozen-release-live-h84i_x2a\\run\\holdout\\L8-r1-B\\api-response-ab5bc9c7-f2ff-45ad-b847-b7fddc8f51bd.json"
+  },
+  "H2": {
+    "source": "画闭合拱门的外轮廓：底边从(-50,25)水平向右，总宽230厘米，总高315厘米；两侧是等高竖直墙，顶部为连接两墙的上半圆，半圆直径230厘米，高度已包含在总高中。不画内部线，坐标单位厘米。",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "m",
+      "steps": [
+        {
+          "step_id": "arch_outline",
+          "output_ref": "arch_outline",
+          "semantic": {
+            "assembly_id": "archway",
+            "assembly_label": "拱门",
+            "object_id": "arch_outline",
+            "object_type": "outline",
+            "label": "拱门外轮廓",
+            "role": "outer_boundary"
+          },
+          "op": "add_composite_path",
+          "closed": true,
+          "continuity": "C0",
+          "samples_per_curve": 32,
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": -0.5,
+                "y": 0.25
+              },
+              "end": {
+                "x": 1.8,
+                "y": 0.25
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 1.8,
+                "y": 0.25
+              },
+              "end": {
+                "x": 1.8,
+                "y": 2.0
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": 0.65,
+                "y": 2.0
+              },
+              "radius": 1.15,
+              "start_angle": 0,
+              "end_angle": 180
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": -0.5,
+                "y": 2.0
+              },
+              "end": {
+                "x": -0.5,
+                "y": 0.25
+              }
+            }
+          ]
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "closed",
+          "assertion_id": "closed_arch_outline",
+          "target_ref": "arch_outline"
+        },
+        {
+          "kind": "bounds_size",
+          "assertion_id": "arch_bounds",
+          "target_ref": "arch_outline",
+          "width": 2.3,
+          "height": 3.15
+        }
+      ]
+    },
+    "provenance": ".local-dev\\frozen-release-live-h84i_x2a\\run\\regression\\H2-r1-B\\api-response-5da73fa3-a9cd-4a3a-8959-18c5653d2a62.json"
+  },
+  "R2": {
+    "source": "绘制胶囊形闭合边界，中心位于(210,-370)，长轴相对x轴正向逆时针17度，沿长轴总长3470毫米、短轴总高930毫米。两端各为向外半圆，两条直边与半圆相切；两端半径相同，总长含半圆。不添加内部线，坐标单位毫米。",
+    "plan": {
+      "schema_version": "cad.construction-plan.v1",
+      "units": "mm",
+      "steps": [
+        {
+          "step_id": "capsule",
+          "output_ref": "capsule_outline",
+          "semantic": {
+            "assembly_id": "capsule",
+            "assembly_label": "胶囊形闭合边界",
+            "object_id": "capsule_outline",
+            "label": "胶囊形闭合边界",
+            "object_type": "free_outline",
+            "role": "outer_boundary"
+          },
+          "op": "add_composite_path",
+          "segments": [
+            {
+              "kind": "arc",
+              "center": {
+                "x": "210+1250*cos(17*pi/180)",
+                "y": "-370+1250*sin(17*pi/180)"
+              },
+              "radius": 465,
+              "start_angle": 17,
+              "end_angle": 197,
+              "clockwise": false
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": "210-1250*cos(17*pi/180)",
+                "y": "-370-1250*sin(17*pi/180)"
+              },
+              "end": {
+                "x": "210+1250*cos(17*pi/180)",
+                "y": "-370+1250*sin(17*pi/180)"
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": "210-1250*cos(17*pi/180)",
+                "y": "-370-1250*sin(17*pi/180)"
+              },
+              "radius": 465,
+              "start_angle": 197,
+              "end_angle": 17,
+              "clockwise": false
+            }
+          ],
+          "closed": true,
+          "samples_per_curve": 64,
+          "continuity": "C0",
+          "max_sampling_error": 0.01
+        }
+      ]
+    },
+    "provenance": ".local-dev\\frozen-release-live-h84i_x2a\\run\\regression\\R2-r1-B\\api-response-a76cda79-ca3c-499c-88d6-0545a1d10c47.json"
+  }
+}

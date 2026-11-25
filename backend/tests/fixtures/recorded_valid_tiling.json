@@ -1,0 +1,345 @@
+{
+  "original": "生成3列2行的蜂窝六边形阵列，边长0.5米，无缝拼接",
+  "source": "生成3列2行的蜂窝六边形阵列，边长0.5米，无缝拼接\n正六边形边长0.5米，3列2行共6个，蜂窝错列共边拼接，坐标单位米。",
+  "plan": {
+    "shared_points": {},
+    "schema_version": "cad.construction-plan.v1",
+    "units": "m",
+    "project_id": null,
+    "source_version": null,
+    "steps": [
+      {
+        "step_id": "hex.r0c0",
+        "output_ref": "hex_r0c0",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "honeycomb",
+          "assembly_label": "蜂窝六边形阵列",
+          "object_id": "hex_cell_r0c0",
+          "object_type": "drawing_part",
+          "label": "第1行第1列蜂窝六边形",
+          "role": "cell"
+        },
+        "op": "add_polyline",
+        "vertices": [
+          {
+            "x": -0.433012701892,
+            "y": 0.75
+          },
+          {
+            "x": 0.0,
+            "y": 1.0
+          },
+          {
+            "x": 0.433012701892,
+            "y": 0.75
+          },
+          {
+            "x": 0.433012701892,
+            "y": 0.25
+          },
+          {
+            "x": 0.0,
+            "y": 0.0
+          },
+          {
+            "x": -0.433012701892,
+            "y": 0.25
+          }
+        ],
+        "closed": true
+      },
+      {
+        "step_id": "hex.r0c1",
+        "output_ref": "hex_r0c1",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "honeycomb",
+          "assembly_label": "蜂窝六边形阵列",
+          "object_id": "hex_cell_r0c1",
+          "object_type": "drawing_part",
+          "label": "第1行第2列蜂窝六边形",
+          "role": "cell"
+        },
+        "op": "add_polyline",
+        "vertices": [
+          {
+            "x": 0.433012701892,
+            "y": 0.75
+          },
+          {
+            "x": 0.866025403784,
+            "y": 1.0
+          },
+          {
+            "x": 1.299038105677,
+            "y": 0.75
+          },
+          {
+            "x": 1.299038105677,
+            "y": 0.25
+          },
+          {
+            "x": 0.866025403784,
+            "y": 0.0
+          },
+          {
+            "x": 0.433012701892,
+            "y": 0.25
+          }
+        ],
+        "closed": true
+      },
+      {
+        "step_id": "hex.r0c2",
+        "output_ref": "hex_r0c2",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "honeycomb",
+          "assembly_label": "蜂窝六边形阵列",
+          "object_id": "hex_cell_r0c2",
+          "object_type": "drawing_part",
+          "label": "第1行第3列蜂窝六边形",
+          "role": "cell"
+        },
+        "op": "add_polyline",
+        "vertices": [
+          {
+            "x": 1.299038105677,
+            "y": 0.75
+          },
+          {
+            "x": 1.732050807569,
+            "y": 1.0
+          },
+          {
+            "x": 2.165063509461,
+            "y": 0.75
+          },
+          {
+            "x": 2.165063509461,
+            "y": 0.25
+          },
+          {
+            "x": 1.732050807569,
+            "y": 0.0
+          },
+          {
+            "x": 1.299038105677,
+            "y": 0.25
+          }
+        ],
+        "closed": true
+      },
+      {
+        "step_id": "hex.r1c0",
+        "output_ref": "hex_r1c0",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "honeycomb",
+          "assembly_label": "蜂窝六边形阵列",
+          "object_id": "hex_cell_r1c0",
+          "object_type": "drawing_part",
+          "label": "第2行第1列蜂窝六边形",
+          "role": "cell"
+        },
+        "op": "add_polyline",
+        "vertices": [
+          {
+            "x": 0.0,
+            "y": 0.0
+          },
+          {
+            "x": 0.433012701892,
+            "y": 0.25
+          },
+          {
+            "x": 0.866025403784,
+            "y": 0.0
+          },
+          {
+            "x": 0.866025403784,
+            "y": -0.5
+          },
+          {
+            "x": 0.433012701892,
+            "y": -0.75
+          },
+          {
+            "x": 0.0,
+            "y": -0.5
+          }
+        ],
+        "closed": true
+      },
+      {
+        "step_id": "hex.r1c1",
+        "output_ref": "hex_r1c1",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "honeycomb",
+          "assembly_label": "蜂窝六边形阵列",
+          "object_id": "hex_cell_r1c1",
+          "object_type": "drawing_part",
+          "label": "第2行第2列蜂窝六边形",
+          "role": "cell"
+        },
+        "op": "add_polyline",
+        "vertices": [
+          {
+            "x": 0.866025403784,
+            "y": 0.0
+          },
+          {
+            "x": 1.299038105677,
+            "y": 0.25
+          },
+          {
+            "x": 1.732050807569,
+            "y": 0.0
+          },
+          {
+            "x": 1.732050807569,
+            "y": -0.5
+          },
+          {
+            "x": 1.299038105677,
+            "y": -0.75
+          },
+          {
+            "x": 0.866025403784,
+            "y": -0.5
+          }
+        ],
+        "closed": true
+      },
+      {
+        "step_id": "hex.r1c2",
+        "output_ref": "hex_r1c2",
+        "layer_id": 1,
+        "semantic": {
+          "assembly_id": "honeycomb",
+          "assembly_label": "蜂窝六边形阵列",
+          "object_id": "hex_cell_r1c2",
+          "object_type": "drawing_part",
+          "label": "第2行第3列蜂窝六边形",
+          "role": "cell"
+        },
+        "op": "add_polyline",
+        "vertices": [
+          {
+            "x": 1.732050807569,
+            "y": 0.0
+          },
+          {
+            "x": 2.165063509461,
+            "y": 0.25
+          },
+          {
+            "x": 2.598076211353,
+            "y": 0.0
+          },
+          {
+            "x": 2.598076211353,
+            "y": -0.5
+          },
+          {
+            "x": 2.165063509461,
+            "y": -0.75
+          },
+          {
+            "x": 1.732050807569,
+            "y": -0.5
+          }
+        ],
+        "closed": true
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_id": "cd_r0c0_r0c1",
+        "target_ref": "hex_r0c0",
+        "reference_ref": "hex_r0c1",
+        "tolerance": 0.001,
+        "kind": "center_distance",
+        "distance": 0.866025403784
+      },
+      {
+        "constraint_id": "cd_r0c1_r0c2",
+        "target_ref": "hex_r0c1",
+        "reference_ref": "hex_r0c2",
+        "tolerance": 0.001,
+        "kind": "center_distance",
+        "distance": 0.866025403784
+      },
+      {
+        "constraint_id": "cd_r0c0_r1c0",
+        "target_ref": "hex_r0c0",
+        "reference_ref": "hex_r1c0",
+        "tolerance": 0.001,
+        "kind": "center_distance",
+        "distance": 0.866025403784
+      },
+      {
+        "constraint_id": "cd_r0c1_r1c1",
+        "target_ref": "hex_r0c1",
+        "reference_ref": "hex_r1c1",
+        "tolerance": 0.001,
+        "kind": "center_distance",
+        "distance": 0.866025403784
+      },
+      {
+        "constraint_id": "cd_r0c2_r1c2",
+        "target_ref": "hex_r0c2",
+        "reference_ref": "hex_r1c2",
+        "tolerance": 0.001,
+        "kind": "center_distance",
+        "distance": 0.866025403784
+      }
+    ],
+    "constraint_backend": "auto",
+    "assertions": [
+      {
+        "kind": "closed",
+        "assertion_id": "closed_r0c0",
+        "target_ref": "hex_r0c0"
+      },
+      {
+        "kind": "closed",
+        "assertion_id": "closed_r0c1",
+        "target_ref": "hex_r0c1"
+      },
+      {
+        "kind": "closed",
+        "assertion_id": "closed_r0c2",
+        "target_ref": "hex_r0c2"
+      },
+      {
+        "kind": "closed",
+        "assertion_id": "closed_r1c0",
+        "target_ref": "hex_r1c0"
+      },
+      {
+        "kind": "closed",
+        "assertion_id": "closed_r1c1",
+        "target_ref": "hex_r1c1"
+      },
+      {
+        "kind": "closed",
+        "assertion_id": "closed_r1c2",
+        "target_ref": "hex_r1c2"
+      },
+      {
+        "kind": "entity_count",
+        "assertion_id": "entity_count_cells",
+        "target_ref": null,
+        "equals": 6
+      }
+    ],
+    "budgets": {
+      "max_steps": 100,
+      "max_entities": 500
+    },
+    "free_outline_layout": []
+  }
+}

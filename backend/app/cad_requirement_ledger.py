@@ -146,7 +146,7 @@ def requirement_ledger(source_text, *, assumptions=(), clarification=None,
     return payload
 
 
-def bind_geometry_acceptance(ledger, composition_contract, geometries):
+def bind_geometry_acceptance(ledger, composition_contract, geometries, *, evidence_context=None):
     """Bind a supported source contract to measured geometry, not model claims.
 
     Evidence linkage is weaker than per-item acceptance and is deliberately
@@ -156,7 +156,9 @@ def bind_geometry_acceptance(ledger, composition_contract, geometries):
     result=deepcopy(ledger)
     result["geometry_acceptance"]={"status":"not_checked","checks":[]}
     if composition_contract is not None:
-        measured=validate_explicit_composition(composition_contract,geometries)
+        from .cad_validation_evidence import ConstructionEvidence
+        if evidence_context is None:evidence_context=ConstructionEvidence()
+        measured=evidence_context.measure(validate_explicit_composition,composition_contract,geometries,evidence_context=evidence_context)
         check_id="source-composition-1"
         result["geometry_acceptance"]={"status":"partial","checks":[{
             "check_id":check_id,"authority":"backend_measured_geometry",

@@ -1,0 +1,933 @@
+{
+  "scope": "Actual parser, continuation rewrite, executor, contract and preflight. No live model, HTTP finalizer, candidate save or device call.",
+  "offset_representation": [
+    {
+      "scope": "instance",
+      "executor_ok": true,
+      "error": null,
+      "edit_after_execution": {
+        "operation": "offset",
+        "offset_side": "outside",
+        "distance_mm": 1000,
+        "instance": 1,
+        "target_resolution": {
+          "status": "resolved",
+          "scope": "instance",
+          "instance_ids": [
+            1
+          ],
+          "reason": "explicit_instance_ids",
+          "confidence": 1.0,
+          "scoring": {
+            "schema": "cad.target-score.v1",
+            "decision": "authoritative",
+            "minimum_score": 0.7,
+            "minimum_margin": 0.15,
+            "winner_score": 1.0,
+            "runner_up_score": null,
+            "margin": 1.0,
+            "candidates": [
+              {
+                "instance_id": 1,
+                "score": 1.0,
+                "evidence": [
+                  {
+                    "kind": "explicit_id",
+                    "score": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "new_instance": 2
+      },
+      "source_unchanged": true,
+      "geometry_ids": [
+        1,
+        2
+      ],
+      "instance_ids": [
+        1,
+        2
+      ],
+      "added_bounds_mm": {
+        "min_x": -5000.0,
+        "max_x": 15000.0,
+        "min_y": -1000.0,
+        "max_y": 3000.0
+      },
+      "contract": {
+        "schema": "cad.edit.v2",
+        "operation": "offset",
+        "target": {
+          "scope": "instance",
+          "instance_ids": [
+            1
+          ],
+          "geometry_ids": []
+        },
+        "coordinate_frame": "drawing",
+        "parameters": {
+          "distance_mm": 1000.0,
+          "shared_geometry_ids": [],
+          "created_geometry_ids": [],
+          "created_object_ids": [],
+          "offset_side": "outside",
+          "relative_positions": []
+        },
+        "created_instance_id": 2,
+        "assumptions": [],
+        "intent_evidence_text": [],
+        "intent_grounding": {},
+        "constraints": [],
+        "missing_parameters": [],
+        "auto_decisions": [],
+        "chain_steps": [],
+        "execution_identity": {}
+      },
+      "edit_plan_verification": {
+        "verified": true,
+        "checks": [
+          {
+            "kind": "exact_added_ids",
+            "ok": true,
+            "observed": [
+              2
+            ]
+          },
+          {
+            "kind": "exact_removed_ids",
+            "ok": true,
+            "observed": []
+          },
+          {
+            "kind": "exact_modified_ids",
+            "ok": true,
+            "observed": []
+          },
+          {
+            "kind": "protected_geometries_unchanged",
+            "ok": true,
+            "observed": {
+              "changed_ids": []
+            }
+          },
+          {
+            "kind": "result_not_empty",
+            "ok": true,
+            "observed": 2
+          }
+        ],
+        "failures": [],
+        "actual_changes": {
+          "added": [
+            2
+          ],
+          "removed": [],
+          "modified": []
+        }
+      },
+      "preflight": {
+        "ready": true,
+        "requires_confirmation": false,
+        "checks": [
+          {
+            "code": "geometry_change",
+            "label": "几何变化",
+            "ok": true,
+            "detail": "检测到 1 项几何变化"
+          },
+          {
+            "code": "target_not_empty",
+            "label": "结果图纸",
+            "ok": true,
+            "detail": "结果仍包含有效图元"
+          },
+          {
+            "code": "finite_coordinates",
+            "label": "坐标有效性",
+            "ok": true,
+            "detail": "全部坐标均为有限数值"
+          },
+          {
+            "code": "stable_geometry_ids",
+            "label": "稳定图元 ID",
+            "ok": true,
+            "detail": "图元 ID 完整且无重复"
+          },
+          {
+            "code": "object_relation_acceptance",
+            "label": "对象关系独立验收",
+            "ok": true,
+            "detail": "本次无已编译对象关系需要复核。"
+          },
+          {
+            "code": "declared_edit_effect",
+            "label": "修改参数一致性",
+            "ok": true,
+            "detail": "实际几何结果与声明的修改参数完全一致。"
+          },
+          {
+            "code": "split_boundary_provenance",
+            "label": "共享边界来源",
+            "ok": true,
+            "detail": "本次修改不涉及共享边界拆分。"
+          },
+          {
+            "code": "target_change_scope",
+            "label": "目标范围一致性",
+            "ok": true,
+            "detail": "实际变化与声明目标范围一致。"
+          },
+          {
+            "code": "non_target_integrity",
+            "label": "非目标哈希不变",
+            "ok": true,
+            "detail": "1 个受保护图元哈希保持不变"
+          }
+        ],
+        "effect_validation": {
+          "enforced": true,
+          "verified": true,
+          "reason": null,
+          "message": "实际几何结果与声明的修改参数完全一致。",
+          "operation": "offset",
+          "expected_fingerprint": "d38eebeb86216e256d92f6dac569fb74eefdf3ad46866930c87e6c0321267c05",
+          "actual_fingerprint": "d38eebeb86216e256d92f6dac569fb74eefdf3ad46866930c87e6c0321267c05",
+          "mismatched_geometry_ids": [],
+          "missing_geometry_ids": [],
+          "unexpected_geometry_ids": []
+        },
+        "relation_validation": {
+          "enforced": false,
+          "verified": true,
+          "checks": [],
+          "message": "本次无已编译对象关系需要复核。"
+        }
+      }
+    },
+    {
+      "scope": "geometry",
+      "executor_ok": true,
+      "error": null,
+      "edit_after_execution": {
+        "operation": "offset",
+        "offset_side": "outside",
+        "distance_mm": 1000,
+        "geometry_ids": [
+          1
+        ],
+        "target_resolution": {
+          "status": "resolved",
+          "scope": "geometry",
+          "geometry_ids": [
+            1
+          ],
+          "reason": "explicit_geometry_ids",
+          "confidence": 1.0,
+          "scoring": {
+            "schema": "cad.target-score.v1",
+            "decision": "authoritative",
+            "minimum_score": 0.7,
+            "minimum_margin": 0.15,
+            "winner_score": 1.0,
+            "runner_up_score": null,
+            "margin": 1.0,
+            "candidates": [
+              {
+                "geometry_id": 1,
+                "score": 1.0,
+                "evidence": [
+                  {
+                    "kind": "explicit_id",
+                    "score": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "created_geometry_ids": [
+          2
+        ]
+      },
+      "source_unchanged": true,
+      "geometry_ids": [
+        1,
+        2
+      ],
+      "instance_ids": [
+        1,
+        1
+      ],
+      "added_bounds_mm": {
+        "min_x": -1000.0,
+        "max_x": 11000.0,
+        "min_y": -1000.0,
+        "max_y": 3000.0
+      },
+      "contract": {
+        "schema": "cad.edit.v2",
+        "operation": "offset",
+        "target": {
+          "scope": "geometry",
+          "instance_ids": [],
+          "geometry_ids": [
+            1
+          ]
+        },
+        "coordinate_frame": "drawing",
+        "parameters": {
+          "distance_mm": 1000.0,
+          "shared_geometry_ids": [],
+          "created_geometry_ids": [
+            2
+          ],
+          "created_object_ids": [],
+          "offset_side": "outside",
+          "relative_positions": []
+        },
+        "assumptions": [],
+        "intent_evidence_text": [],
+        "intent_grounding": {},
+        "constraints": [],
+        "missing_parameters": [],
+        "auto_decisions": [],
+        "chain_steps": [],
+        "execution_identity": {}
+      },
+      "edit_plan_verification": {
+        "verified": true,
+        "checks": [
+          {
+            "kind": "exact_added_ids",
+            "ok": true,
+            "observed": [
+              2
+            ]
+          },
+          {
+            "kind": "exact_removed_ids",
+            "ok": true,
+            "observed": []
+          },
+          {
+            "kind": "exact_modified_ids",
+            "ok": true,
+            "observed": []
+          },
+          {
+            "kind": "protected_geometries_unchanged",
+            "ok": true,
+            "observed": {
+              "changed_ids": []
+            }
+          },
+          {
+            "kind": "result_not_empty",
+            "ok": true,
+            "observed": 2
+          }
+        ],
+        "failures": [],
+        "actual_changes": {
+          "added": [
+            2
+          ],
+          "removed": [],
+          "modified": []
+        }
+      },
+      "preflight": {
+        "ready": true,
+        "requires_confirmation": false,
+        "checks": [
+          {
+            "code": "geometry_change",
+            "label": "几何变化",
+            "ok": true,
+            "detail": "检测到 1 项几何变化"
+          },
+          {
+            "code": "target_not_empty",
+            "label": "结果图纸",
+            "ok": true,
+            "detail": "结果仍包含有效图元"
+          },
+          {
+            "code": "finite_coordinates",
+            "label": "坐标有效性",
+            "ok": true,
+            "detail": "全部坐标均为有限数值"
+          },
+          {
+            "code": "stable_geometry_ids",
+            "label": "稳定图元 ID",
+            "ok": true,
+            "detail": "图元 ID 完整且无重复"
+          },
+          {
+            "code": "object_relation_acceptance",
+            "label": "对象关系独立验收",
+            "ok": true,
+            "detail": "本次无已编译对象关系需要复核。"
+          },
+          {
+            "code": "declared_edit_effect",
+            "label": "修改参数一致性",
+            "ok": true,
+            "detail": "实际几何结果与声明的修改参数完全一致。"
+          },
+          {
+            "code": "split_boundary_provenance",
+            "label": "共享边界来源",
+            "ok": true,
+            "detail": "本次修改不涉及共享边界拆分。"
+          },
+          {
+            "code": "target_change_scope",
+            "label": "目标范围一致性",
+            "ok": true,
+            "detail": "实际变化与声明目标范围一致。"
+          },
+          {
+            "code": "non_target_integrity",
+            "label": "非目标哈希不变",
+            "ok": true,
+            "detail": "1 个受保护图元哈希保持不变"
+          }
+        ],
+        "effect_validation": {
+          "enforced": true,
+          "verified": true,
+          "reason": null,
+          "message": "实际几何结果与声明的修改参数完全一致。",
+          "operation": "offset",
+          "expected_fingerprint": "e538d8b60368f1a12b47ffc138fbf14f8e732fe478fc1adac442229892ad6039",
+          "actual_fingerprint": "e538d8b60368f1a12b47ffc138fbf14f8e732fe478fc1adac442229892ad6039",
+          "mismatched_geometry_ids": [],
+          "missing_geometry_ids": [],
+          "unexpected_geometry_ids": []
+        },
+        "relation_validation": {
+          "enforced": false,
+          "verified": true,
+          "checks": [],
+          "message": "本次无已编译对象关系需要复核。"
+        }
+      }
+    }
+  ],
+  "symmetric_mirror_representation": [
+    {
+      "scope": "instance",
+      "executor_ok": true,
+      "error": null,
+      "edit_after_execution": {
+        "operation": "mirror",
+        "mirror_axis": "vertical",
+        "keep_source": true,
+        "instance": 1,
+        "target_resolution": {
+          "status": "resolved",
+          "scope": "instance",
+          "instance_ids": [
+            1
+          ],
+          "reason": "explicit_instance_ids",
+          "confidence": 1.0,
+          "scoring": {
+            "schema": "cad.target-score.v1",
+            "decision": "authoritative",
+            "minimum_score": 0.7,
+            "minimum_margin": 0.15,
+            "winner_score": 1.0,
+            "runner_up_score": null,
+            "margin": 1.0,
+            "candidates": [
+              {
+                "instance_id": 1,
+                "score": 1.0,
+                "evidence": [
+                  {
+                    "kind": "explicit_id",
+                    "score": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "new_instance": 2
+      },
+      "source_unchanged": true,
+      "geometry_ids": [
+        1,
+        1
+      ],
+      "instance_ids": [
+        1,
+        1
+      ],
+      "contract": {
+        "schema": "cad.edit.v2",
+        "operation": "mirror",
+        "target": {
+          "scope": "instance",
+          "instance_ids": [
+            1
+          ],
+          "geometry_ids": []
+        },
+        "coordinate_frame": "drawing",
+        "parameters": {
+          "shared_geometry_ids": [],
+          "created_geometry_ids": [],
+          "created_object_ids": [],
+          "mirror_axis": "vertical",
+          "keep_source": true,
+          "relative_positions": []
+        },
+        "created_instance_id": 2,
+        "assumptions": [],
+        "intent_evidence_text": [],
+        "intent_grounding": {},
+        "constraints": [],
+        "missing_parameters": [],
+        "auto_decisions": [],
+        "chain_steps": [],
+        "execution_identity": {}
+      },
+      "edit_plan_verification": {
+        "verified": false,
+        "checks": [
+          {
+            "kind": "exact_added_ids",
+            "ok": true,
+            "observed": []
+          },
+          {
+            "kind": "exact_removed_ids",
+            "ok": true,
+            "observed": []
+          },
+          {
+            "kind": "exact_modified_ids",
+            "ok": false,
+            "observed": [
+              1
+            ]
+          },
+          {
+            "kind": "protected_geometries_unchanged",
+            "ok": false,
+            "observed": {
+              "changed_ids": [
+                1
+              ]
+            }
+          },
+          {
+            "kind": "result_not_empty",
+            "ok": true,
+            "observed": 2
+          }
+        ],
+        "failures": [
+          {
+            "kind": "exact_modified_ids",
+            "ok": false,
+            "observed": [
+              1
+            ]
+          },
+          {
+            "kind": "protected_geometries_unchanged",
+            "ok": false,
+            "observed": {
+              "changed_ids": [
+                1
+              ]
+            }
+          }
+        ],
+        "actual_changes": {
+          "added": [],
+          "removed": [],
+          "modified": [
+            1
+          ]
+        }
+      },
+      "preflight": {
+        "ready": false,
+        "requires_confirmation": false,
+        "checks": [
+          {
+            "code": "geometry_change",
+            "label": "几何变化",
+            "ok": true,
+            "detail": "检测到 1 项几何变化"
+          },
+          {
+            "code": "target_not_empty",
+            "label": "结果图纸",
+            "ok": true,
+            "detail": "结果仍包含有效图元"
+          },
+          {
+            "code": "finite_coordinates",
+            "label": "坐标有效性",
+            "ok": true,
+            "detail": "全部坐标均为有限数值"
+          },
+          {
+            "code": "stable_geometry_ids",
+            "label": "稳定图元 ID",
+            "ok": false,
+            "detail": "结果包含缺失、无效或重复的图元 ID"
+          },
+          {
+            "code": "object_relation_acceptance",
+            "label": "对象关系独立验收",
+            "ok": true,
+            "detail": "本次无已编译对象关系需要复核。"
+          },
+          {
+            "code": "declared_edit_effect",
+            "label": "修改参数一致性",
+            "ok": true,
+            "detail": "实际几何结果与声明的修改参数完全一致。"
+          },
+          {
+            "code": "split_boundary_provenance",
+            "label": "共享边界来源",
+            "ok": true,
+            "detail": "本次修改不涉及共享边界拆分。"
+          },
+          {
+            "code": "target_change_scope",
+            "label": "目标范围一致性",
+            "ok": false,
+            "detail": "实际变化超出声明目标或与操作清单不一致，已阻止保存。"
+          },
+          {
+            "code": "non_target_integrity",
+            "label": "非目标哈希不变",
+            "ok": false,
+            "detail": "非目标图元哈希发生变化：1"
+          }
+        ],
+        "effect_validation": {
+          "enforced": true,
+          "verified": true,
+          "reason": null,
+          "message": "实际几何结果与声明的修改参数完全一致。",
+          "operation": "mirror",
+          "expected_fingerprint": "7e43add134ee3969aaafa278f0c70f4a70611af957f8b3a3cb2a4204df6e2652",
+          "actual_fingerprint": "7e43add134ee3969aaafa278f0c70f4a70611af957f8b3a3cb2a4204df6e2652",
+          "mismatched_geometry_ids": [],
+          "missing_geometry_ids": [],
+          "unexpected_geometry_ids": []
+        },
+        "relation_validation": {
+          "enforced": false,
+          "verified": true,
+          "checks": [],
+          "message": "本次无已编译对象关系需要复核。"
+        }
+      }
+    },
+    {
+      "scope": "geometry",
+      "executor_ok": false,
+      "error": "镜像结果与原图重合，请明确镜像轴的位置或副本的位移。",
+      "edit_after_execution": {
+        "operation": "mirror",
+        "mirror_axis": "vertical",
+        "keep_source": true,
+        "geometry_ids": [
+          1
+        ],
+        "target_resolution": {
+          "status": "resolved",
+          "scope": "geometry",
+          "geometry_ids": [
+            1
+          ],
+          "reason": "explicit_geometry_ids",
+          "confidence": 1.0,
+          "scoring": {
+            "schema": "cad.target-score.v1",
+            "decision": "authoritative",
+            "minimum_score": 0.7,
+            "minimum_margin": 0.15,
+            "winner_score": 1.0,
+            "runner_up_score": null,
+            "margin": 1.0,
+            "candidates": [
+              {
+                "geometry_id": 1,
+                "score": 1.0,
+                "evidence": [
+                  {
+                    "kind": "explicit_id",
+                    "score": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "source_unchanged": true
+    }
+  ],
+  "polar_array_count": {
+    "source": "将第2个图形做环形阵列，共6份，每60度。",
+    "parsed": {
+      "operation": "array",
+      "instance": 2,
+      "array_mode": "polar",
+      "count": 2,
+      "angle_degrees": 60.0
+    },
+    "expected_count": 6,
+    "execution": {
+      "executor_ok": true,
+      "error": null,
+      "edit_after_execution": {
+        "operation": "array",
+        "instance": 2,
+        "array_mode": "polar",
+        "count": 2,
+        "angle_degrees": 60.0,
+        "target_resolution": {
+          "status": "resolved",
+          "scope": "instance",
+          "instance_ids": [
+            2
+          ],
+          "reason": "explicit_instance_ids",
+          "confidence": 1.0,
+          "scoring": {
+            "schema": "cad.target-score.v1",
+            "decision": "authoritative",
+            "minimum_score": 0.7,
+            "minimum_margin": 0.15,
+            "winner_score": 1.0,
+            "runner_up_score": null,
+            "margin": 1.0,
+            "candidates": [
+              {
+                "instance_id": 2,
+                "score": 1.0,
+                "evidence": [
+                  {
+                    "kind": "explicit_id",
+                    "score": 1.0
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "new_instance": 3
+      },
+      "source_unchanged": true,
+      "geometry_ids": [
+        1,
+        2
+      ],
+      "instance_ids": [
+        2,
+        3
+      ],
+      "added_bounds_mm": {
+        "min_x": 1633.97459622,
+        "max_x": 8366.02540378,
+        "min_y": -3830.12701892,
+        "max_y": 5830.12701892
+      },
+      "contract": {
+        "schema": "cad.edit.v2",
+        "operation": "array",
+        "target": {
+          "scope": "instance",
+          "instance_ids": [
+            2
+          ],
+          "geometry_ids": []
+        },
+        "coordinate_frame": "drawing",
+        "parameters": {
+          "angle_degrees": 60.0,
+          "shared_geometry_ids": [],
+          "created_geometry_ids": [],
+          "created_object_ids": [],
+          "array_mode": "polar",
+          "count": 2,
+          "relative_positions": []
+        },
+        "created_instance_id": 3,
+        "source_text": "将第2个图形做环形阵列，共6份，每60度。",
+        "assumptions": [],
+        "intent_evidence_text": [],
+        "intent_grounding": {},
+        "constraints": [],
+        "missing_parameters": [],
+        "auto_decisions": [],
+        "chain_steps": [],
+        "execution_identity": {}
+      },
+      "edit_plan_verification": {
+        "verified": true,
+        "checks": [
+          {
+            "kind": "exact_added_ids",
+            "ok": true,
+            "observed": [
+              2
+            ]
+          },
+          {
+            "kind": "exact_removed_ids",
+            "ok": true,
+            "observed": []
+          },
+          {
+            "kind": "exact_modified_ids",
+            "ok": true,
+            "observed": []
+          },
+          {
+            "kind": "protected_geometries_unchanged",
+            "ok": true,
+            "observed": {
+              "changed_ids": []
+            }
+          },
+          {
+            "kind": "result_not_empty",
+            "ok": true,
+            "observed": 2
+          }
+        ],
+        "failures": [],
+        "actual_changes": {
+          "added": [
+            2
+          ],
+          "removed": [],
+          "modified": []
+        }
+      },
+      "preflight": {
+        "ready": true,
+        "requires_confirmation": true,
+        "checks": [
+          {
+            "code": "geometry_change",
+            "label": "几何变化",
+            "ok": true,
+            "detail": "检测到 1 项几何变化"
+          },
+          {
+            "code": "target_not_empty",
+            "label": "结果图纸",
+            "ok": true,
+            "detail": "结果仍包含有效图元"
+          },
+          {
+            "code": "finite_coordinates",
+            "label": "坐标有效性",
+            "ok": true,
+            "detail": "全部坐标均为有限数值"
+          },
+          {
+            "code": "stable_geometry_ids",
+            "label": "稳定图元 ID",
+            "ok": true,
+            "detail": "图元 ID 完整且无重复"
+          },
+          {
+            "code": "object_relation_acceptance",
+            "label": "对象关系独立验收",
+            "ok": true,
+            "detail": "本次无已编译对象关系需要复核。"
+          },
+          {
+            "code": "declared_edit_effect",
+            "label": "修改参数一致性",
+            "ok": true,
+            "detail": "实际几何结果与声明的修改参数完全一致。"
+          },
+          {
+            "code": "split_boundary_provenance",
+            "label": "共享边界来源",
+            "ok": true,
+            "detail": "本次修改不涉及共享边界拆分。"
+          },
+          {
+            "code": "target_change_scope",
+            "label": "目标范围一致性",
+            "ok": true,
+            "detail": "实际变化与声明目标范围一致。"
+          },
+          {
+            "code": "non_target_integrity",
+            "label": "非目标哈希不变",
+            "ok": true,
+            "detail": "1 个受保护图元哈希保持不变"
+          }
+        ],
+        "effect_validation": {
+          "enforced": true,
+          "verified": true,
+          "reason": null,
+          "message": "实际几何结果与声明的修改参数完全一致。",
+          "operation": "array",
+          "expected_fingerprint": "7bbbb01a088fadbde72fc1d630b489e12d7c799875a2b9ff237dd4d8d8fe55f3",
+          "actual_fingerprint": "7bbbb01a088fadbde72fc1d630b489e12d7c799875a2b9ff237dd4d8d8fe55f3",
+          "mismatched_geometry_ids": [],
+          "missing_geometry_ids": [],
+          "unexpected_geometry_ids": []
+        },
+        "relation_validation": {
+          "enforced": false,
+          "verified": true,
+          "checks": [],
+          "message": "本次无已编译对象关系需要复核。"
+        }
+      }
+    }
+  },
+  "followup_compound_translation": {
+    "source": "把它向右移动1米并向上移动2米",
+    "rewritten": "第1个图形向右移动1米",
+    "direct_parse": {
+      "operation": "translate",
+      "instance": null,
+      "coordinate_frame": "drawing",
+      "dx_mm": 1000.0,
+      "dy_mm": 2000.0
+    },
+    "rewritten_parse": {
+      "operation": "translate",
+      "instance": 1,
+      "coordinate_frame": "drawing",
+      "dx_mm": 1000.0,
+      "dy_mm": 0.0
+    },
+    "previous": {
+      "operation": "translate",
+      "target_instance_id": 1,
+      "coordinate_frame": "drawing",
+      "parameters": {
+        "dx_mm": 1000,
+        "dy_mm": 0
+      }
+    }
+  }
+}

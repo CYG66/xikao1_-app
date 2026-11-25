@@ -1,0 +1,158 @@
+{
+  "date": "2026-11-25",
+  "phase": 2,
+  "meaning": "Human read of tool-presented source, with unchanged-source carry-forward from prior turn. Not automated whole-repository reading proof; no assertion of all semantic paths tested.",
+  "full_modules_completed": [
+    {
+      "file": "app/agent_http_service.py",
+      "lines": 1824,
+      "sha256": "018a2ce7c3e6b50e389c1132dbd7c317316a7efe1fd9784c9b6bf2a3f96f3df7",
+      "read_ranges": [
+        [
+          1,
+          1824
+        ]
+      ]
+    },
+    {
+      "file": "app/conversation_memory.py",
+      "lines": 1308,
+      "sha256": "9eb96fb806ba61cfd0892535230a2af62065743a156a9a90b6d454fb6f0e52fa",
+      "read_ranges": [
+        [
+          1,
+          1308
+        ]
+      ]
+    },
+    {
+      "file": "app/creative_projects.py",
+      "lines": 1239,
+      "sha256": "412e3ad1bfb5e9cbe10ce4ae1eac561076f5f2c2b66ab332a5332d8eb94fe5fb",
+      "read_ranges": [
+        [
+          1,
+          1239
+        ]
+      ]
+    },
+    {
+      "file": "app/creative_workflow.py",
+      "lines": 1214,
+      "sha256": "68656bc4489b840e0ab00bdc257e5daaad9d2b5a0147207a5fdac214307b97f3",
+      "read_ranges": [
+        [
+          1,
+          1214
+        ]
+      ]
+    },
+    {
+      "file": "app/database.py",
+      "lines": 840,
+      "sha256": "6626b2140a10782d3b073f8a715ede4fb90d027014192de259b8cf3d8df2c995",
+      "read_ranges": [
+        [
+          1,
+          840
+        ]
+      ]
+    },
+    {
+      "file": "app/task_store.py",
+      "lines": 228,
+      "sha256": "2ed48e5cbb95b3d5aca052f9fcf5329b16f588aeb3c2c532bf077bb677370870",
+      "read_ranges": [
+        [
+          1,
+          228
+        ]
+      ]
+    }
+  ],
+  "partial_modules": [
+    {
+      "file": "app/agent_service.py",
+      "sha256": "7f28f5ac9aae3606ac3b3e43f8d7a0399cb791061badf3c0b7d4bcfbfeb93a38",
+      "read_ranges": [
+        [
+          614,
+          1257
+        ],
+        [
+          1386,
+          1617
+        ],
+        [
+          1858,
+          2094
+        ],
+        [
+          2253,
+          2405
+        ],
+        [
+          2657,
+          2805
+        ],
+        [
+          2996,
+          3127
+        ],
+        [
+          4971,
+          5885
+        ],
+        [
+          10574,
+          11179
+        ]
+      ],
+      "full_module_complete": false
+    },
+    {
+      "file": "app/agent_skills.py",
+      "sha256": "58120a6f3fd57c965b17cbd893e8c8d215d5e57a824e7fbb9af592bdb710918c",
+      "read_ranges": [
+        [
+          536,
+          764
+        ],
+        [
+          1685,
+          1974
+        ]
+      ],
+      "full_module_complete": false
+    },
+    {
+      "file": "app/tooling.py",
+      "sha256": "17c980909eeb7cc8aba0ccd19911ed0d1d96992ed58174e8e98c63552a5be9de",
+      "read_ranges": [
+        [
+          251,
+          385
+        ],
+        [
+          551,
+          695
+        ],
+        [
+          709,
+          751
+        ],
+        [
+          851,
+          927
+        ]
+      ],
+      "full_module_complete": false
+    }
+  ],
+  "new_evidence": [
+    "phase2-probes.json",
+    "phase2-navigation-probe.json",
+    "unresolved-global-references.json"
+  ],
+  "whole_repository_manual_read_complete": false
+}

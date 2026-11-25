@@ -1,0 +1,254 @@
+{
+  "scope": "Offline source functions and pending-action lifecycle; no live model or hardware execution.",
+  "unit_equivalence": [
+    {
+      "unit": "毫米",
+      "source": "矩形宽度20毫米，高度30毫米",
+      "memory_profile": {
+        "drawing_type": "rectangle",
+        "width_m": 0.02,
+        "height_m": 0.03
+      },
+      "parameterized": {
+        "ok": true,
+        "shape": "rectangle",
+        "dimensions": {
+          "width_m": 0.02,
+          "height_m": 0.03
+        },
+        "printer": "center",
+        "origin": "current_robot_pose",
+        "units": "m",
+        "missing": [],
+        "assumptions": [
+          "未指定单位时按米解释设计尺寸",
+          "未指定起点时按小车当前位姿作为图纸原点",
+          "未指定执行方式时只生成设计和规划预览，不启动小车",
+          "未指定喷头时使用当前唯一可用的中心喷码机"
+        ]
+      },
+      "layout_source": "两个矩形间距20毫米",
+      "layout_requirements": {
+        "spacing_m": 0.02
+      }
+    },
+    {
+      "unit": "mm",
+      "source": "矩形宽度20mm，高度30mm",
+      "memory_profile": {
+        "drawing_type": "rectangle",
+        "width_m": 20.0,
+        "height_m": 30.0
+      },
+      "parameterized": {
+        "ok": true,
+        "shape": "rectangle",
+        "dimensions": {
+          "width_m": 20.0,
+          "height_m": 30.0
+        },
+        "printer": "center",
+        "origin": "current_robot_pose",
+        "units": "m",
+        "missing": [],
+        "assumptions": [
+          "未指定单位时按米解释设计尺寸",
+          "未指定起点时按小车当前位姿作为图纸原点",
+          "未指定执行方式时只生成设计和规划预览，不启动小车",
+          "未指定喷头时使用当前唯一可用的中心喷码机"
+        ]
+      },
+      "layout_source": "两个矩形间距20mm",
+      "layout_requirements": {
+        "spacing_m": 20.0
+      }
+    },
+    {
+      "unit": "厘米",
+      "source": "矩形宽度20厘米，高度30厘米",
+      "memory_profile": {
+        "drawing_type": "rectangle",
+        "width_m": 0.2,
+        "height_m": 0.3
+      },
+      "parameterized": {
+        "ok": true,
+        "shape": "rectangle",
+        "dimensions": {
+          "width_m": 0.2,
+          "height_m": 0.3
+        },
+        "printer": "center",
+        "origin": "current_robot_pose",
+        "units": "m",
+        "missing": [],
+        "assumptions": [
+          "未指定单位时按米解释设计尺寸",
+          "未指定起点时按小车当前位姿作为图纸原点",
+          "未指定执行方式时只生成设计和规划预览，不启动小车",
+          "未指定喷头时使用当前唯一可用的中心喷码机"
+        ]
+      },
+      "layout_source": "两个矩形间距20厘米",
+      "layout_requirements": {
+        "spacing_m": 0.2
+      }
+    },
+    {
+      "unit": "cm",
+      "source": "矩形宽度20cm，高度30cm",
+      "memory_profile": {
+        "drawing_type": "rectangle",
+        "width_m": 0.2,
+        "height_m": 0.3
+      },
+      "parameterized": {
+        "ok": true,
+        "shape": "rectangle",
+        "dimensions": {
+          "width_m": 0.2,
+          "height_m": 0.3
+        },
+        "printer": "center",
+        "origin": "current_robot_pose",
+        "units": "m",
+        "missing": [],
+        "assumptions": [
+          "未指定单位时按米解释设计尺寸",
+          "未指定起点时按小车当前位姿作为图纸原点",
+          "未指定执行方式时只生成设计和规划预览，不启动小车",
+          "未指定喷头时使用当前唯一可用的中心喷码机"
+        ]
+      },
+      "layout_source": "两个矩形间距20cm",
+      "layout_requirements": {
+        "spacing_m": 0.2
+      }
+    },
+    {
+      "unit": "米",
+      "source": "矩形宽度20米，高度30米",
+      "memory_profile": {
+        "drawing_type": "rectangle",
+        "width_m": 20.0,
+        "height_m": 30.0
+      },
+      "parameterized": {
+        "ok": true,
+        "shape": "rectangle",
+        "dimensions": {
+          "width_m": 20.0,
+          "height_m": 30.0
+        },
+        "printer": "center",
+        "origin": "current_robot_pose",
+        "units": "m",
+        "missing": [],
+        "assumptions": [
+          "未指定单位时按米解释设计尺寸",
+          "未指定起点时按小车当前位姿作为图纸原点",
+          "未指定执行方式时只生成设计和规划预览，不启动小车",
+          "未指定喷头时使用当前唯一可用的中心喷码机"
+        ]
+      },
+      "layout_source": "两个矩形间距20米",
+      "layout_requirements": {
+        "spacing_m": 20.0
+      }
+    },
+    {
+      "unit": "m",
+      "source": "矩形宽度20m，高度30m",
+      "memory_profile": {
+        "drawing_type": "rectangle",
+        "width_m": 20.0,
+        "height_m": 30.0
+      },
+      "parameterized": {
+        "ok": true,
+        "shape": "rectangle",
+        "dimensions": {
+          "width_m": 20.0,
+          "height_m": 30.0
+        },
+        "printer": "center",
+        "origin": "current_robot_pose",
+        "units": "m",
+        "missing": [],
+        "assumptions": [
+          "未指定单位时按米解释设计尺寸",
+          "未指定起点时按小车当前位姿作为图纸原点",
+          "未指定执行方式时只生成设计和规划预览，不启动小车",
+          "未指定喷头时使用当前唯一可用的中心喷码机"
+        ]
+      },
+      "layout_source": "两个矩形间距20m",
+      "layout_requirements": {
+        "spacing_m": 20.0
+      }
+    }
+  ],
+  "empty_response_recovery": {
+    "exception": "NameError",
+    "message": "name 'raw_followup' is not defined"
+  },
+  "confirmation_retry_context": {
+    "original_has_context": true,
+    "first_retryable": true,
+    "retry_created": true,
+    "retry_has_context": false,
+    "second_ok": false,
+    "second_message": "待确认任务缺少原始请求上下文，已拒绝恢复，请重新发起请求。",
+    "hardware_execution_count": 0
+  },
+  "standalone_modify_dispatch": {
+    "schema_valid": true,
+    "schema_error": "",
+    "existing_preparation_ok": true,
+    "existing_preparation_message": null,
+    "dispatcher_early_result": null,
+    "dispatcher_outputs": [
+      {
+        "ok": false,
+        "message": "安全工具尚未实现：modify_drawing",
+        "verification": {
+          "verified": false,
+          "level": "failed",
+          "evidence": [
+            "工具返回失败"
+          ],
+          "observed": {
+            "online": false,
+            "ros_available": false,
+            "control_ready": false,
+            "emergency_stopped": true,
+            "agent_motion_active": false,
+            "agent_motion_remaining_ms": 0,
+            "agent_motion_started_at": null,
+            "agent_motion_completed_at": null,
+            "agent_motion_completion_reason": null,
+            "agent_motion_outcome": "idle",
+            "last_velocity_command_at": null,
+            "mission_running": false,
+            "mission_stage": "idle",
+            "mission_file": "",
+            "mission_completed": 0,
+            "mission_total": 0,
+            "mission_current_id": null,
+            "printer_ready": false,
+            "printer_status": {},
+            "printer_status_age_ms": null,
+            "ln150_ready": false,
+            "ln150_status": "",
+            "localization_valid": false,
+            "localization_source": "unavailable"
+          },
+          "status": "failed",
+          "tool": "modify_drawing",
+          "checked_at": "2026-11-25T07:34:36.674910+00:00"
+        }
+      }
+    ],
+    "source_unchanged": true
+  }
+}

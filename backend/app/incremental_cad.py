@@ -1,6 +1,7 @@
 """Conservative, instance-scoped edits on an existing CAD candidate."""
 
 from __future__ import annotations
+from .cad_length_units import length_factors
 
 import re
 import math
@@ -83,7 +84,7 @@ def _attribute_or_spatial_selector(text: str) -> dict[str, Any] | None:
 
 
 def _millimeters(value: str, unit: str) -> float:
-    return float(value) * {"米": 1000, "m": 1000, "厘米": 10, "cm": 10, "毫米": 1, "mm": 1}[unit]
+    return float(value) * length_factors('mm')[unit]
 
 
 def _instance_prefix(instance_ids: list[int]) -> str:
@@ -526,6 +527,8 @@ def resolve_incremental_followup(
 
 
 def parse_incremental_edit(message: str) -> dict[str, Any] | None:
+    from .cad_source_intent import partition_preview_intent
+    message,_=partition_preview_intent(message)
     from .cad_target_resolver import recent_creation_selector
     recent=recent_creation_selector(message)
     if recent:
@@ -543,7 +546,7 @@ def parse_incremental_edit(message: str) -> dict[str, Any] | None:
         text = target_clause.group(1).strip()
     if not any(token in text for token in (
         "图形", "图纸", "篮球场", "羽毛球场", "场地", "实例", "车位",
-        "直线", "线段", "折线", "多段线", "圆", "圆形", "圆弧", "椭圆", "样条",
+        "直线", "线段", "折线", "多段线", "圆", "圆形", "圆弧", "椭圆", "样条", "矩形", "长方形",
         "图层", "喷墨线", "喷涂线", "打印路径", "参考线", "标注", "辅助线",
         "中心圆", "中圈", "外框", "边框", "外围轮廓", "中线", "中心线", "图元",
     )):
@@ -615,6 +618,9 @@ def parse_incremental_edit(message: str) -> dict[str, Any] | None:
             if selector.get("kind") in ("spatial", "position_ordinal"):
                 edit.pop("instance", None)
                 edit.pop("instances", None)
+        if (logical_object_selector is not None and not explicit_geometry_ids
+                and not edit.get('instance') and not edit.get('instances') and selector is None):
+            edit['logical_object_selector']=logical_object_selector
         if (
             (whole_group or (
                 edit.get("operation") == "scale" and whole_candidate
@@ -649,6 +655,13 @@ def parse_incremental_edit(message: str) -> dict[str, Any] | None:
         text,
     )
     logical_object_selector = None
+    primitive_targets=list(re.finditer(r'(左侧|左边|最左|右侧|右边|最右|上方|上面|最上|下方|下面|最下|左|右|上|下)(?:的)?(圆形|圆(?!弧)|矩形|长方形)',text))
+    primitive_target=primitive_targets[0] if len(primitive_targets)==1 else None
+    if primitive_target:
+        word,noun=primitive_target.groups()
+        logical_object_selector={'label':primitive_target[0],
+            'position':('left' if '左' in word else 'right' if '右' in word else 'top' if '上' in word else 'bottom'),
+            'object_type':'circle' if noun in {'圆','圆形'} else 'rectangle'}
     if logical_position_match:
         position = {
             "中间": "middle", "中央": "middle", "正中": "middle",
@@ -878,7 +891,7 @@ def parse_incremental_edit(message: str) -> dict[str, Any] | None:
         explicit=list(re.finditer(r'([xy])\s*[=＝]\s*([-+]?\d+(?:\.\d+)?)\s*(毫米|厘米|米|mm|cm|m)',text,re.I))
         if explicit:
             match=explicit[-1];axis='vertical' if match[1].lower()=='x' else 'horizontal'
-            coordinate=float(match[2])*{'毫米':1,'厘米':10,'米':1000,'mm':1,'cm':10,'m':1000}[match[3].lower()]
+            coordinate=float(match[2])*length_factors('mm')[match[3].lower()]
         elif re.search(r'(?:关于|沿|以|镜像轴.*?)[\s]*[xyXY]轴',text):
             axis='horizontal' if re.search(r'[xX]轴',text) else 'vertical';coordinate=0.0
         return selected({"operation": "mirror", "instance": None if multiple_instances else instance,
@@ -2418,14 +2431,24 @@ def _edit_candidate_geometries(
             if _geometry_signature(item) not in source_signatures
         ]
         if not mirrored:
-            # The selected shape is symmetric about the requested axis, so the
-            # mirrored copy coincides with the source: a copy request has no
-            # meaningful second instance. Reject instead of teleporting a
-            # shifted duplicate that was never requested.
-            return None, (
-                "该图形在此方向上完全对称，镜像结果与原图重合，"
-                "请明确镜像轴位置。"
-            )
+            # A copy request needs a visible second instance even when the
+            # selected shape is symmetric about its own bounding-box axis.
+            # Place the mirrored copy one full width/height away along the
+            # requested axis; an explicit mirror coordinate still wins.
+            if keep_source and edit.get("mirror_coordinate_mm") is None:
+                shift = (bounds[2] - bounds[0]) if axis == "vertical" else (bounds[3] - bounds[1])
+                mirrored = [deepcopy(item) for item in selected]
+                for item in mirrored:
+                    for point in _points(item):
+                        if axis == "vertical":
+                            point["x"] = round(float(point["x"]) + shift, 8)
+                        else:
+                            point["y"] = round(float(point["y"]) + shift, 8)
+            else:
+                return None, (
+                    "该图形在此方向上完全对称，镜像结果与原图重合，"
+                    "请明确镜像轴位置。"
+                )
         if keep_source:
             geometries.extend(mirrored)
             edit["new_instance"] = new_instance

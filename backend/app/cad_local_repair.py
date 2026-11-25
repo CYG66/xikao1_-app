@@ -1,12 +1,11 @@
 """Conservative locks for measured failures in independent literal paths."""
-import hashlib
-import json
+from .cad_canonical_json import canonical_json_hash
 import math
 from copy import deepcopy
 
 
 def fingerprint(value):
-    return hashlib.sha256(json.dumps(value,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
+    return canonical_json_hash(value)
 
 
 def coordinate_patch_schema(context):

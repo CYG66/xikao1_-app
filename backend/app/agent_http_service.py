@@ -23,50 +23,6 @@ from .structured_usage import structured_usage_scope, usage_scoped_events
 from .cad_edit_session import binding_key, pending_binding, selection_binding
 
 
-def build_execution_context(
-    *,
-    conversation_id: str | None = None,
-    project_id: str | None = None,
-    source_variant_id: str | None = None,
-    drawing_selection: dict | None = None,
-    operation: str | None = None,
-    decision_source: str | None = None,
-    requirement_state: object | None = None,
-    requirements: dict | None = None,
-    constraints: dict | None = None,
-    contract_version: str | None = None,
-    source_index: object | None = None,
-    request_id: str | None = None,
-) -> dict:
-    """Freeze the resolved execution input and seal it with its own sha256.
-
-    This is the single production-side constructor for an execution context;
-    resume/confirmation gates recompute the digest over the unsigned payload, so
-    fixtures must obtain a sealed snapshot through this function rather than
-    hand-writing a hash or copying one from another request.
-    """
-    snapshot: dict[str, object] = {
-        "request_id": str(uuid.uuid4()) if request_id is None else str(request_id),
-        "conversation_id": conversation_id,
-        "schema": "cad.execution-context.v1",
-        "project_id": project_id,
-        "source_variant_id": source_variant_id,
-        "drawing_selection": deepcopy(drawing_selection),
-        "operation": operation,
-        "decision_source": decision_source,
-        "requirement_state": requirement_state,
-        "requirements": deepcopy(requirements) if requirements is not None else {},
-        "constraints": deepcopy(constraints) if constraints is not None else {},
-        "contract_version": contract_version,
-        "source_index": source_index,
-    }
-    snapshot["sha256"] = hashlib.sha256(json.dumps(
-        snapshot, ensure_ascii=False, sort_keys=True,
-        separators=(",", ":"), default=str,
-    ).encode("utf-8")).hexdigest()
-    return snapshot
-
-
 def _agent_message_with_attachments(
     command: AgentChatRequest, message: str | None = None
 ) -> str:
@@ -252,21 +208,16 @@ def _bind_and_filter_candidate_visibility(
         for item in (project_variants if isinstance(project_variants, list) else [])
     )
     run_project = str(run.get("project_id") or "").strip()
-    source_variant = str(run.get("source_variant_id") or "").strip()
+    run_selection = run.get('drawing_selection') if isinstance(run.get('drawing_selection'), dict) else {}
+    source_variant = str(run.get("source_variant_id") or run_selection.get('variant_id') or "").strip()
     parent_variant = str(variant.get("parent_variant_id") or "").strip()
     binding_ok = bool(run and run_project and project_id and variant_id and listed)
     # A candidate must have been committed during this run.  Project membership
     # alone is insufficient because an older candidate can be returned by a
-    # stale service snapshot and then receive the current run label.  A history
-    # navigation (undo/redo/switch) explicitly binds an existing variant to the
-    # current run, so that declared source is not treated as a stale snapshot.
+    # stale service snapshot and then receive the current run label.
     run_created = str(run.get("created_at") or "")
     variant_created = str(variant.get("created_at") or "")
-    explicitly_bound = bool(source_variant and (variant_id == source_variant or parent_variant == source_variant))
-    if (
-        not explicitly_bound
-        and run_created and variant_created and variant_created < run_created
-    ):
+    if run_created and variant_created and variant_created < run_created:
         binding_ok = False
     if run_project and run_project != project_id:
         binding_ok = False
@@ -277,6 +228,30 @@ def _bind_and_filter_candidate_visibility(
     accepted = (candidate_is_accepted(variant)
                 and isinstance(summary, dict) and summary.get("status") == "passed"
                 and summary.get("review_required") is not True)
+    if (accepted and result.get('cad_edit_outcome') == 'already_satisfied'
+            and result.get('variant_saved') is False and run_project == project_id
+            and source_variant == variant_id == str(result.get('source_variant_id') or '')
+            and listed):
+        # A no-op retains the accepted source; it cannot have a new creation
+        # timestamp. Recompute the effect rather than trusting a response flag.
+        from .cad_edit_gate import build_cad_edit_preflight, geometry_fingerprint
+        source_geometry = variant.get('geometries') or []
+        stored_source = next(item for item in project_variants if isinstance(item, dict) and item.get('id') == variant_id)
+        contract = result.get('cad_edit_contract')
+        if (isinstance(contract, dict) and source_geometry
+                and geometry_fingerprint(source_geometry) == geometry_fingerprint(stored_source.get('geometries') or [])):
+            proof = build_cad_edit_preflight(source_geometry, source_geometry, contract)
+            if proof['ready'] and proof['already_satisfied']:
+                from .drawing_store import geometry_preview_paths
+                result['cad_preflight'] = proof
+                result['preview_paths'] = geometry_preview_paths({'lines':source_geometry})
+                result.pop('drawing_json', None)
+                result.pop('candidate_binding', None)
+                result['candidate_visibility'] = {'status':'retained_source', 'run_id':run_id}
+                result['source_binding'] = {'run_id':run_id, 'project_id':project_id,
+                                            'source_variant_id':variant_id,
+                                            'geometry_fingerprint':proof['source_fingerprint']}
+                return result
     from .cad_candidate_state import candidate_is_reviewable_draft, geometry_evidence_hash
     if binding_ok and candidate_is_reviewable_draft(variant):
         from copy import deepcopy
@@ -707,15 +682,10 @@ def _finalize_run_result(
     result["agent_run_id"] = run_id
     run = agent_runs.get(run_id) or {}
     project = result.get("project") if isinstance(result.get("project"), dict) else {}
-    result_variant = result.get("variant") if isinstance(result.get("variant"), dict) else {}
-    navigating = isinstance(result.get("cad_history_navigation"), dict)
-    if not str(run.get("project_id") or "").strip() or navigating:
+    if not str(run.get("project_id") or "").strip():
         agent_runs.bind_context(
             run_id,
             project_id=str(result.get("project_id") or project.get("id") or "") or None,
-            source_variant_id=(
-                str(result_variant.get("id") or "") or None if navigating else None
-            ),
         )
     result = _bind_and_filter_candidate_visibility(run_id, result)
     _record_agent_run_result(run_id, result)
@@ -814,8 +784,6 @@ def resume_agent_run(run_id: str, client_id: str | None = None) -> dict[str, obj
         if isinstance(prepared_snapshot, dict):
             prepared_route = prepared_snapshot.get("route")
             execution_context = prepared_route.get("execution_context") if isinstance(prepared_route, dict) else None
-    if not isinstance(execution_context, dict):
-        execution_context = run.get("execution_context")
     if not isinstance(execution_context, dict):
         return {"ok": False, "message": "检查点缺少原始请求上下文，拒绝恢复，请重新发起请求。", "run": run}
     expected_context_hash = execution_context.get("sha256")
@@ -1116,23 +1084,13 @@ def _prepare_agent_chat_context(command: AgentChatRequest) -> dict[str, object]:
     selection = command.drawing_selection.model_dump() if command.drawing_selection else {}
     project_ids = {str(value) for value in (command.project_id, selection.get('project_id')) if value}
     variant_ids = {str(value) for value in (command.variant_id, selection.get('variant_id')) if value}
-    from .cad_edit_session import fresh_creation
-    request_is_fresh_creation = fresh_creation(command.message)
     binding_error = None
     if len(project_ids) > 1 or len(variant_ids) > 1:
         binding_error = '请求中的项目、版本与选区不一致，请重新选择图形。'
     elif project_ids:
         bound = project_store.get(next(iter(project_ids)))
         if not isinstance(bound, dict):
-            if request_is_fresh_creation:
-                # A new brief may still carry a stale envelope selection/project.
-                # Treat that context as dropped and route as creation rather
-                # than forcing an edit against a missing baseline.
-                project_ids = set()
-                variant_ids = set()
-                selection = {}
-            else:
-                binding_error = '当前项目不存在，请重新选择项目。'
+            binding_error = '当前项目不存在，请重新选择项目。'
         elif variant_ids:
             variant = next((v for v in bound.get('variants') or [] if str(v.get('id')) in variant_ids), None)
             if variant is None:
@@ -1319,9 +1277,11 @@ def _prepare_agent_chat_context(command: AgentChatRequest) -> dict[str, object]:
     # and at least one saved candidate is a continuation/edit. Do not let
     # model intent classification downgrade it to a fresh project creation.
     bound_project = project_store.get(bound_project_id) if bound_project_id else None
+    bound_edit = (parse_incremental_edit(command.message)
+                  if bound_variant_id and not fresh_creation(command.message) else None)
     if (
         bound_project_id
-        and command.drawing_selection is not None
+        and (command.drawing_selection is not None or bound_edit is not None)
         and isinstance(bound_project, dict)
         and bound_project.get("variants")
     ):
@@ -1335,6 +1295,8 @@ def _prepare_agent_chat_context(command: AgentChatRequest) -> dict[str, object]:
             "review_required": False,
             "safety_confirmation_required": False,
         })
+        if bound_edit is not None and command.drawing_selection is None:
+            route.update(decision_source='incremental_cad_edit',resolved_edit=bound_edit)
     if edit_session:
         route['cad_edit_session']=edit_session
         route['selected_project_id']=edit_session['project_id']
@@ -1433,44 +1395,45 @@ def _prepare_agent_chat_context(command: AgentChatRequest) -> dict[str, object]:
     # Rebuild the actual service message after edit-session and requirement
     # merging. Previously only contextual_message changed; both transports
     # still dispatched the stale pre-merge model_message.
-    resolved_message = str(resolution.get("message") or contextual_message)
+    resolved_message = contextual_message
     model_message = _agent_message_with_attachments(command, resolved_message)
     stale_guide = robot_agent._stale_project_guard(route)
     knowledge = robot_agent.knowledge_context(command.message, route)
     # Freeze the resolved execution input after all parameter merging. Both
     # streaming and non-streaming dispatch consume this prepared context;
     # checkpoints persist the same snapshot through prepared_context.
-    from .cad_requirement_contract import (
-        project_requirement_state, requirement_contract, build_requirement_source_index,
-    )
+    from .cad_requirement_contract import project_requirement_state
     execution_project_id = robot_agent._project_id_from_route(route)
     execution_project = project_store.get(execution_project_id) if execution_project_id else None
     execution_selection = deepcopy(route.get('drawing_selection'))
-    source_request_id = str(uuid.uuid4())
-    source_contract = requirement_contract([{'source_id':f'user:{i}','text':s}
-        for i,s in enumerate((execution_project or {}).get('requirements',{}).get('source_texts') or [command.message])])
-    contract_version = hashlib.sha256(json.dumps(
-        source_contract, ensure_ascii=False, sort_keys=True, default=str).encode()).hexdigest()
-    source_index = build_requirement_source_index(
-        source_contract, request_id=source_request_id,
-        project_id=execution_project_id, contract_version=contract_version)
-    execution_snapshot = build_execution_context(
-        conversation_id=command.conversation_id,
-        project_id=execution_project_id,
-        source_variant_id=(
+    execution_snapshot = {
+        'request_id': str(uuid.uuid4()),
+        'conversation_id': command.conversation_id,
+        'schema': 'cad.execution-context.v1',
+        'project_id': execution_project_id,
+        'source_variant_id': (
             (execution_selection or {}).get('variant_id')
             or route.get('selected_variant_id') or command.variant_id
         ),
-        drawing_selection=execution_selection,
-        operation=route.get('operation'),
-        decision_source=route.get('decision_source'),
-        requirement_state=project_requirement_state(execution_project) if execution_project else None,
-        requirements=deepcopy((execution_project or {}).get('requirements') or {}),
-        constraints=deepcopy((execution_project or {}).get('constraints') or {}),
-        contract_version=contract_version,
-        source_index=source_index,
-        request_id=source_request_id,
-    )
+        'drawing_selection': execution_selection,
+        'operation': route.get('operation'),
+        'decision_source': route.get('decision_source'),
+        'requirement_state': project_requirement_state(execution_project) if execution_project else None,
+        'requirements': deepcopy((execution_project or {}).get('requirements') or {}),
+        'constraints': deepcopy((execution_project or {}).get('constraints') or {}),
+    }
+    from .cad_requirement_contract import requirement_contract, build_requirement_source_index
+    source_contract = requirement_contract([{'source_id':f'user:{i}','text':s}
+        for i,s in enumerate((execution_project or {}).get('requirements',{}).get('source_texts') or [command.message])])
+    execution_snapshot['contract_version'] = hashlib.sha256(json.dumps(
+        source_contract, ensure_ascii=False, sort_keys=True, default=str).encode()).hexdigest()
+    execution_snapshot['source_index'] = build_requirement_source_index(
+        source_contract, request_id=execution_snapshot['request_id'],
+        project_id=execution_snapshot.get('project_id'), contract_version=execution_snapshot['contract_version'])
+    execution_snapshot['sha256'] = hashlib.sha256(json.dumps(
+        execution_snapshot, ensure_ascii=False, sort_keys=True,
+        separators=(',', ':'), default=str,
+    ).encode('utf-8')).hexdigest()
     route['execution_context'] = execution_snapshot
     return {
         "history": history,
@@ -1627,6 +1590,35 @@ def _agent_chat(
 
 
 
+def _chat_stream_with_execution_context(message, history, *, mode, route, user_id):
+    """Bind each advance: StreamingResponse can resume on different contexts."""
+    stream = None
+    try:
+        token = set_request_execution_context(route.get('execution_context'))
+        try:
+            stream = iter(robot_agent.chat_stream(
+                message, history, mode=mode, route=route, user_id=user_id))
+        finally:
+            reset_request_execution_context(token)
+        while True:
+            token = set_request_execution_context(route.get('execution_context'))
+            try:
+                try:
+                    event = next(stream)
+                except StopIteration:
+                    return
+            finally:
+                reset_request_execution_context(token)
+            yield event
+    finally:
+        if stream is not None and hasattr(stream, 'close'):
+            token = set_request_execution_context(route.get('execution_context'))
+            try:
+                stream.close()
+            finally:
+                reset_request_execution_context(token)
+
+
 def agent_chat_stream(command: AgentChatRequest) -> StreamingResponse:
     memory_snapshot = conversation_memory.context(command.conversation_id, [])
     pending_snapshot = memory_snapshot.get('pending_cad_edit') if isinstance(memory_snapshot, dict) else None
@@ -1780,7 +1772,7 @@ def _agent_chat_stream_events(
                 )
                 yield json.dumps({"type": "result", **result}, ensure_ascii=False) + "\n"
                 return
-            for event in robot_agent.chat_stream(
+            for event in _chat_stream_with_execution_context(
                 model_message,
                 history,
                 mode=command.mode,
@@ -1807,31 +1799,6 @@ def _agent_chat_stream_events(
             # Never leave a streaming response without a terminal result.
             # Keep implementation details in the server log only.
             robot_state.add_log(f"agent stream error: {error}")
-            # Deterministic fallback: only a malformed upstream payload (ValueError)
-            # may be substituted by the production formal construction path. A
-            # transport-level outage (RuntimeError and others) keeps the retryable
-            # model-stream failure and must not fall back to local CAD generation.
-            degraded_result = None
-            if (isinstance(error, ValueError)
-                    and route.get("name") == "drawing_design"
-                    and route.get("operation") == "create"):
-                try:
-                    degraded_result = robot_agent._formal_cad_construction(
-                        command.message, route, mode=command.mode
-                    )
-                except Exception as fallback_error:  # pragma: no cover - defensive
-                    robot_state.add_log(f"agent fallback error: {fallback_error}")
-                    degraded_result = None
-            if degraded_result is not None and degraded_result.get("ok"):
-                degraded_result["degraded"] = True
-                degraded_result["api_attempted"] = True
-                degraded_result["api_provider"] = robot_agent.mode
-                degraded_result = robot_agent.enrich_result(degraded_result, route, knowledge)
-                degraded_result["object_memory"] = conversation_memory.remember(
-                    command.conversation_id, command.message, degraded_result, route=route
-                )
-                yield json.dumps({"type": "result", **degraded_result}, ensure_ascii=False) + "\n"
-                return
             error_text = str(error)
             user_message = (
                 f"CAD 几何验收失败：{error_text}"

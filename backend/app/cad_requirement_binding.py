@@ -243,6 +243,13 @@ def _operation_binding(requirement: str, project_evidence: dict[str, Any] | None
         and write_receipt.get("authority")
         and str(write_receipt.get("project_id") or "") == str(evidence.get("project_id") or "")
         and str(write_receipt.get("variant_id") or "")
+        and write_receipt.get("before_variant_count") is not None
+        and int(write_receipt["before_variant_count"])
+        == int(evidence.get("prior_variant_count") or 0)
+        and write_receipt.get("after_variant_count") is not None
+        and int(write_receipt["after_variant_count"])
+        == int(evidence.get("prior_variant_count") or 0) + 1
+        and int(write_receipt.get("superseded_count") or 0) == 0
     )
     first_write = bool(
         evidence.get("candidate_write_in_commit") is True

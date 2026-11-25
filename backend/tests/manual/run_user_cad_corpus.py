@@ -20,8 +20,23 @@ ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT))
 from tests.manual.run_complex_cad_live import FOLLOWUPS, geometry_checks
 from app.cad_construction import construction_geometry_bounds
+from tests.manual.cad_harness_acceptance import (
+    evaluate_accepted_base,
+    evaluate_edit_formal_delivery,
+    evaluate_formal_delivery,
+    evaluate_no_change_delivery,
+)
+from tests.manual.cad_acceptance_metrics import summarize
 
 SOURCE=Path(r'D:\xikao\文生文修CAD测试语料.md')
+NEW_EXECUTION_COHORT='new'
+
+
+def summarize_new_execution(root,reports):
+    """New corpus runs count every planned case, including failures."""
+    return summarize(root,reports,cohort=NEW_EXECUTION_COHORT)
+
+
 SUPPLEMENTS={**FOLLOWUPS,
  'B4':'逆时针旋转45度，以当前选中图形的中心为旋转中心。',
  'B8':'以坐标x=5米的竖直直线为镜像轴，镜像复制到右侧并保留原图，坐标单位米。',
@@ -100,6 +115,26 @@ def call(folder,step,body,operation='chat'):
 def bounds(gs):
     b=construction_geometry_bounds(gs)
     return b['min_x'],b['min_y'],b['max_x'],b['max_y']
+
+def persisted_project(folder,project_id):
+    path=Path(folder)/'projects.json'
+    if not path.exists():return {}
+    data=json.loads(path.read_text(encoding='utf-8'))
+    return next((p for p in data.get('projects',[]) if str(p.get('id'))==str(project_id)),{})
+
+def persisted_source(folder,project_id,variant_id):
+    project=persisted_project(folder,project_id)
+    variant=next((v for v in project.get('variants',[])
+                  if str(v.get('id'))==str(variant_id)),{})
+    return {'authority':'projects.json','independent':True,
+            'project_id':str(project_id or ''),'variant_id':str(variant_id or ''),
+            'project':project,'variant':variant}
+
+def checks_geometry_ok(checks,after):
+    excluded={'base_candidate_accepted','same_project','formal_delivery'}
+    observed=[c['passed'] for c in checks if c.get('name') not in excluded]
+    return bool((after or {}).get('geometries')) and (all(observed) if observed else True)
+
 
 def corners(g):
     points=g.get('vertices') or []
@@ -385,9 +420,25 @@ def make_creation(case,prompt,root,oracle_case=None):
     checks+=create_checks(oracle_case,response,messages)
     created_project=response.get('project') if isinstance(response.get('project'),dict) else {}
     has_candidate=bool(response.get('variant')) or bool(created_project.get('variants'))
+    project=persisted_project(folder,pid)
+    source=persisted_source(folder,pid,(response.get('variant') or {}).get('id'))
+    geometry_ok=checks_geometry_ok(checks,response.get('variant') or {})
+    formal=evaluate_formal_delivery(response,project=project,persisted_project=project,
+        persisted_source=source,
+        expected_project_id=pid,expected_variant_id=(response.get('variant') or {}).get('id'),
+        geometry_checks=geometry_ok)
+    legacy_passed=all(c['passed'] for c in checks)
+    checks.append({'name':'formal_delivery','passed':formal['formal_delivery_ok'] is True,
+        'observed':{'diagnostic_status':formal['diagnostic_status'],
+                    'formal_reason':formal['formal_reason']}})
     report={'case':case,'oracle_case':oracle_case,'kind':'create','messages':messages,'history':history,'project_id':pid,
             'candidate_step':len(messages),'has_candidate':has_candidate,'checks':checks,
-            'passed':all(c['passed'] for c in checks),'app':'not_run'}
+            'passed':all(c['passed'] for c in checks),'legacy_passed':legacy_passed,'app':'not_run',
+            'generation_ok':formal['generation_ok'],'geometry_ok':formal['geometry_ok'],
+            'formal_evaluable':formal['formal_evaluable'],
+            'formal_delivery_ok':formal['formal_delivery_ok'],
+            'diagnostic_status':formal['diagnostic_status'],
+            'formal_reason':formal['formal_reason'],'formal_evidence':formal['evidence']}
     dump(folder/'ui-fixture.json',{'id':case,'messages':messages})
     dump(folder/'corpus-report.json',report)
     return report
@@ -625,9 +676,37 @@ def make_edit(case,prompt,root,reports,base_case=None):
                 and (response.get('relation_verification') or {}).get('authority')=='backend_measured_geometry'},
         ])
     checks.append({'name':'same_project','passed':response.get('project_id')==prior['project_id'] or (response.get('project') or {}).get('id')==prior['project_id']})
+    base_acceptance=evaluate_accepted_base(before)
+    checks.append({'name':'base_candidate_accepted','passed':base_acceptance['accepted'],
+        'observed':base_acceptance})
+    project=persisted_project(folder,copied_project_id)
+    source_variant=after or before
+    source=persisted_source(folder,copied_project_id,source_variant.get('id'))
+    geometry_ok=checks_geometry_ok(checks,after)
+    formal_response=response if response.get('variant') else ({**response,'variant':after} if after else response)
+    if formal_response.get('cad_edit_outcome')=='already_satisfied':
+        checks=[c for c in checks if c['name']!='new_saved_version']
+        formal=evaluate_no_change_delivery(formal_response,base_variant=before,
+            persisted_project=project,persisted_source=source,
+            expected_project_id=prior['project_id'])
+    else:
+        formal=evaluate_edit_formal_delivery(formal_response,base_variant=before,
+            project=project,persisted_project=project,persisted_source=source,
+            expected_project_id=prior['project_id'],
+            expected_variant_id=after.get('id'),geometry_checks=geometry_ok)
+    legacy_passed=all(c['passed'] for c in checks)
+    checks.append({'name':'formal_delivery','passed':formal['formal_delivery_ok'] is True,
+        'observed':{'diagnostic_status':formal['diagnostic_status'],
+                    'formal_reason':formal['formal_reason']}})
     report={'case':case,'kind':'edit','base':base,'messages':messages,'has_candidate':bool(after),
-        'checks':checks,'passed':all(c['passed'] for c in checks),'reply':response.get('message'),'app':'not_run',
-        'edit_outcome':response.get('cad_edit_outcome')}
+        'checks':checks,'passed':all(c['passed'] for c in checks),'legacy_passed':legacy_passed,
+        'reply':response.get('message'),'app':'not_run',
+        'edit_outcome':response.get('cad_edit_outcome'),
+        'generation_ok':formal['generation_ok'],'geometry_ok':formal['geometry_ok'],
+        'formal_evaluable':formal['formal_evaluable'],
+        'formal_delivery_ok':formal['formal_delivery_ok'],
+        'diagnostic_status':formal['diagnostic_status'],
+        'formal_reason':formal['formal_reason'],'formal_evidence':formal['evidence']}
     dump(folder/'ui-fixture.json',{'id':case,'messages':messages,'selection_before_step':step,
         'drawing_selection':selection,'confirmation_step':confirmation,'expected_preview_count':len(response.get('preview_paths') or [])})
     dump(folder/'corpus-report.json',report)
@@ -644,21 +723,24 @@ def app_check(case,root):
 
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--output',required=True);p.add_argument('--workers',type=int,default=3)
-    p.add_argument('--app',action='store_true');p.add_argument('--cases',nargs='*');p.add_argument('--resume',action='store_true');args=p.parse_args()
+    p.add_argument('--app',action='store_true');p.add_argument('--cases',nargs='*');p.add_argument('--resume',action='store_true')
+    p.add_argument('--source',help='override the frozen corpus path for an isolated worktree')
+    args=p.parse_args()
+    source=Path(args.source).resolve() if args.source else SOURCE
     root=Path(args.output).resolve();root.mkdir(parents=True,exist_ok=True)
     os.environ['P12_EVAL_MODE']='1'
     os.environ.setdefault('P12_EVAL_RUN_ID', root.name)
     budget_path=os.getenv('P12_EVAL_BUDGET_PATH','').strip()
     if not budget_path or not Path(budget_path).parent.exists():
         raise RuntimeError('evaluation_budget_unavailable: P12_EVAL_BUDGET_PATH is required')
-    raw=SOURCE.read_bytes();corpus=dict(re.findall(r'^\| (?:⭐)?([ABCD]\d+) \| ([^|]+) \|',raw.decode('utf-8'),re.M))
+    raw=source.read_bytes();corpus=dict(re.findall(r'^\| (?:⭐)?([ABCD]\d+) \| ([^|]+) \|',raw.decode('utf-8'),re.M))
     wanted=set(args.cases or corpus);aliases,resolved_bases=resolve_corpus_setup(corpus,wanted)
     needed=wanted|set(resolved_bases.values())
     code_digest=hashlib.sha256()
     for code_file in sorted((Path(__file__).resolve().parents[2]/'app').rglob('*.py')):
         code_digest.update(str(code_file.relative_to(Path(__file__).resolve().parents[2])).replace('\\','/').encode())
         code_digest.update(code_file.read_bytes())
-    dump(root/'manifest.json',{'source':str(SOURCE),'sha256':hashlib.sha256(raw).hexdigest(),
+    dump(root/'manifest.json',{'source':str(source),'sha256':hashlib.sha256(raw).hexdigest(),
         'backend_code_sha256':code_digest.hexdigest(),
         'model_configuration':{'provider':'deepseek','cad_planning_model':os.getenv('DEEPSEEK_CAD_PLANNING_MODEL','deepseek-chat')},
         'original_prompts':corpus,
@@ -688,6 +770,10 @@ if __name__=='__main__':
             if not report.get('has_candidate'):continue
             try:report['app']=app_check(case,root)
             except Exception as exc:report['app']='runner_error';report['app_error']=str(exc)
+            if report.get('app')!='replay_passed':
+                report['formal_delivery_ok']=False
+                report['diagnostic_status']='frontend_failed'
+                report['formal_reason']=[*(report.get('formal_reason') or []),'frontend_failed']
             dump(root/case/'corpus-report.json',report)
             print(json.dumps({'case':case,'app':report['app']},ensure_ascii=False),flush=True)
             dump(root/'summary.json',{'reports':list(reports.values()),'completed':len(reports),'requested':len(wanted)})
@@ -702,6 +788,17 @@ if __name__=='__main__':
             if rid and rid in seen and seen[rid]!=case: contamination.append({'request_id':rid,'cases':[seen[rid],case]})
             elif rid: seen[rid]=case
     dump(root/'evidence-audit.json',{'unique_request_ids':len(seen),'contamination':contamination,'blocked':bool(contamination)})
+    metrics=summarize_new_execution(root,selected)
+    dump(root/'metrics.json',metrics)
     dump(root/'summary.json',{'source_sha256':hashlib.sha256(raw).hexdigest(),'reports':selected,'completed':len(selected),
         'evidence_audit':{'unique_request_ids':len(seen),'contamination':contamination,'blocked':bool(contamination)},
-        'passed':sum(r.get('passed',False) and (not args.app or r.get('app')=='replay_passed') for r in selected),'requested':len(wanted)})
+        'passed':sum(r.get('passed') is True and (not args.app or r.get('app')=='replay_passed') for r in selected),
+        'legacy_passed':sum(r.get('legacy_passed') is True and (not args.app or r.get('app')=='replay_passed') for r in selected),
+        'formal_delivery_pass':sum(r.get('formal_delivery_ok') is True for r in selected),
+        'formal_evaluable':sum(r.get('formal_evaluable') is True for r in selected),
+        'unassessable_cases':[r.get('case') for r in selected if r.get('formal_evaluable') is not True],
+        'requested':len(wanted),
+        'evaluation_cohort':'new','planned_case_count':metrics['planned_case_count'],
+        'success_count':metrics['new_execution_pass_count'],
+        'failed_count':metrics['new_execution_failed_count'],
+        'end_to_end_pass_rate':metrics['end_to_end_pass_rate']})

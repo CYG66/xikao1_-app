@@ -1,6 +1,8 @@
 import math
 from copy import deepcopy
-from tests.manual.run_user_cad_corpus import BASE,SUPPLEMENTS,corners,edit_checks,create_checks
+from tests.manual.run_user_cad_corpus import (
+    BASE,SUPPLEMENTS,corners,edit_checks,create_checks,summarize_new_execution,
+)
 
 
 def test_unspecified_branch_design_parameters_are_measured_without_inventing_fixed_values():
@@ -105,3 +107,21 @@ def test_house_combined_outer_boundary_is_not_missing_a_separate_roof_entity():
     checks=create_checks('C16',response)
     assert next(c['passed'] for c in checks if c['name']=='outline_and_door_candidates_present')
     assert not next(c['passed'] for c in checks if c['name']=='house_part_geometry_review')
+
+
+def test_new_execution_metrics_count_every_planned_case(tmp_path):
+    reports=[
+        {'case':'a','passed':True,'legacy_passed':True,'formal_evaluable':True,'formal_delivery_ok':True},
+        {'case':'b','passed':False,'legacy_passed':True,'formal_evaluable':True,
+         'formal_delivery_ok':False,'formal_reason':['formal_delivery_not_ok']},
+        {'case':'c','passed':False,'runner_error':'missing evidence','app':'not_run'},
+    ]
+    metrics=summarize_new_execution(tmp_path,reports)
+    assert metrics['cohort']=='new'
+    assert metrics['planned_case_count']==3
+    assert metrics['new_execution_pass_count']==1
+    assert metrics['new_execution_failed_count']==2
+    assert metrics['new_execution_e2e_rate']==1/3
+    assert metrics['end_to_end_pass_rate']==1/3
+    assert 'c' in metrics['unassessable_cases']
+

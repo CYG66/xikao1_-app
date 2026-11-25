@@ -245,6 +245,8 @@ jobs:
           tests/test_cad_construction_commit.py
           tests/test_cad_requirement_binding.py
           tests/test_cad_http_formal_delivery.py
+          tests/test_cad_harness_acceptance.py
+          tests/test_user_cad_corpus_runner.py
           -m "not manual_field"
           --junitxml=${{ runner.temp }}/junit/cad.xml
 

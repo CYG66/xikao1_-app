@@ -51,9 +51,17 @@ def _validated_write_receipt(
     if variant_id not in snapshot_variant_ids:
         raise ConstructionCommitError("候选写入回执声称的候选不在原子项目快照中。")
     if receipt.get("created") is True:
-        if receipt.get("after_variant_count") != int(receipt.get("before_variant_count") or 0) + 1:
+        expected_after = (
+            int(receipt.get("before_variant_count") or 0)
+            - int(receipt.get("superseded_count") or 0)
+            + 1
+        )
+        if receipt.get("after_variant_count") != expected_after:
             raise ConstructionCommitError("候选写入回执的新增计数不自洽。")
-    elif receipt.get("after_variant_count") != receipt.get("before_variant_count"):
+    elif (
+        receipt.get("after_variant_count") != receipt.get("before_variant_count")
+        or int(receipt.get("superseded_count") or 0) != 0
+    ):
         raise ConstructionCommitError("候选写入回执的复用计数不自洽。")
     if require_created:
         if receipt.get("created") is not True or receipt.get("reused_existing") is not False:

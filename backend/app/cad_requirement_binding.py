@@ -257,6 +257,7 @@ def _operation_binding(requirement: str, project_evidence: dict[str, Any] | None
         "reused_existing": write_receipt.get("reused_existing"),
         "before_variant_count": write_receipt.get("before_variant_count"),
         "after_variant_count": write_receipt.get("after_variant_count"),
+        "superseded_count": write_receipt.get("superseded_count"),
         "variant_id": write_receipt.get("variant_id"),
         "authority": write_receipt.get("authority"),
     } if receipt_proven else None

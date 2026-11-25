@@ -75,7 +75,8 @@ def persist_candidate_variant(
             key: written.get(key)
             for key in (
                 'created','reused_existing','before_variant_count',
-                'after_variant_count','variant_id','project_id','authority',
+                'after_variant_count','superseded_variant_ids','superseded_count',
+                'variant_id','project_id','authority',
             )
         }
     if variant is None:

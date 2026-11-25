@@ -341,13 +341,20 @@ class CreativeProjectStore:
                 return None
             variant_id=str(variant.get('id') or '')
             created=variant_id not in before_ids
+            after_ids={
+                str(item.get('id')) for item in (self._projects[project_id].get('variants') or [])
+                if isinstance(item,dict)
+            }
+            superseded_ids=sorted(before_ids-after_ids)
             return {
                 'variant':variant,
                 'project':deepcopy(self._projects[project_id]),
                 'created':created,
                 'reused_existing':not created,
                 'before_variant_count':len(before_ids),
-                'after_variant_count':len(self._projects[project_id].get('variants') or []),
+                'after_variant_count':len(after_ids),
+                'superseded_variant_ids':superseded_ids,
+                'superseded_count':len(superseded_ids),
                 'variant_id':variant_id,
                 'project_id':str(project_id),
                 'authority':'creative_project_store.add_variant_with_receipt',

@@ -69,6 +69,16 @@ def persist_candidate_variant(
         **metadata,
     )
     variant=written.get('variant') if receipt_writer and written else written
+    write_receipt = None
+    if receipt_writer and isinstance(written, dict):
+        write_receipt = {
+            key: written.get(key)
+            for key in (
+                'created','reused_existing','before_variant_count',
+                'after_variant_count','superseded_variant_ids','superseded_count',
+                'variant_id','project_id','authority',
+            )
+        }
     if variant is None:
         return {
             "ok": False,
@@ -81,10 +91,12 @@ def persist_candidate_variant(
     if not isinstance(project, dict):
         return {"ok": True,"persisted":True,"refresh_required":True,
                 "project":None,"variant":variant,
+                "write_receipt":write_receipt,
                 "preview_paths":geometry_preview_paths({"lines":geometries}),
                 "message": "候选已保存，项目状态需要刷新；请勿重复生成。"}
     return {"ok": True, "project": project, "variant": variant,
             "persisted":True,"refresh_required":False,
+            "write_receipt":write_receipt,
             "preview_paths": geometry_preview_paths({"lines":geometries})}
 
 

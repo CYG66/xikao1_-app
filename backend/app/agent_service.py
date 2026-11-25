@@ -147,6 +147,12 @@ from .integration_profile import (
     integration_profile_enabled,
     require_external_model_calls_permitted,
 )
+from .eval_request_guard import (
+    deny_eval_get,
+    fail_eval_request,
+    settle_eval_response,
+    validate_response_model,
+)
 from .cad_creation_intent import has_compound_primitives
 from .cad_creation_intent import local_creation_objects
 from .cad_construction_commit import (
@@ -622,6 +628,7 @@ class RobotAgentService:
             url = f"{base_url}/models/{self.model}"
             headers = {"Authorization": f"Bearer {self.api_key}"}
         request = urllib.request.Request(url, headers=headers, method="GET")
+        deny_eval_get(url)
         try:
             with urllib.request.urlopen(request, timeout=15) as response:
                 return {
@@ -1732,36 +1739,18 @@ class RobotAgentService:
                 "max_output_tokens": max_tokens,
                 "store": False,
             }
-            request = urllib.request.Request(
-                "https://api.openai.com/v1/responses",
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                method="POST",
-            )
-            request_lease = user_request_limiter.acquire(current_agent_user_id())
-            request_lease.__enter__()
             try:
-                with urllib.request.urlopen(
-                    request,
+                result = request_openai_responses_json(
+                    api_key=self.api_key,
+                    payload=payload,
                     timeout=self._env_timeout(
                         "XLINE_AGENT_MODEL_REQUEST_TIMEOUT_SECONDS",
                         45.0,
                         maximum=900.0,
                     ),
-                ) as response:
-                    result = json.loads(response.read().decode("utf-8"))
-            except (
-                urllib.error.HTTPError,
-                urllib.error.URLError,
-                TimeoutError,
-                socket.timeout,
-            ) as error:
+                )
+            except RuntimeError as error:
                 raise RuntimeError(f"OpenAI 复核请求失败：{error}") from error
-            finally:
-                request_lease.__exit__(None, None, None)
             record_structured_usage(result, "openai")
             return self._output_text(result)
         if self.mode == "anthropic":
@@ -2159,10 +2148,12 @@ class RobotAgentService:
             connection, response = self._unpack_deepseek_response(
                 self._deepseek_response(payload)
             )
+            reservation = getattr(response, "_p12_eval_reservation", None)
             if stream_structured and response.status < 400:
                 parts: list[str] = []
                 finish_reason = None
                 stream_usage = None
+                stream_model = None
                 while True:
                     self._deepseek_transport().set_socket_timeout(connection, deadline, response=response)
                     raw_line = response.readline()
@@ -2177,6 +2168,10 @@ class RobotAgentService:
                     if data_line == "[DONE]":
                         break
                     chunk = json.loads(data_line)
+                    chunk_model = chunk.get("model")
+                    if chunk_model:
+                        stream_model = str(chunk_model)
+                        validate_response_model(reservation, chunk)
                     if isinstance(chunk.get("usage"), dict):
                         stream_usage = chunk["usage"]
                     if chunk.get("error"):
@@ -2193,17 +2188,36 @@ class RobotAgentService:
                     finish_reason = choice.get("finish_reason") or finish_reason
                 if finish_reason is None:
                     raise RuntimeError("DeepSeek 构造响应提前中断，未收到完成标记。")
-                return {"choices": [{"finish_reason": finish_reason,
+                result = {"choices": [{"finish_reason": finish_reason,
                                      "message": {"content": "".join(parts)}}],
+                        "model": stream_model,
                         **({"usage": stream_usage} if stream_usage is not None else {})}
+                settle_eval_response(
+                    reservation, result, http_status=response.status
+                )
+                return result
             data = self._read_deepseek_body(response, connection, deadline)
             if response.status >= 400:
+                fail_eval_request(
+                    reservation,
+                    f"DeepSeek API 请求失败（{response.status}）：{data[:300]}",
+                )
                 raise RuntimeError(
                     f"DeepSeek API 请求失败（{response.status}）：{data[:300]}"
                 )
-            return json.loads(data)
+            result = json.loads(data)
+            settle_eval_response(
+                reservation, result, http_status=response.status
+            )
+            return result
         except (TimeoutError, socket.timeout) as error:
+            fail_eval_request(
+                locals().get("reservation"), "DeepSeek API 请求超时"
+            )
             raise RuntimeError("DeepSeek API 请求超时，请稍后重试。") from error
+        except BaseException as error:
+            fail_eval_request(locals().get("reservation"), error)
+            raise
         finally:
             self._close_deepseek_response(connection, response)
             request_lease.__exit__(None, None, None)

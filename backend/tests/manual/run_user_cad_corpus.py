@@ -729,10 +729,18 @@ if __name__=='__main__':
     source=Path(args.source).resolve() if args.source else SOURCE
     root=Path(args.output).resolve();root.mkdir(parents=True,exist_ok=True)
     os.environ['P12_EVAL_MODE']='1'
+    os.environ['P12_EVAL_FORMAL_HTTP']='1'
+    os.environ['P12_EXPECTED_PROVIDER']='deepseek'
+    os.environ['P12_EXPECTED_MODEL']='deepseek-flash'
+    os.environ['DEEPSEEK_CAD_PLANNING_MODEL']='deepseek-flash'
+    os.environ['DEEPSEEK_BASE_MODEL']='deepseek-flash'
+    os.environ['DEEPSEEK_ADVANCED_MODEL']='deepseek-flash'
     os.environ.setdefault('P12_EVAL_RUN_ID', root.name)
     budget_path=os.getenv('P12_EVAL_BUDGET_PATH','').strip()
     if not budget_path or not Path(budget_path).parent.exists():
         raise RuntimeError('evaluation_budget_unavailable: P12_EVAL_BUDGET_PATH is required')
+    if os.getenv('P12_EVAL_MOCK_PROVIDER') != '1' and os.getenv('P12_REAL_MODEL_AUTHORIZED') != '1':
+        raise RuntimeError('real_model_not_authorized: explicit P12_REAL_MODEL_AUTHORIZED=1 is required')
     raw=source.read_bytes();corpus=dict(re.findall(r'^\| (?:⭐)?([ABCD]\d+) \| ([^|]+) \|',raw.decode('utf-8'),re.M))
     wanted=set(args.cases or corpus);aliases,resolved_bases=resolve_corpus_setup(corpus,wanted)
     needed=wanted|set(resolved_bases.values())

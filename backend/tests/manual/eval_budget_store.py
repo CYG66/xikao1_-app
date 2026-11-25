@@ -1,9 +1,25 @@
-"""Persistent, fail-closed budget ledger for offline/live evaluation tools."""
+"""Persistent, fail-closed budget ledger for offline/live evaluation tools.
+
+P1.3 changes:
+- input reservations use a conservative upper bound, not ``bytes // 4``;
+- the frozen provider/model pair is checked before and after the request;
+- every actual send attempt, including failures, increments the request count;
+- a model mismatch or usage above the reservation stops the run permanently.
+"""
 from __future__ import annotations
 from contextlib import contextmanager
 from copy import deepcopy
-import json, os, tempfile, time, uuid
+import json, os, threading, time, uuid
 from pathlib import Path
+
+_LOCAL_LOCKS: dict[str, threading.RLock] = {}
+_LOCAL_LOCKS_GUARD = threading.Lock()
+
+
+def _local_lock_for(path: Path) -> threading.RLock:
+    key = str(path.resolve())
+    with _LOCAL_LOCKS_GUARD:
+        return _LOCAL_LOCKS.setdefault(key, threading.RLock())
 
 class EvaluationBudgetStop(RuntimeError): pass
 
@@ -14,9 +30,23 @@ LIMITS = {
     'cost_usd': float(os.getenv('P12_MAX_COST_USD','2')),
 }
 
+# Conservative authorized-model pricing.  Values are deliberately above the
+# published deepseek-flash rates used by the earlier runner; raising them can
+# only stop the run earlier, never hide spend.
+INPUT_PRICE_PER_M = float(os.getenv('P12_INPUT_PRICE_PER_M','0.60'))
+OUTPUT_PRICE_PER_M = float(os.getenv('P12_OUTPUT_PRICE_PER_M','2.40'))
+
 def _estimate_tokens(value):
-    raw=json.dumps(value,ensure_ascii=False,separators=(',',':')).encode('utf-8')
-    return max(1,(len(raw)+3)//4)
+    """Compatibility wrapper around the strict byte/protocol bound."""
+    try:
+        from app.eval_token_bound import input_token_upper_bound
+        return int(input_token_upper_bound(value)['upper_bound'])
+    except Exception:
+        raw=json.dumps(value,ensure_ascii=False).encode('utf-8')
+        return len(raw) + 32*(len(value.get('messages') or [])+len(value.get('tools') or [])+2) + 128
+
+def _price(inp, out):
+    return inp/1_000_000*INPUT_PRICE_PER_M + out/1_000_000*OUTPUT_PRICE_PER_M
 
 class BudgetLedger:
     def __init__(self,path):
@@ -27,66 +57,108 @@ class BudgetLedger:
         self.path=Path(path); self.lock_path=self.path.with_suffix(self.path.suffix+'.lock')
         self.path.parent.mkdir(parents=True,exist_ok=True)
         if not self.path.exists():
-            self._write({'schema':'p1.2-eval-budget.v1','limits':deepcopy(self.limits),
+            self._write({'schema':'p1.3-eval-budget.v1','limits':deepcopy(self.limits),
                          'used':{'requests':0,'input_tokens':0,'output_tokens':0,'cost_usd':0.0},
                          'stopped':False,'pending':None,'events':[]})
     @contextmanager
     def _locked(self):
-        # Lock the first byte, using the platform primitive available to the
-        # Windows evaluation workers; never mutate the ledger outside it.
-        f=open(self.lock_path,'a+b'); f.seek(0); f.write(b'0'); f.flush()
-        if os.name=='nt':
-            import msvcrt
-            f.seek(0); msvcrt.locking(f.fileno(),msvcrt.LK_LOCK,1)
-        else:
-            import fcntl; fcntl.flock(f.fileno(),fcntl.LOCK_EX)
-        try: yield
-        finally:
+        # The OS file lock is cross-process; the local RLock also serializes
+        # threads in this process (msvcrt.locking is not a thread mutex on
+        # every Windows build).  Both are required for one effective pending.
+        with _local_lock_for(self.path):
+            f=open(self.lock_path,'a+b'); f.seek(0); f.write(b'0'); f.flush()
             if os.name=='nt':
                 import msvcrt
-                f.seek(0); msvcrt.locking(f.fileno(),msvcrt.LK_UNLCK,1)
+                f.seek(0); msvcrt.locking(f.fileno(),msvcrt.LK_LOCK,1)
             else:
-                import fcntl; fcntl.flock(f.fileno(),fcntl.LOCK_UN)
-            f.close()
+                import fcntl; fcntl.flock(f.fileno(),fcntl.LOCK_EX)
+            try: yield
+            finally:
+                if os.name=='nt':
+                    import msvcrt
+                    f.seek(0); msvcrt.locking(f.fileno(),msvcrt.LK_UNLCK,1)
+                else:
+                    import fcntl; fcntl.flock(f.fileno(),fcntl.LOCK_UN)
+                f.close()
     def _read(self): return json.loads(self.path.read_text(encoding='utf-8'))
     def _write(self,d):
         tmp=self.path.with_suffix(self.path.suffix+'.tmp-'+uuid.uuid4().hex)
         tmp.write_text(json.dumps(d,ensure_ascii=False,indent=2),encoding='utf-8')
         os.replace(tmp,self.path)
-    def reserve(self, *, run_id, case_id, request_id, payload, max_output_tokens):
-        inp=_estimate_tokens(payload); out=int(max_output_tokens)
+    def reserve(self, *, run_id, case_id, request_id, payload, max_output_tokens,
+               expected_model=None, provider=None, target_url=None,
+               input_token_upper_bound=None):
+        inp=int(input_token_upper_bound) if input_token_upper_bound is not None else _estimate_tokens(payload)
+        out=int(max_output_tokens)
         if out<1: raise EvaluationBudgetStop('invalid_output_reservation')
+        if expected_model is not None and str((payload or {}).get('model') or '') != str(expected_model):
+            with self._locked():
+                d=self._read()
+                d['stopped']=True; d['pending']=None
+                d['events'].append({'event':'model_prescreen_rejected','request_id':request_id,
+                                    'expected_model':expected_model,'payload_model':(payload or {}).get('model')})
+                self._write(d)
+            raise EvaluationBudgetStop('model_not_authorized')
         with self._locked():
             d=self._read(); u=d['used']; l=d['limits']
             if d.get('stopped') or d.get('pending'): raise EvaluationBudgetStop('ledger_stopped_or_pending')
-            cost=(inp/1_000_000*0.30)+(out/1_000_000*1.20)
+            cost=_price(inp,out)
             if (u['requests']+1>l['requests'] or u['input_tokens']+inp>l['input_tokens']
                 or u['output_tokens']+out>l['output_tokens'] or u['cost_usd']+cost>l['cost_usd']):
-                d['stopped']=True; d['events'].append({'event':'reserve_rejected','request_id':request_id})
+                d['stopped']=True; d['events'].append({'event':'reserve_rejected','request_id':request_id,
+                    'requested':{'input_tokens':inp,'output_tokens':out,'cost_usd':cost},
+                    'used':deepcopy(u),'limits':deepcopy(l)})
                 self._write(d); raise EvaluationBudgetStop('budget_would_be_exceeded')
             reservation={'input_tokens':inp,'output_tokens':out,'cost_usd':cost}
             d['pending']={'run_id':run_id,'case_id':case_id,'request_id':request_id,'reservation':reservation,
+                          'expected_model':expected_model,'provider':provider,'target_url':target_url,
                           'started_at':time.time()}
             d['events'].append({'event':'reserved','run_id':run_id,'case_id':case_id,'request_id':request_id,
-                                'reservation':reservation})
+                                'reservation':reservation,'expected_model':expected_model,
+                                'provider':provider,'target_url':target_url})
             self._write(d); return reservation
-    def settle(self, *, response, http_status=None, error=None, retry=False):
+    def settle(self, *, response, http_status=None, error=None, retry=False,
+               expected_model=None, reserved_input_tokens=None, reserved_output_tokens=None):
         with self._locked():
             d=self._read(); p=d.get('pending')
             if not p: raise EvaluationBudgetStop('missing_pending_reservation')
+            reservation=p.get('reservation') or {}
+            expected=expected_model if expected_model is not None else p.get('expected_model')
             usage=(response or {}).get('usage') if isinstance(response,dict) else None
             model=(response or {}).get('model') if isinstance(response,dict) else None
             choices=(response or {}).get('choices') if isinstance(response,dict) else []
             finish=(choices[0].get('finish_reason') if choices and isinstance(choices[0],dict) else None)
+            # A send attempt always consumes a request slot, including failed
+            # or unverifiable attempts.  This prevents retry/failure bypasses.
+            d['used']['requests']+=1
+            if expected is not None and model is not None and str(model)!=str(expected):
+                d['stopped']=True
+                d['events'].append({'event':'model_mismatch_stop','request_id':p['request_id'],
+                                    'expected_model':expected,'actual_model':model,'usage':usage,
+                                    'http_status':http_status})
+                d['pending']=None
+                self._write(d)
+                raise EvaluationBudgetStop('model_not_authorized')
             if error is not None or not isinstance(usage,dict) or not model:
                 d['stopped']=True; d['pending']=None
                 d['events'].append({'event':'settle_unknown_stop','request_id':p['request_id'],'http_status':http_status,
                                     'error':str(error) if error else None,'usage':usage,'model':model,'finish_reason':finish})
                 self._write(d); raise EvaluationBudgetStop('unverifiable_usage_or_model')
             inp=int(usage.get('prompt_tokens',usage.get('input_tokens'))); out=int(usage.get('completion_tokens',usage.get('output_tokens')))
-            if inp<0 or out<0: raise EvaluationBudgetStop('invalid_usage')
-            cost=inp/1_000_000*0.30+out/1_000_000*1.20
-            d['used']['requests']+=1; d['used']['input_tokens']+=inp; d['used']['output_tokens']+=out; d['used']['cost_usd']+=cost
+            if inp<0 or out<0:
+                d['stopped']=True; d['pending']=None
+                d['events'].append({'event':'invalid_usage_stop','request_id':p['request_id'],'usage':usage})
+                self._write(d); raise EvaluationBudgetStop('invalid_usage')
+            reserved_in=int(reserved_input_tokens if reserved_input_tokens is not None else reservation.get('input_tokens',0))
+            reserved_out=int(reserved_output_tokens if reserved_output_tokens is not None else reservation.get('output_tokens',0))
+            cost=_price(inp,out)
+            d['used']['input_tokens']+=inp; d['used']['output_tokens']+=out; d['used']['cost_usd']+=cost
+            if inp>reserved_in or out>reserved_out:
+                d['stopped']=True; d['pending']=None
+                d['events'].append({'event':'usage_exceeded_reservation','request_id':p['request_id'],
+                                    'usage':usage,'reserved':{'input_tokens':reserved_in,'output_tokens':reserved_out},
+                                    'cost_usd':cost})
+                self._write(d); raise EvaluationBudgetStop('usage_exceeded_reservation')
             d['pending']=None; d['events'].append({'event':'settled','run_id':p['run_id'],'case_id':p['case_id'],
                 'request_id':p['request_id'],'http_status':http_status,'model':model,'finish_reason':finish,
                 'usage':usage,'cost_usd':cost,'retry':retry})

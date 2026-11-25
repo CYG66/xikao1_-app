@@ -53,6 +53,8 @@ if budget_path:
     budget=BudgetLedger(budget_path)
     if not evaluation_mode:
         raise SystemExit('evaluation_context_invalid')
+    from app.eval_request_guard import configure_eval_guard
+    configure_eval_guard(budget)
 from app.creative_projects import CreativeProjectStore
 from app.conversation_memory import ConversationMemoryStore
 
@@ -83,23 +85,28 @@ elif operation=="get":
 else:
     from app.agent_service import RobotAgentService
     service=RobotAgentService(restore_pending_actions=operation=="confirm")
-    if budget is not None:
+    if budget is not None and os.getenv('P12_EVAL_MOCK_PROVIDER') == '1':
+        from app.eval_token_bound import input_token_upper_bound
         original_request=service._deepseek_request
         def guarded_request(messages, tools, mode='base', **kwargs):
             request_id=str(uuid.uuid4()); max_tokens=int(kwargs.get('max_tokens_override') or service._deepseek_max_tokens(mode))
             payload={'model':kwargs.get('model_override') or service._model_for_agent_mode(mode),
                      'messages':messages,'tools':tools,'mode':mode,'max_tokens':max_tokens}
+            bound=input_token_upper_bound(payload)['upper_bound']
+            expected=os.getenv('P12_EXPECTED_MODEL','deepseek-flash')
             budget.reserve(run_id=os.getenv('P12_EVAL_RUN_ID',root.name),case_id=str(request.get('case_id') or root.name),
-                           request_id=request_id,payload=payload,max_output_tokens=max_tokens)
+                           request_id=request_id,payload=payload,max_output_tokens=max_tokens,
+                           expected_model=expected,provider='deepseek',target_url='https://api.deepseek.com/chat/completions',
+                           input_token_upper_bound=bound)
             started=__import__('time').time()
             try:
                 if os.getenv('P12_EVAL_MOCK_PROVIDER') == '1':
-                    response={'id':request_id,'model':'deepseek-flash','choices':[{'message':{'content':'{}'},'finish_reason':'stop'}],
-                              'usage':{'prompt_tokens':max(1, len(json.dumps(messages,ensure_ascii=False))//4),
-                                       'completion_tokens':10,'prompt_cache_hit_tokens':0}}
+                    response={'id':request_id,'model':expected,'choices':[{'message':{'content':'{}'},'finish_reason':'stop'}],
+                              'usage':{'prompt_tokens':min(max_tokens,bound),'completion_tokens':10,'prompt_cache_hit_tokens':0}}
                 else:
                     response=original_request(messages,tools,mode=mode,**kwargs)
-                budget.settle(response=response,http_status=200)
+                budget.settle(response=response,http_status=200,expected_model=expected,
+                              reserved_input_tokens=bound,reserved_output_tokens=max_tokens)
                 with (root/'model-usage.jsonl').open('a',encoding='utf-8') as f:
                     f.write(json.dumps({'run_id':os.getenv('P12_EVAL_RUN_ID',root.name),'case_id':request.get('case_id'),
                         'request_id':request_id,'model':response.get('model'),'usage':response.get('usage'),

@@ -14,11 +14,15 @@ or merge rules.  JSON syntax, system prompts, messages, tool schemas and
 serialization escaping are all inside that body.
 
 The chat protocol adds role separators and special tokens that are not present
-in the JSON body.  We reserve a fixed structural envelope of 32 bytes/tokens
-per message or tool plus 128 for the request wrapper.  That is deliberately
-charged as bytes (one unit per token), so it can only over-reserve.  If a
-target-model tokenizer is available offline it is also measured and reported,
-but it never replaces the byte bound.
+in the JSON body.  The DeepSeek W5 chat template (shipped in
+``tokenizer_config.json``) is applied verbatim to the message list and then
+tokenized with the target tokenizer.  Tool definitions are not rendered by that
+template, so their complete JSON is charged at one token per UTF-8 byte, which
+is a strict upper bound for any byte-level tokenizer.  A fixed 128-token
+wrapper covers the request-level special tokens and any provider-side wrapper
+that is not represented in the published template.  If the template cannot be
+applied (for example an unsupported assistant tool-call shape), the code falls
+back to the complete-body UTF-8 byte bound rather than guessing.
 """
 
 from __future__ import annotations
@@ -55,6 +59,63 @@ def protocol_envelope_units(payload: dict[str, Any]) -> int:
     message_count = len(messages) if isinstance(messages, list) else 0
     tool_count = len(tools) if isinstance(tools, list) else 0
     return 32 * (message_count + tool_count + 2) + 128
+
+
+def _deepseek_chat_text(payload: dict[str, Any]) -> str | None:
+    """Render the published DeepSeek W5 chat template for its messages.
+
+    Returns ``None`` when a message shape is outside the template's documented
+    branches, so callers can use the byte bound instead of an approximation.
+    """
+
+    messages = payload.get("messages")
+    if not isinstance(messages, list):
+        return None
+    system_parts: list[str] = []
+    for message in messages:
+        if isinstance(message, dict) and message.get("role") == "system":
+            content = message.get("content")
+            if content is not None and not isinstance(content, str):
+                return None
+            system_parts.append(str(content or ""))
+    text = "<｜begin▁of▁sentence｜>" + "\n\n".join(system_parts)
+    is_tool = False
+    for message in messages:
+        if not isinstance(message, dict):
+            return None
+        role = message.get("role")
+        content = message.get("content")
+        if role == "system":
+            continue
+        if content is not None and not isinstance(content, str):
+            return None
+        if role == "user":
+            if content is None:
+                return None
+            is_tool = False
+            text += "<｜User｜>" + str(content)
+        elif role == "assistant":
+            if content is None:
+                # Tool-call assistant turns use a nested branch.  The body
+                # contains the whole call; use the strict byte fallback rather
+                # than trying to reconstruct provider-specific formatting.
+                return None
+            if is_tool:
+                text += "<｜tool▁outputs▁end｜>" + str(content) + "<｜end▁of▁sentence｜>"
+                is_tool = False
+            else:
+                text += "<｜Assistant｜>" + str(content) + "<｜end▁of▁sentence｜>"
+        elif role == "tool":
+            if content is None:
+                return None
+            is_tool = True
+            text += "<｜tool▁outputs▁begin｜><｜tool▁output▁begin｜>" + str(content) + "<｜tool▁output▁end｜>"
+        else:
+            return None
+    if is_tool:
+        text += "<｜tool▁outputs▁end｜>"
+    return text
+
 
 
 def _tokenizer(path: Path) -> dict[str, Any] | None:
@@ -102,31 +163,31 @@ def _tokenizer_upper_bound(payload: dict[str, Any], body: bytes) -> dict[str, An
         return loaded
     tokenizer = loaded["tokenizer"]
     body_count = _count(tokenizer, body.decode("utf-8"))
-    # Segment-wise tokenization is an upper bound for the provider's chat
-    # template because BPE merges across segment boundaries can only reduce
-    # the total token count.  Roles, tool schemas, and scalar fields are
-    # counted separately; the structural envelope covers template framing.
-    segment_count = 0
-    messages = payload.get("messages")
-    if isinstance(messages, list):
-        for message in messages:
-            if isinstance(message, dict):
-                segment_count += _count(tokenizer, str(message.get("role") or ""))
-                segment_count += _count(tokenizer, str(message.get("content") or ""))
+    chat_text = _deepseek_chat_text(payload)
+    if chat_text is None:
+        return {
+            "path": loaded["path"],
+            "available": True,
+            "sha256": loaded["sha256"],
+            "body_count": body_count,
+            "count": None,
+            "fallback": "byte_bound_unsupported_message_shape",
+        }
+    chat_count = _count(tokenizer, chat_text)
     tools = payload.get("tools")
-    if isinstance(tools, list):
-        for tool in tools:
-            segment_count += _count(tokenizer, json.dumps(tool, ensure_ascii=False))
-    for key in ("model", "max_tokens", "max_output_tokens", "response_format", "thinking"):
-        if key in payload:
-            segment_count += _count(tokenizer, json.dumps(payload[key], ensure_ascii=False))
+    tool_payload = tools if isinstance(tools, list) else []
+    tools_compact = json.dumps(tool_payload, ensure_ascii=False).encode("utf-8")
+    tools_escaped = json.dumps(tool_payload).encode("utf-8")
+    tools_bytes = max(len(tools_compact), len(tools_escaped))
     return {
         "path": loaded["path"],
         "available": True,
         "sha256": loaded["sha256"],
         "body_count": body_count,
-        "segment_count": segment_count,
-        "count": max(body_count, segment_count),
+        "chat_count": chat_count,
+        "tool_count": len(tool_payload),
+        "tool_bytes_upper_bound": tools_bytes,
+        "count": chat_count + tools_bytes + 128,
     }
 
 def input_token_upper_bound(payload: dict[str, Any]) -> dict[str, Any]:
@@ -136,14 +197,14 @@ def input_token_upper_bound(payload: dict[str, Any]) -> dict[str, Any]:
     protocol_units = protocol_envelope_units(payload)
     tokenizer = _tokenizer_upper_bound(payload, body)
     tokenizer_units = (
-        int(tokenizer["count"]) if tokenizer and tokenizer.get("available") else 0
+        int(tokenizer["count"]) if tokenizer and tokenizer.get("available") and tokenizer.get("count") is not None else 0
     )
     if tokenizer_units:
-        upper = tokenizer_units + protocol_units
+        upper = tokenizer_units
         basis = (
-            "target-tokenizer segment/body upper bound + structural "
-            "chat-protocol envelope; BPE merges across segments cannot increase "
-            "the separately counted total"
+            "published DeepSeek W5 chat template tokenized with the target "
+            "tokenizer; tool JSON charged at one token per UTF-8 byte; fixed "
+            "128-token request wrapper"
         )
     else:
         upper = len(body) + protocol_units

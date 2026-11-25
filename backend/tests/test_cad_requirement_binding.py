@@ -26,7 +26,8 @@ def _trial(result: dict) -> dict:
 
 def _bind(source: str, coverage: dict, trial: dict, *, with_project: bool = True,
           project_created: bool = True, prior_variant_count: int | None = None,
-          candidate_write: bool | None = None) -> dict:
+          candidate_write: bool | None = None,
+          write_receipt: dict | None = None) -> dict:
     evidence = {
         "project_id": "project-1", "project_status": "ready_for_design",
         "project_exists": True, "created_in_this_commit": project_created,
@@ -36,6 +37,8 @@ def _bind(source: str, coverage: dict, trial: dict, *, with_project: bool = True
         evidence["prior_variant_count"] = prior_variant_count
     if candidate_write is not None:
         evidence["candidate_write_in_commit"] = candidate_write
+    if write_receipt is not None:
+        evidence["write_receipt"] = write_receipt
     return bind_construction_coverage(
         coverage,
         logical_objects=deepcopy(_trial_objects(trial)),
@@ -244,6 +247,12 @@ def test_existing_project_first_candidate_write_proves_new_drawing() -> None:
         project_created=False,
         prior_variant_count=0,
         candidate_write=True,
+        write_receipt={
+            "created": True, "reused_existing": False,
+            "before_variant_count": 0, "after_variant_count": 1,
+            "project_id": "project-1", "variant_id": "variant-1",
+            "authority": "creative_project_store.add_variant_with_receipt",
+        },
     )
     assert bound["state"] == "complete"
     operation = next(
@@ -252,6 +261,49 @@ def test_existing_project_first_candidate_write_proves_new_drawing() -> None:
     assert operation["status"] == "verified"
     assert operation["binding"]["project_created_in_commit"] is False
     assert operation["binding"]["drawing_write_proof"] == "first_candidate_write_in_commit"
+    assert operation["binding"]["write_receipt"]["created"] is True
+
+
+def test_candidate_write_claim_without_receipt_cannot_prove_new_drawing() -> None:
+    source = "新建图纸，画一个宽5米高3米的矩形"
+    bound = _bind(
+        source,
+        _coverage(_interpret(source)),
+        _trial(_interpret(source)),
+        project_created=False,
+        prior_variant_count=0,
+        candidate_write=True,
+    )
+    assert bound["state"] == "partial"
+    operation = next(
+        item for item in bound["clauses"] if item["requirement"] == "新建图纸"
+    )
+    assert operation["status"] == "unverified"
+    assert operation.get("binding") is None
+
+
+def test_reused_candidate_receipt_cannot_prove_new_drawing() -> None:
+    source = "新建图纸，画一个宽5米高3米的矩形"
+    bound = _bind(
+        source,
+        _coverage(_interpret(source)),
+        _trial(_interpret(source)),
+        project_created=False,
+        prior_variant_count=0,
+        candidate_write=True,
+        write_receipt={
+            "created": False, "reused_existing": True,
+            "before_variant_count": 0, "after_variant_count": 1,
+            "project_id": "project-1", "variant_id": "variant-1",
+            "authority": "creative_project_store.add_variant_with_receipt",
+        },
+    )
+    assert bound["state"] == "partial"
+    operation = next(
+        item for item in bound["clauses"] if item["requirement"] == "新建图纸"
+    )
+    assert operation["status"] == "unverified"
+    assert operation.get("binding") is None
 
 
 def test_existing_project_with_prior_candidate_cannot_prove_new_drawing() -> None:

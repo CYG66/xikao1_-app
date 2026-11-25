@@ -323,10 +323,14 @@ class CreativeProjectStore:
             return True
 
     def add_variant_with_receipt(self, *args, **kwargs):
-        """Return the committed project snapshot under the same store lock."""
+        """Return the committed project snapshot and an atomic write receipt."""
         with self._lock:
             project_id=args[0] if args else kwargs['project_id']
             before=deepcopy(self._projects.get(project_id))
+            before_ids={
+                str(item.get('id')) for item in ((before or {}).get('variants') or [])
+                if isinstance(item,dict)
+            }
             try:
                 variant=self.add_variant(*args, **kwargs)
             except Exception:
@@ -335,7 +339,56 @@ class CreativeProjectStore:
                 raise
             if variant is None:
                 return None
-            return {'variant':variant,'project':deepcopy(self._projects[project_id])}
+            variant_id=str(variant.get('id') or '')
+            created=variant_id not in before_ids
+            return {
+                'variant':variant,
+                'project':deepcopy(self._projects[project_id]),
+                'created':created,
+                'reused_existing':not created,
+                'before_variant_count':len(before_ids),
+                'after_variant_count':len(self._projects[project_id].get('variants') or []),
+                'variant_id':variant_id,
+                'project_id':str(project_id),
+                'authority':'creative_project_store.add_variant_with_receipt',
+            }
+
+    def update_variant_acceptance_with_receipt(
+        self,
+        project_id: str,
+        variant_id: str,
+        acceptance_summary: dict[str, Any] | None,
+        construction_record: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        """Attach post-write acceptance evidence without creating a new variant.
+
+        Only the acceptance evidence of an already-created variant may be
+        updated. Geometry, identity, previews and timestamps stay untouched.
+        """
+        with self._lock:
+            project=self._projects.get(project_id)
+            if project is None or project.get('deleted_at'):
+                return None
+            variant=next(
+                (item for item in project.get('variants') or []
+                 if str(item.get('id'))==str(variant_id)),
+                None,
+            )
+            if variant is None:
+                return None
+            if isinstance(acceptance_summary,dict):
+                variant['acceptance_summary']=deepcopy(acceptance_summary)
+            if isinstance(construction_record,dict):
+                variant['construction_record']=deepcopy(construction_record)
+            project['updated_at']=utc_now()
+            self._save()
+            return {
+                'variant':deepcopy(variant),
+                'project':deepcopy(project),
+                'updated':True,
+                'authority':'creative_project_store.update_variant_acceptance',
+            }
+
 
     def add_variant(self, project_id: str, name: str, geometries: list[dict[str, Any]],
                     rationale: str, assessment: dict[str, Any],

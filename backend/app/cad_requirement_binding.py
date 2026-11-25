@@ -206,6 +206,21 @@ def bind_construction_coverage(
     return result
 
 
+def unresolved_drawing_creation_requirements(coverage: dict[str, Any] | None) -> list[str]:
+    """Return create-drawing clauses that still need this commit's write proof."""
+    if not isinstance(coverage, dict):
+        return []
+    result: list[str] = []
+    for clause in coverage.get("clauses") or []:
+        if not isinstance(clause, dict) or clause.get("status") == "verified":
+            continue
+        requirement = str(clause.get("requirement") or "")
+        if _DRAWING_WORDS.search(requirement) and _OPERATION_WORDS.search(requirement) \
+                and _clause_shape_kind(requirement) is None:
+            result.append(str(clause.get("requirement_id") or ""))
+    return result
+
+
 def _operation_binding(requirement: str, project_evidence: dict[str, Any] | None) -> dict[str, Any] | None:
     if not _DRAWING_WORDS.search(requirement) or not _OPERATION_WORDS.search(requirement):
         return None
@@ -220,13 +235,31 @@ def _operation_binding(requirement: str, project_evidence: dict[str, Any] | None
     # the commit.  An existing project with prior candidates is a follow-up
     # candidate revision, not a "new drawing".
     created = evidence.get("created_in_this_commit") is True
-    first_write = (
+    write_receipt = evidence.get("write_receipt")
+    write_receipt = write_receipt if isinstance(write_receipt, dict) else {}
+    receipt_proven = bool(
+        write_receipt.get("created") is True
+        and write_receipt.get("reused_existing") is False
+        and write_receipt.get("authority")
+        and str(write_receipt.get("project_id") or "") == str(evidence.get("project_id") or "")
+        and str(write_receipt.get("variant_id") or "")
+    )
+    first_write = bool(
         evidence.get("candidate_write_in_commit") is True
         and evidence.get("prior_variant_count") == 0
+        and receipt_proven
     )
     if not created and not first_write:
         return None
     proof = "project_created_in_commit" if created else "first_candidate_write_in_commit"
+    receipt_evidence = {
+        "created": write_receipt.get("created"),
+        "reused_existing": write_receipt.get("reused_existing"),
+        "before_variant_count": write_receipt.get("before_variant_count"),
+        "after_variant_count": write_receipt.get("after_variant_count"),
+        "variant_id": write_receipt.get("variant_id"),
+        "authority": write_receipt.get("authority"),
+    } if receipt_proven else None
     return {
         "schema": "cad.requirement-binding.v1",
         "requirement_id": None,
@@ -237,6 +270,7 @@ def _operation_binding(requirement: str, project_evidence: dict[str, Any] | None
         "project_created_in_commit": created,
         "prior_variant_count": evidence.get("prior_variant_count"),
         "drawing_write_proof": proof,
+        "write_receipt": deepcopy(receipt_evidence),
         "project_store_authority": str(evidence.get("authority") or "creative_project_store"),
         "evidence": [{
             "requirement_id": None,
@@ -249,6 +283,7 @@ def _operation_binding(requirement: str, project_evidence: dict[str, Any] | None
                 "project_created_in_commit": created,
                 "prior_variant_count": evidence.get("prior_variant_count"),
                 "drawing_write_proof": proof,
+                "write_receipt": deepcopy(receipt_evidence),
                 "authority": str(evidence.get("authority") or "creative_project_store"),
             },
         }],

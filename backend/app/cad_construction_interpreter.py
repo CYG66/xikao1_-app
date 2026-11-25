@@ -2519,6 +2519,13 @@ def construction_acceptance_summary(
         1 for report in all_reports for check in report.get("checks", [])
         if isinstance(check, dict) and check.get("status") == "passed"
     )
+    # A completed requirement-coverage ledger is itself a measured evidence
+    # source.  Ordinary construction clauses are bound to their logical
+    # objects in ``cad_requirement_binding``; counting those verified clauses
+    # keeps the "zero independent checks can never pass" rule without
+    # manufacturing synthetic report checks (which carry a different schema).
+    if isinstance(coverage_evidence, dict):
+        verified_checks += int(coverage_evidence.get("verified_requirement_count") or 0)
     verified_checks += int(
         bool(composition_contract)
         and (composition_validation or {}).get("status") == "passed"

@@ -364,6 +364,8 @@ def test_metrics_excludes_unassessable_and_keeps_legacy_counts(tmp_path):
     ]
     metrics = summarize(tmp_path, reports)
     assert metrics["case_count"] == 3
+    assert metrics["planned_case_count"] == 3
+    assert metrics["failed_count"] == 2
     assert metrics["evaluable_count"] == 2
     assert metrics["unassessable_count"] == 1
     assert metrics["unassessable_cases"] == ["c"]
@@ -376,10 +378,17 @@ def test_metrics_excludes_unassessable_and_keeps_legacy_counts(tmp_path):
     new_metrics = summarize(tmp_path, reports, cohort="new")
     assert new_metrics["cohort"] == "new"
     assert new_metrics["new_execution_case_count"] == 3
+    assert new_metrics["new_execution_planned_count"] == 3
     assert new_metrics["new_execution_pass_count"] == 1
+    assert new_metrics["new_execution_failed_count"] == 2
     assert new_metrics["new_execution_e2e_rate"] == 1 / 3
     assert new_metrics["end_to_end_pass_rate"] == 1 / 3
     assert new_metrics["formal_delivery_rate"] == 0.5
+
+
+def test_product_acceptance_entry_uses_new_cohort_for_real_runs():
+    assert product_acceptance.metrics_cohort(False) == "new"
+    assert product_acceptance.metrics_cohort(True) == "historical"
 
 
 def _recording_variant(*, draft=False):

@@ -26,8 +26,17 @@ from tests.manual.cad_harness_acceptance import (
     evaluate_formal_delivery,
     evaluate_no_change_delivery,
 )
+from tests.manual.cad_acceptance_metrics import summarize
 
 SOURCE=Path(r'D:\xikao\文生文修CAD测试语料.md')
+NEW_EXECUTION_COHORT='new'
+
+
+def summarize_new_execution(root,reports):
+    """New corpus runs count every planned case, including failures."""
+    return summarize(root,reports,cohort=NEW_EXECUTION_COHORT)
+
+
 SUPPLEMENTS={**FOLLOWUPS,
  'B4':'逆时针旋转45度，以当前选中图形的中心为旋转中心。',
  'B8':'以坐标x=5米的竖直直线为镜像轴，镜像复制到右侧并保留原图，坐标单位米。',
@@ -779,6 +788,8 @@ if __name__=='__main__':
             if rid and rid in seen and seen[rid]!=case: contamination.append({'request_id':rid,'cases':[seen[rid],case]})
             elif rid: seen[rid]=case
     dump(root/'evidence-audit.json',{'unique_request_ids':len(seen),'contamination':contamination,'blocked':bool(contamination)})
+    metrics=summarize_new_execution(root,selected)
+    dump(root/'metrics.json',metrics)
     dump(root/'summary.json',{'source_sha256':hashlib.sha256(raw).hexdigest(),'reports':selected,'completed':len(selected),
         'evidence_audit':{'unique_request_ids':len(seen),'contamination':contamination,'blocked':bool(contamination)},
         'passed':sum(r.get('passed') is True and (not args.app or r.get('app')=='replay_passed') for r in selected),
@@ -786,4 +797,8 @@ if __name__=='__main__':
         'formal_delivery_pass':sum(r.get('formal_delivery_ok') is True for r in selected),
         'formal_evaluable':sum(r.get('formal_evaluable') is True for r in selected),
         'unassessable_cases':[r.get('case') for r in selected if r.get('formal_evaluable') is not True],
-        'requested':len(wanted)})
+        'requested':len(wanted),
+        'evaluation_cohort':'new','planned_case_count':metrics['planned_case_count'],
+        'success_count':metrics['new_execution_pass_count'],
+        'failed_count':metrics['new_execution_failed_count'],
+        'end_to_end_pass_rate':metrics['end_to_end_pass_rate']})

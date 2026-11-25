@@ -17,6 +17,11 @@ from tests.manual.cad_harness_acceptance import (
 )
 
 
+def metrics_cohort(verify_only):
+    """Historical replay must never reuse the new-execution denominator."""
+    return 'historical' if verify_only else 'new'
+
+
 def persisted_project(folder,project_id):
     path=Path(folder)/'projects.json'
     if not path.exists():return {}
@@ -272,6 +277,15 @@ if __name__=='__main__':
         reports.append(report)
         (root/case['id']/'acceptance.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
         print(json.dumps(report,ensure_ascii=False),flush=True)
-    (root/'summary.json').write_text(json.dumps({'corpus_sha256':hashlib.sha256(raw).hexdigest(),'reports':reports,'all_passed':all(r['passed'] for r in reports)},ensure_ascii=False,indent=2),encoding='utf-8')
-    (root/'metrics.json').write_text(json.dumps(summarize(root,reports),ensure_ascii=False,indent=2),encoding='utf-8')
+    metrics=summarize(root,reports,cohort=metrics_cohort(args.verify_only))
+    (root/'summary.json').write_text(json.dumps({
+        'corpus_sha256':hashlib.sha256(raw).hexdigest(),'reports':reports,
+        'all_passed':all(r['passed'] for r in reports),
+        'evaluation_cohort':metrics['cohort'],
+        'planned_case_count':metrics['planned_case_count'],
+        'success_count':metrics['new_execution_pass_count'],
+        'failed_count':metrics['failed_count'],
+        'end_to_end_pass_rate':metrics['end_to_end_pass_rate'],
+    },ensure_ascii=False,indent=2),encoding='utf-8')
+    (root/'metrics.json').write_text(json.dumps(metrics,ensure_ascii=False,indent=2),encoding='utf-8')
     sys.exit(0 if reports and all(r['passed'] for r in reports) else 1)

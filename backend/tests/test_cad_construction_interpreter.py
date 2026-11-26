@@ -568,6 +568,52 @@ def test_parametric_free_outline_fits_size_without_replacing_formula_or_source()
     assert normalize_explicit_outline_size_once(payload,'闭合轮廓宽度5米，高度5米，x=2*cos(t)，y=sin(t)')==(payload,[])
 
 
+def test_two_source_dimensions_override_aspect_for_non_radial_parametric_outline():
+    from copy import deepcopy
+    from app.cad_construction import ConstructionPlanError, execute_construction_plan
+    heart = {'plan': {'units': 'm', 'steps': [{
+        'op': 'add_parametric_curve', 'step_id': 'heart', 'output_ref': 'heart_outline',
+        'semantic': {'label': '爱心轮廓'},
+        'x_expression': '2+2*(16*sin(t)**3)/16',
+        'y_expression': '3+(13*cos(t)-5*cos(2*t)-2*cos(3*t)-cos(4*t))/16',
+        't_start': '0', 't_end': '2*pi', 'closed': True, 'max_sampling_error': .001,
+    }]}}
+    original = deepcopy(heart)
+    repaired, evidence = normalize_explicit_outline_size_once(
+        heart, '生成一个左右对称、平滑闭合的爱心，中心在(2,3)，宽4米高4米')
+    assert evidence and heart == original
+    layout = repaired['plan']['free_outline_layout'][0]
+    assert layout['preserve_shape'] is False
+    assert evidence[0]['shape_policy'] == 'explicit_size_priority'
+    result = execute_construction_plan(repaired['plan'])
+    from app.cad_construction import construction_geometry_bounds
+    bounds = construction_geometry_bounds(result['geometries'])
+    assert abs(bounds['max_x'] - bounds['min_x'] - 4000) < 1
+    assert abs(bounds['max_y'] - bounds['min_y'] - 4000) < 1
+    # A source that explicitly forbids distortion still wins over the size fit.
+    preserved, _ = normalize_explicit_outline_size_once(
+        heart, '画一个爱心，宽4米高4米，保持形状，不要拉伸')
+    assert preserved['plan']['free_outline_layout'][0]['preserve_shape'] is True
+    with pytest.raises(ConstructionPlanError) as caught:
+        execute_construction_plan(preserved['plan'])
+    assert caught.value.code == 'shape_constraint_conflict'
+
+
+def test_radial_parametric_outline_keeps_uniform_shape_for_explicit_size():
+    plan = {'units': 'm', 'steps': [{
+        'op': 'add_parametric_curve', 'step_id': 'flower', 'output_ref': 'flower',
+        'semantic': {'label': '五瓣花'}, 'x_expression': '(1+0.5*cos(5*t))*cos(t)',
+        'y_expression': '(1+0.5*cos(5*t))*sin(t)', 't_start': '0', 't_end': '2*pi',
+        'closed': True, 'max_sampling_error': .001,
+    }], 'assertions': [{'kind': 'radial_pattern', 'assertion_id': 'petals',
+                       'target_ref': 'flower', 'count': 5}]}
+    repaired, evidence = normalize_explicit_outline_size_once(
+        {'plan': plan}, '画五瓣花轮廓，宽度4米，高度2米')
+    assert evidence
+    assert repaired['plan']['free_outline_layout'][0]['preserve_shape'] is True
+    assert evidence[0]['shape_policy'] == 'preserve_shape'
+
+
 def test_free_layout_is_applied_after_parametric_size_normalization():
     source='画一朵花的轮廓，5片花瓣，闭合曲线，宽度5米，高度5米'
     plan={'units':'m','steps':[{'op':'add_parametric_curve','step_id':'outline','output_ref':'outline',

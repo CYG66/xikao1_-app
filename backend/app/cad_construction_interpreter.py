@@ -12,6 +12,7 @@ import math
 import re
 
 from .cad_plan_component_repair import ComponentRepairError
+from .cad_residual_repair import build_residual_vector
 from .eval_request_guard import is_eval_fatal
 
 
@@ -1334,6 +1335,10 @@ def interpret_construction_request(
             "plan": plan.model_dump(mode="json"),
             "confidence": confidence,
             "assumptions": deepcopy(assumptions),
+            "residual_vector": _safe_residual_vector(
+                construction_error=exc.as_dict(),
+                plan=plan.model_dump(mode="json"),
+            ),
         }
     except Exception as exc:
         if is_eval_fatal(exc):
@@ -1447,6 +1452,11 @@ def interpret_construction_request(
             'structure_validation': structure_validation,
             'composition_contract': composition_contract,
             'composition_validation': composition_validation,
+            'residual_vector': _safe_residual_vector(
+                construction_error=repair_error,
+                source_acceptance=source_acceptance,
+                plan=plan.model_dump(mode='json'),
+            ),
         }
 
     return {
@@ -1472,6 +1482,10 @@ def interpret_construction_request(
         "source_acceptance": source_acceptance,
         "acceptance_summary": acceptance_summary,
         "trial_result": result,
+        "residual_vector": _safe_residual_vector(
+            source_acceptance=source_acceptance,
+            plan=plan.model_dump(mode="json"),
+        ),
         "template_specifications": template_profile(plan),
         **({"project_requirements": parameterize_design(text)} if template_plan else {}),
     }
@@ -3325,6 +3339,16 @@ def bind_explicit_outline_center(payload, text):
     return payload, [{'kind':'bind_explicit_outline_center','target_ref':step['output_ref'],'center':item['center']}]
 
 
+def _plan_declares_radial_pattern(plan, target_ref):
+    """Return True when the plan declares radial repetition for this target."""
+    for assertion in plan.get("assertions") or []:
+        if not isinstance(assertion, dict):
+            continue
+        if assertion.get("kind") == "radial_pattern" and assertion.get("target_ref") == target_ref:
+            return True
+    return False
+
+
 def normalize_explicit_outline_size_once(
     payload: dict[str, Any], source_text: str,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -3405,6 +3429,7 @@ def normalize_explicit_outline_size_once(
     inherent_shape = _step_has_inherent_shape(step, source_text)
     allow_deformation = _source_allows_outline_deformation(source_text)
     source_preserve = _source_requires_shape_preservation(source_text)
+    shape_policy = "preserve_shape"
     if (inherent_shape or step["op"] == "add_parametric_curve"
             or (step["op"] == "add_polyline" and source_preserve)):
         # A sampled curve or declared intrinsic outline is fitted once,
@@ -3414,6 +3439,17 @@ def normalize_explicit_outline_size_once(
         layout = plan.setdefault('free_outline_layout', [])
         layout[:] = [item for item in layout if item.get('target_ref') != step['output_ref']]
         preserve = not allow_deformation
+        if (preserve and not source_preserve and not _plan_declares_radial_pattern(plan, step['output_ref'])):
+            # Two independent dimensions stated by the source are authoritative
+            # for a free outline that has no radial/rotational identity.  When
+            # their ratio differs from the intrinsic ratio, honouring both is
+            # only possible with an independent fit; keep the request and record
+            # the policy instead of failing the whole plan.
+            intrinsic_ratio = width / height
+            requested_ratio = (sizes["width"] * 1000 / unit) / (sizes["height"] * 1000 / unit)
+            if abs(intrinsic_ratio - requested_ratio) > 0.01 * max(intrinsic_ratio, requested_ratio):
+                preserve = False
+                shape_policy = "explicit_size_priority"
         layout.append({'target_ref': step['output_ref'],
                        'width': sizes['width'] * 1000 / unit,
                        'height': sizes['height'] * 1000 / unit,
@@ -3435,6 +3471,7 @@ def normalize_explicit_outline_size_once(
                        "tolerance": max(1e-6, 0.001 * 1000 / unit)})
     return repaired, [{"kind": "normalize_explicit_outline_size", "target_ref": target,
                        "from": {"width": width, "height": height}, "to_metres": sizes,
+                       "shape_policy": shape_policy,
                        "scale_factors": list(factors)}]
 
 
@@ -4488,3 +4525,19 @@ def _failure(
         "parser": parser,
         "error": {"code": code, "message": message},
     }
+
+
+def _safe_residual_vector(
+    *, construction_error: dict[str, Any] | None = None,
+    source_acceptance: dict[str, Any] | None = None,
+    plan: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Build measured residual evidence without turning it into a new failure."""
+    try:
+        return build_residual_vector(
+            construction_error=construction_error,
+            source_acceptance=source_acceptance,
+            plan=plan,
+        )
+    except Exception:
+        return None

@@ -6664,6 +6664,13 @@ class RobotAgentService:
                 )
                 if (interpretation['construction_error'].get('details') or {}).get('local_repair_scope'):
                     feedback += "\n本次是受保护的局部修复：仅可修改editable_fields_by_ref列出的坐标字段。必须保留全部步骤及其顺序、标识、语义和全局参数；不得增删步骤、重命名或改变其他部件。修复后会逐项比较并校验受保护几何。"
+                if isinstance(interpretation.get('residual_vector'), dict):
+                    from .cad_residual_repair import feedback_text
+                    feedback = feedback_text(
+                        feedback,
+                        interpretation['residual_vector'],
+                        failed_attempt.get('plan') or failed_attempt.get('rejected_plan'),
+                    )
                 expected_feature=(repair_details.get('required_features')
                     or {k:v for k,v in repair_details.items() if str(k).startswith('expected')})
                 measured_feature=(repair_details.get('measured_features')

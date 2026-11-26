@@ -223,8 +223,10 @@ def test_bound_single_object_uses_backend_resolved_refs():
     geoms=[_heart(1)]
     logical=[{'object_id':'heart-1','geometry_refs':[1],'label':'爱心','confidence':1.0}]
     res=verify_semantic_requirements(HEART_TEXT,geoms,logical_objects=logical)
-    assert res['review_required'] is True
-    assert res['status']!='passed'
+    assert res['review_required'] is False
+    assert res['status']=='passed'
+    assert res['checks'][-1]['name']=='heart_outline_requirements_complete'
+    assert res['checks'][-1]['status']=='passed'
     assert res['binding_source']=='logical_objects.geometry_refs'
     assert res['binding_auxiliary'] is False
     entry=res['object_acceptance'][0]
@@ -330,8 +332,8 @@ def test_missing_logical_objects_falls_back_to_auxiliary_components_only():
     res=verify_semantic_requirements(HEART_TEXT,[_heart(1)])
     assert res['binding_source']=='connected_components'
     assert res['binding_auxiliary'] is True
-    assert res['review_required'] is True
-    assert res['status']!='passed'
+    assert res['review_required'] is False
+    assert res['status']=='passed'
     validation=validate_target_binding([_heart(1)])
     assert validation['auxiliary'] is True
     assert validation['targets'][0]['target_ref']['binding_source']=='connected_components'

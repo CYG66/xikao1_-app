@@ -411,6 +411,15 @@ _SEMANTIC_COVERAGE_SOURCE_TERMS = {
         {"role": "shape_identity", "pattern": r"正\s*\d+\s*边形",
          "check": None},
     ],
+    "heart_outline_measured_features": [
+        # One combined claim covers the whole heart clause: topology, source-
+        # required mirror symmetry and source-required closure are all measured
+        # on the same bound outline.  Splitting them would leave residual text
+        # and keep the clause partial even when every property passed.
+        {"role": "shape_identity",
+         "pattern": r"(?:生成|画|绘制|制作|创建|设计)?[^，,；;。\n]*爱心",
+         "check": "heart_outline_requirements_complete"},
+    ],
 }
 
 _ADMIN_SEGMENT = re.compile(
@@ -901,6 +910,51 @@ def _unknown_requirements(source_acceptance):
     return found
 
 
+def _final_claims(report, segments, contract):
+    """Expose final-source measurements that are not contract scalar facts.
+
+    A centered position is a real source requirement but the scalar contract
+    deliberately stores only width/height/radius.  The final source verifier
+    already measures the centre; this bridge attaches that passed measurement
+    to the exact clause that asked for it.  Scalar facts are skipped because
+    they are consumed by the contract-fact loop, not duplicated here.
+    """
+    if not isinstance(report, dict) or report.get("status") not in {"passed", "partial"}:
+        return []
+    fact_ids = {str(item.get("fact_id")) for item in contract.get("facts") or []
+                if isinstance(item, dict)}
+    claims = []
+    for check in report.get("checks") or []:
+        if not isinstance(check, dict) or check.get("status") != "passed":
+            continue
+        source_id = str(check.get("source_requirement_id") or "")
+        if source_id in fact_ids:
+            continue
+        raw = check.get("source_evidence")
+        evidence = raw.get("text") if isinstance(raw, dict) else raw
+        if not isinstance(evidence, str) or not evidence.strip():
+            continue
+        for segment in segments:
+            if evidence not in segment["text"]:
+                continue
+            residual = _claim_residual(segment["text"], evidence)
+            claim = {
+                "requirement": segment["text"],
+                "source_evidence": evidence,
+                "source_index": segment["source_index"],
+                "role": check.get("field") or "final_source_measurement",
+                "verifier": "verify_final_source_contract",
+                "status": "verified" if not residual else "partial",
+                "check": deepcopy(check),
+                "measurement": deepcopy(check),
+            }
+            if residual:
+                claim["reason"] = "最终来源测量未覆盖剩余原文：" + residual
+            claims.append(claim)
+            break
+    return claims
+
+
 def build_requirement_coverage_evidence(text, source_acceptance):
     """Build the source-clause to verifier/measurement coverage ledger."""
     from .cad_requirement_contract import requirement_contract
@@ -944,7 +998,11 @@ def build_requirement_coverage_evidence(text, source_acceptance):
     scope_claims = _scope_claims(source_acceptance, segments)
     generic_claims = _generic_claims(source_acceptance, segments)
     top_level_claims = _top_level_check_claims(source_acceptance, segments)
-    claims = semantic_claims + path_claims + scope_claims + generic_claims + top_level_claims
+    final_claims = _final_claims(
+        source_acceptance.get("final_source_acceptance") or {}, segments, contract,
+    )
+    claims = (semantic_claims + path_claims + scope_claims + generic_claims
+              + top_level_claims + final_claims)
 
     final_report = source_acceptance.get("final_source_acceptance") or {}
     final_checks = final_report.get("checks") or []

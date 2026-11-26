@@ -937,6 +937,8 @@ def resume_agent_run(run_id: str, client_id: str | None = None) -> dict[str, obj
         current = agent_runs.get(run_id) or resumed
         return {"ok": result.get("ok") is True, "message": f"AI 请求已从 {resumed_step} 步骤继续", "run": current, "result": result}
     except Exception as error:
+        if is_eval_fatal(error):
+            raise
         failure = {"category": "resume_failure", "message": str(error), "retryable": True}
         agent_runs.transition(run_id, "failed", "从检查点恢复失败", failure=failure)
         return {"ok": False, "message": "从检查点恢复失败", "run": agent_runs.get(run_id)}

@@ -6074,7 +6074,9 @@ class RobotAgentService:
                     raise
                 failure_reason = "provider_request_failed"
                 break
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as error:
+                if is_eval_fatal(error):
+                    raise
                 failure_reason = "invalid_schema_or_grounding"
                 interpreted = None
             if interpreted is not None or attempt == 1:

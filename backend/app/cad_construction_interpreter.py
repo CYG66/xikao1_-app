@@ -370,7 +370,7 @@ def interpret_sketch_graph_candidates(
                         })
         interpreted = StructuredSketchGraphInterpretation.model_validate(payload)
     except Exception as exc:
-        if is_eval_fatal(exc):
+        if is_eval_fatal(exc) or getattr(exc, "repair_budget_exhausted", False):
             raise
         return {
             **_failure("invalid_model_output", str(exc), "structured_model"),
@@ -878,7 +878,7 @@ def interpret_construction_request(
                 **({"rejected_plan": deepcopy(previous_plan)} if isinstance(previous_plan, dict) else {}),
             }
         except Exception as exc:
-            if is_eval_fatal(exc):
+            if is_eval_fatal(exc) or getattr(exc, "repair_budget_exhausted", False):
                 raise
             rejected_plan = payload.get("plan") if isinstance(payload, dict) else None
             reference_diagnostic = None

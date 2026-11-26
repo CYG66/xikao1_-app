@@ -557,13 +557,13 @@ def test_parametric_free_outline_fits_size_without_replacing_formula_or_source()
         'output_ref':'boundary','semantic':{'label':'周期轮廓'},'x_expression':'2*cos(t)',
         'y_expression':'sin(t)','t_start':'0','t_end':'2*pi','closed':True,'max_sampling_error':.001}]}}
     original=deepcopy(payload)
-    repaired,evidence=normalize_explicit_outline_size_once(payload,'绘制一个平滑闭合轮廓，宽度5米，高度5米')
+    repaired,evidence=normalize_explicit_outline_size_once(payload,'绘制一个平滑闭合轮廓，宽度4米，高度2米')
     assert evidence and payload==original
     step=repaired['plan']['steps'][0]
     assert '2*cos(t)' in step['x_expression'] and 'sin(t)' in step['y_expression']
     bounds=construction_geometry_bounds(execute_construction_plan(repaired['plan'])['geometries'])
-    assert abs(bounds['max_x']-bounds['min_x']-5000)<1
-    assert abs(bounds['max_y']-bounds['min_y']-5000)<1
+    assert abs(bounds['max_x']-bounds['min_x']-4000)<1
+    assert abs(bounds['max_y']-bounds['min_y']-2000)<1
     assert normalize_explicit_outline_size_once(payload,'轮廓宽度5米，高度5米，半径2米')==(payload,[])
     assert normalize_explicit_outline_size_once(payload,'闭合轮廓宽度5米，高度5米，x=2*cos(t)，y=sin(t)')==(payload,[])
 

@@ -1,28 +1,25 @@
-"""Conservative input-token upper bound for evaluation requests.
+"""Two-layer input-token accounting for evaluation requests.
 
-The evaluation ledger must never reserve less than the provider can bill.  The
-old ``len(json_bytes) // 4`` heuristic is removed: it is an estimate, not a
-bound.  This module uses a strict byte bound for the complete serialized
-request body plus a small, structurally derived protocol envelope.
+Layer A (hard admission cap) must be a bound, not an estimate: it decides
+whether a request may be sent.  Layer B (tokenizer estimate) is used only for
+analysis and budget utilisation, never to admit a request.  Provider ``usage``
+is the settlement authority.
 
-Why the byte bound is valid
----------------------------
-Every token produced by a byte-level BPE tokenizer consumes at least one UTF-8
-byte.  Therefore ``len(body.encode("utf-8"))`` is an upper bound on the number
-of tokens the tokenizer can emit for the body itself, regardless of vocabulary
-or merge rules.  JSON syntax, system prompts, messages, tool schemas and
-serialization escaping are all inside that body.
+Why the hard byte bound is valid
+--------------------------------
+Every token emitted by a byte-level tokenizer consumes at least one UTF-8 byte.
+Therefore the UTF-8 byte length of the exact prompt text is an upper bound on
+the number of prompt tokens, independent of vocabulary and merge rules.  The
+hard bound here starts from the complete serialized request body (which already
+contains every message, tool definition, model parameter and serialization
+escape), then adds only bytes that the published chat template introduces
+around that content.  The template skeleton is rendered with the real template
+and empty message contents, so its marker bytes are counted structurally rather
+than by an unexplained constant.  Tools are charged using their pretty-printed
+JSON when that is larger than the compact body form.
 
-The chat protocol adds role separators and special tokens that are not present
-in the JSON body.  The DeepSeek W5 chat template (shipped in
-``tokenizer_config.json``) is applied verbatim to the message list and then
-tokenized with the target tokenizer.  Tool definitions are not rendered by that
-template, so their complete JSON is charged at one token per UTF-8 byte, which
-is a strict upper bound for any byte-level tokenizer.  A fixed 128-token
-wrapper covers the request-level special tokens and any provider-side wrapper
-that is not represented in the published template.  If the template cannot be
-applied (for example an unsupported assistant tool-call shape), the code falls
-back to the complete-body UTF-8 byte bound rather than guessing.
+This is deliberately conservative.  If the hard bound does not fit the ledger,
+the case is not executed; the bound is never relaxed to make a case run.
 """
 
 from __future__ import annotations
@@ -51,14 +48,73 @@ def serialized_request_body(payload: dict[str, Any]) -> bytes:
     return compact if len(compact) >= len(escaped) else escaped
 
 
-def protocol_envelope_units(payload: dict[str, Any]) -> int:
-    """Structural allowance for chat-template special tokens and framing."""
+def _protocol_marker_bytes(payload: dict[str, Any]) -> int:
+    """Count published-template marker bytes without counting message content.
+
+    The skeleton is produced by the same renderer used for real messages, with
+    every content replaced by the empty string.  Its byte length is therefore
+    the structural framing overhead, not an empirical token allowance.
+    """
 
     messages = payload.get("messages")
+    if not isinstance(messages, list):
+        return 0
+    skeleton_messages: list[dict[str, Any]] = []
+    for message in messages:
+        if not isinstance(message, dict):
+            return 0
+        role = message.get("role")
+        content = message.get("content")
+        skeleton_messages.append(
+            {
+                "role": role,
+                "content": (
+                    None
+                    if content is None and message.get("tool_calls")
+                    else ""
+                ),
+                "tool_calls": message.get("tool_calls"),
+            }
+        )
+    skeleton = _deepseek_chat_text({"messages": skeleton_messages})
+    if skeleton is not None:
+        marker_bytes = len(skeleton.encode("utf-8"))
+    else:
+        # Fallback: sum every marker that the published template can emit.
+        markers = [
+            "<｜begin▁of▁sentence｜>",
+            "<｜User｜>",
+            "<｜Assistant｜>",
+            "<｜end▁of▁sentence｜>",
+            "<｜tool▁outputs▁begin｜>",
+            "<｜tool▁outputs▁end｜>",
+            "<｜tool▁output▁begin｜>",
+            "<｜tool▁output▁end｜>",
+        ]
+        marker_bytes = sum(len(marker.encode("utf-8")) for marker in markers)
     tools = payload.get("tools")
-    message_count = len(messages) if isinstance(messages, list) else 0
-    tool_count = len(tools) if isinstance(tools, list) else 0
-    return 32 * (message_count + tool_count + 2) + 128
+    if isinstance(tools, list) and tools:
+        marker_bytes += len("<｜tools▁begin｜><｜tools▁end｜>".encode("utf-8"))
+    return marker_bytes
+
+
+def protocol_envelope_units(payload: dict[str, Any]) -> int:
+    """Compatibility name for the structural protocol marker byte count."""
+
+    return _protocol_marker_bytes(payload)
+
+
+def _extra_pretty_tool_bytes(payload: dict[str, Any]) -> int:
+    """Additional bytes if the provider pretty-prints the tool definitions."""
+
+    tools = payload.get("tools")
+    if not isinstance(tools, list) or not tools:
+        return 0
+    compact = json.dumps(tools, ensure_ascii=False, separators=(",", ":")).encode(
+        "utf-8"
+    )
+    pretty = json.dumps(tools, ensure_ascii=False, indent=2).encode("utf-8")
+    return max(0, len(pretty) - len(compact))
 
 
 def _deepseek_chat_text(payload: dict[str, Any]) -> str | None:
@@ -154,7 +210,7 @@ def _count(tokenizer: Any, text: str) -> int:
     return len(tokenizer.encode(text).ids)
 
 
-def _tokenizer_upper_bound(payload: dict[str, Any], body: bytes) -> dict[str, Any] | None:
+def _tokenizer_evidence(payload: dict[str, Any], body: bytes) -> dict[str, Any] | None:
     path_text = os.getenv("P12_TOKENIZER_JSON", "").strip()
     if not path_text:
         return None
@@ -187,44 +243,77 @@ def _tokenizer_upper_bound(payload: dict[str, Any], body: bytes) -> dict[str, An
         "chat_count": chat_count,
         "tool_count": len(tool_payload),
         "tool_bytes_upper_bound": tools_bytes,
-        "count": chat_count + tools_bytes + 128,
+        "count": chat_count + tools_bytes,
     }
 
-def input_token_upper_bound(payload: dict[str, Any]) -> dict[str, Any]:
-    """Return a conservative bound and the evidence used to derive it."""
 
+def _hard_bound_details(payload: dict[str, Any]) -> dict[str, Any]:
     body = serialized_request_body(payload)
-    protocol_units = protocol_envelope_units(payload)
-    tokenizer = _tokenizer_upper_bound(payload, body)
-    tokenizer_units = (
-        int(tokenizer["count"]) if tokenizer and tokenizer.get("available") and tokenizer.get("count") is not None else 0
+    protocol_bytes = _protocol_marker_bytes(payload)
+    extra_tools = _extra_pretty_tool_bytes(payload)
+    byte_hard = len(body) + protocol_bytes + extra_tools
+    tokenizer = _tokenizer_evidence(payload, body)
+    estimate = (
+        int(tokenizer["count"])
+        if tokenizer
+        and tokenizer.get("available")
+        and tokenizer.get("count") is not None
+        else None
     )
-    if tokenizer_units:
-        upper = tokenizer_units
-        basis = (
-            "published DeepSeek W5 chat template tokenized with the target "
-            "tokenizer; tool JSON charged at one token per UTF-8 byte; fixed "
-            "128-token request wrapper"
-        )
-    else:
-        upper = len(body) + protocol_units
-        basis = (
-            "utf8-byte upper bound for the complete serialized body + "
-            "structural chat-protocol envelope; tokenizer count, when present, "
-            "is evidence only and never lowers the bound"
-        )
+    # The tokenizer estimate is evidence, never the admission authority.  Max
+    # keeps the admission bound valid even if a template branch makes the
+    # published-tokenizer count exceed the byte calculation.
+    hard = max(byte_hard, int(estimate or 0))
     return {
-        "schema": "p1.3-input-token-upper-bound.v1",
-        "upper_bound": int(upper),
+        "body": body,
         "body_bytes": len(body),
-        "body_sha256": hashlib.sha256(body).hexdigest(),
-        "protocol_envelope_units": int(protocol_units),
+        "protocol_bytes": protocol_bytes,
+        "extra_pretty_tool_bytes": extra_tools,
+        "byte_hard": byte_hard,
+        "estimate": estimate,
+        "hard": hard,
+        "tokenizer": tokenizer,
+    }
+
+
+def tokenizer_input_token_estimate(payload: dict[str, Any]) -> int:
+    """Layer B: fine-grained tokenizer estimate for analysis and Mock runs.
+
+    This value must never be used to admit a real evaluation request.
+    """
+
+    details = _hard_bound_details(payload)
+    if details["estimate"] is not None:
+        return int(details["estimate"])
+    return int(details["byte_hard"])
+
+
+def input_token_upper_bound(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return the Layer-A hard bound and the Layer-B tokenizer estimate."""
+
+    details = _hard_bound_details(payload)
+    return {
+        "schema": "p1.3-input-token-upper-bound.v2",
+        "upper_bound": int(details["hard"]),
+        "hard_upper_bound": int(details["hard"]),
+        "estimate_upper_bound": (
+            int(details["estimate"]) if details["estimate"] is not None else None
+        ),
+        "body_bytes": int(details["body_bytes"]),
+        "body_sha256": hashlib.sha256(details["body"]).hexdigest(),
+        "protocol_envelope_units": int(details["protocol_bytes"]),
+        "extra_pretty_tool_bytes": int(details["extra_pretty_tool_bytes"]),
         "message_count": len(payload.get("messages") or [])
         if isinstance(payload.get("messages"), list)
         else 0,
         "tool_count": len(payload.get("tools") or [])
         if isinstance(payload.get("tools"), list)
         else 0,
-        "tokenizer": tokenizer,
-        "basis": basis,
+        "tokenizer": details["tokenizer"],
+        "basis": (
+            "utf8-byte upper bound for the complete request body + published-"
+            "template marker bytes + pretty-tool serialization delta; every "
+            "token consumes at least one byte. Layer B tokenizer count is "
+            "analysis-only."
+        ),
     }

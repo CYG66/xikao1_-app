@@ -8,6 +8,7 @@ from copy import deepcopy
 from .agent_response_builder import normalize_acceptance_response
 from fastapi.responses import StreamingResponse
 from .agent_service import robot_agent, set_request_execution_context, reset_request_execution_context
+from .eval_request_guard import is_eval_fatal
 from .agent_attachments import agent_attachments
 from .conversation_memory import conversation_memory
 from .cad_revision import verify_cad_revision_state
@@ -1612,6 +1613,8 @@ def _agent_chat(
         )
         return enriched
     except Exception as error:
+        if is_eval_fatal(error):
+            raise
         robot_state.add_log(f"agent error: {error}")
         enriched = robot_agent.enrich_result({
             "ok": False,
@@ -1804,6 +1807,8 @@ def _agent_chat_stream_events(
                     )
                 yield json.dumps(event, ensure_ascii=False) + "\n"
         except Exception as error:
+            if is_eval_fatal(error):
+                raise
             # Never leave a streaming response without a terminal result.
             # Keep implementation details in the server log only.
             robot_state.add_log(f"agent stream error: {error}")

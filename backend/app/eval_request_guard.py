@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
-from .eval_token_bound import input_token_upper_bound
+from .eval_token_bound import input_token_upper_bound, tokenizer_input_token_estimate
 from .integration_profile import require_external_model_calls_permitted
 
 
@@ -36,9 +36,29 @@ RESPONSE_MODEL_ALLOWLIST = {
 class EvalRequestBlocked(RuntimeError):
     """Raised before any request bytes reach the network."""
 
+    eval_fatal = True
+
 
 class ModelAuthorizationError(EvalRequestBlocked):
     """Raised when a provider/model/target is not the frozen evaluation pair."""
+
+
+def is_eval_fatal(error: BaseException | str | None) -> bool:
+    """Return True when an exception must terminate the whole evaluation.
+
+    The marker is an exception attribute, not inheritance from BaseException,
+    so production business handlers keep working normally.  Cause/context are
+    inspected as evidence in case a caller wrapped the original error.
+    """
+
+    seen: set[int] = set()
+    current: BaseException | None = error if isinstance(error, BaseException) else None
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if bool(getattr(current, "eval_fatal", False)):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
 
 
 @dataclass
@@ -89,6 +109,18 @@ def expected_model() -> str:
     return os.getenv("P12_EXPECTED_MODEL", DEFAULT_EXPECTED_MODEL).strip()
 
 
+def require_eval_not_aborted() -> None:
+    """Stop a case before it starts, or after a fatal transition."""
+
+    if not eval_mode_enabled():
+        return
+    if not _configured or _ledger is None:
+        raise EvalRequestBlocked("evaluation_budget_unavailable")
+    snapshot = _ledger.snapshot()
+    if snapshot.get("stopped") or snapshot.get("pending"):
+        raise EvalRequestBlocked("evaluation_aborted_by_ledger")
+
+
 def _authorized_target(provider: str) -> str:
     return AUTHORIZED_TARGETS.get(provider, "")
 
@@ -102,12 +134,18 @@ def _normalized_url(url: str) -> str:
     )
 
 
-def _require_eval_context(provider: str, model: str, target_url: str) -> None:
+def _require_eval_context(
+    provider: str,
+    model: str,
+    target_url: str,
+    *,
+    require_authorization: bool = True,
+) -> None:
     if not eval_mode_enabled():
         return
     if os.getenv("P12_EVAL_FORMAL_HTTP") != "1":
         raise EvalRequestBlocked("evaluation_formal_entry_required")
-    if os.getenv("P12_REAL_MODEL_AUTHORIZED") != "1":
+    if require_authorization and os.getenv("P12_REAL_MODEL_AUTHORIZED") != "1":
         raise EvalRequestBlocked("real_model_not_authorized")
     if not _configured or _ledger is None:
         raise EvalRequestBlocked("evaluation_budget_unavailable")
@@ -151,25 +189,43 @@ def begin_eval_request(
     target_url: str,
     payload: dict[str, Any],
     max_output_tokens: int | None = None,
+    mock_transport: bool = False,
 ) -> EvalReservation | None:
     """Admit one network attempt and reserve its worst-case budget.
 
     The reservation is made once per actual send attempt.  A caller that retries
     must call this function again for every retry; if the first attempt is
     unresolved or failed, the ledger rejects the next reservation.
+
+    ``mock_transport`` is only for the offline worker path that emits no
+    network bytes.  It still goes through the same context, ledger and
+    settlement checks, but uses the tokenizer estimate so the frozen five-case
+    Mock regression can run inside the same conservative token budget.  Real
+    transports never set this flag and always use the Layer-A hard bound.
     """
 
     if not eval_mode_enabled():
         require_external_model_calls_permitted()
         return None
-    _require_eval_context(provider, str(model), target_url)
+    if mock_transport and os.getenv("P12_EVAL_MOCK_PROVIDER") != "1":
+        raise EvalRequestBlocked("mock_transport_requires_mock_provider")
+    _require_eval_context(
+        provider,
+        str(model),
+        target_url,
+        require_authorization=not mock_transport,
+    )
     output_tokens = int(
         max_output_tokens
         if max_output_tokens is not None
         else payload.get("max_tokens", payload.get("max_output_tokens", 0)) or 0
     )
     _validate_model_parameters(payload, output_tokens)
-    bound = input_token_upper_bound(payload)
+    bound = (
+        {"upper_bound": tokenizer_input_token_estimate(payload)}
+        if mock_transport
+        else input_token_upper_bound(payload)
+    )
     request_id = str(uuid.uuid4())
     reservation = _ledger.reserve(
         run_id=os.getenv("P12_EVAL_RUN_ID", "live-safety-01"),
@@ -208,15 +264,27 @@ def validate_response_model(
     if actual not in allowed:
         try:
             # Let the ledger record the mismatch transition itself so the
-            # evidence event and the request count stay in one atomic write.
+            # evidence event, actual usage, cost and request count stay in one
+            # atomic write.
             reservation.ledger.settle(
                 response=response,
                 expected_model=reservation.model,
                 reserved_input_tokens=reservation.input_upper_bound,
                 reserved_output_tokens=reservation.output_tokens,
             )
-        except Exception:
-            pass
+        except Exception as error:
+            # A model mismatch is the expected ledger stop.  Persistence and
+            # other fatal settlement failures must propagate unchanged; never
+            # mark the reservation settled when the ledger did not commit.
+            if (
+                getattr(error, "eval_fatal", False)
+                and str(error) == "model_not_authorized"
+            ):
+                reservation.settled = True
+                raise ModelAuthorizationError(
+                    f"response_model_not_authorized:{actual or '<missing>'}"
+                ) from error
+            raise
         reservation.settled = True
         raise ModelAuthorizationError(
             f"response_model_not_authorized:{actual or '<missing>'}"
@@ -239,18 +307,16 @@ def settle_eval_response(
         )
         raise EvalRequestBlocked("duplicate_settlement_attempt")
     validate_response_model(reservation, response)
-    try:
-        reservation.ledger.settle(
-            response=response if error is None else None,
-            http_status=http_status,
-            error=error,
-            retry=retry,
-            expected_model=reservation.model,
-            reserved_input_tokens=reservation.input_upper_bound,
-            reserved_output_tokens=reservation.output_tokens,
-        )
-    finally:
-        reservation.settled = True
+    reservation.ledger.settle(
+        response=response if error is None else None,
+        http_status=http_status,
+        error=error,
+        retry=retry,
+        expected_model=reservation.model,
+        reserved_input_tokens=reservation.input_upper_bound,
+        reserved_output_tokens=reservation.output_tokens,
+    )
+    reservation.settled = True
 
 
 def fail_eval_request(

@@ -105,11 +105,27 @@ def dump(path,value):
     path.parent.mkdir(parents=True,exist_ok=True)
     path.write_text(json.dumps(value,ensure_ascii=False,indent=2),encoding='utf-8')
 
+class EvaluationAborted(RuntimeError):
+    """Fatal evaluation transition propagated across the subprocess boundary."""
+    eval_fatal = True
+
+def evaluation_stopped(budget_path):
+    try:
+        data=json.loads(Path(budget_path).read_text(encoding='utf-8'))
+    except Exception:
+        return False
+    return bool(data.get('stopped') or data.get('pending'))
+
 def call(folder,step,body,operation='chat'):
     result=subprocess.run([sys.executable,str(Path(__file__).with_name('cad_widget_live_worker.py')),'--output',str(folder)],
         input=json.dumps({'operation':operation,'step':step,'body':body},ensure_ascii=False),
         encoding='utf-8',text=True,capture_output=True,timeout=360)
-    if result.returncode:raise RuntimeError(result.stderr[-3000:])
+    if result.returncode:
+        fatal=next((line for line in (result.stderr or '').splitlines()
+                    if line.startswith('P12_EVAL_FATAL:')),None)
+        if fatal:
+            raise EvaluationAborted(fatal)
+        raise RuntimeError(result.stderr[-3000:])
     return json.loads(result.stdout)
 
 def bounds(gs):
@@ -759,18 +775,51 @@ if __name__=='__main__':
     import shapely.affinity
     import shapely.ops
     reports={}
+    abort_state={'aborted':False,'aborted_case':None}
+    if evaluation_stopped(budget_path):
+        # A restart must not turn a stopped ledger back into a runnable suite.
+        abort_state['aborted']=True
+        try:
+            ledger=json.loads(Path(budget_path).read_text(encoding='utf-8'))
+            events=ledger.get('events') or []
+            abort_state['aborted_case']=next(
+                (event.get('case_id') for event in reversed(events)
+                 if event.get('case_id')),
+                None,
+            )
+        except Exception:
+            pass
     def run(case):
         path=root/case/'corpus-report.json'
-        if args.resume and path.exists():return json.loads(path.read_text(encoding='utf-8'))
+        if args.resume and path.exists():
+            report=json.loads(path.read_text(encoding='utf-8'))
+            if report.get('evaluation_status')=='aborted':
+                abort_state['aborted']=True
+                abort_state['aborted_case']=case
+            return report
+        if evaluation_stopped(budget_path):
+            report={'case':case,'passed':False,'evaluation_status':'not_executed',
+                    'runner_error':'evaluation_aborted_by_ledger','app':'not_run'}
+            dump(path,report);return report
         try:return make_creation(case,corpus[case].strip(),root,aliases[case]) if case not in BASE else make_edit(case,corpus[case].strip(),root,reports,resolved_bases[case])
+        except EvaluationAborted as exc:
+            report={'case':case,'passed':False,'evaluation_status':'aborted',
+                    'runner_error':str(exc),'app':'not_run'}
+            abort_state['aborted']=True;abort_state['aborted_case']=case
+            dump(path,report);return report
         except Exception as exc:
             report={'case':case,'passed':False,'runner_error':str(exc),'app':'not_run'};dump(path,report);return report
-    for group in ([c for c in corpus if c in needed and c not in BASE],[c for c in corpus if c in needed and c in BASE]):
-        with ThreadPoolExecutor(max_workers=args.workers) as pool:
-            futures={pool.submit(run,c):c for c in group}
-            for future in as_completed(futures):
-                report=future.result();reports[report['case']]=report
-                dump(root/'summary.json',{'reports':list(reports.values()),'completed':len(reports),'requested':len(wanted)})
+    ordered=[c for c in corpus if c in needed and c not in BASE]+[c for c in corpus if c in needed and c in BASE]
+    for case in ordered:
+        if abort_state['aborted']:
+            report={'case':case,'passed':False,'evaluation_status':'not_executed',
+                    'runner_error':'evaluation_not_started_after_abort','app':'not_run'}
+            dump(root/case/'corpus-report.json',report);reports[case]=report
+        else:
+            report=run(case);reports[report['case']]=report
+        dump(root/'summary.json',{'reports':list(reports.values()),'completed':len(reports),
+            'requested':len(wanted),'evaluation_aborted':abort_state['aborted'],
+            'aborted_case':abort_state['aborted_case']})
     if args.app:
         for case in corpus:
             if case not in wanted:continue
@@ -799,6 +848,10 @@ if __name__=='__main__':
     metrics=summarize_new_execution(root,selected)
     dump(root/'metrics.json',metrics)
     dump(root/'summary.json',{'source_sha256':hashlib.sha256(raw).hexdigest(),'reports':selected,'completed':len(selected),
+        'evaluation_aborted':abort_state['aborted'],'aborted_case':abort_state['aborted_case'],
+        'executed_case_count':sum(r.get('evaluation_status') not in {'aborted','not_executed'} for r in selected),
+        'aborted_case_count':sum(r.get('evaluation_status')=='aborted' for r in selected),
+        'not_executed_case_count':sum(r.get('evaluation_status')=='not_executed' for r in selected),
         'evidence_audit':{'unique_request_ids':len(seen),'contamination':contamination,'blocked':bool(contamination)},
         'passed':sum(r.get('passed') is True and (not args.app or r.get('app')=='replay_passed') for r in selected),
         'legacy_passed':sum(r.get('legacy_passed') is True and (not args.app or r.get('app')=='replay_passed') for r in selected),

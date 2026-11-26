@@ -428,6 +428,8 @@ def _verify_heart_channel(geometries,requirements,logical_objects=None,topology=
                 symmetry=mirror_symmetry(
                     points, axis_x, tolerance_mm=10.0,
                     axis_source="source:heart_left_right_measured_center",
+                    closed=(target['geometries'][0].get('closed') is True
+                            if target.get('geometries') else False),
                 )
             else:
                 symmetry={'status':'unverified','reason':'outline_points_unavailable'}

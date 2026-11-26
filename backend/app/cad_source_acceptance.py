@@ -119,14 +119,29 @@ def verify_final_source_contract(text,geometries,logical_objects=None):
         checks.append(check)
         if not passed:failures.append(check)
     for fact in contract['facts']:
-        if fact['status']!='effective':continue
+        pending_local = fact['binding']=='local_subject_pending'
+        if fact['status']!='effective' and not pending_local:continue
         selected=gs
-        if (len(contract['subjects'])==1 and fact['binding']=='single_subject'
+        if pending_local:
+            local=str(fact.get('local_subject') or '')
+            matches=[obj for obj in logical_objects or []
+                     if local and local in str(obj.get('label') or '')]
+            if len(matches)!=1:
+                unknown.append({'source_requirement_id':fact['fact_id'],
+                                'reason':'局部对象名称未唯一绑定'})
+                continue
+            refs=_object_geometry_refs(matches[0])
+            selected=[g for g in gs if g['id'] in refs]
+            if not refs or len(selected)!=len(refs):
+                unknown.append({'source_requirement_id':fact['fact_id'],
+                                'reason':'局部对象几何引用不完整'})
+                continue
+        elif (len(contract['subjects'])==1 and fact['binding']=='single_subject'
                 and scalar_fact_scope_needs_object_binding(fact,logical_objects)):
             unknown.append({'source_requirement_id':fact['fact_id'],
                             'reason':'多对象尺寸范围不明确，未把单一契约主体当作整体'})
             continue
-        if len(contract['subjects'])!=1 or fact['binding']!='single_subject':
+        elif len(contract['subjects'])!=1 or fact['binding']!='single_subject':
             matches=[obj for obj in logical_objects or [] if obj.get('label')==fact['subject']]
             refs=_object_geometry_refs(matches[0]) if len(matches)==1 else None
             if len(matches)!=1 or not refs:
@@ -143,6 +158,52 @@ def verify_final_source_contract(text,geometries,logical_objects=None):
             actual=selected[0]['radius']*(2 if field=='diameter' else 1)
         if actual is not None:measure(field,actual,fact['value_mm'],fact['operator'],fact['fact_id'],fact['evidence'],[g['id'] for g in selected])
         else:unknown.append({'source_requirement_id':fact['fact_id'],'reason':'当前测量器不支持此要求'})
+    # Generic source object counts.  Only closed primitive nouns are counted
+    # directly; assembly nouns (e.g. 太极图) and sampled feature counts are not
+    # silently converted into entity counts.
+    count_words={'一':1,'二':2,'两':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10}
+    for source_index,source in enumerate(sources):
+        for match in re.finditer(
+                r'(一|二|两|三|四|五|六|七|八|九|十|\d+)\s*个?\s*(?:对称)?\s*((?:大|小|外|内)?圆|矩形|正方形|椭圆|线段|圆弧)',
+                source):
+            raw=match[1]
+            expected=int(raw) if raw.isdigit() else count_words[raw]
+            if expected < 2:
+                # "一个" is normally a Chinese determiner, not a declared
+                # multiplicity; it cannot create an object-count failure.
+                continue
+            noun=match[2]
+            qualified=noun in {'小圆','大圆','外圆','内圆'}
+            if qualified:
+                matches=[obj for obj in logical_objects or []
+                         if noun in str(obj.get('label') or '')]
+            else:
+                type_name={'圆':'circle','圆弧':'arc','椭圆':'ellipse',
+                           '矩形':'polyline','正方形':'polyline','线段':'line'}.get(noun)
+                matches=[]
+                for obj in logical_objects or []:
+                    refs=_object_geometry_refs(obj) or []
+                    types=[g.get('type') for g in gs if g['id'] in refs]
+                    if type_name and types and all(t==type_name for t in types):
+                        matches.append(obj)
+            if qualified and not matches:
+                # Qualified nouns require declared object labels; a generic
+                # "部件" label must not be turned into a false count failure.
+                unknown.append({'source_requirement_id':f'user:{source_index}:count:{match.start()}',
+                                'reason':'限定对象名称未出现在逻辑对象标签中'})
+                continue
+            check={'field':'object_count','actual_mm':None,'expected_mm':None,
+                   'operator':'eq','tolerance_mm':0,
+                   'source_requirement_id':f'user:{source_index}:count:{match.start()}',
+                   'source_evidence':match[0],
+                   'status':'failed' if len(matches)!=expected else 'passed',
+                   'object_noun':noun,'expected_count':expected,
+                   'actual_count':len(matches),
+                   'geometry_ids':sorted({gid for obj in matches
+                                          for gid in (_object_geometry_refs(obj) or [])})}
+            checks.append(check)
+            if check['status']=='failed':
+                failures.append(check)
     # Coordinates are not inferred from assumptions, control points or a
     # multi-object layout. Later explicit source centers supersede earlier ones.
     if len(contract['subjects'])==1:
@@ -1049,6 +1110,33 @@ def build_requirement_coverage_evidence(text, source_acceptance):
         for fact in facts:
             fact_id = fact.get("fact_id")
             if fact.get("status") != "effective" or fact.get("binding") == "unresolved":
+                # A locally scoped subject ("外圆半径2米") is unresolved in the
+                # contract until the final verifier binds it to a logical
+                # object.  Once that check has passed, the fact is measured;
+                # do not report it as unbound merely because the contract-level
+                # binding still says pending.
+                final_check = next(
+                    (item for item in final_checks
+                     if isinstance(item, dict)
+                     and item.get("source_requirement_id") == fact_id),
+                    None,
+                )
+                if final_check and final_check.get("status") == "passed":
+                    supported = True
+                    same_claim = next(
+                        (claim for claim in applicable_claims
+                         if (claim.get("check") or {}).get("source_requirement_id") == fact_id),
+                        None,
+                    )
+                    if same_claim is not None:
+                        consumed_claims.add(id(same_claim))
+                    evidence_items.append({
+                        "requirement_id": fact_id,
+                        "verifier": "verify_final_source_contract",
+                        "status": "verified",
+                        "measurement": deepcopy(final_check),
+                    })
+                    continue
                 covered = next(
                     (claim for claim in applicable_claims
                      if _path_claim_matches_fact(claim, fact) is not None),

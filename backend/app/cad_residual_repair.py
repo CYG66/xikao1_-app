@@ -93,6 +93,7 @@ def _make_record(
     source: str = "backend_measurement",
     mandatory: bool = False,
     reason: str | None = None,
+    predicate_axis: str | None = None,
 ) -> dict[str, Any]:
     object_ids = [str(v) for v in (object_ids or []) if v is not None]
     geometry_ids = [v for v in (geometry_ids or []) if v is not None]
@@ -163,6 +164,7 @@ def _make_record(
         "passed": passed,
         "mandatory": bool(mandatory),
         "source": source,
+        "predicate_axis": str(predicate_axis or ""),
         "repair_scope": scope,
         "reason": reason,
     }
@@ -302,6 +304,7 @@ def _assertion_records(failure: dict[str, Any], plan: dict[str, Any] | None,
         "mandatory": mandatory,
         "geometry_ids": geometry_ids,
         "plan_step_ids": step_ids,
+        "predicate_axis": str(target or assertion_id or ""),
         "reason": "model_assertion_failed" if not mandatory else "source_requirement_failed",
     }
     records: list[dict[str, Any]] = []
@@ -370,6 +373,7 @@ def collect_construction_error_residuals(error: dict[str, Any] | None,
             residual_type=TOPOLOGY, source="logical_graph_validation",
             geometry_ids=conflict.get("geometry_refs") or [],
             plan_step_ids=steps,
+            predicate_axis=str(conflict.get("object_id") or ""),
             reason="identity_conflict"))
     for validation in details.get("validation_errors") or []:
         if not isinstance(validation, dict):
@@ -431,7 +435,7 @@ def collect_source_acceptance_residuals(
     seen: set[tuple] = set()
     for check in _walk_checks(source_acceptance):
         status = str(check.get("status") or "")
-        if status not in {"failed", "unverified", "review_required", "partial"}:
+        if status not in {"passed", "failed", "unverified", "review_required", "partial"}:
             continue
         requirement_id = str(check.get("source_requirement_id")
                              or check.get("requirement_id")
@@ -441,36 +445,56 @@ def collect_source_acceptance_residuals(
                         or check.get("predicate") or "source_requirement")
         expected = check.get("expected_mm", check.get("expected"))
         measured = check.get("actual_mm", check.get("actual", check.get("measured")))
+        if expected is None:
+            expected = check.get("expected_count")
+        if measured is None:
+            measured = check.get("actual_count")
         tolerance = check.get("tolerance_mm", check.get("tolerance"))
-        unit = check.get("unit") or ("mm" if "expected_mm" in check or "actual_mm" in check else None)
-        key = (requirement_id, predicate, str(unit or ""))
+        unit = check.get("unit") or (
+            "count" if "expected_count" in check
+            else "mm" if "expected_mm" in check or "actual_mm" in check
+            else None)
+        target = check.get("target_ref") or check.get("output_ref")
+        axis = str(check.get("object_id") or target or ",".join(
+            str(v) for v in (check.get("geometry_ids") or [])))
+        key = (requirement_id, predicate, str(unit or ""), axis)
         if key in seen:
             continue
         seen.add(key)
-        target = check.get("target_ref") or check.get("output_ref")
         common = {
             "geometry_ids": check.get("geometry_ids") or [],
             "plan_step_ids": _step_ids_for_ref(plan, target),
             "source": "source_acceptance",
-            "mandatory": status == "failed",
+            "mandatory": bool(check.get("mandatory", True)),
+            "predicate_axis": axis,
         }
-        if expected is not None and measured is not None and tolerance is not None:
+        if status in {"unverified", "review_required", "partial"}:
+            records.append(unverifiable_residual(
+                requirement_id=requirement_id, predicate=predicate,
+                reason=str(check.get("reason") or "source_verifier_unavailable"),
+                **common))
+            continue
+        scalar_expected = _finite(expected)
+        scalar_measured = _finite(measured)
+        count_mode = "expected_count" in check
+        if (not count_mode and scalar_expected is not None
+                and scalar_measured is not None and tolerance is not None):
             records.append(numeric_residual(
                 requirement_id=requirement_id, predicate=predicate,
-                expected=float(expected), measured=float(measured),
+                expected=scalar_expected, measured=scalar_measured,
                 tolerance=float(tolerance), unit=unit or "mm",
                 reason=str(check.get("reason") or "source_check_failed"), **common))
         elif status == "failed":
             records.append(discrete_residual(
                 requirement_id=requirement_id, predicate=predicate,
-                expected=check.get("expected", True),
-                measured=check.get("measured", False), unit=unit,
+                expected=expected if expected is not None else True,
+                measured=measured if measured is not None else False, unit=unit,
                 reason=str(check.get("reason") or "source_check_failed"), **common))
-        else:
-            records.append(unverifiable_residual(
+        elif expected is not None and measured is not None:
+            records.append(discrete_residual(
                 requirement_id=requirement_id, predicate=predicate,
-                reason=str(check.get("reason") or "source_verifier_unavailable"),
-                **common))
+                expected=expected, measured=measured, unit=unit,
+                reason="source_check_passed", **common))
     for item in source_acceptance.get("unknown_requirements") or []:
         if not isinstance(item, dict):
             continue
@@ -611,6 +635,21 @@ def _as_vector(value: Any) -> dict[str, Any]:
     return residual_vector([])
 
 
+def _record_stub(key: tuple, reason: str) -> dict[str, Any]:
+    requirement_id, predicate, unit, axis = key
+    return {
+        "schema": RECORD_SCHEMA,
+        "requirement_id": requirement_id,
+        "predicate": predicate,
+        "unit": unit,
+        "predicate_axis": axis,
+        "verification_status": "missing",
+        "passed": None,
+        "reason": reason,
+        "repair_scope": {"strategy": "diagnose_or_clarify"},
+    }
+
+
 def evaluate_residual_progress(before: Any, after: Any,
                                improvement_threshold: float = 0.05) -> dict[str, Any]:
     prev = _as_vector(before)
@@ -619,35 +658,63 @@ def evaluate_residual_progress(before: Any, after: Any,
     after_records = {_record_key(r): r for r in curr.get("records") or []}
 
     regressions = []
+    resolved_failures = []
+    lost_failures = []
+    unverified_transitions = []
     for key, old in before_records.items():
-        if (old.get("mandatory") and old.get("passed") is True
-                and key in after_records and after_records[key].get("passed") is False):
-            regressions.append(deepcopy(after_records[key]))
+        new = after_records.get(key)
+        if old.get("mandatory") and old.get("passed") is True:
+            if new is None:
+                regressions.append(_record_stub(
+                    key, "previously_passed_mandatory_fact_missing"))
+            elif new.get("passed") is not True:
+                regressions.append(deepcopy(new))
+        if old.get("passed") is False:
+            if new is None:
+                lost_failures.append(_record_stub(key, "failed_fact_disappeared"))
+            elif new.get("passed") is True:
+                resolved_failures.append(deepcopy(new))
+            elif new.get("residual_type") == UNVERIFIABLE or new.get("passed") is None:
+                unverified_transitions.append(deepcopy(new))
+
     new_failures = []
     for key, new in after_records.items():
         if new.get("passed") is False and (
                 key not in before_records or before_records[key].get("passed") is not False):
             new_failures.append(deepcopy(new))
 
+    # Disappeared numeric failures keep their old excess in the effective
+    # score.  Deleting/replacing a fact id or dropping its measurement cannot
+    # manufacture a residual improvement.
     score_before = float(prev.get("continuous_score") or 0.0)
-    score_after = float(curr.get("continuous_score") or 0.0)
+    score_after_measured = float(curr.get("continuous_score") or 0.0)
+    carried = 0.0
+    for key, old in before_records.items():
+        if (old.get("residual_type") == NUMERIC and old.get("passed") is False):
+            new = after_records.get(key)
+            if new is None or new.get("passed") is None:
+                carried += float(old.get("normalized_residual") or 0.0)
+    score_after = score_after_measured + carried
     if score_before > 0:
         relative_improvement = max(0.0, (score_before - score_after) / score_before)
     else:
-        # No excess residual existed before: nothing can improve.  A later
-        # non-zero score is a new failure, not progress.
         relative_improvement = 0.0
+
     discrete_before = int(prev.get("failing_discrete_count") or 0)
     discrete_after = int(curr.get("failing_discrete_count") or 0)
     unverified_before = int(prev.get("unverifiable_count") or 0)
     unverified_after = int(curr.get("unverifiable_count") or 0)
-    # A failure that merely stops being measured is not a repair.  Require the
-    # amount of unverifiable evidence not to grow before calling it progress.
+    # A failure that merely stops being measured, disappears with its fact id,
+    # or is replaced by another identity is not a repair.
     discrete_improved = (discrete_after < discrete_before
+                         and bool(resolved_failures)
+                         and not lost_failures
+                         and not unverified_transitions
                          and unverified_after <= unverified_before)
 
     numeric_improved = (relative_improvement >= improvement_threshold
-                        and unverified_after <= unverified_before)
+                        and unverified_after <= unverified_before
+                        and not lost_failures)
     reasons = []
     if regressions:
         reasons.append("previously passed mandatory requirement regressed")
@@ -656,13 +723,17 @@ def evaluate_residual_progress(before: Any, after: Any,
         reasons.append("continuous excess residual improved by >= 5%")
         decision, progress = "allow", "improved"
     elif discrete_improved:
-        reasons.append("discrete/topological failure count decreased")
+        reasons.append("discrete/topological failure resolved by verified measurement")
         decision, progress = "allow", "improved"
     else:
         reasons.append("no effective residual improvement")
         decision, progress = "allow", "no_improvement"
         if new_failures:
             reasons.append("new failing residual appeared without effective improvement")
+        if lost_failures:
+            reasons.append("failed residual disappeared without a verified replacement")
+        if unverified_transitions:
+            reasons.append("failed residual became unverified rather than passed")
     return {
         "decision": decision,
         "progress": progress,
@@ -670,13 +741,52 @@ def evaluate_residual_progress(before: Any, after: Any,
         "relative_improvement": relative_improvement,
         "score_before": score_before,
         "score_after": score_after,
+        "score_after_measured": score_after_measured,
         "discrete_before": discrete_before,
         "discrete_after": discrete_after,
         "regressions": regressions,
         "new_failures": new_failures,
+        "resolved_failures": resolved_failures,
+        "lost_failures": lost_failures,
+        "unverified_transitions": unverified_transitions,
         "reasons": reasons,
         "threshold": improvement_threshold,
         "threshold_scope": "continuous_excess_residual_only",
+    }
+
+
+def mandatory_regression_across(attempts: Iterable[Any]) -> dict[str, Any]:
+    """Compare every previously passed mandatory fact with the final vector.
+
+    A ready result is not allowed to hide a requirement that passed in an
+    earlier attempt and is now failed, unverified or absent.
+    """
+    baselines: dict[tuple, dict[str, Any]] = {}
+    final_records: dict[tuple, dict[str, Any]] = {}
+    for attempt in attempts or []:
+        vector = _as_vector(attempt)
+        records = {_record_key(r): r for r in vector.get("records") or []}
+        final_records = records
+        for key, record in records.items():
+            if record.get("mandatory") and record.get("passed") is True:
+                baselines.setdefault(key, deepcopy(record))
+    regressions = []
+    unverified = []
+    for key, baseline in baselines.items():
+        final = final_records.get(key)
+        if final is None:
+            regressions.append(_record_stub(
+                key, "previously_passed_mandatory_fact_missing_at_delivery"))
+        elif final.get("passed") is not True:
+            if final.get("verification_status") == "unverified":
+                unverified.append(deepcopy(final))
+            else:
+                regressions.append(deepcopy(final))
+    return {
+        "ok": not regressions and not unverified,
+        "baseline_count": len(baselines),
+        "regressions": regressions,
+        "unverified": unverified,
     }
 
 

@@ -115,6 +115,14 @@ def requirement_contract(sources):
                 targets=subjects;scope='single_subject'
             colon=re.fullmatch(r'([^：:]{1,24})[：:]\s*',prefix)
             if colon:targets=[colon[1].strip()];scope='explicit_subject'
+            local_subject=None
+            if not targets:
+                token=re.search(r'([\u4e00-\u9fff]{1,8})$',normalized_prefix)
+                candidate=token[1] if token else ''
+                if (candidate and candidate not in {
+                        '整体','图形','对象','这个','那个','它的','所述','全部'}
+                        and not re.search(r'尺寸|大小|参数',candidate)):
+                    local_subject=candidate
             operator=('lte' if match['qualifier']=='最大' or match['relation'] in {'不超过','至多'} else
                       'gte' if match['qualifier']=='最小' or match['relation'] in {'至少','不小于'} else 'eq')
             value=float(match['value'])*{'毫米':1,'厘米':10,'米':1000,'mm':1,'cm':10,'m':1000}[match['unit'].lower()]
@@ -130,11 +138,13 @@ def requirement_contract(sources):
             fields=['width','height'] if field=='width_height' else [field]
             for axis in fields:
                 for target in targets or [None]:
-                    fact={'fact_id':f"{source['source_id']}:scalar-{index+1}:{axis}:{target or '?'}",
+                    fact={'fact_id':f"{source['source_id']}:scalar-{index+1}:{axis}:{target or local_subject or '?'}",
                         'origin':'user','source_id':source['source_id'],'subject':target,'field':axis,
                         'operator':operator,'value_mm':round(value,9) if valid else None,
                         'evidence':{'start':match.start(),'end':match.end(),'text':text[match.start():match.end()]},
-                        'binding':scope,'status':'effective' if target and valid else 'unresolved' if valid else 'invalid'}
+                        'local_subject':local_subject,
+                        'binding':scope if target else 'local_subject_pending' if local_subject and valid else scope,
+                        'status':'effective' if target and valid else 'unresolved' if valid else 'invalid'}
                     if target and valid:
                         key=(target,axis,operator)
                         if key in effective:

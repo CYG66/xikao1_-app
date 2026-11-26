@@ -71,6 +71,38 @@ def _step_has_inherent_shape(step, source_text=""):
     return False
 
 
+_MATHEMATICAL_SHAPE_IDENTITY = re.compile(
+    r"圆(?!弧)|椭圆|螺旋|星形线|心形线|玫瑰线|双曲线|抛物线|渐开线|摆线|"
+    r"正弦|余弦|悬链线|阿基米德"
+)
+
+
+def _step_has_mathematical_identity(step):
+    """Curve identity that an independent x/y fit would destroy.
+
+    A plain polyline is a qualitative outline: its declared width/height can
+    be fitted independently.  A sampled curve is protected only when its
+    declared identity names a mathematical shape invariant (circle, ellipse,
+    spiral, rose, astroid-like curve...).  A generic heart outline is
+    qualitative and may honour two explicit dimensions; a parametric circle
+    or ellipse may not.
+    """
+    op = str(step.get("op") or "")
+    if op == "add_rotational_path":
+        return True
+    if op not in {"add_bezier", "add_spline", "add_parametric_curve",
+                  "add_composite_path"}:
+        return False
+    semantic = step.get("semantic") if isinstance(step.get("semantic"), dict) else {}
+    label = str(semantic.get("label") or semantic.get("assembly_label") or "")
+    if _MATHEMATICAL_SHAPE_IDENTITY.search(label):
+        return True
+    if op == "add_composite_path":
+        return any(str(segment.get("kind") or "line") != "line"
+                   for segment in step.get("segments") or [])
+    return False
+
+
 def _coerce_model_payload(value):
     """Accept provider JSON envelopes while keeping schema validation strict."""
     if isinstance(value, dict):
@@ -3439,7 +3471,9 @@ def normalize_explicit_outline_size_once(
         layout = plan.setdefault('free_outline_layout', [])
         layout[:] = [item for item in layout if item.get('target_ref') != step['output_ref']]
         preserve = not allow_deformation
-        if (preserve and not source_preserve and not _plan_declares_radial_pattern(plan, step['output_ref'])):
+        if (preserve and not source_preserve
+                and not _plan_declares_radial_pattern(plan, step['output_ref'])
+                and not _step_has_mathematical_identity(step)):
             # Two independent dimensions stated by the source are authoritative
             # for a free outline that has no radial/rotational identity.  When
             # their ratio differs from the intrinsic ratio, honouring both is

@@ -585,6 +585,11 @@ class FreeOutlineLayout(_StrictModel):
     gap: float = Field(default=0, ge=0, le=100000)
     gap_reference: Literal["edge", "center"] = "edge"
     center: ConstructionPoint | None = None
+    # ``None`` keeps the source declaration authoritative: a target with a
+    # radial/rotational assertion must keep its shape, while a free polygonal
+    # outline may use independent width/height.  An explicit value overrides
+    # that inference without adding a case-specific branch.
+    preserve_shape: bool | None = None
 
     @model_validator(mode='after')
     def complete_fit_or_translation(self):
@@ -775,7 +780,14 @@ def execute_construction_plan(
         if created_ids:
             next_id = max(created_ids) + 1
 
-    _apply_free_outline_layout(validated.free_outline_layout, geometries, refs, scale, curve_quality)
+    rotational_refs = {
+        assertion.target_ref for assertion in validated.assertions
+        if isinstance(assertion, RadialPatternAssertion) and assertion.target_ref
+    }
+    layout_diagnostics = _apply_free_outline_layout(
+        validated.free_outline_layout, geometries, refs, scale, curve_quality,
+        rotational_refs,
+    )
     try:
         geometries, constraint_solve = solve_geometric_constraints(
             geometries,
@@ -846,6 +858,7 @@ def execute_construction_plan(
         "assertions": {"ok": True, "count": len(validated.assertions)},
         "constraint_solve": constraint_solve,
         "curve_quality": curve_quality,
+        "layout_quality": layout_diagnostics,
         "feasibility": feasibility,
         "graph_validation": graph_validation,
     }
@@ -870,8 +883,73 @@ def construction_geometry_area(
     return sum(_closed_geometry_area(item) for item in geometries)
 
 
-def _apply_free_outline_layout(layout, geometries, refs, scale, curve_quality=()):
+def _outline_centroid(points):
+    """Return the area centroid, falling back to the bounds centre.
+
+    A closed parametric outline can be sampled from a curve whose axis-aligned
+    bounds are not centred on the curve itself.  Scaling and rotating around the
+    area centroid preserves the shape's own centre; using the bounds centre
+    would translate a five-fold outline sideways.
+    """
+    if len(points) < 3:
+        return ((min(p['x'] for p in points) + max(p['x'] for p in points)) / 2.0,
+                (min(p['y'] for p in points) + max(p['y'] for p in points)) / 2.0)
+    area_twice = 0.0
+    cx = 0.0
+    cy = 0.0
+    for first, second in zip(points, points[1:] + points[:1]):
+        cross = first['x'] * second['y'] - second['x'] * first['y']
+        area_twice += cross
+        cx += (first['x'] + second['x']) * cross
+        cy += (first['y'] + second['y']) * cross
+    if abs(area_twice) <= 1e-18:
+        return ((min(p['x'] for p in points) + max(p['x'] for p in points)) / 2.0,
+                (min(p['y'] for p in points) + max(p['y'] for p in points)) / 2.0)
+    return cx / (3.0 * area_twice), cy / (3.0 * area_twice)
+
+
+def _rotated_geometry_bounds(points, angle, pivot):
+    cosine = math.cos(angle)
+    sine = math.sin(angle)
+    px, py = pivot
+    rotated = [(px + (p['x'] - px) * cosine - (p['y'] - py) * sine,
+                py + (p['x'] - px) * sine + (p['y'] - py) * cosine)
+               for p in points]
+    xs = [p[0] for p in rotated]
+    ys = [p[1] for p in rotated]
+    return rotated, max(xs) - min(xs), max(ys) - min(ys)
+
+
+def _rotation_for_aspect(points, target_ratio, pivot):
+    """Find a legal shape rotation that matches the requested bbox ratio.
+
+    Rotation is an isometry, so it preserves circles, arc relations and radial
+    symmetry.  A free polygonal outline is not rotated: its orientation is part
+    of the requested shape.  Only radial targets reach this function.
+    """
+    _, base_width, base_height = _rotated_geometry_bounds(points, 0.0, pivot)
+    if min(base_width, base_height) <= 1e-9:
+        return 0.0
+    if abs(math.log((base_width / base_height) / target_ratio)) <= 2e-3:
+        return 0.0
+    best_angle = 0.0
+    best_score = abs(math.log((base_width / base_height) / target_ratio))
+    # A 90 degree turn swaps the axes, so one quadrant covers every ratio.
+    for tenths in range(0, 901):
+        angle = math.radians(tenths / 10.0)
+        _, width, height = _rotated_geometry_bounds(points, angle, pivot)
+        if min(width, height) <= 1e-9:
+            continue
+        score = abs(math.log((width / height) / target_ratio))
+        if score < best_score:
+            best_score = score
+            best_angle = angle
+    return best_angle
+
+
+def _apply_free_outline_layout(layout, geometries, refs, scale, curve_quality=(), rotational_refs=()):
     by_id = {g["id"]:g for g in geometries}
+    diagnostics = []
     def target(ref):
         selected = [by_id[i] for i in refs.get(ref, [])]
         if len(selected) != 1 or selected[0].get("type") != "polyline" or not selected[0].get("closed"):
@@ -884,7 +962,49 @@ def _apply_free_outline_layout(layout, geometries, refs, scale, curve_quality=()
         if min(w,h)<=1e-9:
             raise ConstructionPlanError("invalid_layout_target", "退化轮廓不能施加宽高约束")
         resize=item.width is not None
-        amplification=max(item.width*scale/w,item.height*scale/h) if resize else 1.0
+        preserve = item.preserve_shape
+        if preserve is None:
+            preserve = item.target_ref in set(rotational_refs)
+        amplification=1.0
+        if resize and preserve:
+            pivot=_outline_centroid(g["vertices"])
+            rotational = item.target_ref in set(rotational_refs)
+            target_ratio=(item.width*scale)/(item.height*scale)
+            angle=(_rotation_for_aspect(g["vertices"],target_ratio,pivot)
+                   if rotational else 0.0)
+            rotated,rw,rh=_rotated_geometry_bounds(g["vertices"],angle,pivot)
+            uniform=min(item.width*scale/rw,item.height*scale/rh)
+            requested=[item.width*scale,item.height*scale]
+            residual=[abs(requested[0]-rw*uniform),abs(requested[1]-rh*uniform)]
+            tolerance=max(1e-9,1e-9*max(requested))
+            if max(residual)>tolerance:
+                raise ConstructionPlanError(
+                    "shape_constraint_conflict",
+                    "保持形状的轮廓无法同时满足给定的宽高，请调整尺寸或允许独立宽高。",
+                    details={
+                        "target_ref": item.target_ref,
+                        "requested_mm": requested,
+                        "achievable_mm": [rw*uniform,rh*uniform],
+                        "residual_mm": residual,
+                        "shape_center": [pivot[0],pivot[1]],
+                        "rotation_deg": math.degrees(angle),
+                    })
+            amplification=uniform
+            for p,(x,y) in zip(g["vertices"],rotated):
+                p["x"]=pivot[0]+(x-pivot[0])*uniform
+                p["y"]=pivot[1]+(y-pivot[1])*uniform
+            diagnostics.append({
+                "target_ref": item.target_ref,
+                "policy": "preserve_shape",
+                "shape_center": [pivot[0], pivot[1]],
+                "rotation_deg": math.degrees(angle),
+                "uniform_scale": uniform,
+                "requested_mm": [item.width*scale, item.height*scale],
+                "residual_mm": [abs(item.width*scale-rw*uniform),
+                                abs(item.height*scale-rh*uniform)],
+            })
+        elif resize:
+            amplification=max(item.width*scale/w,item.height*scale/h)
         for quality in curve_quality:
             if quality.get("output_ref") != item.target_ref:
                 continue
@@ -896,22 +1016,34 @@ def _apply_free_outline_layout(layout, geometries, refs, scale, curve_quality=()
                 raise ConstructionPlanError("sampling_error_exceeded", "尺寸缩放后采样误差上界超过精度限制", step_id=quality["step_id"],
                                             details={"sampling_error_bound":error,"limit":limit,"scale":amplification})
         cx,cy=(b["min_x"]+b["max_x"])/2,(b["min_y"]+b["max_y"])/2
-        if resize:
+        if resize and not preserve:
             for p in g["vertices"]:
                 p["x"]=cx+(p["x"]-cx)*item.width*scale/w
                 p["y"]=cy+(p["y"]-cy)*item.height*scale/h
         if item.right_of_ref is not None:
             reference=_bounds([target(item.right_of_ref)])
-            current=_bounds([g])
-            dx=(reference["max_x"]+item.gap*scale-current["min_x"] if item.gap_reference=="edge"
-                else (reference["min_x"]+reference["max_x"])/2+item.gap*scale-cx)
-            dy=(reference["min_y"]+reference["max_y"])/2-cy
+            if preserve:
+                current=_bounds([g])
+                dx=(reference["max_x"]+item.gap*scale-current["min_x"] if item.gap_reference=="edge"
+                    else (reference["min_x"]+reference["max_x"])/2+item.gap*scale-current["min_x"])
+                dy=(reference["min_y"]+reference["max_y"])/2-(current["min_y"]+current["max_y"])/2
+            else:
+                dx=(reference["max_x"]+item.gap*scale-_bounds([g])["min_x"] if item.gap_reference=="edge"
+                    else (reference["min_x"]+reference["max_x"])/2+item.gap*scale-cx)
+                dy=(reference["min_y"]+reference["max_y"])/2-cy
             for p in g["vertices"]:
                 p["x"]+=dx;p["y"]+=dy
         elif item.center is not None:
+            if preserve:
+                current=_bounds([g])
+                current_cx=(current["min_x"]+current["max_x"])/2
+                current_cy=(current["min_y"]+current["max_y"])/2
+            else:
+                current_cx,current_cy=cx,cy
             for p in g['vertices']:
-                p['x'] += item.center.x*scale-cx
-                p['y'] += item.center.y*scale-cy
+                p['x'] += item.center.x*scale-current_cx
+                p['y'] += item.center.y*scale-current_cy
+    return diagnostics
 
 
 def _predicted_entity_count(

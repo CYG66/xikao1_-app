@@ -9,7 +9,9 @@ from app.cad_construction import (
     ConstructionPoint,
     FreeOutlineLayout,
     _apply_free_outline_layout,
+    _outline_shape_invariant_refs,
 )
+from app.cad_construction_interpreter import _source_allows_outline_deformation
 
 
 def _flower_points(cx=2000.0, cy=2000.0, samples=300):
@@ -43,6 +45,83 @@ def _pairwise_ratios(points):
         ratios.append(math.dist((first["x"], first["y"]),
                                 (second["x"], second["y"])))
     return ratios
+
+
+def test_inherent_curve_outline_conflicts_instead_of_stretching():
+    outline = {"id": 1, "type": "polyline", "closed": True,
+               "vertices": _circle_points(radius=1000.0)}
+    original = [dict(point) for point in outline["vertices"]]
+    layout = [FreeOutlineLayout(target_ref="curve", width=4.0, height=2.0)]
+    with pytest.raises(ConstructionPlanError) as caught:
+        _apply_free_outline_layout(
+            layout, [outline], {"curve": [1]}, 1000.0,
+            shape_invariant_refs={"curve"},
+        )
+    assert caught.value.code == "shape_constraint_conflict"
+    assert outline["vertices"] == original
+
+
+def test_explicit_deformation_permission_allows_independent_fit():
+    outline = {"id": 1, "type": "polyline", "closed": True,
+               "vertices": _circle_points(radius=1000.0)}
+    layout = [FreeOutlineLayout(target_ref="curve", width=4.0, height=2.0,
+                                preserve_shape=False)]
+    _apply_free_outline_layout(
+        layout, [outline], {"curve": [1]}, 1000.0,
+        shape_invariant_refs={"curve"},
+    )
+    width, height, _, _ = _bounds(outline["vertices"])
+    assert abs(width - 4000.0) < 1e-6
+    assert abs(height - 2000.0) < 1e-6
+
+
+def test_shape_invariant_refs_are_source_capability_based():
+    from types import SimpleNamespace
+    steps = [
+        SimpleNamespace(op="add_bezier", output_ref="bezier"),
+        SimpleNamespace(op="add_spline", output_ref="spline"),
+        SimpleNamespace(op="add_parametric_curve", output_ref="parametric"),
+        SimpleNamespace(op="add_composite_path", output_ref="polyline_only",
+                        segments=[SimpleNamespace(kind="line")]),
+        SimpleNamespace(op="add_composite_path", output_ref="curved",
+                        segments=[SimpleNamespace(kind="bezier")]),
+        SimpleNamespace(op="add_rotational_path", output_ref="radial",
+                        segments=[SimpleNamespace(kind="line")]),
+    ]
+    refs = _outline_shape_invariant_refs(steps, {"asserted_radial"})
+    assert refs == {"bezier", "spline", "curved", "radial", "asserted_radial"}
+    assert "parametric" not in refs
+    assert "polyline_only" not in refs
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("把这朵花拉伸到宽4米高2米", True),
+    ("允许非等比缩放到4x2", True),
+    ("不要拉伸，保持形状，宽4米高2米", False),
+    ("保持原有比例，不要改变形状", False),
+    ("画一朵花，宽4米高2米", False),
+])
+def test_source_deformation_permission_is_explicit(text, expected):
+    assert _source_allows_outline_deformation(text) is expected
+
+
+def test_preserve_layout_reports_center_metrics_without_overwriting_legacy():
+    outline = {"id": 1, "type": "polyline", "closed": True,
+               "vertices": _circle_points(radius=1000.0)}
+    layout = [FreeOutlineLayout(
+        target_ref="curve", width=4.0, height=4.0,
+        center=ConstructionPoint(x=5.0, y=5.0),
+    )]
+    diagnostics = _apply_free_outline_layout(
+        layout, [outline], {"curve": [1]}, 1000.0,
+        rotational_refs={"curve"}, shape_invariant_refs={"curve"},
+    )
+    diagnostic = diagnostics[0]
+    assert diagnostic["shape_center"] == diagnostic["area_centroid_mm"]
+    assert diagnostic["bbox_center_mm"] == [1000.0, 1000.0]
+    assert diagnostic["rotational_symmetry_center_mm"] == diagnostic["area_centroid_mm"]
+    assert diagnostic["center_policy"] == "rotational_symmetry_center"
+    assert diagnostic["construction_reference_center_mm"] == [5000.0, 5000.0]
 
 
 def test_circle_keeps_radius_consistency_after_uniform_fit():

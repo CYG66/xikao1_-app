@@ -784,9 +784,12 @@ def execute_construction_plan(
         assertion.target_ref for assertion in validated.assertions
         if isinstance(assertion, RadialPatternAssertion) and assertion.target_ref
     }
+    shape_invariant_refs = _outline_shape_invariant_refs(
+        validated.steps, rotational_refs,
+    )
     layout_diagnostics = _apply_free_outline_layout(
         validated.free_outline_layout, geometries, refs, scale, curve_quality,
-        rotational_refs,
+        rotational_refs, shape_invariant_refs,
     )
     try:
         geometries, constraint_solve = solve_geometric_constraints(
@@ -947,7 +950,29 @@ def _rotation_for_aspect(points, target_ratio, pivot):
     return best_angle
 
 
-def _apply_free_outline_layout(layout, geometries, refs, scale, curve_quality=(), rotational_refs=()):
+def _outline_shape_invariant_refs(steps, rotational_refs):
+    """Return outline refs whose source construction has an inherent shape.
+
+    This is a capability rule, not a case list: sampled Bezier/spline/arc and
+    parametric curves, plus rotational paths, carry shape information that a
+    non-uniform x/y fit would destroy.  A plain free polyline is not included;
+    callers may still set ``preserve_shape`` explicitly.
+    """
+    refs = set(rotational_refs)
+    for step in steps:
+        op = getattr(step, "op", "")
+        if op in {"add_bezier", "add_spline"}:
+            refs.add(step.output_ref)
+        elif op in {"add_composite_path", "add_rotational_path"}:
+            segments = getattr(step, "segments", [])
+            if op == "add_rotational_path" or any(
+                    getattr(segment, "kind", "line") != "line"
+                    for segment in segments):
+                refs.add(step.output_ref)
+    return refs
+
+
+def _apply_free_outline_layout(layout, geometries, refs, scale, curve_quality=(), rotational_refs=(), shape_invariant_refs=None):
     by_id = {g["id"]:g for g in geometries}
     diagnostics = []
     def target(ref):
@@ -959,12 +984,13 @@ def _apply_free_outline_layout(layout, geometries, refs, scale, curve_quality=()
         g = target(item.target_ref)
         b = _bounds([g])
         w,h=b["max_x"]-b["min_x"],b["max_y"]-b["min_y"]
+        bx,by=(b["min_x"]+b["max_x"])/2,(b["min_y"]+b["max_y"])/2
         if min(w,h)<=1e-9:
             raise ConstructionPlanError("invalid_layout_target", "退化轮廓不能施加宽高约束")
         resize=item.width is not None
         preserve = item.preserve_shape
         if preserve is None:
-            preserve = item.target_ref in set(rotational_refs)
+            preserve = item.target_ref in set(shape_invariant_refs or rotational_refs)
         amplification=1.0
         if resize and preserve:
             pivot=_outline_centroid(g["vertices"])
@@ -997,6 +1023,18 @@ def _apply_free_outline_layout(layout, geometries, refs, scale, curve_quality=()
                 "target_ref": item.target_ref,
                 "policy": "preserve_shape",
                 "shape_center": [pivot[0], pivot[1]],
+                "bbox_center_mm": [bx, by],
+                "area_centroid_mm": [pivot[0], pivot[1]],
+                "rotational_symmetry_center_mm": (
+                    [pivot[0], pivot[1]]
+                    if item.target_ref in set(rotational_refs) else None),
+                "center_policy": (
+                    "rotational_symmetry_center"
+                    if item.target_ref in set(rotational_refs)
+                    else "area_centroid"),
+                "construction_reference_center_mm": (
+                    [item.center.x*scale, item.center.y*scale]
+                    if item.center is not None else None),
                 "rotation_deg": math.degrees(angle),
                 "uniform_scale": uniform,
                 "requested_mm": [item.width*scale, item.height*scale],
@@ -1024,13 +1062,15 @@ def _apply_free_outline_layout(layout, geometries, refs, scale, curve_quality=()
             reference=_bounds([target(item.right_of_ref)])
             if preserve:
                 current=_bounds([g])
-                dx=(reference["max_x"]+item.gap*scale-current["min_x"] if item.gap_reference=="edge"
-                    else (reference["min_x"]+reference["max_x"])/2+item.gap*scale-current["min_x"])
-                dy=(reference["min_y"]+reference["max_y"])/2-(current["min_y"]+current["max_y"])/2
+                current_cx=(current["min_x"]+current["max_x"])/2
+                current_cy=(current["min_y"]+current["max_y"])/2
             else:
-                dx=(reference["max_x"]+item.gap*scale-_bounds([g])["min_x"] if item.gap_reference=="edge"
-                    else (reference["min_x"]+reference["max_x"])/2+item.gap*scale-cx)
-                dy=(reference["min_y"]+reference["max_y"])/2-cy
+                current_cx,current_cy=cx,cy
+            if item.gap_reference=="edge":
+                dx=(reference["max_x"]+item.gap*scale-_bounds([g])["min_x"])
+            else:
+                dx=((reference["min_x"]+reference["max_x"])/2+item.gap*scale-current_cx)
+            dy=(reference["min_y"]+reference["max_y"])/2-current_cy
             for p in g["vertices"]:
                 p["x"]+=dx;p["y"]+=dy
         elif item.center is not None:

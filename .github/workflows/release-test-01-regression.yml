@@ -252,6 +252,7 @@ jobs:
           tests/test_cad_requirement_proof_generalization.py
           tests/test_cad_construction_interpreter.py
           tests/test_cad_shape_invariance_layout.py
+          tests/manual/test_p01_admission.py
           tests/test_cad_http_formal_delivery.py
           tests/test_cad_harness_acceptance.py
           tests/test_user_cad_corpus_runner.py

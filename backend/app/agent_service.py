@@ -6591,17 +6591,35 @@ class RobotAgentService:
         # are reserved for offline evaluation.
         model_input = self._construction_input_snapshot(message, project)
         require_eval_not_aborted()
+        # Every model planning call after the initial plan shares this budget.
+        # Move the ledger ahead of the two legacy replan branches so a retry
+        # cannot be issued without first consuming repair capacity.
+        repair_ledger = {
+            "automatic_repairs": 0,
+            "component_replans": 0,
+            "clarification_replans": 0,
+            "model_required_retries": 0,
+            "alternative_candidate_requests": 0,
+            "alternative_candidates_selected": 0,
+            "max_repairs": 2,
+            "hard_limit_enforced": True,
+        }
         interpretation = self._interpret_cad_construction_plan(model_input, mode=mode)
         if (interpretation.get("status") == "clarification_required"
                 and interpretation.get("provider_attempted")
                 and isinstance(project, dict)
                 and not project.get("missing_parameters")
-                and (interpretation.get("clarification") or {}).get("question_key") == "curve_constraints"):
+                and (interpretation.get("clarification") or {}).get("question_key") == "curve_constraints"
+                and repair_ledger["automatic_repairs"] < 2):
             # A complete persisted contract already authorizes free-contour
             # modelling assumptions.  A model request for hand-supplied
             # control points is a planning miss, not a new user requirement.
             # Retry once from the identical snapshot with that specific
             # failure; do not replace the contract with a short chat turn.
+            # The retry is a model planning call, so it consumes repair budget
+            # before it is sent.
+            repair_ledger["automatic_repairs"] += 1
+            repair_ledger["clarification_replans"] += 1
             retry = self._interpret_cad_construction_plan(
                 model_input + "\n后端试算反馈：需求契约已完整。用户没有义务提供曲线控制点；"
                 "请根据已确认尺寸、部件数量和关系，使用通用构造原语提出可验证计划，"
@@ -6623,21 +6641,17 @@ class RobotAgentService:
                 interpretation = refreshed
         if (interpretation.get("status") == "invalid"
                 and interpretation.get("model_required")
-                and not route.get("construction_retry")):
+                and not route.get("construction_retry")
+                and repair_ledger["automatic_repairs"] < 2):
             # A single bounded retry belongs inside the production formal
             # path because App confirmations do not call generate_project_candidate.
+            # It is also a model planning call and consumes repair budget first.
+            repair_ledger["automatic_repairs"] += 1
+            repair_ledger["model_required_retries"] += 1
             retry = self._interpret_cad_construction_plan(model_input, mode=mode)
             if isinstance(retry, dict):
                 interpretation = retry
         construction_attempts = [deepcopy(interpretation)]
-        repair_ledger = {
-            "automatic_repairs": 0,
-            "component_replans": 0,
-            "alternative_candidate_requests": 0,
-            "alternative_candidates_selected": 0,
-            "max_repairs": 2,
-            "hard_limit_enforced": True,
-        }
         while (should_repair(interpretation)
                and bounded_repair_available(construction_attempts, max_repairs=2)
                and repair_ledger["automatic_repairs"] < 2):
@@ -6765,13 +6779,15 @@ class RobotAgentService:
                             },
                         }
                         construction_attempts.append(deepcopy(interpretation))
+        explicit_contract = explicit_composition(
+            model_input.split("\n[CAD_REQUIREMENT_CONTRACT_SNAPSHOT.v1]", 1)[0]
+        ) or {}
+        explicit_components = explicit_contract.get("names") or explicit_contract.get("counts") or []
         if (interpretation.get("status") != "ready"
                 and interpretation.get("provider_attempted")
                 and repair_ledger["automatic_repairs"] < 2
                 and not (project or {}).get("missing_parameters")
-                and len((explicit_composition(
-                    model_input.split("\n[CAD_REQUIREMENT_CONTRACT_SNAPSHOT.v1]", 1)[0]
-                ) or {}).get("names") or []) > 1):
+                and len(explicit_components) > 1):
             require_eval_not_aborted()
             # Local coordinate repair cannot always recover a wrong topology.
             # Trial separate model plans against the same immutable contract,
@@ -6783,6 +6799,10 @@ class RobotAgentService:
                 mode=mode, alternatives=True,
             )
             if alternative_callback is not None:
+                # The alternative plan set is an additional model planning
+                # request. Consume capacity before sending; selection is only
+                # an outcome and must not be the event that consumes budget.
+                repair_ledger["automatic_repairs"] += 1
                 repair_ledger["alternative_candidate_requests"] += 1
                 alternatives = interpret_sketch_graph_candidates(model_input, alternative_callback)
                 alternative_trials = []
@@ -6818,7 +6838,6 @@ class RobotAgentService:
                             "trials": alternative_trials,
                         }
                         repair_ledger["alternative_candidates_selected"] += 1
-                        repair_ledger["automatic_repairs"] += 1
                         construction_attempts.append(deepcopy(interpretation))
                         break
                 if interpretation.get("status") != "ready":
@@ -7056,6 +7075,7 @@ class RobotAgentService:
             result["next_action"] = "retry_candidate_generation"
             result["cad_generation_failure"]={"category":"persistence_failure","automatic_retry":False,
                 "background_job":None,"recovery":deepcopy(interpretation.get("recovery")),
+                "repair_execution_ledger":deepcopy(interpretation.get("repair_execution_ledger")),
                 "retryable":True,"retry_limit":3}
             return result
 
@@ -7109,6 +7129,7 @@ class RobotAgentService:
             }),
             "construction_commit": {
                 "recovery": deepcopy(interpretation.get("recovery")),
+                "repair_execution_ledger": deepcopy(interpretation.get("repair_execution_ledger")),
                 "schema": committed["schema"],
                 "recommended_candidate_id": committed.get(
                     "recommended_candidate_id"

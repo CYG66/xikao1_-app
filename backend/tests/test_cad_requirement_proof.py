@@ -277,3 +277,32 @@ def test_corner_collection_rejects_duplicate_corner_assignment():
                                       expected_radius_mm=500)
     assert result["status"] == "failed"
     assert result["unmatched_circles"]
+
+
+def test_failed_final_source_check_cannot_be_masked_by_another_passed_claim():
+    """A passed check from another report must not outvote a failed final check."""
+    failed_final = {
+        "name": "width", "field": "width", "status": "failed",
+        "actual_mm": 2000.0, "expected_mm": 3000.0, "tolerance_mm": 0.5,
+        "source_requirement_id": "synthetic:width",
+        "source_evidence": {"text": "宽3米"},
+    }
+    passed_other = {
+        "name": "width", "field": "width", "status": "passed",
+        "source_evidence": {"text": "宽3米"},
+    }
+    coverage = build_requirement_coverage_evidence("宽3米", {
+        "status": "partial", "checks": [],
+        "final_source_acceptance": {
+            "status": "passed", "checks": [failed_final],
+            "unknown_requirements": [],
+        },
+        "source_requirement_acceptance": {
+            "status": "passed", "checks": [passed_other],
+        },
+    })
+    clause = coverage["clauses"][0]
+    assert clause["requirement"] == "宽3米"
+    assert clause["status"] != "verified"
+    assert coverage["state"] == "partial"
+    assert coverage["blocking_requirements"]

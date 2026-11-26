@@ -6,7 +6,12 @@ import math
 import re
 
 from .cad_creation_intent import local_creation_objects
-from .cad_geometric_predicates import closure_measure, mirror_symmetry, outline_points
+from .cad_geometric_predicates import (
+    closure_measure,
+    heart_cusp_points,
+    mirror_symmetry,
+    outline_points,
+)
 from .cad_structure_contract import StructureContractError
 from .cad_semantic_dispatch import (
     DISPATCH_CHANNELS,
@@ -441,7 +446,8 @@ def _verify_heart_channel(geometries,requirements,logical_objects=None,topology=
                                         tolerance_mm=0.5,smooth_angle_tolerance_deg=5.0,
                                         require_smooth=require_smooth,
                                         allowed_cusp_source='heart_features',
-                                        allowed_cusp_limit=2)
+                                        allowed_cusp_limit=2,
+                                        allowed_cusp_points=heart_cusp_points(closure_geometry))
             else:
                 closure={'status':'unverified','reason':'outline_points_unavailable'}
             checks.append({'name':'heart_smooth_closure','status':'passed' if closure.get('status')=='verified' else 'failed',

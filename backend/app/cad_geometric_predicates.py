@@ -211,7 +211,8 @@ def closure_measure(points: Iterable[tuple[float, float]], *,
                     smooth_angle_tolerance_deg: float = 5.0,
                     require_smooth: bool = False,
                     allowed_cusp_source: str | None = None,
-                    allowed_cusp_limit: int = 0) -> dict[str, Any]:
+                    allowed_cusp_limit: int = 0,
+                    allowed_cusp_points: Iterable[tuple[float, float]] | None = None) -> dict[str, Any]:
     """Measure closure and continuity as independent geometric predicates.
 
     ``closed`` is the executor's actual implicit closing edge (last -> first).
@@ -219,10 +220,9 @@ def closure_measure(points: Iterable[tuple[float, float]], *,
     long; a false flag is always a closure failure.  Continuity is measured
     separately from every measured join and is never derived from ``closed``.
 
-    A sharp reversal is accepted only when the caller supplies a source-backed
-    reason (for example verified heart topology) and the number of accepted
-    reversals stays within that source's declared limit.  Being on the vertical
-    centre line alone is not evidence.
+    A sharp reversal is accepted only when the caller supplies both a source
+    label and the source's measured cusp coordinates.  Being on the vertical
+    centre line is not a source: a centre-line heuristic is not accepted.
     """
     points = list(points)
     if len(points) < 3:
@@ -246,14 +246,22 @@ def closure_measure(points: Iterable[tuple[float, float]], *,
     reversals = [join for join in joins
                  if join["turn_deg"] > 180.0 - smooth_angle_tolerance_deg]
     intentional_cusps = []
-    cusp_source_ok = bool(allowed_cusp_source and allowed_cusp_limit > 0)
-    if cusp_source_ok and reversals:
-        xs = [point[0] for point in points]
-        center_x = (min(xs) + max(xs)) / 2.0
-        candidates = [join for join in reversals
-                      if abs(join["point_mm"][0] - center_x)
-                      <= max(tolerance_mm, 1.0)]
-        intentional_cusps = candidates[:allowed_cusp_limit]
+    cusp_source_ok = bool(allowed_cusp_source and allowed_cusp_limit > 0
+                          and allowed_cusp_points)
+    if cusp_source_ok:
+        accepted: list[dict[str, Any]] = []
+        for point in allowed_cusp_points or []:
+            nearest = min(
+                reversals,
+                key=lambda join: math.dist(join["point_mm"], point),
+                default=None,
+            )
+            if (nearest is not None
+                    and math.dist(nearest["point_mm"], point)
+                    <= max(tolerance_mm, 1.0)
+                    and nearest not in accepted):
+                accepted.append(nearest)
+        intentional_cusps = accepted[:allowed_cusp_limit]
     unexpected_reversals = [join for join in reversals
                             if join not in intentional_cusps]
     remaining = [join for join in joins if join not in intentional_cusps]
@@ -285,6 +293,56 @@ def closure_measure(points: Iterable[tuple[float, float]], *,
         "unexpected_turns": over_limit[:8],
         "require_smooth": bool(require_smooth),
     }
+
+
+def heart_cusp_points(geometry: dict[str, Any]) -> list[tuple[float, float]]:
+    """Return the two source-backed heart cusp coordinates in millimetres.
+
+    The coordinates come from the same verified four-feature measurement
+    (normalized centre notch and lower tip), never from the bounding-box
+    centre line.  Empty output means the geometry did not prove the features.
+    """
+    measured = heart_features([geometry])
+    features = measured.get("features") or {}
+    if not features or not all(features.values()):
+        return []
+    points = measured.get("points") or []
+    bounds = measured.get("bounds_mm") or {}
+    if not points or not bounds:
+        return []
+    width = bounds["max_x"] - bounds["min_x"]
+    height = bounds["max_y"] - bounds["min_y"]
+    if width <= 0 or height <= 0:
+        return []
+
+    def millimetres(point: tuple[float, float]) -> tuple[float, float]:
+        return (bounds["min_x"] + point[0] * width,
+                bounds["min_y"] + point[1] * height)
+
+    def sharp(point_index: int) -> bool:
+        previous = points[point_index - 1]
+        current = points[point_index]
+        following = points[(point_index + 1) % len(points)]
+        u = (current[0] - previous[0], current[1] - previous[1])
+        v = (following[0] - current[0], following[1] - current[1])
+        lengths = math.hypot(*u) * math.hypot(*v)
+        if lengths <= 1e-12:
+            return False
+        cosine = max(-1.0, min(1.0, (u[0] * v[0] + u[1] * v[1]) / lengths))
+        return math.degrees(math.acos(cosine)) > 175.0
+
+    notch = [(index, point) for index, point in enumerate(points)
+             if sharp(index)
+             and abs(point[0] - 0.5) < 0.03 and 0.5 < point[1] < 0.9]
+    tip = [(index, point) for index, point in enumerate(points)
+           if sharp(index)
+           and abs(point[0] - 0.5) < 0.10 and point[1] <= 0.01]
+    cusps: list[tuple[float, float]] = []
+    if notch:
+        cusps.append(millimetres(min(notch, key=lambda item: item[1][1])[1]))
+    if tip:
+        cusps.append(millimetres(min(tip, key=lambda item: item[1][1])[1]))
+    return cusps
 
 
 def heart_outline_measure(geometry: dict[str, Any]) -> dict[str, Any]:

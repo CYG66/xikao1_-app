@@ -15,6 +15,61 @@ from .cad_plan_component_repair import ComponentRepairError
 from .eval_request_guard import is_eval_fatal
 
 
+_DEFORMATION_DENIAL = re.compile(
+    r"不要[^，。；;]{0,6}(拉伸|变形|压扁)|"
+    r"不得[^，。；;]{0,6}(拉伸|变形|压扁)|"
+    r"禁止[^，。；;]{0,6}(拉伸|变形|压扁)|"
+    r"保持(原|原有|原有)?(形状|比例)|不要改变(形状|比例)"
+)
+_DEFORMATION_ALLOWANCE = re.compile(
+    r"(允许|可以|可)[^，。；;]{0,10}(非等比|不等比|自由变形|拉伸|压扁)|"
+    r"拉伸到|压扁到|自由变形|"
+    r"不必保持比例|无需保持比例|不要求保持比例"
+)
+_FIXED_ORIENTATION = re.compile(
+    r"(?:尖|顶|瓣|开口|缺口|正面|底边)[^。；;\n]{0,8}(?:朝|向|对|指向)(?:上|下|左|右)|"
+    r"(?:不要|不得|禁止|保持)[^。；;\n]{0,6}(?:旋转|转向|朝向|方向)|"
+    r"旋转(?:角度)?\s*[=为]?\s*-?\d+|"
+    r"(?:水平|垂直)(?:放置|摆放|朝向)"
+)
+
+
+def _source_requires_fixed_orientation(text):
+    """Return True when the source fixes the object's orientation."""
+    return bool(_FIXED_ORIENTATION.search(str(text or "")))
+
+
+def _source_allows_outline_deformation(text):
+    """Return True only when the source explicitly permits non-proportional fit."""
+    text = str(text or "")
+    if _DEFORMATION_DENIAL.search(text):
+        return False
+    return bool(_DEFORMATION_ALLOWANCE.search(text))
+
+
+def _source_requires_shape_preservation(text):
+    """Return True only when the source explicitly requires shape preservation."""
+    text = str(text or "")
+    if _DEFORMATION_ALLOWANCE.search(text):
+        return False
+    return bool(_DEFORMATION_DENIAL.search(text))
+
+
+def _step_has_inherent_shape(step, source_text=""):
+    """Whether a sampled outline step carries declared curve geometry."""
+    op = str(step.get("op") or "")
+    if op in {"add_bezier", "add_spline", "add_parametric_curve"}:
+        return True
+    if op in {"add_composite_path", "add_rotational_path"}:
+        if op == "add_rotational_path":
+            return True
+        return any(str(segment.get("kind") or "line") != "line"
+                   for segment in step.get("segments") or [])
+    if op == "add_polyline":
+        return _polyline_has_inherent_shape(step, source_text)
+    return False
+
+
 def _coerce_model_payload(value):
     """Accept provider JSON envelopes while keeping schema validation strict."""
     if isinstance(value, dict):
@@ -49,6 +104,7 @@ from .cad_construction import (
     CadConstructionPlan,
     ConstructionPoint,
     ConstructionPlanError,
+    _polyline_has_inherent_shape,
     construction_geometry_bounds,
     construction_geometry_area,
     construction_plan_json_schema,
@@ -2649,6 +2705,8 @@ def bind_component_layout(payload, contract, text):
                 # A bad fixed component must not cancel deterministic sizing
                 # of every other, already-correct component.
                 item={'target_ref':ref}
+                if _source_allows_outline_deformation(text):
+                    item['preserve_shape']=False
                 # A fixed radius/circumradius is a geometric identity. Do not
                 # convert it into a width/height fit, which can nonuniformly
                 # scale a polygon and invalidate its radius after placement.
@@ -3344,19 +3402,24 @@ def normalize_explicit_outline_size_once(
     center = ((bounds["min_x"] + bounds["max_x"]) / (2 * unit),
               (bounds["min_y"] + bounds["max_y"]) / (2 * unit))
     seen = set()
-    if step['op']=='add_parametric_curve':
-        # Fit the final sampled geometry. Rewriting the formula using a
-        # previous sample's extrema changes adaptive sample locations and
-        # can miss the requested bounds on the next execution.
+    inherent_shape = _step_has_inherent_shape(step, source_text)
+    allow_deformation = _source_allows_outline_deformation(source_text)
+    source_preserve = _source_requires_shape_preservation(source_text)
+    if (inherent_shape or step["op"] == "add_parametric_curve"
+            or (step["op"] == "add_polyline" and source_preserve)):
+        # A sampled curve or declared intrinsic outline is fitted once,
+        # uniformly, at execution time.  Do not pre-scale its control points by
+        # independent x/y factors: that destroys the inherent shape before the
+        # layout can preserve it.
         layout = plan.setdefault('free_outline_layout', [])
         layout[:] = [item for item in layout if item.get('target_ref') != step['output_ref']]
+        preserve = not allow_deformation
         layout.append({'target_ref': step['output_ref'],
                        'width': sizes['width'] * 1000 / unit,
-                       'height': sizes['height'] * 1000 / unit})
-    if step["op"] == "add_rotational_path":
-        step["fit_width"] = sizes["width"] * 1000 / unit
-        step["fit_height"] = sizes["height"] * 1000 / unit
-        points = []  # Fit the completed boundary, not its seed before rotation.
+                       'height': sizes['height'] * 1000 / unit,
+                       'preserve_shape': preserve,
+                       'auto_rotate': not _source_requires_fixed_orientation(source_text)})
+        points = []
     for point in points:
         if id(point) in seen:
             continue

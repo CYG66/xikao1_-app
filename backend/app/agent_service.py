@@ -149,6 +149,7 @@ from .integration_profile import (
 )
 from .eval_request_guard import (
     deny_eval_get,
+    eval_mode_enabled,
     fail_eval_request,
     is_eval_fatal,
     require_eval_not_aborted,
@@ -218,6 +219,207 @@ from .tooling import (
     build_action_preflight,
     validate_tool_arguments,
 )
+
+
+_REPAIR_REQUEST_CONTEXT: ContextVar[
+    tuple[Any, str, bool] | None
+] = ContextVar("cad_repair_request_context", default=None)
+
+
+class RepairBudgetExhausted(RuntimeError):
+    """A planning request was blocked before it could reach the network."""
+
+    repair_budget_exhausted = True
+
+
+class RepairLedgerPersistenceError(RuntimeError):
+    """A case-level repair ledger could not be read or written."""
+
+    eval_fatal = True
+
+
+class RepairExecutionLedger:
+    """Case-level repair budget shared by every real planning request.
+
+    The first successful planning send establishes the baseline.  Every later
+    send, including an internal JSON-format retry, consumes repair capacity
+    before it is sent.  In evaluation mode the counters are persisted outside
+    the worker process so a new HTTP turn cannot reset them.
+    """
+
+    MAX_REPAIRS = 2
+    SCHEMA = "cad.repair-execution-ledger.v3"
+    NOTE_FIELDS = (
+        "clarification_replans",
+        "model_required_retries",
+        "component_replans",
+        "alternative_candidate_requests",
+        "alternative_candidates_selected",
+    )
+
+    def __init__(
+        self,
+        *,
+        max_repairs: int = MAX_REPAIRS,
+        persist_path: Path | None = None,
+        run_id: str = "",
+        case_id: str = "",
+    ) -> None:
+        self.max_repairs = max(0, min(int(max_repairs), 2))
+        self.persist_path = persist_path
+        self.run_id = run_id
+        self.case_id = case_id
+        self.initial_plan_requests = 0
+        self.actual_planning_requests = 0
+        self.automatic_repairs = 0
+        self.json_format_retries = 0
+        for name in self.NOTE_FIELDS:
+            setattr(self, name, 0)
+        self.replan_evidence: list[dict[str, Any]] = []
+        self._load()
+
+    @classmethod
+    def for_current_case(cls) -> "RepairExecutionLedger":
+        path, run_id, case_id = cls._eval_state_path()
+        return cls(persist_path=path, run_id=run_id, case_id=case_id)
+
+    @staticmethod
+    def _eval_state_path() -> tuple[Path | None, str, str]:
+        if not eval_mode_enabled():
+            return None, "", ""
+        budget_path = os.getenv("P12_EVAL_BUDGET_PATH", "").strip()
+        case_id = os.getenv("P12_EVAL_CASE_ID", "").strip()
+        run_id = os.getenv("P12_EVAL_RUN_ID", "").strip()
+        if not budget_path or not case_id:
+            return None, run_id, case_id
+        safe_case = re.sub(r"[^A-Za-z0-9_.-]+", "_", case_id)[:80] or "case"
+        safe_run = re.sub(r"[^A-Za-z0-9_.-]+", "_", run_id)[:80] or "run"
+        root = Path(budget_path).resolve().parent / "repair-state"
+        root.mkdir(parents=True, exist_ok=True)
+        return root / f"{safe_run}__{safe_case}.json", run_id, case_id
+
+    def _load(self) -> None:
+        if self.persist_path is None or not self.persist_path.exists():
+            return
+        try:
+            payload = json.loads(self.persist_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            raise RepairLedgerPersistenceError(
+                f"repair_ledger_read_failed:{type(exc).__name__}:{exc}"
+            ) from exc
+        if not isinstance(payload, dict) or payload.get("schema") != self.SCHEMA:
+            raise RepairLedgerPersistenceError("repair_ledger_schema_mismatch")
+        try:
+            self.initial_plan_requests = int(payload.get("initial_plan_requests", 0))
+            self.actual_planning_requests = int(payload.get("actual_planning_requests", 0))
+            self.automatic_repairs = int(payload.get("automatic_repairs", 0))
+            self.json_format_retries = int(payload.get("json_format_retries", 0))
+            for name in self.NOTE_FIELDS:
+                setattr(self, name, int(payload.get(name, 0)))
+            evidence = payload.get("replan_evidence") or []
+            self.replan_evidence = deepcopy(evidence) if isinstance(evidence, list) else []
+        except (TypeError, ValueError) as exc:
+            raise RepairLedgerPersistenceError(
+                f"repair_ledger_value_invalid:{type(exc).__name__}:{exc}"
+            ) from exc
+        if (self.initial_plan_requests not in (0, 1)
+                or self.automatic_repairs not in (0, 1, 2)
+                or self.actual_planning_requests > 4
+                or self.actual_planning_requests < self.automatic_repairs):
+            raise RepairLedgerPersistenceError("repair_ledger_state_invalid")
+
+    def _persist(self) -> None:
+        if self.persist_path is None:
+            return
+        payload = {
+            "schema": self.SCHEMA,
+            "run_id": self.run_id,
+            "case_id": self.case_id,
+            "max_repairs": self.max_repairs,
+            **self.as_dict(),
+            "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        }
+        tmp = self.persist_path.with_suffix(
+            self.persist_path.suffix + ".tmp-" + uuid.uuid4().hex
+        )
+        try:
+            tmp.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            os.replace(tmp, self.persist_path)
+        except Exception as exc:
+            try:
+                tmp.unlink()
+            except Exception:
+                pass
+            raise RepairLedgerPersistenceError(
+                f"repair_ledger_write_failed:{type(exc).__name__}:{exc}"
+            ) from exc
+
+    def can_repair(self) -> bool:
+        return self.automatic_repairs < self.max_repairs
+
+    def reserve_plan_request(self, kind: str) -> str:
+        """Consume capacity before the caller opens a network request."""
+
+        if kind == "initial" and self.initial_plan_requests == 0:
+            self.initial_plan_requests = 1
+            self.actual_planning_requests += 1
+            self._persist()
+            return "initial"
+        if self.automatic_repairs >= self.max_repairs:
+            raise RepairBudgetExhausted(
+                f"repair_budget_exhausted:{self.automatic_repairs}>={self.max_repairs}"
+            )
+        self.automatic_repairs += 1
+        self.actual_planning_requests += 1
+        if kind == "json_format_retry":
+            self.json_format_retries += 1
+        self._persist()
+        return "repair"
+
+    def note(self, field: str) -> None:
+        if field not in self.NOTE_FIELDS:
+            raise ValueError(f"unknown repair ledger note: {field}")
+        setattr(self, field, int(getattr(self, field)) + 1)
+        self._persist()
+
+    def record_replan_evidence(self, interpretation: dict[str, Any]) -> None:
+        plan = interpretation.get("plan") or interpretation.get("rejected_plan")
+        plan_hash = None
+        if isinstance(plan, dict):
+            plan_hash = hashlib.sha256(
+                json.dumps(plan, ensure_ascii=False, sort_keys=True).encode("utf-8")
+            ).hexdigest()
+        self.replan_evidence.append({
+            "status": interpretation.get("status"),
+            "parser": interpretation.get("parser"),
+            "provider_attempted": bool(interpretation.get("provider_attempted")),
+            "error": deepcopy(interpretation.get("error")),
+            "construction_error": deepcopy(interpretation.get("construction_error")),
+            "residual_vector": deepcopy(interpretation.get("residual_vector")),
+            "plan_sha256": plan_hash,
+        })
+        self.replan_evidence = self.replan_evidence[-4:]
+        self._persist()
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "schema": self.SCHEMA,
+            "run_id": self.run_id,
+            "case_id": self.case_id,
+            "max_repairs": self.max_repairs,
+            "hard_limit_enforced": True,
+            "initial_plan_requests": self.initial_plan_requests,
+            "actual_planning_requests": self.actual_planning_requests,
+            "automatic_repairs": self.automatic_repairs,
+            "json_format_retries": self.json_format_retries,
+            **{name: int(getattr(self, name)) for name in self.NOTE_FIELDS},
+            "replan_evidence": deepcopy(self.replan_evidence),
+            "persisted": self.persist_path is not None,
+        }
+
 
 
 def _extract_upper_bound_dimensions(text: str) -> dict[str, float]:
@@ -6155,9 +6357,17 @@ class RobotAgentService:
         mode: str = "advanced",
         alternatives: bool = False,
         repair_context: dict[str, Any] | None = None,
+        request_budget: Any | None = None,
+        planning_kind: str = "initial",
+        first_send_reserved: bool = False,
     ) -> tuple[Any | None, dict[str, Any]]:
         """Build the bounded model callback shared by production and evals."""
-        state = {"provider_attempted": False, "request_attempts": 0}
+        state = {
+            "provider_attempted": False,
+            "request_attempts": 0,
+            "transport_failed": False,
+            "transport_error": None,
+        }
 
         def structured_model_callback(
             source_text: str, schema: dict[str, Any],
@@ -6309,13 +6519,40 @@ class RobotAgentService:
             planning_options = ({"model_override": self.cad_planning_model} if self.mode == "deepseek" else {})
             if alternatives:
                 token_budget = min(8192, token_budget * 2)
-            state["request_attempts"] += 1
-            raw = self._structured_review_text(
-                messages,
-                mode=mode,
-                max_tokens_override=token_budget,
-                **planning_options,
-            )
+
+            def send(current_messages: list[dict[str, Any]]) -> str:
+                # Reserve before every real send.  The first send of the first
+                # plan establishes the case baseline; every later send,
+                # including the JSON-format retry below, is a repair request.
+                if request_budget is not None and not (
+                    state["request_attempts"] == 0 and first_send_reserved
+                ):
+                    kind = (
+                        planning_kind
+                        if state["request_attempts"] == 0
+                        else "json_format_retry"
+                    )
+                    request_budget(kind)
+                state["request_attempts"] += 1
+                try:
+                    return self._structured_review_text(
+                        current_messages,
+                        mode=mode,
+                        max_tokens_override=token_budget,
+                        **planning_options,
+                    )
+                except BaseException as exc:
+                    if (getattr(exc, "repair_budget_exhausted", False)
+                            or is_eval_fatal(exc)):
+                        raise
+                    state["transport_failed"] = True
+                    state["transport_error"] = {
+                        "type": type(exc).__name__,
+                        "message": str(exc)[:500],
+                    }
+                    raise
+
+            raw = send(messages)
             payload = self._json_object(raw)
             if not isinstance(payload, dict):
                 retry_messages = self._structured_review_retry_messages(
@@ -6323,13 +6560,7 @@ class RobotAgentService:
                     raw,
                     reason="响应不是可解析的单个 JSON 对象",
                 )
-                state["request_attempts"] += 1
-                raw = self._structured_review_text(
-                    retry_messages,
-                    mode=mode,
-                    max_tokens_override=token_budget,
-                    **planning_options,
-                )
+                raw = send(retry_messages)
                 payload = self._json_object(raw)
                 if not isinstance(payload, dict):
                     raise ValueError("模型连续两次未返回可解析的 JSON 对象")
@@ -6362,6 +6593,9 @@ class RobotAgentService:
         mode: str = "advanced",
         repair_context: dict[str, Any] | None = None,
         component_repair_context: dict[str, Any] | None = None,
+        request_budget: Any | None = None,
+        planning_kind: str = "initial",
+        first_send_reserved: bool = False,
     ) -> dict[str, Any]:
         """Produce one verified CadConstructionPlan without persistence.
 
@@ -6369,7 +6603,17 @@ class RobotAgentService:
         rules run first; on a rule miss, the configured structured model gets
         one bounded attempt (plus one JSON-format repair retry).
         """
-        callback, state = self._cad_construction_model_callback(mode=mode,**({'repair_context':repair_context} if repair_context is not None else {}))
+        if request_budget is None:
+            context = _REPAIR_REQUEST_CONTEXT.get()
+            if context is not None:
+                request_budget, planning_kind, first_send_reserved = context
+        callback, state = self._cad_construction_model_callback(
+            mode=mode,
+            **({'repair_context': repair_context} if repair_context is not None else {}),
+            request_budget=request_budget,
+            planning_kind=planning_kind,
+            first_send_reserved=first_send_reserved,
+        )
         if callback is not None and component_repair_context is not None:
             original_callback = callback
             def callback(source, schema):
@@ -6392,6 +6636,22 @@ class RobotAgentService:
                 from .cad_plan_component_repair import merge_component_repair
                 return merge_component_repair(component_repair_context, payload)
         result = interpret_construction_request(message, callback)
+        if state.get("transport_failed"):
+            # A transport/network failure is not a recoverable planning miss.
+            # Preserve the provider error separately so the caller cannot open
+            # an alternative generation path or charge it as a geometry repair.
+            result = {
+                "schema": "cad.construction-interpretation-result.v1",
+                "status": "invalid",
+                "parser": "structured_model",
+                "provider_attempted": True,
+                "transport_failed": True,
+                "transport_error": deepcopy(state.get("transport_error")),
+                "error": {
+                    "code": "model_transport_failed",
+                    "message": "模型网络请求失败，未进入替代候选生成，也未自动重试。",
+                },
+            }
         if state.get('coordinate_patch'):result['coordinate_patch']=deepcopy(state['coordinate_patch'])
         attempted = bool(state["provider_attempted"])
         attempts = int(state["request_attempts"])
@@ -6591,20 +6851,63 @@ class RobotAgentService:
         # are reserved for offline evaluation.
         model_input = self._construction_input_snapshot(message, project)
         require_eval_not_aborted()
-        # Every model planning call after the initial plan shares this budget.
-        # Move the ledger ahead of the two legacy replan branches so a retry
-        # cannot be issued without first consuming repair capacity.
-        repair_ledger = {
-            "automatic_repairs": 0,
-            "component_replans": 0,
-            "clarification_replans": 0,
-            "model_required_retries": 0,
-            "alternative_candidate_requests": 0,
-            "alternative_candidates_selected": 0,
-            "max_repairs": 2,
-            "hard_limit_enforced": True,
-        }
-        interpretation = self._interpret_cad_construction_plan(model_input, mode=mode)
+        # Case-level budget: the initial plan is free only on its first real
+        # send.  Every later real send (legacy replan, component repair,
+        # alternative plan, or JSON-format retry) reserves capacity before the
+        # socket opens.  In evaluation mode this state survives worker and
+        # HTTP-turn boundaries.
+        budget = RepairExecutionLedger.for_current_case()
+        repair_ledger = budget.as_dict()
+
+        def account_request(kind: str) -> None:
+            budget.reserve_plan_request(kind)
+            repair_ledger.update(budget.as_dict())
+
+        def budget_failure() -> dict[str, Any]:
+            return {
+                "schema": "cad.construction-interpretation-result.v1",
+                "status": "invalid",
+                "parser": "repair_budget_guard",
+                "provider_attempted": budget.actual_planning_requests > 0,
+                "repair_budget_exhausted": True,
+                "error": {
+                    "code": "repair_budget_exhausted",
+                    "message": "该案例的两次修复性规划请求额度已用尽；本次未发送模型请求。",
+                },
+            }
+
+        def plan_request(
+            text: str,
+            *,
+            kind: str = "repair",
+            **kwargs: Any,
+        ) -> dict[str, Any]:
+            # Logical repair calls are charged before the interpreter runs.
+            # The callback skips that already-charged first send but still
+            # charges any internal JSON-format retry.
+            first_send_reserved = kind == "repair"
+            if first_send_reserved:
+                try:
+                    account_request("repair")
+                except RepairBudgetExhausted:
+                    return budget_failure()
+            token = _REPAIR_REQUEST_CONTEXT.set(
+                (account_request, kind, first_send_reserved)
+            )
+            try:
+                result = self._interpret_cad_construction_plan(
+                    text,
+                    mode=mode,
+                    **kwargs,
+                )
+            except RepairBudgetExhausted:
+                result = budget_failure()
+            finally:
+                _REPAIR_REQUEST_CONTEXT.reset(token)
+            repair_ledger.update(budget.as_dict())
+            return result
+
+        interpretation = plan_request(model_input, kind="initial")
         if (interpretation.get("status") == "clarification_required"
                 and interpretation.get("provider_attempted")
                 and isinstance(project, dict)
@@ -6617,14 +6920,16 @@ class RobotAgentService:
             # Retry once from the identical snapshot with that specific
             # failure; do not replace the contract with a short chat turn.
             # The retry is a model planning call, so it consumes repair budget
-            # before it is sent.
-            repair_ledger["automatic_repairs"] += 1
-            repair_ledger["clarification_replans"] += 1
-            retry = self._interpret_cad_construction_plan(
+            # before it is sent.  Preserve a compact snapshot of the failure
+            # that justified the replan; it is evidence, not a new requirement.
+            budget.record_replan_evidence(interpretation)
+            budget.note("clarification_replans")
+            repair_ledger.update(budget.as_dict())
+            retry = plan_request(
                 model_input + "\n后端试算反馈：需求契约已完整。用户没有义务提供曲线控制点；"
                 "请根据已确认尺寸、部件数量和关系，使用通用构造原语提出可验证计划，"
                 "必要的内部曲线比例写入assumptions。不得省略已有部件。",
-                mode=mode,
+                kind="repair",
             )
             if isinstance(retry, dict):
                 interpretation = retry
@@ -6646,9 +6951,10 @@ class RobotAgentService:
             # A single bounded retry belongs inside the production formal
             # path because App confirmations do not call generate_project_candidate.
             # It is also a model planning call and consumes repair budget first.
-            repair_ledger["automatic_repairs"] += 1
-            repair_ledger["model_required_retries"] += 1
-            retry = self._interpret_cad_construction_plan(model_input, mode=mode)
+            budget.record_replan_evidence(interpretation)
+            budget.note("model_required_retries")
+            repair_ledger.update(budget.as_dict())
+            retry = plan_request(model_input, kind="repair")
             if isinstance(retry, dict):
                 interpretation = retry
         construction_attempts = [deepcopy(interpretation)]
@@ -6679,9 +6985,10 @@ class RobotAgentService:
             legacy_replan=bool(repair_details.get('requires_structural_replan')
                 and plan_refs and plan_refs.issubset(failed_refs))
             structural_replan=legacy_replan or classification['requires_structural_replan']
-            repair_ledger["automatic_repairs"] += 1
+            budget.record_replan_evidence(interpretation)
             if structural_replan:
-                repair_ledger["component_replans"] += 1
+                budget.note("component_replans")
+            repair_ledger.update(budget.as_dict())
             failure = interpretation.get("error") or {}
             feedback = str(failure.get("message") or "构造计划未通过验证")
             if isinstance(interpretation.get("construction_error"), dict):
@@ -6712,13 +7019,13 @@ class RobotAgentService:
                 + json.dumps(rejected_plan, ensure_ascii=False)
                 if isinstance(rejected_plan, dict) else ""
             )
-            interpretation = self._interpret_cad_construction_plan(
+            interpretation = plan_request(
                 model_input + "\n后端试算反馈：前一次计划未通过验证：" + feedback
                 + ("。全部构造步骤均未通过结构验收，允许重新编译这些失败步骤的组成、数量和模型自拟断言，删除错误的多余部件。旧计划不是需求，禁止机械保留错误内外边界。必须保留原始用户尺寸、数量和连接要求，后端独立验收不变。"
                    if structural_replan else "。请修正具体错误，不要无关重建；保留原始尺寸、数量和闭合要求。不能只提高confidence或修改断言来绕过检查。")
                 + "若确有缺少的必要参数，请返回具体缺参澄清。"
                 + previous_plan,
-                mode=mode,
+                kind="repair",
                 **({} if structural_replan else {'repair_context':deepcopy(failed_attempt)}
                    if ((failed_attempt.get('construction_error') or {}).get('details') or {}).get('local_repair_scope')
                    else {'component_repair_context':deepcopy(failed_attempt)}
@@ -6783,8 +7090,41 @@ class RobotAgentService:
             model_input.split("\n[CAD_REQUIREMENT_CONTRACT_SNAPSHOT.v1]", 1)[0]
         ) or {}
         explicit_components = explicit_contract.get("names") or explicit_contract.get("counts") or []
-        if (interpretation.get("status") != "ready"
-                and interpretation.get("provider_attempted")
+        alternative_error = (
+            interpretation.get("error")
+            if isinstance(interpretation.get("error"), dict) else {}
+        )
+        alternative_error_code = str(alternative_error.get("code") or "")
+        # Alternative SketchGraph plans are only for recoverable planning or
+        # geometry misses.  Transport failures, persistence failures, real
+        # missing parameters and clarification requests must stop here.
+        alternative_recoverable = bool(
+            interpretation.get("status") == "invalid"
+            and interpretation.get("provider_attempted")
+            and not interpretation.get("model_required")
+            and not interpretation.get("clarification_required")
+            and not interpretation.get("transport_failed")
+            and alternative_error_code not in {
+                "model_transport_failed",
+                "candidate_persistence_failed",
+                "persistence_failed",
+                "persistence_failure",
+                "missing_required_parameter",
+                "missing_dimensions",
+                "missing_component_dimensions",
+            }
+            and (
+                isinstance(interpretation.get("construction_error"), dict)
+                or alternative_error_code in {
+                    "invalid_plan",
+                    "invalid_model_output",
+                    "trial_execution_failed",
+                    "geometry_mismatch",
+                    "mandatory_requirement_regressed",
+                }
+            )
+        )
+        if (alternative_recoverable
                 and repair_ledger["automatic_repairs"] < 2
                 and not (project or {}).get("missing_parameters")
                 and len(explicit_components) > 1):
@@ -6797,14 +7137,40 @@ class RobotAgentService:
             )
             alternative_callback, alternative_state = self._cad_construction_model_callback(
                 mode=mode, alternatives=True,
+                request_budget=account_request,
+                planning_kind="repair",
             )
             if alternative_callback is not None:
                 # The alternative plan set is an additional model planning
                 # request. Consume capacity before sending; selection is only
                 # an outcome and must not be the event that consumes budget.
-                repair_ledger["automatic_repairs"] += 1
-                repair_ledger["alternative_candidate_requests"] += 1
-                alternatives = interpret_sketch_graph_candidates(model_input, alternative_callback)
+                budget.note("alternative_candidate_requests")
+                repair_ledger.update(budget.as_dict())
+                try:
+                    alternatives = interpret_sketch_graph_candidates(
+                        model_input, alternative_callback,
+                    )
+                except RepairBudgetExhausted:
+                    alternatives = {
+                        "status": "invalid",
+                        "error": {
+                            "code": "repair_budget_exhausted",
+                            "message": "替代候选请求超出案例修复额度，未发送。",
+                        },
+                        "candidate_set": {"candidates": []},
+                    }
+                finally:
+                    repair_ledger.update(budget.as_dict())
+                if alternative_state.get("transport_failed"):
+                    alternatives = {
+                        "status": "invalid",
+                        "transport_failed": True,
+                        "error": {
+                            "code": "model_transport_failed",
+                            "message": "替代候选的模型请求网络失败，未自动重试。",
+                        },
+                        "candidate_set": {"candidates": []},
+                    }
                 alternative_trials = []
                 for candidate in (alternatives.get("candidate_set") or {}).get("candidates") or []:
                     plan = candidate.get("plan") if isinstance(candidate, dict) else None
@@ -6838,6 +7204,8 @@ class RobotAgentService:
                             "trials": alternative_trials,
                         }
                         repair_ledger["alternative_candidates_selected"] += 1
+                        budget.note("alternative_candidates_selected")
+                        repair_ledger.update(budget.as_dict())
                         construction_attempts.append(deepcopy(interpretation))
                         break
                 if interpretation.get("status") != "ready":
@@ -6864,6 +7232,7 @@ class RobotAgentService:
                         "message": "正式交付前发现此前已通过的强制事实退化，拒绝保存候选。",
                     },
                 }
+        repair_ledger.update(budget.as_dict())
         interpretation["repair_execution_ledger"] = deepcopy(repair_ledger)
         interpretation["recovery"] = recovery_record(
             message,construction_attempts,max_repairs=2)

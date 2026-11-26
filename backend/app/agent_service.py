@@ -6630,8 +6630,17 @@ class RobotAgentService:
             if isinstance(retry, dict):
                 interpretation = retry
         construction_attempts = [deepcopy(interpretation)]
+        repair_ledger = {
+            "automatic_repairs": 0,
+            "component_replans": 0,
+            "alternative_candidate_requests": 0,
+            "alternative_candidates_selected": 0,
+            "max_repairs": 2,
+            "hard_limit_enforced": True,
+        }
         while (should_repair(interpretation)
-               and bounded_repair_available(construction_attempts, max_repairs=2)):
+               and bounded_repair_available(construction_attempts, max_repairs=2)
+               and repair_ledger["automatic_repairs"] < 2):
             require_eval_not_aborted()
             # M3: stall guard between consecutive attempts. The first repair
             # (single attempt) is never gated. Block only on a proven stall;
@@ -6656,6 +6665,9 @@ class RobotAgentService:
             legacy_replan=bool(repair_details.get('requires_structural_replan')
                 and plan_refs and plan_refs.issubset(failed_refs))
             structural_replan=legacy_replan or classification['requires_structural_replan']
+            repair_ledger["automatic_repairs"] += 1
+            if structural_replan:
+                repair_ledger["component_replans"] += 1
             failure = interpretation.get("error") or {}
             feedback = str(failure.get("message") or "构造计划未通过验证")
             if isinstance(interpretation.get("construction_error"), dict):
@@ -6664,6 +6676,13 @@ class RobotAgentService:
                 )
                 if (interpretation['construction_error'].get('details') or {}).get('local_repair_scope'):
                     feedback += "\n本次是受保护的局部修复：仅可修改editable_fields_by_ref列出的坐标字段。必须保留全部步骤及其顺序、标识、语义和全局参数；不得增删步骤、重命名或改变其他部件。修复后会逐项比较并校验受保护几何。"
+                if isinstance(interpretation.get('residual_vector'), dict):
+                    from .cad_residual_repair import feedback_text
+                    feedback = feedback_text(
+                        feedback,
+                        interpretation['residual_vector'],
+                        failed_attempt.get('plan') or failed_attempt.get('rejected_plan'),
+                    )
                 expected_feature=(repair_details.get('required_features')
                     or {k:v for k,v in repair_details.items() if str(k).startswith('expected')})
                 measured_feature=(repair_details.get('measured_features')
@@ -6710,8 +6729,45 @@ class RobotAgentService:
                     'error':{'code':'confidence_only_repair','message':'模型仅提高置信度，未修正原计划或获得新的用户约束，本次不保存候选。'}}
             interpretation["construction_retry_used"] = True
             construction_attempts.append(deepcopy(interpretation))
+            if interpretation.get("status") == "ready":
+                from .cad_residual_repair import mandatory_regression_across
+                regression = mandatory_regression_across(construction_attempts)
+                if not regression["ok"]:
+                    interpretation = {
+                        "schema": "cad.construction-interpretation-result.v1",
+                        "status": "invalid",
+                        "parser": interpretation.get("parser"),
+                        "provider_attempted": interpretation.get("provider_attempted"),
+                        "rejected_plan": deepcopy(interpretation.get("plan")),
+                        "confidence": interpretation.get("confidence"),
+                        "mandatory_regression": deepcopy(regression),
+                        "error": {
+                            "code": "mandatory_requirement_regressed",
+                            "message": "修复结果使此前已通过的强制要求失败、未验证或丢失，拒绝直接进入正式交付。",
+                        },
+                    }
+                    construction_attempts.append(deepcopy(interpretation))
+                elif len(construction_attempts) >= 2:
+                    progress = evaluate_repair_progress(
+                        construction_attempts[-2], construction_attempts[-1])
+                    if progress["decision"] == "block":
+                        interpretation = {
+                            "schema": "cad.construction-interpretation-result.v1",
+                            "status": "invalid",
+                            "parser": interpretation.get("parser"),
+                            "provider_attempted": interpretation.get("provider_attempted"),
+                            "rejected_plan": deepcopy(interpretation.get("plan")),
+                            "confidence": interpretation.get("confidence"),
+                            "progress": deepcopy(progress),
+                            "error": {
+                                "code": "ready_result_regressed",
+                                "message": "修复结果回到 ready 时触发强制事实退化检查，未保存候选。",
+                            },
+                        }
+                        construction_attempts.append(deepcopy(interpretation))
         if (interpretation.get("status") != "ready"
                 and interpretation.get("provider_attempted")
+                and repair_ledger["automatic_repairs"] < 2
                 and not (project or {}).get("missing_parameters")
                 and len((explicit_composition(
                     model_input.split("\n[CAD_REQUIREMENT_CONTRACT_SNAPSHOT.v1]", 1)[0]
@@ -6727,6 +6783,7 @@ class RobotAgentService:
                 mode=mode, alternatives=True,
             )
             if alternative_callback is not None:
+                repair_ledger["alternative_candidate_requests"] += 1
                 alternatives = interpret_sketch_graph_candidates(model_input, alternative_callback)
                 alternative_trials = []
                 for candidate in (alternatives.get("candidate_set") or {}).get("candidates") or []:
@@ -6760,6 +6817,9 @@ class RobotAgentService:
                             "candidate_id": candidate.get("candidate_id"),
                             "trials": alternative_trials,
                         }
+                        repair_ledger["alternative_candidates_selected"] += 1
+                        repair_ledger["automatic_repairs"] += 1
+                        construction_attempts.append(deepcopy(interpretation))
                         break
                 if interpretation.get("status") != "ready":
                     interpretation["alternative_selection"] = {
@@ -6768,6 +6828,24 @@ class RobotAgentService:
                         "trials": alternative_trials,
                         "request_attempts": alternative_state.get("request_attempts", 0),
                     }
+        if interpretation.get("status") == "ready":
+            from .cad_residual_repair import mandatory_regression_across
+            delivery_regression = mandatory_regression_across(construction_attempts)
+            if not delivery_regression["ok"]:
+                interpretation = {
+                    "schema": "cad.construction-interpretation-result.v1",
+                    "status": "invalid",
+                    "parser": interpretation.get("parser"),
+                    "provider_attempted": interpretation.get("provider_attempted"),
+                    "rejected_plan": deepcopy(interpretation.get("plan")),
+                    "confidence": interpretation.get("confidence"),
+                    "mandatory_regression": deepcopy(delivery_regression),
+                    "error": {
+                        "code": "mandatory_requirement_regressed_before_delivery",
+                        "message": "正式交付前发现此前已通过的强制事实退化，拒绝保存候选。",
+                    },
+                }
+        interpretation["repair_execution_ledger"] = deepcopy(repair_ledger)
         interpretation["recovery"] = recovery_record(
             message,construction_attempts,max_repairs=2)
         if interpretation.get("status") != "ready":
@@ -6878,6 +6956,8 @@ class RobotAgentService:
                         "construction_interpretation": {
                             "recovery": deepcopy(interpretation.get("recovery")),
                             "alternative_selection": deepcopy(interpretation.get("alternative_selection")),
+                            "repair_execution_ledger": deepcopy(interpretation.get("repair_execution_ledger")),
+                            "mandatory_regression": deepcopy(interpretation.get("mandatory_regression")),
                             "status": interpretation.get("status"),
                             "error": deepcopy(error),
                             "progress": deepcopy(interpretation.get("progress")),
@@ -6902,6 +6982,8 @@ class RobotAgentService:
                         "status": interpretation.get("status"),
                         "error": deepcopy(error) if isinstance(error, dict) else None,
                         "provider_attempted": bool(interpretation.get("provider_attempted")),
+                        "repair_execution_ledger": deepcopy(interpretation.get("repair_execution_ledger")),
+                        "mandatory_regression": deepcopy(interpretation.get("mandatory_regression")),
                     },
                 }
             result = self._result(
@@ -6921,6 +7003,8 @@ class RobotAgentService:
                 "status": interpretation.get("status"),
                 "parser": interpretation.get("parser"),
                 "error": deepcopy(error) if isinstance(error, dict) else None,
+                "repair_execution_ledger": deepcopy(interpretation.get("repair_execution_ledger")),
+                "mandatory_regression": deepcopy(interpretation.get("mandatory_regression")),
                 "clarification_required": bool(
                     interpretation.get("clarification_required")
                 ),

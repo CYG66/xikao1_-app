@@ -17,7 +17,7 @@ def _env_flag(name, default=True):
 # unchanged failure vector AND determined-equivalent geometry; every
 # undetermined or missing-evidence path releases. Setting the env var to
 # "on"/"1"/"true"/"yes" preserves the original M2/M3 behaviour.
-M3_PROGRESS_GATE_ENABLED = _env_flag("CAD_C1_M3_PROGRESS_GATE", False)
+M3_PROGRESS_GATE_ENABLED = _env_flag("CAD_C1_M3_PROGRESS_GATE", True)
 M2_SCOPE_CLASSIFIER_ENABLED = _env_flag("CAD_C1_M2_SCOPE_CLASSIFIER", False)
 
 
@@ -307,6 +307,28 @@ def evaluate_repair_progress(before, after):
         return {'decision': 'allow', 'progress': 'first_repair',
                 'feature_before': None, 'feature_after': None,
                 'geometry': None, 'reasons': ['first repair always allowed']}
+    residual_progress = None
+    if (isinstance(before.get('residual_vector'), dict)
+            and isinstance(after.get('residual_vector'), dict)):
+        from .cad_residual_repair import evaluate_residual_progress
+        residual_progress = evaluate_residual_progress(
+            before['residual_vector'], after['residual_vector'])
+        if residual_progress['decision'] == 'block':
+            return {'decision': 'block', 'progress': 'mandatory_regression',
+                    'feature_before': None, 'feature_after': None,
+                    'geometry': None, 'residual_progress': residual_progress,
+                    'reasons': residual_progress['reasons']}
+        if residual_progress['effective_improvement']:
+            return {'decision': 'allow', 'progress': 'residual_improved',
+                    'feature_before': None, 'feature_after': None,
+                    'geometry': None, 'residual_progress': residual_progress,
+                    'reasons': residual_progress['reasons']}
+        # Residual evidence is authoritative for both present: an unchanged
+        # residue must not be relabelled as progress by a feature proxy.
+        return {'decision': 'allow', 'progress': 'no_improvement',
+                'feature_before': None, 'feature_after': None,
+                'geometry': None, 'residual_progress': residual_progress,
+                'reasons': residual_progress['reasons']}
     feature_before = _feature_vector(before)
     feature_after = _feature_vector(after)
     geometry = evaluate_geometry_progress(before, after)
@@ -479,6 +501,8 @@ def recovery_record(source,attempts,max_repairs=1):
             'category':None if result.get('status')=='ready' else recovery_category(result),
             'error':deepcopy(result.get('construction_error') or result.get('error')),
             'plan':plan,'plan_sha256':hashlib.sha256(json.dumps(plan,sort_keys=True,ensure_ascii=False).encode()).hexdigest()})
+        if result.get('residual_vector'):
+            records[-1]['residual_vector']=deepcopy(result['residual_vector'])
         if result.get('local_repair_validation'):
             records[-1]['local_repair_validation']=deepcopy(result['local_repair_validation'])
         if result.get('coordinate_patch'):
@@ -501,7 +525,14 @@ def recovery_record(source,attempts,max_repairs=1):
             progress=evaluate_repair_progress(attempts[index-1], result)
             records[-1]['progress']={k:deepcopy(v) for k,v in progress.items()}
     progress_log=[records[i].get('progress') for i in range(1,len(records)) if records[i].get('progress')]
+    from .cad_residual_repair import repair_budget_state
+    progress_names=[item.get('progress') for item in progress_log]
+    budget=repair_budget_state(progress_names,max(0,len(records)-1),max_repairs)
     return {'schema':'cad.generation-recovery.v1','source_sha256':hashlib.sha256(source.encode('utf-8')).hexdigest(),
             'max_repairs':max_repairs,'repair_count':max(0,len(records)-1),'attempts':records,
+            'final_residual_vector':deepcopy(attempts[-1].get('residual_vector')) if attempts else None,
             'progress_log':progress_log,
+            'repair_stalled':budget['repair_stalled'],
+            'third_repair_allowed':False,
+            'repair_budget':budget,
             'background_job':None,'source_preserved':True}

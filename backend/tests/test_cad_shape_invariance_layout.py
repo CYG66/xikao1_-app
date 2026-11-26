@@ -11,7 +11,10 @@ from app.cad_construction import (
     _apply_free_outline_layout,
     _outline_shape_invariant_refs,
 )
-from app.cad_construction_interpreter import _source_allows_outline_deformation
+from app.cad_construction_interpreter import (
+    _source_allows_outline_deformation,
+    _source_requires_shape_preservation,
+)
 
 
 def _flower_points(cx=2000.0, cy=2000.0, samples=300):
@@ -103,6 +106,17 @@ def test_shape_invariant_refs_are_source_capability_based():
 ])
 def test_source_deformation_permission_is_explicit(text, expected):
     assert _source_allows_outline_deformation(text) is expected
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("画一个自由轮廓，保持形状，宽4米高2米", True),
+    ("保持原有比例，不要改变形状", True),
+    ("不要拉伸，保持形状，宽4米高2米", True),
+    ("允许非等比缩放，保持形状", False),
+    ("画一个自由轮廓，宽4米高2米", False),
+])
+def test_source_shape_preservation_requires_explicit_words(text, expected):
+    assert _source_requires_shape_preservation(text) is expected
 
 
 def test_preserve_layout_reports_center_metrics_without_overwriting_legacy():

@@ -36,6 +36,14 @@ def _source_allows_outline_deformation(text):
     return bool(_DEFORMATION_ALLOWANCE.search(text))
 
 
+def _source_requires_shape_preservation(text):
+    """Return True only when the source explicitly requires shape preservation."""
+    text = str(text or "")
+    if _DEFORMATION_ALLOWANCE.search(text):
+        return False
+    return bool(_DEFORMATION_DENIAL.search(text))
+
+
 def _step_has_inherent_shape(step):
     """Whether a sampled outline step carries non-offset curve geometry."""
     op = str(step.get("op") or "")
@@ -3382,6 +3390,7 @@ def normalize_explicit_outline_size_once(
     seen = set()
     inherent_shape = _step_has_inherent_shape(step)
     allow_deformation = _source_allows_outline_deformation(source_text)
+    source_preserve = _source_requires_shape_preservation(source_text)
     radial_refs = {a.get('target_ref') for a in plan.get('assertions', [])
                    if a.get('kind') == 'radial_pattern'}
     parametric_preserve = step.get('output_ref') in radial_refs
@@ -3389,14 +3398,16 @@ def normalize_explicit_outline_size_once(
         step["fit_width"] = sizes["width"] * 1000 / unit
         step["fit_height"] = sizes["height"] * 1000 / unit
         points = []  # Fit the completed boundary, not its seed before rotation.
-    elif inherent_shape or step["op"] == "add_parametric_curve":
+    elif (inherent_shape or step["op"] == "add_parametric_curve"
+          or (step["op"] == "add_polyline" and source_preserve)):
         # A sampled curve is fitted once, uniformly, at execution time.  Do not
         # pre-scale its control points by independent x/y factors: that destroys
         # the inherent shape before the layout can preserve it.
         layout = plan.setdefault('free_outline_layout', [])
         layout[:] = [item for item in layout if item.get('target_ref') != step['output_ref']]
         preserve = (not allow_deformation and
-                    (parametric_preserve or step['op'] != 'add_parametric_curve'))
+                    (source_preserve or parametric_preserve
+                     or step['op'] != 'add_parametric_curve'))
         layout.append({'target_ref': step['output_ref'],
                        'width': sizes['width'] * 1000 / unit,
                        'height': sizes['height'] * 1000 / unit,

@@ -1653,31 +1653,45 @@ def agent_chat_stream(command: AgentChatRequest) -> StreamingResponse:
         prepared = _prepare_run_step(run["id"], command, pending_command)
         final_result: dict[str, object] | None = None
         finalized = False
-        for payload in usage_scoped_events(_agent_chat_stream_events(command, prepared=prepared)):
-            try:
-                decoded = json.loads(payload)
-            except (TypeError, json.JSONDecodeError):
-                decoded = {}
-            if isinstance(decoded, dict) and decoded.get("type") == "result":
-                final_result = decoded
-                decoded["agent_run_id"] = run["id"]
-                agent_runs.set_checkpoint(run["id"], {
-                    "schema":"agent.checkpoint.v3",
-                    "step_id":"result_generated",
-                    "next_step":"finalize",
-                    "completed_steps":["understanding", "context_prepared", "execute"],
-                    "idempotency_key":run["id"],
-                    "project_id":decoded.get("project_id"),
-                    "variant_id":(decoded.get("variant") or {}).get("id") if isinstance(decoded.get("variant"),dict) else None,
-                    "drawing_selection": command.drawing_selection.model_dump() if command.drawing_selection else None,
-                    "pending_command": (decoded.get('cad_edit_contract') or decoded.get('cad_edit_command')) if isinstance(decoded, dict) else None,
-                    "result":decoded,
-                })
-                decoded = _finalize_run_result(run["id"], command, decoded)
-                final_result = decoded
-                finalized = True
-                payload = json.dumps(decoded, ensure_ascii=False) + "\n"
-            yield payload
+        try:
+            for payload in usage_scoped_events(_agent_chat_stream_events(command, prepared=prepared)):
+                try:
+                    decoded = json.loads(payload)
+                except (TypeError, json.JSONDecodeError):
+                    decoded = {}
+                if isinstance(decoded, dict) and decoded.get("type") == "result":
+                    final_result = decoded
+                    decoded["agent_run_id"] = run["id"]
+                    agent_runs.set_checkpoint(run["id"], {
+                        "schema":"agent.checkpoint.v3",
+                        "step_id":"result_generated",
+                        "next_step":"finalize",
+                        "completed_steps":["understanding", "context_prepared", "execute"],
+                        "idempotency_key":run["id"],
+                        "project_id":decoded.get("project_id"),
+                        "variant_id":(decoded.get("variant") or {}).get("id") if isinstance(decoded.get("variant"),dict) else None,
+                        "drawing_selection": command.drawing_selection.model_dump() if command.drawing_selection else None,
+                        "pending_command": (decoded.get('cad_edit_contract') or decoded.get('cad_edit_command')) if isinstance(decoded, dict) else None,
+                        "result":decoded,
+                    })
+                    decoded = _finalize_run_result(run["id"], command, decoded)
+                    final_result = decoded
+                    finalized = True
+                    payload = json.dumps(decoded, ensure_ascii=False) + "\n"
+                yield payload
+        except Exception as error:
+            if is_eval_fatal(error):
+                # A fatal evaluation transition is a terminal stream event, not
+                # a normal result.  Emit the machine marker before re-raising.
+                yield json.dumps({
+                    "type": "evaluation_aborted",
+                    "fatal": True,
+                    "error_code": "evaluation_aborted",
+                    "error_type": type(error).__name__,
+                    "message": str(error),
+                    "agent_run_id": run["id"],
+                }, ensure_ascii=False) + "\n"
+            raise
         if not finalized:
             _record_agent_run_result(run["id"], final_result or {"ok": False})
 

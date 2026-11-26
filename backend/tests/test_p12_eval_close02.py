@@ -208,6 +208,26 @@ def test_t06_subprocess_fatal_marker_is_detected(tmp_path, monkeypatch):
         run_user_cad_corpus.call(tmp_path / "case", 1, {})
 
 
+def test_t06_http_chat_preserves_machine_fatal_marker(monkeypatch):
+    from fastapi.responses import JSONResponse
+    from starlette.requests import Request
+    from app.routers import agent as agent_router
+    from app.schemas import AgentChatRequest
+
+    def fatal_chat(command):
+        raise ModelAuthorizationError("real_model_not_authorized")
+
+    monkeypatch.setattr(agent_router.agent_http_service, "agent_chat", fatal_chat)
+    request = Request({"type": "http", "method": "POST", "path": "/api/agent/chat", "headers": []})
+    response = agent_router.agent_chat(AgentChatRequest(message="画一个矩形"), request)
+    assert isinstance(response, JSONResponse)
+    assert response.status_code == 503
+    body = json.loads(response.body)
+    assert body["fatal"] is True
+    assert body["error_code"] == "evaluation_aborted"
+    assert body["error_type"] == "ModelAuthorizationError"
+
+
 # T11: production RuntimeError keeps the normal rules fallback.
 def test_t11_production_runtime_error_still_falls_back(monkeypatch):
     monkeypatch.setattr(RobotAgentService, "configured", property(lambda self: True))

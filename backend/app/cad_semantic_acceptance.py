@@ -420,7 +420,10 @@ def _verify_heart_channel(geometries,requirements,logical_objects=None,topology=
             if points:
                 xs=[point[0] for point in points]
                 axis_x=(min(xs)+max(xs))/2.0
-                symmetry=mirror_symmetry(points,axis_x,tolerance_mm=10.0)
+                symmetry=mirror_symmetry(
+                    points, axis_x, tolerance_mm=10.0,
+                    axis_source="source:heart_left_right_measured_center",
+                )
             else:
                 symmetry={'status':'unverified','reason':'outline_points_unavailable'}
             checks.append({'name':'heart_mirror_symmetry','status':'passed' if symmetry.get('status')=='verified' else 'failed',
@@ -436,7 +439,9 @@ def _verify_heart_channel(geometries,requirements,logical_objects=None,topology=
             if closure_geometry is not None and points:
                 closure=closure_measure(points,closed=closure_geometry.get('closed') is True,
                                         tolerance_mm=0.5,smooth_angle_tolerance_deg=5.0,
-                                        require_smooth=require_smooth)
+                                        require_smooth=require_smooth,
+                                        allowed_cusp_source='heart_features',
+                                        allowed_cusp_limit=2)
             else:
                 closure={'status':'unverified','reason':'outline_points_unavailable'}
             checks.append({'name':'heart_smooth_closure','status':'passed' if closure.get('status')=='verified' else 'failed',

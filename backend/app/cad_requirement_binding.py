@@ -583,6 +583,7 @@ def _bind_outline_clause(
         axis_x, axis_source = axis
         symmetry = mirror_symmetry(
             points, axis_x, float(tolerance_mm), axis_source=axis_source,
+            closed=geometry.get("closed") is True,
         )
         checks.append({"predicate": "mirror_symmetry", **symmetry})
         if symmetry.get("status") != "verified":

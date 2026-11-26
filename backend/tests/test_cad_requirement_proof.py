@@ -316,6 +316,18 @@ def test_ambiguous_or_unsupported_symmetry_stays_unverified(text):
     assert clause["status"] != "verified"
 
 
+def test_mirror_symmetry_does_not_invent_a_closing_edge_for_open_outline():
+    """An open half-outline must not pass by borrowing an unowned closing edge."""
+    points = [(0, 10), (5, 0), (0, -10), (-5, 0)]
+    closed = mirror_symmetry(points, 0.0, tolerance_mm=0.1, closed=True)
+    open_outline = mirror_symmetry(points, 0.0, tolerance_mm=0.1, closed=False)
+    assert closed["status"] == "verified"
+    assert closed["segment_count"] == 4
+    assert open_outline["status"] == "failed"
+    assert open_outline["segment_count"] == 3
+    assert open_outline["closed"] is False
+
+
 def test_mirror_symmetry_measures_hausdorff_not_bbox():
     points = [(0, 0), (100, 0), (100, 100), (0, 100)]
     result = mirror_symmetry(points, 50.0, tolerance_mm=0.5)
@@ -372,6 +384,38 @@ def test_failed_final_source_check_cannot_be_masked_by_another_passed_claim():
     assert clause["status"] != "verified"
     assert coverage["state"] == "partial"
     assert coverage["blocking_requirements"]
+
+
+def test_composite_requirement_keeps_corner_failure_after_rectangle_promotion():
+    """A passed rectangle binding must not clear a failed corner-radius fact."""
+    text = "绘制一个矩形，四角各有一个半径500毫米的圆角"
+    geoms, objects, steps = c7_scene()
+    for geometry in geoms[1:]:
+        geometry["radius"] = 400.0
+    failed_corner = {
+        "name": "corner_radius", "field": "corner_radius", "status": "failed",
+        "actual_mm": 400.0, "expected_mm": 500.0, "tolerance_mm": 0.5,
+        "source_requirement_id": "corner_radius",
+        "source_evidence": {"text": "四角各有一个半径500毫米的圆角"},
+    }
+    coverage = build_requirement_coverage_evidence(text, {
+        "final_source_acceptance": {
+            "status": "partial", "checks": [failed_corner],
+            "unknown_requirements": [],
+        },
+    })
+    bound = bind_construction_coverage(
+        coverage, logical_objects=objects, geometries=geoms,
+        plan_steps=steps,
+        project_evidence={"project_exists": True, "project_id": "offline"},
+    )
+    rectangle_clause = clause_by_text(bound, "绘制一个矩形")
+    corner_clause = clause_by_text(bound, "四角各有一个半径500毫米的圆角")
+    assert rectangle_clause["status"] == "verified"
+    assert corner_clause["status"] == "partial"
+    assert corner_clause["binding_failures"]
+    assert bound["state"] == "partial"
+    assert bound["blocking_requirements"]
 
 
 def test_binder_does_not_clear_failed_final_fact_from_unrelated_passed_claim():

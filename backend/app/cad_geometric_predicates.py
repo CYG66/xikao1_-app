@@ -165,24 +165,29 @@ def _segment_set_hausdorff(first: list[tuple], second: list[tuple]) -> float:
 
 def mirror_symmetry(points: Iterable[tuple[float, float]], axis_x_mm: float,
                     tolerance_mm: float = DEFAULT_TOLERANCE_MM,
-                    *, axis_source: str = "caller_supplied") -> dict[str, Any]:
+                    *, axis_source: str = "caller_supplied",
+                    closed: bool = True) -> dict[str, Any]:
     """Measure mirror symmetry of the actual polyline segment set.
 
     For every vertex the mirrored point must lie on an actual original segment,
     and every original segment endpoint must lie on the mirrored segment set.
     A vertex cloud can be symmetric while its connections are not; this
     segment-set Hausdorff check rejects that case.
+
+    ``closed`` controls whether the implicit last -> first edge exists.  An open
+    polyline must never borrow a closing edge: doing so would let an open arc
+    or half-outline pass a symmetry proof it does not actually have.
     """
     points = list(points)
     if len(points) < 3:
         return {"status": "unverified", "reason": "outline_has_too_few_points",
                 "point_count": len(points), "tolerance_mm": tolerance_mm}
     original_segments = list(zip(points, points[1:]))
-    if len(points) > 2:
+    if closed and len(points) > 2:
         original_segments.append((points[-1], points[0]))
     mirrored_points = [(2.0 * axis_x_mm - x, y) for x, y in points]
     mirrored_segments = list(zip(mirrored_points, mirrored_points[1:]))
-    if len(mirrored_points) > 2:
+    if closed and len(mirrored_points) > 2:
         mirrored_segments.append((mirrored_points[-1], mirrored_points[0]))
     vertex_errors = [
         min(_point_segment_distance((2.0 * axis_x_mm - x, y), start, end)
@@ -195,6 +200,7 @@ def mirror_symmetry(points: Iterable[tuple[float, float]], axis_x_mm: float,
         "axis_x_mm": axis_x_mm,
         "axis_source": axis_source,
         "point_count": len(points),
+        "closed": closed,
         "segment_count": len(original_segments),
         "max_error_mm": maximum,
         "max_vertex_to_segment_error_mm": max(vertex_errors, default=None),

@@ -18,6 +18,7 @@ from typing import Any
 from .cad_geometric_predicates import (
     closure_measure,
     corner_circle_collection,
+    heart_cusp_points,
     heart_outline_measure,
     measure_geometry,
     mirror_symmetry,
@@ -596,6 +597,9 @@ def _bind_outline_clause(
             require_smooth=wants_smooth,
             allowed_cusp_source=("heart_features" if heart_verified else None),
             allowed_cusp_limit=(2 if heart_verified else 0),
+            allowed_cusp_points=(
+                heart_cusp_points(geometry) if heart_verified else None
+            ),
         )
         checks.append({"predicate": "closure", **closure})
         if closure.get("status") != "verified":

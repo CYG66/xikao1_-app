@@ -12,6 +12,7 @@ import pytest
 from app.cad_geometric_predicates import (
     closure_measure,
     corner_circle_collection,
+    heart_cusp_points,
     mirror_symmetry,
 )
 from app.cad_requirement_binding import bind_construction_coverage
@@ -264,18 +265,32 @@ def test_closure_measures_smoothness_independently_of_closed_flag():
 
 
 def test_closure_allows_only_source_backed_heart_cusps():
-    points = [(item["x"], item["y"]) for item in heart()["vertices"]]
+    geometry = heart()
+    points = [(item["x"], item["y"]) for item in geometry["vertices"]]
+    cusps = heart_cusp_points(geometry)
     allowed = closure_measure(
         points, closed=True, require_smooth=True,
         allowed_cusp_source="heart_features", allowed_cusp_limit=2,
+        allowed_cusp_points=cusps,
     )
+    assert len(cusps) == 2
     assert allowed["status"] == "verified"
     assert len(allowed["intentional_cusps"]) == 2
     assert allowed["cusp_source"] == "heart_features"
-    # The same joins are not accepted by a mere centre-line heuristic.
-    unsourced = closure_measure(points, closed=True, require_smooth=True)
+    # A source label alone is not evidence, and neither is a centre-line filter.
+    unsourced = closure_measure(
+        points, closed=True, require_smooth=True,
+        allowed_cusp_source="heart_features", allowed_cusp_limit=2,
+    )
     assert unsourced["status"] == "failed"
     assert unsourced["intentional_cusps"] == []
+    wrong_points = closure_measure(
+        points, closed=True, require_smooth=True,
+        allowed_cusp_source="heart_features", allowed_cusp_limit=2,
+        allowed_cusp_points=[(0.0, 0.0), (1.0, 1.0)],
+    )
+    assert wrong_points["status"] == "failed"
+    assert wrong_points["intentional_cusps"] == []
 
 
 def test_mirror_symmetry_rejects_symmetric_vertices_with_asymmetric_edges():

@@ -590,6 +590,9 @@ class FreeOutlineLayout(_StrictModel):
     # outline may use independent width/height.  An explicit value overrides
     # that inference without adding a case-specific branch.
     preserve_shape: bool | None = None
+    # Automatic rotation exists only to reconcile a radial outline with a
+    # requested bounding-box ratio.  An explicit source orientation freezes it.
+    auto_rotate: bool = True
 
     @model_validator(mode='after')
     def complete_fit_or_translation(self):
@@ -977,10 +980,19 @@ def _finalize_layout_diagnostics(layout_diagnostics, geometries, refs):
         ]
         final_centroid = _outline_centroid(geometry["vertices"])
         item["final_area_centroid_mm"] = list(final_centroid)
+        # The centroid is only a candidate.  Without an independent
+        # rotational-symmetry measurement it must never be reported as a
+        # verified rotational centre.
+        candidate = item.get("rotational_symmetry_center_candidate_mm")
+        item["final_rotational_symmetry_center_candidate_mm"] = (
+            list(final_centroid) if candidate is not None else None)
         item["final_rotational_symmetry_center_mm"] = (
             list(final_centroid)
-            if item.get("center_policy") == "rotational_symmetry_center"
+            if item.get("rotational_symmetry_verification") == "verified"
             else None)
+        item["final_rotational_symmetry_verification"] = (
+            "verified" if item.get("rotational_symmetry_verification") == "verified"
+            else "not_verified")
         requested = item.get("requested_mm")
         if isinstance(requested, list) and len(requested) == 2:
             item["final_residual_mm"] = [
@@ -988,18 +1000,47 @@ def _finalize_layout_diagnostics(layout_diagnostics, geometries, refs):
     return layout_diagnostics
 
 
-def _outline_shape_invariant_refs(steps, rotational_refs):
+_POLYLINE_INHERENT_SHAPE = re.compile(
+    r"心形|爱心|圆形|椭圆|星形|花瓣|花形|花朵|齿轮|齿形|太极|水滴|叶片|"
+    r"曲线轮廓|自由曲线|不规则轮廓|闭合曲线"
+)
+
+
+def _step_semantic_text(step) -> str:
+    """Flatten semantic labels without assuming a particular model class."""
+    semantic = getattr(step, "semantic", None)
+    if isinstance(semantic, dict):
+        return " ".join(str(value) for value in semantic.values() if value is not None)
+    return str(semantic or "")
+
+
+def _polyline_has_inherent_shape(step, source_text: str = "") -> bool:
+    """Recognise a polyline that carries a declared geometric identity.
+
+    A plain polygon is a parametric outline: an explicit external width/height
+    may be fitted independently.  A polyline labelled as a circle, heart,
+    petal outline or similar free curve is not.  The decision uses declared
+    identity, never a case name, fixed size or stored entity type alone.
+    """
+    if getattr(step, "op", "") != "add_polyline":
+        return False
+    text = _step_semantic_text(step) + " " + str(source_text or "")
+    return bool(_POLYLINE_INHERENT_SHAPE.search(text))
+
+
+def _outline_shape_invariant_refs(steps, rotational_refs, source_text=""):
     """Return outline refs whose source construction has an inherent shape.
 
-    This is a capability rule, not a case list: sampled Bezier/spline/arc and
-    parametric curves, plus rotational paths, carry shape information that a
-    non-uniform x/y fit would destroy.  A plain free polyline is not included;
-    callers may still set ``preserve_shape`` explicitly.
+    This is a capability rule, not a case list: sampled Bezier/spline/arc,
+    parametric curves and rotational paths carry shape information that a
+    non-uniform x/y fit would destroy.  A polyline is included only when its
+    declared semantic identity says it is an intrinsic outline, not a plain
+    polygon.
     """
     refs = set(rotational_refs)
     for step in steps:
         op = getattr(step, "op", "")
-        if op in {"add_bezier", "add_spline"}:
+        if op in {"add_bezier", "add_spline", "add_parametric_curve"}:
             refs.add(step.output_ref)
         elif op in {"add_composite_path", "add_rotational_path"}:
             segments = getattr(step, "segments", [])
@@ -1007,6 +1048,8 @@ def _outline_shape_invariant_refs(steps, rotational_refs):
                     getattr(segment, "kind", "line") != "line"
                     for segment in segments):
                 refs.add(step.output_ref)
+        elif op == "add_polyline" and _polyline_has_inherent_shape(step, source_text):
+            refs.add(step.output_ref)
     return refs
 
 
@@ -1035,7 +1078,7 @@ def _apply_free_outline_layout(layout, geometries, refs, scale, curve_quality=()
             rotational = item.target_ref in set(rotational_refs)
             target_ratio=(item.width*scale)/(item.height*scale)
             angle=(_rotation_for_aspect(g["vertices"],target_ratio,pivot)
-                   if rotational else 0.0)
+                   if rotational and item.auto_rotate else 0.0)
             rotated,rw,rh=_rotated_geometry_bounds(g["vertices"],angle,pivot)
             uniform=min(item.width*scale/rw,item.height*scale/rh)
             requested=[item.width*scale,item.height*scale]
@@ -1052,6 +1095,9 @@ def _apply_free_outline_layout(layout, geometries, refs, scale, curve_quality=()
                         "residual_mm": residual,
                         "shape_center": [pivot[0],pivot[1]],
                         "rotation_deg": math.degrees(angle),
+                        "rotation_policy": (
+                            "source_orientation_fixed"
+                            if rotational and not item.auto_rotate else "aspect_fit"),
                     })
             amplification=uniform
             for p,(x,y) in zip(g["vertices"],rotated):
@@ -1063,17 +1109,20 @@ def _apply_free_outline_layout(layout, geometries, refs, scale, curve_quality=()
                 "shape_center": [pivot[0], pivot[1]],
                 "bbox_center_mm": [bx, by],
                 "area_centroid_mm": [pivot[0], pivot[1]],
-                "rotational_symmetry_center_mm": (
-                    [pivot[0], pivot[1]]
-                    if item.target_ref in set(rotational_refs) else None),
+                "rotational_symmetry_center_mm": None,
+                "rotational_symmetry_center_candidate_mm": (
+                    [pivot[0], pivot[1]] if rotational else None),
+                "rotational_symmetry_verification": "not_verified",
                 "center_policy": (
-                    "rotational_symmetry_center"
-                    if item.target_ref in set(rotational_refs)
-                    else "area_centroid"),
+                    "rotational_symmetry_center_candidate"
+                    if rotational else "area_centroid"),
                 "construction_reference_center_mm": (
                     [item.center.x*scale, item.center.y*scale]
                     if item.center is not None else None),
                 "rotation_deg": math.degrees(angle),
+                "rotation_policy": (
+                    "source_orientation_fixed"
+                    if rotational and not item.auto_rotate else "aspect_fit"),
                 "uniform_scale": uniform,
                 "requested_mm": [item.width*scale, item.height*scale],
                 "residual_mm": [abs(item.width*scale-rw*uniform),

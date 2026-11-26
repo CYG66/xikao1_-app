@@ -26,6 +26,17 @@ _DEFORMATION_ALLOWANCE = re.compile(
     r"拉伸到|压扁到|自由变形|"
     r"不必保持比例|无需保持比例|不要求保持比例"
 )
+_FIXED_ORIENTATION = re.compile(
+    r"(?:尖|顶|瓣|开口|缺口|正面|底边)[^。；;\n]{0,8}(?:朝|向|对|指向)(?:上|下|左|右)|"
+    r"(?:不要|不得|禁止|保持)[^。；;\n]{0,6}(?:旋转|转向|朝向|方向)|"
+    r"旋转(?:角度)?\s*[=为]?\s*-?\d+|"
+    r"(?:水平|垂直)(?:放置|摆放|朝向)"
+)
+
+
+def _source_requires_fixed_orientation(text):
+    """Return True when the source fixes the object's orientation."""
+    return bool(_FIXED_ORIENTATION.search(str(text or "")))
 
 
 def _source_allows_outline_deformation(text):
@@ -44,16 +55,18 @@ def _source_requires_shape_preservation(text):
     return bool(_DEFORMATION_DENIAL.search(text))
 
 
-def _step_has_inherent_shape(step):
-    """Whether a sampled outline step carries non-offset curve geometry."""
+def _step_has_inherent_shape(step, source_text=""):
+    """Whether a sampled outline step carries declared curve geometry."""
     op = str(step.get("op") or "")
-    if op in {"add_spline"}:
+    if op in {"add_bezier", "add_spline", "add_parametric_curve"}:
         return True
     if op in {"add_composite_path", "add_rotational_path"}:
         if op == "add_rotational_path":
             return True
         return any(str(segment.get("kind") or "line") != "line"
                    for segment in step.get("segments") or [])
+    if op == "add_polyline":
+        return _polyline_has_inherent_shape(step, source_text)
     return False
 
 
@@ -91,6 +104,7 @@ from .cad_construction import (
     CadConstructionPlan,
     ConstructionPoint,
     ConstructionPlanError,
+    _polyline_has_inherent_shape,
     construction_geometry_bounds,
     construction_geometry_area,
     construction_plan_json_schema,
@@ -3388,30 +3402,23 @@ def normalize_explicit_outline_size_once(
     center = ((bounds["min_x"] + bounds["max_x"]) / (2 * unit),
               (bounds["min_y"] + bounds["max_y"]) / (2 * unit))
     seen = set()
-    inherent_shape = _step_has_inherent_shape(step)
+    inherent_shape = _step_has_inherent_shape(step, source_text)
     allow_deformation = _source_allows_outline_deformation(source_text)
     source_preserve = _source_requires_shape_preservation(source_text)
-    radial_refs = {a.get('target_ref') for a in plan.get('assertions', [])
-                   if a.get('kind') == 'radial_pattern'}
-    parametric_preserve = step.get('output_ref') in radial_refs
-    if step["op"] == "add_rotational_path":
-        step["fit_width"] = sizes["width"] * 1000 / unit
-        step["fit_height"] = sizes["height"] * 1000 / unit
-        points = []  # Fit the completed boundary, not its seed before rotation.
-    elif (inherent_shape or step["op"] == "add_parametric_curve"
-          or (step["op"] == "add_polyline" and source_preserve)):
-        # A sampled curve is fitted once, uniformly, at execution time.  Do not
-        # pre-scale its control points by independent x/y factors: that destroys
-        # the inherent shape before the layout can preserve it.
+    if (inherent_shape or step["op"] == "add_parametric_curve"
+            or (step["op"] == "add_polyline" and source_preserve)):
+        # A sampled curve or declared intrinsic outline is fitted once,
+        # uniformly, at execution time.  Do not pre-scale its control points by
+        # independent x/y factors: that destroys the inherent shape before the
+        # layout can preserve it.
         layout = plan.setdefault('free_outline_layout', [])
         layout[:] = [item for item in layout if item.get('target_ref') != step['output_ref']]
-        preserve = (not allow_deformation and
-                    (source_preserve or parametric_preserve
-                     or step['op'] != 'add_parametric_curve'))
+        preserve = not allow_deformation
         layout.append({'target_ref': step['output_ref'],
                        'width': sizes['width'] * 1000 / unit,
                        'height': sizes['height'] * 1000 / unit,
-                       'preserve_shape': preserve})
+                       'preserve_shape': preserve,
+                       'auto_rotate': not _source_requires_fixed_orientation(source_text)})
         points = []
     for point in points:
         if id(point) in seen:

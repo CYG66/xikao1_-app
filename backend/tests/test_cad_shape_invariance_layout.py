@@ -91,11 +91,16 @@ def test_shape_invariant_refs_are_source_capability_based():
                         segments=[SimpleNamespace(kind="bezier")]),
         SimpleNamespace(op="add_rotational_path", output_ref="radial",
                         segments=[SimpleNamespace(kind="line")]),
+        SimpleNamespace(op="add_polyline", output_ref="plain_polygon",
+                        semantic={"label": "普通矩形轮廓"}),
+        SimpleNamespace(op="add_polyline", output_ref="heart",
+                        semantic={"label": "心形闭合轮廓"}),
     ]
     refs = _outline_shape_invariant_refs(steps, {"asserted_radial"})
-    assert refs == {"bezier", "spline", "curved", "radial", "asserted_radial"}
-    assert "parametric" not in refs
+    assert refs == {"bezier", "spline", "parametric", "curved", "radial",
+                    "asserted_radial", "heart"}
     assert "polyline_only" not in refs
+    assert "plain_polygon" not in refs
 
 
 @pytest.mark.parametrize("text,expected", [
@@ -134,8 +139,10 @@ def test_preserve_layout_reports_center_metrics_without_overwriting_legacy():
     diagnostic = diagnostics[0]
     assert diagnostic["shape_center"] == diagnostic["area_centroid_mm"]
     assert diagnostic["bbox_center_mm"] == [1000.0, 1000.0]
-    assert diagnostic["rotational_symmetry_center_mm"] == diagnostic["area_centroid_mm"]
-    assert diagnostic["center_policy"] == "rotational_symmetry_center"
+    assert diagnostic["rotational_symmetry_center_mm"] is None
+    assert diagnostic["rotational_symmetry_center_candidate_mm"] == diagnostic["area_centroid_mm"]
+    assert diagnostic["rotational_symmetry_verification"] == "not_verified"
+    assert diagnostic["center_policy"] == "rotational_symmetry_center_candidate"
     assert diagnostic["construction_reference_center_mm"] == [5000.0, 5000.0]
 
 
@@ -234,7 +241,52 @@ def test_explicit_preserve_never_rotates_an_oriented_outline():
     assert width == 4000.0 and height == 2000.0
 
 
+def test_explicit_orientation_blocks_auto_rotation():
+    outline = {"id": 1, "type": "polyline", "closed": True,
+               "vertices": _flower_points()}
+    original = [dict(point) for point in outline["vertices"]]
+    layout = [FreeOutlineLayout(target_ref="flower", width=5.0, height=5.0,
+                                auto_rotate=False)]
+    with pytest.raises(ConstructionPlanError) as caught:
+        _apply_free_outline_layout(
+            layout, [outline], {"flower": [1]}, 1000.0,
+            rotational_refs={"flower"},
+        )
+    assert caught.value.code == "shape_constraint_conflict"
+    assert caught.value.details["rotation_policy"] == "source_orientation_fixed"
+    assert caught.value.details["rotation_deg"] == 0.0
+    assert outline["vertices"] == original
+
+
+def test_plain_polygon_and_declared_polyline_have_different_permissions():
+    from types import SimpleNamespace
+    steps = [
+        SimpleNamespace(op="add_polyline", output_ref="plain",
+                        semantic={"label": "普通多边形轮廓"}),
+        SimpleNamespace(op="add_polyline", output_ref="heart",
+                        semantic={"label": "心形闭合轮廓"}),
+    ]
+    refs = _outline_shape_invariant_refs(steps, set())
+    assert refs == {"heart"}
+    assert "plain" not in refs
+
+
+def test_rotational_centre_is_only_a_candidate_until_verified():
+    outline = {"id": 1, "type": "polyline", "closed": True,
+               "vertices": _flower_points()}
+    layout = [FreeOutlineLayout(target_ref="flower", width=5.0, height=5.0)]
+    diagnostic = _apply_free_outline_layout(
+        layout, [outline], {"flower": [1]}, 1000.0,
+        rotational_refs={"flower"},
+    )[0]
+    assert diagnostic["rotational_symmetry_center_mm"] is None
+    assert diagnostic["rotational_symmetry_center_candidate_mm"] == diagnostic["area_centroid_mm"]
+    assert diagnostic["rotational_symmetry_verification"] == "not_verified"
+    assert diagnostic["center_policy"] == "rotational_symmetry_center_candidate"
+
+
 def test_rotational_conflict_is_reported_not_stretched_away():
+
     outline = {"id": 1, "type": "polyline", "closed": True,
                "vertices": _flower_points()}
     original = [dict(point) for point in outline["vertices"]]

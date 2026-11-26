@@ -411,3 +411,56 @@ def test_a_new_failure_alone_is_not_effective_progress():
     result = evaluate_residual_progress(before, after)
     assert result["progress"] == "no_improvement"
     assert result["new_failures"]
+
+
+def test_passed_source_fact_is_retained_as_mandatory_baseline():
+    acceptance = {"checks": [{
+        "status": "passed", "source_requirement_id": "R-RADIUS-2",
+        "field": "radius", "expected_mm": 2000, "actual_mm": 2000,
+        "tolerance_mm": 0.5, "target_ref": "outer_ref",
+    }]}
+    records = collect_source_acceptance_residuals(acceptance, _plan())
+    assert len(records) == 1
+    assert records[0]["passed"] is True
+    assert records[0]["mandatory"] is True
+    assert records[0]["predicate_axis"] == "outer_ref"
+
+
+def test_missing_previously_passed_mandatory_fact_blocks_delivery():
+    from app.cad_residual_repair import mandatory_regression_across
+    passed = collect_source_acceptance_residuals({"checks": [{
+        "status": "passed", "source_requirement_id": "R-OUTER",
+        "field": "radius", "expected_mm": 2000, "actual_mm": 2000,
+        "tolerance_mm": 0.5, "target_ref": "outer_ref",
+    }]}, _plan())
+    missing = residual_vector([])
+    outcome = mandatory_regression_across([
+        {"residual_vector": residual_vector(passed)},
+        {"residual_vector": missing},
+    ])
+    assert outcome["ok"] is False
+    assert outcome["regressions"][0]["verification_status"] == "missing"
+
+
+def test_shared_predicate_keeps_distinct_object_axes():
+    left = numeric_residual(requirement_id="R-EYE", predicate="radius",
+                            expected=500, measured=250, tolerance=1,
+                            unit="mm", predicate_axis="upper_eye")
+    right = numeric_residual(requirement_id="R-EYE", predicate="radius",
+                             expected=500, measured=250, tolerance=1,
+                             unit="mm", predicate_axis="lower_eye")
+    vector = residual_vector([left, right])
+    assert vector["record_count"] == 2
+    assert {r["predicate_axis"] for r in vector["records"]} == {
+        "upper_eye", "lower_eye"}
+
+
+def test_failure_disappearing_without_replacement_carries_old_excess():
+    before = _vector([numeric_residual(requirement_id="R-R", predicate="radius",
+                                       expected=500, measured=600,
+                                       tolerance=10, predicate_axis="eye")])
+    after = residual_vector([])
+    result = evaluate_residual_progress(before, after)
+    assert result["progress"] == "no_improvement"
+    assert result["lost_failures"]
+    assert result["score_after"] == result["score_before"]

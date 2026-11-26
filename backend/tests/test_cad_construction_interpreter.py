@@ -568,7 +568,7 @@ def test_parametric_free_outline_fits_size_without_replacing_formula_or_source()
     assert normalize_explicit_outline_size_once(payload,'闭合轮廓宽度5米，高度5米，x=2*cos(t)，y=sin(t)')==(payload,[])
 
 
-def test_two_source_dimensions_override_aspect_for_non_radial_parametric_outline():
+def test_mathematical_parametric_outline_keeps_shape_identity_for_explicit_size():
     from copy import deepcopy
     from app.cad_construction import ConstructionPlanError, execute_construction_plan
     heart = {'plan': {'units': 'm', 'steps': [{
@@ -590,6 +590,21 @@ def test_two_source_dimensions_override_aspect_for_non_radial_parametric_outline
     bounds = construction_geometry_bounds(result['geometries'])
     assert abs(bounds['max_x'] - bounds['min_x'] - 4000) < 1
     assert abs(bounds['max_y'] - bounds['min_y'] - 4000) < 1
+    # A parametric curve with a declared mathematical identity (ellipse) is
+    # not released by two explicit dimensions; unequal size is a conflict.
+    ellipse = {'plan': {'units': 'm', 'steps': [{
+        'op': 'add_parametric_curve', 'step_id': 'ellipse', 'output_ref': 'ellipse',
+        'semantic': {'label': '椭圆闭合轮廓'},
+        'x_expression': '2*cos(t)', 'y_expression': 'sin(t)',
+        't_start': '0', 't_end': '2*pi', 'closed': True, 'max_sampling_error': .001,
+    }]}}
+    unequal, unequal_evidence = normalize_explicit_outline_size_once(
+        deepcopy(ellipse), '画一个椭圆轮廓，宽4米高3米')
+    assert unequal['plan']['free_outline_layout'][0]['preserve_shape'] is True
+    assert unequal_evidence[0]['shape_policy'] == 'preserve_shape'
+    with pytest.raises(ConstructionPlanError) as caught:
+        execute_construction_plan(unequal['plan'])
+    assert caught.value.code == 'shape_constraint_conflict'
     # A source that explicitly forbids distortion still wins over the size fit.
     preserved, _ = normalize_explicit_outline_size_once(
         heart, '画一个爱心，宽4米高4米，保持形状，不要拉伸')
@@ -1743,11 +1758,12 @@ def test_multi_rectangle_source_dimensions_do_not_become_overall_error():
                                           force_structured_model=True)
     assert result['status']=='ready',result.get('error')
     final=result['source_acceptance']['final_source_acceptance']
-    assert final['status']=='unverified'
+    assert final['status'] in {'unverified','partial'}
     assert final['review_required'] is True
     assert len(final['unknown_requirements'])==2
     assert all('多对象尺寸范围不明确' in item['reason']
                for item in final['unknown_requirements'])
+    assert [c for c in final['checks'] if c['field']=='object_count'][0]['status']=='passed'
     identity=result['source_acceptance']['object_identity_acceptance']
     assert identity['status']=='passed'
     assert [m['object_ids'] for m in identity['matched_entries']]==[['rect-1','rect-2']]

@@ -17,7 +17,7 @@ def _env_flag(name, default=True):
 # unchanged failure vector AND determined-equivalent geometry; every
 # undetermined or missing-evidence path releases. Setting the env var to
 # "on"/"1"/"true"/"yes" preserves the original M2/M3 behaviour.
-M3_PROGRESS_GATE_ENABLED = _env_flag("CAD_C1_M3_PROGRESS_GATE", False)
+M3_PROGRESS_GATE_ENABLED = _env_flag("CAD_C1_M3_PROGRESS_GATE", True)
 M2_SCOPE_CLASSIFIER_ENABLED = _env_flag("CAD_C1_M2_SCOPE_CLASSIFIER", False)
 
 

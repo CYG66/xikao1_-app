@@ -851,6 +851,7 @@ def execute_construction_plan(
         raise ConstructionPlanError(
             "drawing_infeasible", "；".join(feasibility["errors"]),
         )
+    _finalize_layout_diagnostics(layout_diagnostics, geometries, refs)
     return {
         "schema": "cad.construction-result.v1",
         "plan": validated.model_dump(mode="json"),
@@ -948,6 +949,43 @@ def _rotation_for_aspect(points, target_ratio, pivot):
             best_score = score
             best_angle = angle
     return best_angle
+
+
+def _finalize_layout_diagnostics(layout_diagnostics, geometries, refs):
+    """Attach post-transform measurements without overwriting legacy fields.
+
+    ``layout_quality`` is produced while fitting, before later rotation/scale
+    passes.  The legacy center fields therefore describe that intermediate
+    stage.  Final measurements are recorded separately so a consumer can never
+    mistake a pre-rotation bbox centre for the delivered geometry centre.
+    """
+    by_id = {g["id"]: g for g in geometries}
+    for item in layout_diagnostics or []:
+        target_ref = item.get("target_ref")
+        selected = [by_id[i] for i in refs.get(target_ref, [])]
+        if len(selected) != 1 or selected[0].get("type") != "polyline":
+            continue
+        geometry = selected[0]
+        bounds = _bounds([geometry])
+        width = bounds["max_x"] - bounds["min_x"]
+        height = bounds["max_y"] - bounds["min_y"]
+        item["measurement_stage"] = "post_transform"
+        item["final_bbox_size_mm"] = [width, height]
+        item["final_bbox_center_mm"] = [
+            (bounds["min_x"] + bounds["max_x"]) / 2,
+            (bounds["min_y"] + bounds["max_y"]) / 2,
+        ]
+        final_centroid = _outline_centroid(geometry["vertices"])
+        item["final_area_centroid_mm"] = list(final_centroid)
+        item["final_rotational_symmetry_center_mm"] = (
+            list(final_centroid)
+            if item.get("center_policy") == "rotational_symmetry_center"
+            else None)
+        requested = item.get("requested_mm")
+        if isinstance(requested, list) and len(requested) == 2:
+            item["final_residual_mm"] = [
+                abs(requested[0] - width), abs(requested[1] - height)]
+    return layout_diagnostics
 
 
 def _outline_shape_invariant_refs(steps, rotational_refs):

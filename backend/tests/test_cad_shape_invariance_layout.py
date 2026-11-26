@@ -10,6 +10,7 @@ from app.cad_construction import (
     FreeOutlineLayout,
     _apply_free_outline_layout,
     _outline_shape_invariant_refs,
+    execute_construction_plan,
 )
 from app.cad_construction_interpreter import (
     _source_allows_outline_deformation,
@@ -136,6 +137,29 @@ def test_preserve_layout_reports_center_metrics_without_overwriting_legacy():
     assert diagnostic["rotational_symmetry_center_mm"] == diagnostic["area_centroid_mm"]
     assert diagnostic["center_policy"] == "rotational_symmetry_center"
     assert diagnostic["construction_reference_center_mm"] == [5000.0, 5000.0]
+
+
+def test_execution_reports_post_transform_centers_without_overwriting_pre_fit_fields():
+    plan = {
+        "units": "mm",
+        "steps": [{"op": "add_polyline", "step_id": "outline",
+                   "output_ref": "flower", "semantic": {"label": "花瓣轮廓"},
+                   "closed": True, "vertices": _flower_points()}],
+        "assertions": [{"kind": "radial_pattern", "assertion_id": "lobes",
+                        "target_ref": "flower", "lobes": 5,
+                        "profile": "smooth"}],
+        "free_outline_layout": [{"target_ref": "flower", "width": 5000.0,
+                                 "height": 5000.0, "preserve_shape": True}],
+    }
+    result = execute_construction_plan(plan)
+    diagnostic = result["layout_quality"][0]
+    assert diagnostic["measurement_stage"] == "post_transform"
+    assert abs(diagnostic["final_bbox_size_mm"][0] - 5000.0) < 60.0
+    assert abs(diagnostic["final_bbox_size_mm"][1] - 5000.0) < 60.0
+    assert max(diagnostic["final_residual_mm"]) < 60.0
+    assert diagnostic["bbox_center_mm"] != diagnostic["final_bbox_center_mm"]
+    assert all(abs(a - b) < 1e-6 for a, b in zip(
+        diagnostic["final_area_centroid_mm"], diagnostic["area_centroid_mm"]))
 
 
 def test_circle_keeps_radius_consistency_after_uniform_fit():

@@ -76,7 +76,32 @@ if budget_path:
     if not evaluation_mode:
         raise SystemExit('evaluation_context_invalid')
     from app.eval_request_guard import configure_eval_guard
+    # CAD-E2E-LIVE-BASELINE-01 adds the two P01 admission conditions that are
+    # not expressible through the ledger's aggregate limit alone:
+    #   1) stop before the next send once actual cumulative input reaches the
+    #      authorized 300,000-token stop threshold;
+    #   2) reject any single-send input reservation above 1,048,576 tokens.
+    # Both are stricter checks in front of the same BudgetLedger.reserve() and
+    # never bypass the guard.  Disabled unless the baseline env is present.
+    baseline_actual_input_stop = int(os.getenv('P12_BASELINE_ACTUAL_INPUT_STOP', '0') or 0)
+    baseline_request_input_cap = int(os.getenv('P12_BASELINE_REQUEST_INPUT_CAP', '0') or 0)
+    if baseline_actual_input_stop or baseline_request_input_cap:
+        from p01_admission import install_baseline_admission
+        install_baseline_admission(
+            budget,
+            actual_input_stop=baseline_actual_input_stop,
+            request_input_cap=baseline_request_input_cap,
+        )
     configure_eval_guard(budget)
+    (root/'p01-admission-config.json').write_text(json.dumps({
+        'schema': 'p01-admission-config.v1',
+        'actual_input_stop_tokens': baseline_actual_input_stop,
+        'request_input_reservation_cap_tokens': baseline_request_input_cap,
+        'ledger_limits': budget.limits,
+        'ledger_used': budget.snapshot().get('used'),
+        'ledger_stopped': budget.snapshot().get('stopped'),
+        'ledger_pending': budget.snapshot().get('pending'),
+    }, ensure_ascii=False, indent=2), encoding='utf-8')
 from app.creative_projects import CreativeProjectStore
 from app.conversation_memory import ConversationMemoryStore
 
@@ -112,6 +137,41 @@ elif operation=="fatal_probe":
 else:
     from app.agent_service import RobotAgentService
     service=RobotAgentService(restore_pending_actions=operation=="confirm")
+    if evaluation_mode and os.getenv('P12_EVAL_MOCK_PROVIDER') != '1':
+        # Observation-only wrapper for the real baseline evidence.  It never
+        # changes the request or response and logs after the guard has already
+        # validated the provider-returned model and settled the usage.
+        import time as _time
+        original_api_request=service._deepseek_request
+        def observed_api_request(*args, **kwargs):
+            started=_time.time()
+            try:
+                api_response=original_api_request(*args, **kwargs)
+                with (root/'model-api-responses.jsonl').open('a', encoding='utf-8') as stream:
+                    stream.write(json.dumps({
+                        'schema':'cad-e2e-live-baseline.api-response.v1',
+                        'step':request.get('step'),
+                        'case_id':os.getenv('P12_EVAL_CASE_ID'),
+                        'model_returned':api_response.get('model'),
+                        'response_id':api_response.get('id'),
+                        'usage':api_response.get('usage'),
+                        'finish_reason':((api_response.get('choices') or [{}])[0].get('finish_reason')),
+                        'duration_ms':round((_time.time()-started)*1000, 1),
+                        'response':api_response,
+                    }, ensure_ascii=False, default=str)+'\n')
+                return api_response
+            except BaseException as exc:
+                with (root/'model-api-responses.jsonl').open('a', encoding='utf-8') as stream:
+                    stream.write(json.dumps({
+                        'schema':'cad-e2e-live-baseline.api-response.v1',
+                        'step':request.get('step'),
+                        'case_id':os.getenv('P12_EVAL_CASE_ID'),
+                        'error_type':type(exc).__name__,
+                        'error':str(exc),
+                        'duration_ms':round((_time.time()-started)*1000, 1),
+                    }, ensure_ascii=False, default=str)+'\n')
+                raise
+        service._deepseek_request=observed_api_request
     if budget is not None and os.getenv('P12_EVAL_MOCK_PROVIDER') == '1':
         from app.eval_request_guard import (
             begin_eval_request, fail_eval_request, settle_eval_response,

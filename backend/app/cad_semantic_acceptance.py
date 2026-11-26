@@ -6,6 +6,12 @@ import math
 import re
 
 from .cad_creation_intent import local_creation_objects
+from .cad_geometric_predicates import (
+    closure_measure,
+    heart_cusp_points,
+    mirror_symmetry,
+    outline_points,
+)
 from .cad_structure_contract import StructureContractError
 from .cad_semantic_dispatch import (
     DISPATCH_CHANNELS,
@@ -54,7 +60,11 @@ def semantic_requirements(source):
         return [{'kind':'astroid_identity','instruction':'星形线astroid具有四个内禀尖点，按用户数学关系和最大半径构造；不要添加要求处处无尖角的radial_pattern profile=smooth断言。不能用直边四角星替代。'}]
     if (re.search(r'爱心|心形',text) and len(local_creation_objects(text)) <= 2
             and not re.search(r'大写字母\s*A',text,re.I)):
-        return [{'kind':'heart_outline_features','instruction':'爱心必须是单一闭合外轮廓，顶部左右两个凸瓣、中间凹口、底部中央尖点；参数曲线的坐标轴方向要保持该拓扑，不能用椭圆、单瓣曲线或上下颠倒的曲线替代。尺寸和中心由需求契约绑定。'}]
+        return [{'kind':'heart_outline_features',
+                 'instruction':'爱心必须是单一闭合外轮廓，顶部左右两个凸瓣、中间凹口、底部中央尖点；参数曲线的坐标轴方向要保持该拓扑，不能用椭圆、单瓣曲线或上下颠倒的曲线替代。尺寸和中心由需求契约绑定。',
+                 'require_mirror_symmetry':bool(re.search(r'左右对称|镜像对称|对称',text)),
+                 'require_smooth_closure':bool(re.search(r'平滑闭合|闭合|封闭|平滑',text)),
+                 'require_smooth_outline':bool(re.search(r'平滑|光滑',text))}]
     nested=nested_frame_requirement(text)
     if nested:return [nested]
     polygon=regular_polygon_requirement(text)
@@ -373,6 +383,11 @@ def _verify_heart_channel(geometries,requirements,logical_objects=None,topology=
                     'excluded_geometry_ids':binding['excluded_geometry_ids'],
                     'excluded_geometries':binding['excluded_geometries']}}
     targets=binding["targets"]
+    heart_requirement=next((item for item in requirements
+                            if item.get('kind')=='heart_outline_features'),{})
+    require_symmetry=bool(heart_requirement.get('require_mirror_symmetry'))
+    require_closure=bool(heart_requirement.get('require_smooth_closure'))
+    require_smooth=bool(heart_requirement.get('require_smooth_outline'))
     binding_meta={'binding_source':binding['binding_source'],
         'binding_auxiliary':binding['auxiliary'],
         'unowned_geometry_ids':binding['unowned_geometry_ids'],
@@ -387,6 +402,9 @@ def _verify_heart_channel(geometries,requirements,logical_objects=None,topology=
     for target in targets:
         profile=classify_profile(target['geometries'])
         measured=heart_features(target['geometries'])
+        points=[]
+        if len(target['geometries'])==1:
+            points=outline_points(target['geometries'][0])
         entry={'target_ref':target['target_ref'],'profile':profile['profile'],
                'profile_measurements':profile['measurements'],'profile_votes':profile['votes'],
                'heart_features':measured['features'],'normalization':measured.get('normalization')}
@@ -395,15 +413,65 @@ def _verify_heart_channel(geometries,requirements,logical_objects=None,topology=
             star_entries.append(entry)
             continue
         if measured['features'] and all(measured['features'].values()):
-            heart_candidates.append((target,entry,measured))
+            heart_candidates.append((target,entry,measured,points))
     if len(heart_candidates)==1:
-        target,entry,measured=heart_candidates[0]
-        check={'name':'heart_bilateral_lobes_notch_and_lower_tip','status':'passed',
+        target,entry,measured,points=heart_candidates[0]
+        checks=[{'name':'heart_bilateral_lobes_notch_and_lower_tip','status':'passed',
                'authority':'backend_measured_geometry',
                'geometry_ids':target['target_ref']['geometry_ids'],
-               'target_ref':target['target_ref'],'measurements':measured['features']}
+               'target_ref':target['target_ref'],'measurements':measured['features']}]
+        symmetry=None
+        if require_symmetry:
+            if points:
+                xs=[point[0] for point in points]
+                axis_x=(min(xs)+max(xs))/2.0
+                symmetry=mirror_symmetry(
+                    points, axis_x, tolerance_mm=10.0,
+                    axis_source="source:heart_left_right_measured_center",
+                    closed=(target['geometries'][0].get('closed') is True
+                            if target.get('geometries') else False),
+                )
+            else:
+                symmetry={'status':'unverified','reason':'outline_points_unavailable'}
+            checks.append({'name':'heart_mirror_symmetry','status':'passed' if symmetry.get('status')=='verified' else 'failed',
+                           'authority':'backend_measured_geometry','measurements':symmetry})
+            if symmetry.get('status')!='verified':
+                raise StructureContractError('爱心轮廓未通过左右镜像对称测量',{
+                    'authority':'backend_measured_geometry','check':'heart_mirror_symmetry',
+                    'target_ref':target['target_ref'],'measurements':symmetry,
+                    'repair_instruction':'按实际左右镜像误差修正轮廓；不得仅删除对称要求或放宽阈值。'})
+        closure=None
+        if require_closure:
+            closure_geometry=target['geometries'][0] if len(target['geometries'])==1 else None
+            if closure_geometry is not None and points:
+                closure=closure_measure(points,closed=closure_geometry.get('closed') is True,
+                                        tolerance_mm=0.5,smooth_angle_tolerance_deg=5.0,
+                                        require_smooth=require_smooth,
+                                        allowed_cusp_source='heart_features',
+                                        allowed_cusp_limit=2,
+                                        allowed_cusp_points=heart_cusp_points(closure_geometry))
+            else:
+                closure={'status':'unverified','reason':'outline_points_unavailable'}
+            checks.append({'name':'heart_smooth_closure','status':'passed' if closure.get('status')=='verified' else 'failed',
+                           'authority':'backend_measured_geometry','measurements':closure})
+            if closure.get('status')!='verified':
+                raise StructureContractError('爱心轮廓未通过实际闭合/平滑连接测量',{
+                    'authority':'backend_measured_geometry','check':'heart_smooth_closure',
+                    'target_ref':target['target_ref'],'measurements':closure,
+                    'repair_instruction':'修正首尾端点间隙与非预期尖角；不得只改closed声明。'})
+        complete=all(check.get('status')=='passed' for check in checks)
+        checks.append({'name':'heart_outline_requirements_complete',
+                       'status':'passed' if complete else 'failed',
+                       'authority':'backend_measured_geometry',
+                       'geometry_ids':target['target_ref']['geometry_ids'],
+                       'measurements':{
+                           'heart_features':measured['features'],
+                           'mirror_symmetry':symmetry,
+                           'closure':closure,
+                           'required_symmetry':require_symmetry,
+                           'required_closure':require_closure}})
         object_acceptance=[{**entry,'status':'passed','reason':'heart_features_measured',
-            'note':'爱心四特征在绑定对象上独立验收通过；未读取其他对象几何'}]
+            'note':'爱心四特征及来源明确要求的对称/闭合属性在绑定对象上独立验收通过；未读取其他对象几何'}]
         for other in evaluated:
             if other['target_ref']['geometry_ids']==target['target_ref']['geometry_ids']:
                 continue
@@ -416,11 +484,10 @@ def _verify_heart_channel(geometries,requirements,logical_objects=None,topology=
                     'reason':'unbound_object_no_requirement',
                     'note':'该对象未绑定到任何已识别语义要求'})
         review=any(o['status']!='passed' for o in object_acceptance[1:])
-        # Partial feature coverage is never a full pass: keep review_required
-        # True even when the bound heart check itself passed.
-        return {'status':'partial','coverage':'heart_outline_measured_features',
-                'requirements':requirements,'checks':[check],'review_required':True,
-                'reason':'partial_feature_coverage' if not review else 'partial_with_unverified_objects',
+        return {'status':'passed' if not review else 'partial',
+                'coverage':'heart_outline_measured_features',
+                'requirements':requirements,'checks':checks,'review_required':review,
+                'reason':None if not review else 'partial_with_unverified_objects',
                 'object_acceptance':object_acceptance,
                 'unsupported_objects':[o['target_ref']['geometry_ids']
                                        for o in object_acceptance if o['status']=='not_checked'],

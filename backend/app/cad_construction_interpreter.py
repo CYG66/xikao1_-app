@@ -2519,9 +2519,21 @@ def construction_acceptance_summary(
     semantic_verdict = _semantic_summary_verdict(semantic_report, source)
     semantic_blocks = not state_allows_summary_passed(semantic_verdict)
     report_requires_review = any(_report_blocks_review(report) for report in reports)
+    # A passed post-execution structure/composition check does not by itself
+    # erase an upstream review.  It may be erased only when the requirement
+    # ledger independently proves every mandatory clause from measured
+    # geometry; a bare coverage string is not enough (P0 trust-boundary test).
+    coverage_proves_all_clauses = bool(
+        isinstance(coverage_evidence, dict)
+        and coverage_evidence.get("state") == "complete"
+        and int(coverage_evidence.get("verified_requirement_count") or 0) > 0
+        and not coverage_evidence.get("blocking_requirements")
+    )
+    legacy_reports = (structure_validation, composition_validation)
+    if not coverage_proves_all_clauses:
+        legacy_reports = (preflight_structure,) + legacy_reports
     review_required = (preflight_review_required or report_requires_review or semantic_blocks
-        or any((report or {}).get('review_required') is True for report in
-               (preflight_structure,structure_validation,composition_validation)))
+        or any((report or {}).get('review_required') is True for report in legacy_reports))
     verified_checks = sum(
         1 for report in all_reports for check in report.get("checks", [])
         if isinstance(check, dict) and check.get("status") == "passed"

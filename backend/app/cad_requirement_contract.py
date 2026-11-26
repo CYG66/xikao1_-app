@@ -34,12 +34,40 @@ PATTERN=re.compile(r'(?P<qualifier>最大|最小|整体|总)?(?P<field>外接圆
     r'\s*(?P<value>[-+]?\d+(?:\.\d+)?)\s*(?P<unit>毫米|厘米|米|mm|cm|m)(?![a-zA-Z])',re.I)
 
 
+_CLAUSE_SEPARATORS = re.compile(r'[，,。；;\n]')
+_OPEN_BRACKETS = {'(': ')', '（': '）', '[': ']', '【': '】'}
+
+
+def split_source_clauses(text):
+    """Split on top-level separators only; parentheses keep their commas.
+
+    Coordinate requirements such as ``中心在(2,3)`` are one semantic fact.  A
+    naive ``re.split`` produced ``中心在(2`` and ``3)`` and lost the fact, so
+    the splitter tracks bracket depth without rewriting the original text.
+    """
+    clauses, start, depth = [], 0, 0
+    for index, char in enumerate(text):
+        if char in _OPEN_BRACKETS:
+            depth += 1
+        elif char in _OPEN_BRACKETS.values() and depth:
+            depth -= 1
+        elif depth == 0 and _CLAUSE_SEPARATORS.match(char):
+            clause = text[start:index].strip()
+            if clause:
+                clauses.append(clause)
+            start = index + 1
+    clause = text[start:].strip()
+    if clause:
+        clauses.append(clause)
+    return clauses
+
+
 def requirement_contract(sources):
     subjects=[];declarations=[];normalized_sources=[]
     for source in sources:
         declared=[]
         clauses=[]
-        for clause in re.split(r'[，,。；;\n]',source['text']):
+        for clause in split_source_clauses(source['text']):
             clause=clause.strip()
             if clause:
                 clauses.append({'text':clause,'subjects':[]})

@@ -47,6 +47,34 @@ _UNSUPPORTED_OUTLINE_PROPERTY = re.compile(
 )
 _CN_NUMBER = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5,
               "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
+_SYMMETRY_UNSUPPORTED = re.compile(
+    r"旋转对称|中心对称|上下对称|上下镜像|前后对称|关于\s*[xX]\s*轴|关于横轴"
+)
+_SYMMETRY_VERTICAL = re.compile(r"左右对称|镜像对称|关于\s*[yY]\s*轴|竖直|垂直")
+_SYMMETRY_EXPLICIT_X = re.compile(
+    r"关于\s*[xX]\s*=\s*(-?\d+(?:\.\d+)?)", re.IGNORECASE
+)
+
+
+def _mirror_axis_from_source(requirement: str,
+                             measured_center_x: float
+                             ) -> tuple[float, str] | None:
+    """Return a supported vertical mirror axis and its source.
+
+    A bare ``对称`` is ambiguous: it could mean rotation, centre symmetry or a
+    horizontal axis.  Only an explicit left/right (vertical-line) statement is
+    measured.  When the source gives an explicit ``x=...`` line, that value is
+    used; otherwise the vertical line through the measured outline centre is
+    recorded explicitly as an inferred location.
+    """
+    if _SYMMETRY_UNSUPPORTED.search(requirement):
+        return None
+    explicit = _SYMMETRY_EXPLICIT_X.search(requirement)
+    if explicit:
+        return float(explicit.group(1)), "source:explicit_x_equals"
+    if _SYMMETRY_VERTICAL.search(requirement):
+        return float(measured_center_x), "source:left_right_measured_center"
+    return None
 
 
 def bind_construction_coverage(
@@ -532,19 +560,33 @@ def _bind_outline_clause(
     }
     center_x = (bounds["min_x"] + bounds["max_x"]) / 2.0
 
+    heart_verified = False
     if is_heart:
         heart = heart_outline_measure(geometry)
+        heart_verified = heart.get("status") == "verified"
         checks.append({"predicate": "heart_features", **heart})
-        if heart.get("status") != "verified":
+        if not heart_verified:
             failures.append({"predicate": "heart_features",
                              "reason": "心形拓扑特征未全部通过",
                              "measurement": heart})
     if wants_symmetry:
-        symmetry = mirror_symmetry(points, center_x, float(tolerance_mm))
+        axis = _mirror_axis_from_source(requirement, center_x)
+        if axis is None:
+            _record_unverified(
+                clause,
+                "对称方向或对称轴缺少明确来源，未按包围盒中心线猜测",
+                {"requirement_text": requirement,
+                 "supported": "仅支持来源明确的左右/镜像对称或显式 x= 轴"},
+            )
+            return
+        axis_x, axis_source = axis
+        symmetry = mirror_symmetry(
+            points, axis_x, float(tolerance_mm), axis_source=axis_source,
+        )
         checks.append({"predicate": "mirror_symmetry", **symmetry})
         if symmetry.get("status") != "verified":
             failures.append({"predicate": "mirror_symmetry",
-                             "reason": "轮廓与镜像不重合",
+                             "reason": "轮廓线段集合与镜像不重合",
                              "measurement": symmetry})
     if wants_closure or wants_smooth:
         closure = closure_measure(
@@ -552,11 +594,13 @@ def _bind_outline_clause(
             closed=geometry.get("closed") is True,
             tolerance_mm=float(tolerance_mm),
             require_smooth=wants_smooth,
+            allowed_cusp_source=("heart_features" if heart_verified else None),
+            allowed_cusp_limit=(2 if heart_verified else 0),
         )
         checks.append({"predicate": "closure", **closure})
         if closure.get("status") != "verified":
             failures.append({"predicate": "closure",
-                             "reason": "实际端点未闭合或存在非预期尖角",
+                             "reason": "实际未闭合或平滑连续性超过容限",
                              "measurement": closure})
 
     width_mm = bounds["max_x"] - bounds["min_x"]

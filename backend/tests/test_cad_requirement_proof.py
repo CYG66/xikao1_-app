@@ -54,7 +54,7 @@ def rectangle_object(object_id, gid, label):
 
 
 def heart_points(cx=2000.0, cy=3000.0, width=4000.0, height=4000.0,
-                 samples=96):
+                 samples=192):
     raw = []
     for index in range(samples):
         t = 2 * math.pi * index / samples
@@ -73,7 +73,7 @@ def heart_points(cx=2000.0, cy=3000.0, width=4000.0, height=4000.0,
 
 
 def heart(gid=1, cx=2000.0, cy=3000.0, width=4000.0, height=4000.0,
-          closed=True, samples=96):
+          closed=True, samples=192):
     return {"id": gid, "type": "polyline", "closed": closed, "selected": True,
             "vertices": heart_points(cx, cy, width, height, samples)}
 
@@ -248,6 +248,57 @@ def test_closure_predicate_ignores_long_implicit_edge_but_not_false_flag():
     points = [(0, 0), (10, 0), (10, 10), (0, 10)]
     assert closure_measure(points, closed=True)["status"] == "verified"
     assert closure_measure(points, closed=False)["status"] == "failed"
+    assert closure_measure(points, closed=False)["closure_status"] == "failed"
+
+
+def test_closure_measures_smoothness_independently_of_closed_flag():
+    points = [(0, 0), (10, 0), (10, 10), (0, 10)]
+    result = closure_measure(points, closed=True, require_smooth=True)
+    assert result["closure_status"] == "verified"
+    assert result["continuity_status"] == "failed"
+    assert result["status"] == "failed"
+    assert result["unexpected_turn_count"] == 4
+    assert result["max_turn_deg"] == pytest.approx(90.0)
+    # Closure alone is not a smoothness claim.
+    assert closure_measure(points, closed=True)["continuity_status"] == "not_required"
+
+
+def test_closure_allows_only_source_backed_heart_cusps():
+    points = [(item["x"], item["y"]) for item in heart()["vertices"]]
+    allowed = closure_measure(
+        points, closed=True, require_smooth=True,
+        allowed_cusp_source="heart_features", allowed_cusp_limit=2,
+    )
+    assert allowed["status"] == "verified"
+    assert len(allowed["intentional_cusps"]) == 2
+    assert allowed["cusp_source"] == "heart_features"
+    # The same joins are not accepted by a mere centre-line heuristic.
+    unsourced = closure_measure(points, closed=True, require_smooth=True)
+    assert unsourced["status"] == "failed"
+    assert unsourced["intentional_cusps"] == []
+
+
+def test_mirror_symmetry_rejects_symmetric_vertices_with_asymmetric_edges():
+    points = [(0, 0), (10, 0), (10, 10), (0, 10), (5, 5)]
+    assert mirror_symmetry(points, 5.0, tolerance_mm=0.1)["status"] == "failed"
+    square = [(0, 0), (10, 0), (10, 10), (0, 10)]
+    assert mirror_symmetry(square, 5.0, tolerance_mm=0.1)["status"] == "verified"
+
+
+@pytest.mark.parametrize("text", [
+    "生成一个对称的爱心，中心在(2,3)，宽4米高4米",
+    "生成一个上下对称的爱心，中心在(2,3)，宽4米高4米",
+    "生成一个旋转对称的爱心，中心在(2,3)，宽4米高4米",
+])
+def test_ambiguous_or_unsupported_symmetry_stays_unverified(text):
+    geometry = heart()
+    objects = [{"object_id": "heart_outline", "object_type": "drawing_part",
+                "label": "爱心闭合外轮廓", "geometry_refs": [1]}]
+    bound = bind_heart(text, geometry, objects)
+    assert bound["state"] == "partial"
+    assert bound["unresolved_fact_ids"]
+    clause = bound["clauses"][0]
+    assert clause["status"] != "verified"
 
 
 def test_mirror_symmetry_measures_hausdorff_not_bbox():
@@ -263,7 +314,7 @@ def test_mirror_symmetry_measures_hausdorff_not_bbox():
 def test_closure_rejects_sharp_join_away_from_vertical_centre():
     points = [(0, 0), (100, 0), (100, 100), (60, 100), (60, 150),
               (60, 100), (0, 100)]
-    result = closure_measure(points, closed=True, require_smooth=False)
+    result = closure_measure(points, closed=True, require_smooth=True)
     assert result["status"] == "failed"
     assert result["unexpected_sharp_join_count"] == 1
     assert result["intentional_cusps"] == []
@@ -306,3 +357,37 @@ def test_failed_final_source_check_cannot_be_masked_by_another_passed_claim():
     assert clause["status"] != "verified"
     assert coverage["state"] == "partial"
     assert coverage["blocking_requirements"]
+
+
+def test_binder_does_not_clear_failed_final_fact_from_unrelated_passed_claim():
+    """The direct binder must keep a failed final fact blocking."""
+    failed_final = {
+        "name": "width", "field": "width", "status": "failed",
+        "actual_mm": 2000.0, "expected_mm": 3000.0, "tolerance_mm": 0.5,
+        "source_requirement_id": "synthetic:width",
+        "source_evidence": {"text": "宽3米"},
+    }
+    passed_other = {
+        "name": "width", "field": "width", "status": "passed",
+        "source_evidence": {"text": "宽3米"},
+    }
+    coverage = build_requirement_coverage_evidence("宽3米", {
+        "status": "partial", "checks": [],
+        "final_source_acceptance": {
+            "status": "passed", "checks": [failed_final],
+            "unknown_requirements": [],
+        },
+        "source_requirement_acceptance": {
+            "status": "passed", "checks": [passed_other],
+        },
+    })
+    bound = bind_construction_coverage(
+        coverage,
+        logical_objects=[rectangle_object("rectangle_main", 1, "矩形 宽3米")],
+        geometries=[rectangle(1, 0, 0, 2000, 2000)],
+        plan_steps=[{"step_id": "rect1", "output_ref": "rectangle_main"}],
+        project_evidence={"project_exists": True, "project_id": "offline"},
+    )
+    assert bound["state"] == "partial"
+    assert bound["blocking_requirements"]
+    assert clause_by_text(bound, "宽3米")["status"] != "verified"

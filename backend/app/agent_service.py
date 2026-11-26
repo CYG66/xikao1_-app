@@ -147,6 +147,14 @@ from .integration_profile import (
     integration_profile_enabled,
     require_external_model_calls_permitted,
 )
+from .eval_request_guard import (
+    deny_eval_get,
+    fail_eval_request,
+    is_eval_fatal,
+    require_eval_not_aborted,
+    settle_eval_response,
+    validate_response_model,
+)
 from .cad_creation_intent import has_compound_primitives
 from .cad_creation_intent import local_creation_objects
 from .cad_construction_commit import (
@@ -622,6 +630,7 @@ class RobotAgentService:
             url = f"{base_url}/models/{self.model}"
             headers = {"Authorization": f"Bearer {self.api_key}"}
         request = urllib.request.Request(url, headers=headers, method="GET")
+        deny_eval_get(url)
         try:
             with urllib.request.urlopen(request, timeout=15) as response:
                 return {
@@ -642,6 +651,7 @@ class RobotAgentService:
         mode: str = "chat",
         route: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        require_eval_not_aborted()
         resolved_route = self._with_edit_domain(
             route or self.resolve_intent(message, mode, history)
         )
@@ -1732,36 +1742,20 @@ class RobotAgentService:
                 "max_output_tokens": max_tokens,
                 "store": False,
             }
-            request = urllib.request.Request(
-                "https://api.openai.com/v1/responses",
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                method="POST",
-            )
-            request_lease = user_request_limiter.acquire(current_agent_user_id())
-            request_lease.__enter__()
             try:
-                with urllib.request.urlopen(
-                    request,
+                result = request_openai_responses_json(
+                    api_key=self.api_key,
+                    payload=payload,
                     timeout=self._env_timeout(
                         "XLINE_AGENT_MODEL_REQUEST_TIMEOUT_SECONDS",
                         45.0,
                         maximum=900.0,
                     ),
-                ) as response:
-                    result = json.loads(response.read().decode("utf-8"))
-            except (
-                urllib.error.HTTPError,
-                urllib.error.URLError,
-                TimeoutError,
-                socket.timeout,
-            ) as error:
+                )
+            except RuntimeError as error:
+                if is_eval_fatal(error):
+                    raise
                 raise RuntimeError(f"OpenAI 复核请求失败：{error}") from error
-            finally:
-                request_lease.__exit__(None, None, None)
             record_structured_usage(result, "openai")
             return self._output_text(result)
         if self.mode == "anthropic":
@@ -2159,10 +2153,12 @@ class RobotAgentService:
             connection, response = self._unpack_deepseek_response(
                 self._deepseek_response(payload)
             )
+            reservation = getattr(response, "_p12_eval_reservation", None)
             if stream_structured and response.status < 400:
                 parts: list[str] = []
                 finish_reason = None
                 stream_usage = None
+                stream_model = None
                 while True:
                     self._deepseek_transport().set_socket_timeout(connection, deadline, response=response)
                     raw_line = response.readline()
@@ -2177,6 +2173,10 @@ class RobotAgentService:
                     if data_line == "[DONE]":
                         break
                     chunk = json.loads(data_line)
+                    chunk_model = chunk.get("model")
+                    if chunk_model:
+                        stream_model = str(chunk_model)
+                        validate_response_model(reservation, chunk)
                     if isinstance(chunk.get("usage"), dict):
                         stream_usage = chunk["usage"]
                     if chunk.get("error"):
@@ -2193,17 +2193,36 @@ class RobotAgentService:
                     finish_reason = choice.get("finish_reason") or finish_reason
                 if finish_reason is None:
                     raise RuntimeError("DeepSeek 构造响应提前中断，未收到完成标记。")
-                return {"choices": [{"finish_reason": finish_reason,
+                result = {"choices": [{"finish_reason": finish_reason,
                                      "message": {"content": "".join(parts)}}],
+                        "model": stream_model,
                         **({"usage": stream_usage} if stream_usage is not None else {})}
+                settle_eval_response(
+                    reservation, result, http_status=response.status
+                )
+                return result
             data = self._read_deepseek_body(response, connection, deadline)
             if response.status >= 400:
+                fail_eval_request(
+                    reservation,
+                    f"DeepSeek API 请求失败（{response.status}）：{data[:300]}",
+                )
                 raise RuntimeError(
                     f"DeepSeek API 请求失败（{response.status}）：{data[:300]}"
                 )
-            return json.loads(data)
+            result = json.loads(data)
+            settle_eval_response(
+                reservation, result, http_status=response.status
+            )
+            return result
         except (TimeoutError, socket.timeout) as error:
+            fail_eval_request(
+                locals().get("reservation"), "DeepSeek API 请求超时"
+            )
             raise RuntimeError("DeepSeek API 请求超时，请稍后重试。") from error
+        except BaseException as error:
+            fail_eval_request(locals().get("reservation"), error)
+            raise
         finally:
             self._close_deepseek_response(connection, response)
             request_lease.__exit__(None, None, None)
@@ -2251,6 +2270,8 @@ class RobotAgentService:
                     ),
                 )
             except RuntimeError as error:
+                if is_eval_fatal(error):
+                    raise
                 raise RuntimeError(f"OpenAI 诊断 API 请求失败：{error}") from error
             return self._result(self._output_text(result), self._usage(result))
         return self._compatible_chat(prompt, [], mode="advanced")
@@ -2291,6 +2312,7 @@ class RobotAgentService:
         creation requests cannot enter candidate editing, and verified generic
         construction must run before legacy provider tool calls.
         """
+        require_eval_not_aborted()
         route = self._with_edit_domain(route)
         if route.get("operation") == "modify" and route.get("edit_domain") == "candidate_variant":
             prior_addition = any(
@@ -2337,6 +2359,7 @@ class RobotAgentService:
                     "safety_confirmation_required": False,
                 })
         route = self._structured_cad_edit_fallback(message, history, route, mode)
+        require_eval_not_aborted()
         route = self._with_edit_domain(route)
         if (
             route.get("operation") == "modify"
@@ -2347,6 +2370,7 @@ class RobotAgentService:
                 return route, result
 
         result = self._formal_cad_construction(message, route, mode=mode)
+        require_eval_not_aborted()
         if result is not None:
             return route, result
         return route, None
@@ -2439,6 +2463,7 @@ class RobotAgentService:
         route: dict[str, Any] | None = None,
         user_id: str | None = None,
     ):
+        require_eval_not_aborted()
         resolved_route = self._with_edit_domain(
             route or self.resolve_intent(message, mode, history)
         )
@@ -2574,6 +2599,7 @@ class RobotAgentService:
         usage = self._empty_usage()
         connection = None
         response = None
+        reservation = None
         deadline = time.monotonic() + self._deepseek_timeout("request", 90.0)
         request_lease = user_request_limiter.acquire(current_agent_user_id())
         request_lease.__enter__()
@@ -2581,6 +2607,7 @@ class RobotAgentService:
             connection, response = self._unpack_deepseek_response(
                 self._deepseek_response(payload)
             )
+            reservation = getattr(response, "_p12_eval_reservation", None)
             if response.status >= 400:
                 detail = self._read_deepseek_body(response, connection, deadline)
                 raise RuntimeError(
@@ -2619,8 +2646,19 @@ class RobotAgentService:
                     function = call.get("function") or {}
                     target["name"] += str(function.get("name") or "")
                     target["arguments"] += str(function.get("arguments") or "")
+            if reservation is not None:
+                settle_eval_response(
+                    reservation,
+                    {"model": payload["model"], "usage": usage},
+                )
         except (TimeoutError, socket.timeout) as error:
+            if reservation is not None:
+                fail_eval_request(reservation, error)
             raise RuntimeError("DeepSeek 流式请求超时，请稍后重试。") from error
+        except Exception as error:
+            if reservation is not None:
+                fail_eval_request(reservation, error)
+            raise
         finally:
             self._close_deepseek_response(connection, response)
             request_lease.__exit__(None, None, None)
@@ -5187,6 +5225,8 @@ class RobotAgentService:
         try:
             result = self._execute_confirmed(action, client_id=client_id)
         except Exception as error:
+            if is_eval_fatal(error):
+                raise
             failure = {"ok": False, "message": f"Agent 工具执行异常：{error}"}
             agent_tasks.transition(action_id, "failed", failure["message"], failure)
             robot_state.add_log(f"agent task {action_id} failed: {error}")
@@ -5928,6 +5968,8 @@ class RobotAgentService:
                 content = self._structured_review_text(retry_messages, mode=mode)
                 review = self._json_object(content)
         except (RuntimeError, ValueError, TypeError) as error:
+            if is_eval_fatal(error):
+                raise
             route["decision_source"] = "rules_fallback"
             route["review"] = {
                 "attempted": True,
@@ -6029,10 +6071,14 @@ class RobotAgentService:
                     parse_structured_cad_interpretation(payload, message)
                     if isinstance(payload, dict) else None
                 )
-            except RuntimeError:
+            except RuntimeError as error:
+                if is_eval_fatal(error):
+                    raise
                 failure_reason = "provider_request_failed"
                 break
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as error:
+                if is_eval_fatal(error):
+                    raise
                 failure_reason = "invalid_schema_or_grounding"
                 interpreted = None
             if interpreted is not None or attempt == 1:
@@ -6468,6 +6514,7 @@ class RobotAgentService:
         mode: str,
     ) -> dict[str, Any] | None:
         """One production entry for template, rule and structured-model creation."""
+        require_eval_not_aborted()
         if route.get("name") != "drawing_design" or route.get("operation") != "create":
             return None
         raw_followup = str(route.get("user_message") or message).strip()
@@ -6543,6 +6590,7 @@ class RobotAgentService:
         # rule miss uses one structured-model plan. SketchGraph alternatives
         # are reserved for offline evaluation.
         model_input = self._construction_input_snapshot(message, project)
+        require_eval_not_aborted()
         interpretation = self._interpret_cad_construction_plan(model_input, mode=mode)
         if (interpretation.get("status") == "clarification_required"
                 and interpretation.get("provider_attempted")
@@ -6584,6 +6632,7 @@ class RobotAgentService:
         construction_attempts = [deepcopy(interpretation)]
         while (should_repair(interpretation)
                and bounded_repair_available(construction_attempts, max_repairs=2)):
+            require_eval_not_aborted()
             # M3: stall guard between consecutive attempts. The first repair
             # (single attempt) is never gated. Block only on a proven stall;
             # every undetermined or missing-snapshot path releases.
@@ -6667,6 +6716,7 @@ class RobotAgentService:
                 and len((explicit_composition(
                     model_input.split("\n[CAD_REQUIREMENT_CONTRACT_SNAPSHOT.v1]", 1)[0]
                 ) or {}).get("names") or []) > 1):
+            require_eval_not_aborted()
             # Local coordinate repair cannot always recover a wrong topology.
             # Trial separate model plans against the same immutable contract,
             # then apply the *full* source acceptance to each before use.
@@ -6891,6 +6941,7 @@ class RobotAgentService:
                 "question_key": "construction_scope", "recognized_size": True,
                 "recognized_shape": str((project.get("requirements") or {}).get("shape") or "generic_2d_cad"),
             }, route)
+        require_eval_not_aborted()
         try:
             committed = commit_construction_interpretation(
                 message,

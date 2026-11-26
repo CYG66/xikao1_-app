@@ -7,6 +7,11 @@ import urllib.error
 import urllib.request
 from urllib.request import Request
 
+from .eval_request_guard import (
+    begin_eval_request,
+    fail_eval_request,
+    settle_eval_response,
+)
 from .integration_profile import require_external_model_calls_permitted
 
 
@@ -74,20 +79,43 @@ class ModelProviderAdapter:
     def send_json(self, request: Request, *, timeout: float) -> dict[str, Any]:
         """Send a previously built provider request and decode its JSON body."""
         require_external_model_calls_permitted()
+        payload: dict[str, Any] = {}
+        if request.data:
+            try:
+                decoded = json.loads(request.data.decode("utf-8"))
+                if isinstance(decoded, dict):
+                    payload = decoded
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                payload = {}
+        reservation = begin_eval_request(
+            provider=self.name,
+            model=str(payload.get("model") or ""),
+            target_url=request.full_url,
+            payload=payload,
+            max_output_tokens=int(
+                payload.get("max_tokens", payload.get("max_output_tokens", 0)) or 0
+            ),
+        )
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 raw = response.read().decode("utf-8")
+                status = int(getattr(response, "status", 200))
+            result = json.loads(raw)
+            settle_eval_response(reservation, result, http_status=status)
+            return result
         except urllib.error.HTTPError as error:
+            fail_eval_request(reservation, error)
             detail = error.read().decode("utf-8", errors="replace")[:300]
             raise RuntimeError(
                 f"{self.name} API 请求失败（{error.code}）：{detail}"
             ) from error
         except (urllib.error.URLError, TimeoutError, OSError) as error:
+            fail_eval_request(reservation, error)
             raise RuntimeError(f"无法连接 {self.name}：{error}") from error
-        try:
-            return json.loads(raw)
         except json.JSONDecodeError as error:
+            fail_eval_request(reservation, error)
             raise RuntimeError(f"{self.name} API 返回了无效 JSON。") from error
+
 
 
 class OpenAICompatibleAdapter(ModelProviderAdapter):

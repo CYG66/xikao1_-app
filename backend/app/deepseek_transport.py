@@ -10,6 +10,11 @@ from typing import Any
 from urllib.parse import urlparse
 
 from .agent_service_config import PROVIDERS
+from .eval_request_guard import (
+    begin_eval_request,
+    fail_eval_request,
+    settle_eval_response,
+)
 from .integration_profile import require_external_model_calls_permitted
 
 
@@ -98,11 +103,21 @@ class DeepSeekTransport:
         }
         for attempt in range(2):
             connection: http.client.HTTPSConnection | None = None
+            reservation = None
             try:
                 connection = http.client.HTTPSConnection(
                     parsed.hostname,
                     parsed.port or 443,
                     timeout=self._timeout_for("connect", 10.0),
+                )
+                # Budget admission happens immediately before the actual
+                # request bytes are written, once per retry attempt.
+                reservation = begin_eval_request(
+                    provider="deepseek",
+                    model=str(payload.get("model") or ""),
+                    target_url=f"{PROVIDERS['deepseek'][1].rstrip('/')}/chat/completions",
+                    payload=payload,
+                    max_output_tokens=int(payload.get("max_tokens") or 0),
                 )
                 connection.request(
                     "POST", "/chat/completions", body=body, headers=headers
@@ -113,12 +128,18 @@ class DeepSeekTransport:
                     time.monotonic() + self._timeout_for("read", 30.0),
                     response=response,
                 )
+                if reservation is not None:
+                    setattr(response, "_p12_eval_reservation", reservation)
                 return connection, response
             except (OSError, http.client.HTTPException) as error:
+                fail_eval_request(reservation, error)
                 if connection is not None:
                     connection.close()
                 if attempt == 1:
                     raise RuntimeError(f"无法连接 DeepSeek：{error}") from error
+            except BaseException as error:
+                fail_eval_request(reservation, error)
+                raise
         raise RuntimeError("无法连接 DeepSeek")
 
     @staticmethod

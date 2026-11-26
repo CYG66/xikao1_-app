@@ -8,6 +8,7 @@ from copy import deepcopy
 from .agent_response_builder import normalize_acceptance_response
 from fastapi.responses import StreamingResponse
 from .agent_service import robot_agent, set_request_execution_context, reset_request_execution_context
+from .eval_request_guard import is_eval_fatal
 from .agent_attachments import agent_attachments
 from .conversation_memory import conversation_memory
 from .cad_revision import verify_cad_revision_state
@@ -936,6 +937,8 @@ def resume_agent_run(run_id: str, client_id: str | None = None) -> dict[str, obj
         current = agent_runs.get(run_id) or resumed
         return {"ok": result.get("ok") is True, "message": f"AI 请求已从 {resumed_step} 步骤继续", "run": current, "result": result}
     except Exception as error:
+        if is_eval_fatal(error):
+            raise
         failure = {"category": "resume_failure", "message": str(error), "retryable": True}
         agent_runs.transition(run_id, "failed", "从检查点恢复失败", failure=failure)
         return {"ok": False, "message": "从检查点恢复失败", "run": agent_runs.get(run_id)}
@@ -1612,6 +1615,8 @@ def _agent_chat(
         )
         return enriched
     except Exception as error:
+        if is_eval_fatal(error):
+            raise
         robot_state.add_log(f"agent error: {error}")
         enriched = robot_agent.enrich_result({
             "ok": False,
@@ -1650,31 +1655,45 @@ def agent_chat_stream(command: AgentChatRequest) -> StreamingResponse:
         prepared = _prepare_run_step(run["id"], command, pending_command)
         final_result: dict[str, object] | None = None
         finalized = False
-        for payload in usage_scoped_events(_agent_chat_stream_events(command, prepared=prepared)):
-            try:
-                decoded = json.loads(payload)
-            except (TypeError, json.JSONDecodeError):
-                decoded = {}
-            if isinstance(decoded, dict) and decoded.get("type") == "result":
-                final_result = decoded
-                decoded["agent_run_id"] = run["id"]
-                agent_runs.set_checkpoint(run["id"], {
-                    "schema":"agent.checkpoint.v3",
-                    "step_id":"result_generated",
-                    "next_step":"finalize",
-                    "completed_steps":["understanding", "context_prepared", "execute"],
-                    "idempotency_key":run["id"],
-                    "project_id":decoded.get("project_id"),
-                    "variant_id":(decoded.get("variant") or {}).get("id") if isinstance(decoded.get("variant"),dict) else None,
-                    "drawing_selection": command.drawing_selection.model_dump() if command.drawing_selection else None,
-                    "pending_command": (decoded.get('cad_edit_contract') or decoded.get('cad_edit_command')) if isinstance(decoded, dict) else None,
-                    "result":decoded,
-                })
-                decoded = _finalize_run_result(run["id"], command, decoded)
-                final_result = decoded
-                finalized = True
-                payload = json.dumps(decoded, ensure_ascii=False) + "\n"
-            yield payload
+        try:
+            for payload in usage_scoped_events(_agent_chat_stream_events(command, prepared=prepared)):
+                try:
+                    decoded = json.loads(payload)
+                except (TypeError, json.JSONDecodeError):
+                    decoded = {}
+                if isinstance(decoded, dict) and decoded.get("type") == "result":
+                    final_result = decoded
+                    decoded["agent_run_id"] = run["id"]
+                    agent_runs.set_checkpoint(run["id"], {
+                        "schema":"agent.checkpoint.v3",
+                        "step_id":"result_generated",
+                        "next_step":"finalize",
+                        "completed_steps":["understanding", "context_prepared", "execute"],
+                        "idempotency_key":run["id"],
+                        "project_id":decoded.get("project_id"),
+                        "variant_id":(decoded.get("variant") or {}).get("id") if isinstance(decoded.get("variant"),dict) else None,
+                        "drawing_selection": command.drawing_selection.model_dump() if command.drawing_selection else None,
+                        "pending_command": (decoded.get('cad_edit_contract') or decoded.get('cad_edit_command')) if isinstance(decoded, dict) else None,
+                        "result":decoded,
+                    })
+                    decoded = _finalize_run_result(run["id"], command, decoded)
+                    final_result = decoded
+                    finalized = True
+                    payload = json.dumps(decoded, ensure_ascii=False) + "\n"
+                yield payload
+        except Exception as error:
+            if is_eval_fatal(error):
+                # A fatal evaluation transition is a terminal stream event, not
+                # a normal result.  Emit the machine marker before re-raising.
+                yield json.dumps({
+                    "type": "evaluation_aborted",
+                    "fatal": True,
+                    "error_code": "evaluation_aborted",
+                    "error_type": type(error).__name__,
+                    "message": str(error),
+                    "agent_run_id": run["id"],
+                }, ensure_ascii=False) + "\n"
+            raise
         if not finalized:
             _record_agent_run_result(run["id"], final_result or {"ok": False})
 
@@ -1804,6 +1823,8 @@ def _agent_chat_stream_events(
                     )
                 yield json.dumps(event, ensure_ascii=False) + "\n"
         except Exception as error:
+            if is_eval_fatal(error):
+                raise
             # Never leave a streaming response without a terminal result.
             # Keep implementation details in the server log only.
             robot_state.add_log(f"agent stream error: {error}")

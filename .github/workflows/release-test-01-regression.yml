@@ -168,6 +168,10 @@ jobs:
           tests/test_release_blocker_01_hardware.py
           tests/test_release_blocker_01_backup.py
           tests/test_release_blocker_01_isolation.py
+          tests/test_p12_eval_safety_guard.py
+          tests/test_p12_eval_budget.py
+          tests/test_p12_eval_close02.py
+          tests/test_p12_eval_final03.py
           -m "not manual_field"
           --junitxml=${{ runner.temp }}/junit/security.xml
 

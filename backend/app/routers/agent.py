@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from .. import agent_http_service
 from ..security import authenticated_client_id
 from ..schemas import AgentChatRequest
@@ -9,6 +9,7 @@ from fastapi import File, UploadFile
 from ..database import xline_database
 from ..agent_evaluation import run_policy_evaluation
 from ..agent_service import robot_agent
+from ..eval_request_guard import is_eval_fatal
 from ..agent_attachments import MAX_IMAGE_BYTES, agent_attachments
 from ..conversation_memory import conversation_memory
 from ..creative_projects import get_creative_project_store
@@ -289,7 +290,23 @@ def agent_chat(command: AgentChatRequest, request: Request) -> dict[str, object]
     subject = authenticated_client_id(request, command.client_id)
     if subject and subject != command.client_id:
         command = command.model_copy(update={"client_id": subject})
-    return agent_http_service.agent_chat(command=command)
+    try:
+        return agent_http_service.agent_chat(command=command)
+    except Exception as error:
+        if not is_eval_fatal(error):
+            raise
+        # Keep a machine-readable fatal marker at the HTTP boundary.  The
+        # evaluation orchestrator must not see this as a normal business failure.
+        return JSONResponse(
+            status_code=503,
+            content={
+                "ok": False,
+                "fatal": True,
+                "error_code": "evaluation_aborted",
+                "error_type": type(error).__name__,
+                "message": str(error),
+            },
+        )
 
 
 @router.get('/api/agent/runs')

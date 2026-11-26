@@ -12,6 +12,7 @@ import math
 import re
 
 from .cad_plan_component_repair import ComponentRepairError
+from .eval_request_guard import is_eval_fatal
 
 
 def _coerce_model_payload(value):
@@ -280,6 +281,8 @@ def interpret_sketch_graph_candidates(
                         })
         interpreted = StructuredSketchGraphInterpretation.model_validate(payload)
     except Exception as exc:
+        if is_eval_fatal(exc):
+            raise
         return {
             **_failure("invalid_model_output", str(exc), "structured_model"),
             "deterministic_repairs": repairs,
@@ -786,6 +789,8 @@ def interpret_construction_request(
                 **({"rejected_plan": deepcopy(previous_plan)} if isinstance(previous_plan, dict) else {}),
             }
         except Exception as exc:
+            if is_eval_fatal(exc):
+                raise
             rejected_plan = payload.get("plan") if isinstance(payload, dict) else None
             reference_diagnostic = None
             if isinstance(exc, ValidationError) and isinstance(rejected_plan, dict):
@@ -1275,6 +1280,8 @@ def interpret_construction_request(
             "assumptions": deepcopy(assumptions),
         }
     except Exception as exc:
+        if is_eval_fatal(exc):
+            raise
         return _failure("invalid_plan", str(exc), parser)
 
     if confidence < 0.75:

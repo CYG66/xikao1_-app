@@ -915,17 +915,23 @@ def _final_claims(report, segments, contract):
 
     A centered position is a real source requirement but the scalar contract
     deliberately stores only width/height/radius.  The final source verifier
-    already measures the centre; this bridge attaches that passed measurement
-    to the exact clause that asked for it.  Scalar facts are skipped because
-    they are consumed by the contract-fact loop, not duplicated here.
+    already measures the centre; this bridge attaches that measurement to the
+    exact clause that asked for it.  Scalar facts are skipped because they are
+    consumed by the contract-fact loop, not duplicated here.
+
+    Failed and partial checks are exposed as non-verified claims.  Otherwise a
+    different report's passed claim could mask a failed final-source check for
+    the same clause, turning a real rejection into a verified requirement.
     """
-    if not isinstance(report, dict) or report.get("status") not in {"passed", "partial"}:
+    if not isinstance(report, dict) or report.get("status") not in {
+            "passed", "partial", "failed"}:
         return []
     fact_ids = {str(item.get("fact_id")) for item in contract.get("facts") or []
                 if isinstance(item, dict)}
     claims = []
     for check in report.get("checks") or []:
-        if not isinstance(check, dict) or check.get("status") != "passed":
+        if not isinstance(check, dict) or check.get("status") not in {
+                "passed", "partial", "failed"}:
             continue
         source_id = str(check.get("source_requirement_id") or "")
         if source_id in fact_ids:
@@ -938,18 +944,29 @@ def _final_claims(report, segments, contract):
             if evidence not in segment["text"]:
                 continue
             residual = _claim_residual(segment["text"], evidence)
+            check_status = check.get("status")
+            if check_status == "passed" and not residual:
+                claim_status = "verified"
+            elif check_status == "failed":
+                claim_status = "failed"
+            else:
+                claim_status = "partial"
             claim = {
                 "requirement": segment["text"],
                 "source_evidence": evidence,
                 "source_index": segment["source_index"],
                 "role": check.get("field") or "final_source_measurement",
                 "verifier": "verify_final_source_contract",
-                "status": "verified" if not residual else "partial",
+                "status": claim_status,
                 "check": deepcopy(check),
                 "measurement": deepcopy(check),
             }
-            if residual:
+            if check_status == "failed":
+                claim["reason"] = check.get("reason") or "最终来源验收未通过"
+            elif residual:
                 claim["reason"] = "最终来源测量未覆盖剩余原文：" + residual
+            elif check_status != "passed":
+                claim["reason"] = check.get("reason") or "最终来源验收仅有部分证据"
             claims.append(claim)
             break
     return claims

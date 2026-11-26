@@ -104,6 +104,11 @@ if operation=="list":
     result={"ok":True,"projects":store.list()}
 elif operation=="get":
     result={"ok":True,"project":store.get(request["project_id"])}
+elif operation=="fatal_probe":
+    # Test-only probe: exercises the real process-level fatal marker path
+    # without opening a socket or constructing a CAD request.
+    from app.eval_request_guard import EvalRequestBlocked
+    raise EvalRequestBlocked("evaluation_aborted_by_ledger")
 else:
     from app.agent_service import RobotAgentService
     service=RobotAgentService(restore_pending_actions=operation=="confirm")

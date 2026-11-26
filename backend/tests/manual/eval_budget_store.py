@@ -242,5 +242,13 @@ class BudgetLedger:
         try:self.settle(response=None,error=error)
         except EvaluationPersistenceError: raise
         except EvaluationBudgetStop: pass
+    def stop_run(self,reason):
+        """Terminally close the run without discarding an unsettled reservation."""
+        with self._locked():
+            d=self._read()
+            d['stopped']=True
+            d['events'].append({'event':'run_stopped','reason':str(reason),
+                                'pending':d.get('pending')})
+            self._write(d)
     def snapshot(self):
         with self._locked(): return self._read()

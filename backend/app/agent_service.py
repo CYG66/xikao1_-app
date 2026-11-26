@@ -5225,6 +5225,8 @@ class RobotAgentService:
         try:
             result = self._execute_confirmed(action, client_id=client_id)
         except Exception as error:
+            if is_eval_fatal(error):
+                raise
             failure = {"ok": False, "message": f"Agent 工具执行异常：{error}"}
             agent_tasks.transition(action_id, "failed", failure["message"], failure)
             robot_state.add_log(f"agent task {action_id} failed: {error}")

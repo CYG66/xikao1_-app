@@ -12,6 +12,8 @@ so any inherited ``P12_EVAL_BUDGET_PATH`` cannot accidentally open them.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import threading
 import uuid
@@ -31,6 +33,9 @@ AUTHORIZED_TARGETS = {
 RESPONSE_MODEL_ALLOWLIST = {
     "deepseek": frozenset({"deepseek-flash"}),
 }
+CALIBRATION_CASE_IDS = frozenset({"C7", "L02-C7"})
+CALIBRATION_MESSAGE_ROLES = ("system", "user")
+CALIBRATION_MAX_OUTPUT_TOKENS = 8192
 
 
 class EvalRequestBlocked(RuntimeError):
@@ -182,6 +187,84 @@ def _validate_model_parameters(payload: dict[str, Any], max_output_tokens: int) 
         raise EvalRequestBlocked("invalid_stream_flag")
 
 
+def calibration_mode_enabled() -> bool:
+    return os.getenv("P12_EVAL_CALIBRATION_MODE") == "1"
+
+
+def _payload_fingerprint(payload: dict[str, Any]) -> tuple[str, int]:
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(body).hexdigest(), len(body)
+
+
+def _validate_calibration_request(payload: dict[str, Any], max_output_tokens: int) -> None:
+    """Reject anything but the frozen C7 first request, before the network.
+
+    Calibration is a one-request mode: it must be the C7 case, exactly one
+    system message plus one user message, plain text, no tools/tool calls,
+    thinking explicitly disabled, non-streaming and no larger than the frozen
+    output reservation.  The payload fingerprint pins the actual bytes, so a
+    reworded system prompt or a changed tool table cannot slip through.
+    """
+
+    case_id = os.getenv("P12_EVAL_CASE_ID", "").strip()
+    if case_id not in CALIBRATION_CASE_IDS:
+        raise EvalRequestBlocked(f"calibration_case_not_allowed:{case_id or '<missing>'}")
+
+    messages = payload.get("messages")
+    if not isinstance(messages, list) or len(messages) != len(CALIBRATION_MESSAGE_ROLES):
+        raise EvalRequestBlocked("calibration_message_count_mismatch")
+    if not all(isinstance(item, dict) for item in messages):
+        raise EvalRequestBlocked("calibration_message_shape_not_permitted")
+    actual_roles = tuple(str(item.get("role") or "") for item in messages)
+    if actual_roles != CALIBRATION_MESSAGE_ROLES:
+        raise EvalRequestBlocked(
+            "calibration_message_roles_mismatch:" + ",".join(actual_roles)
+        )
+    for item in messages:
+        if not isinstance(item, dict) or not isinstance(item.get("content"), str):
+            raise EvalRequestBlocked("calibration_non_text_message_not_permitted")
+        if item.get("tool_calls") or item.get("function_call") or item.get("tool_call_id"):
+            raise EvalRequestBlocked("calibration_tool_call_not_permitted")
+
+    if payload.get("tools") or payload.get("functions"):
+        raise EvalRequestBlocked("calibration_tools_not_permitted")
+    if payload.get("tool_choice") or payload.get("function_call"):
+        raise EvalRequestBlocked("calibration_tool_choice_not_permitted")
+    if payload.get("stream") not in (None, False):
+        raise EvalRequestBlocked("calibration_stream_not_permitted")
+    if payload.get("stream_options"):
+        raise EvalRequestBlocked("calibration_stream_options_not_permitted")
+    if payload.get("thinking") != {"type": "disabled"}:
+        raise EvalRequestBlocked("calibration_thinking_must_be_disabled")
+    if payload.get("reasoning_effort") is not None:
+        raise EvalRequestBlocked("calibration_reasoning_effort_not_permitted")
+    if max_output_tokens < 1 or max_output_tokens > CALIBRATION_MAX_OUTPUT_TOKENS:
+        raise EvalRequestBlocked(
+            f"calibration_output_reservation_out_of_range:{max_output_tokens}"
+        )
+
+    expected_sha = os.getenv("P12_EVAL_CALIBRATION_PAYLOAD_SHA256", "").strip().lower()
+    if not expected_sha:
+        raise EvalRequestBlocked("calibration_payload_fingerprint_missing")
+    actual_sha, body_bytes = _payload_fingerprint(payload)
+    if actual_sha != expected_sha:
+        raise EvalRequestBlocked(
+            f"calibration_payload_fingerprint_mismatch:{actual_sha}!={expected_sha}"
+        )
+    expected_bytes = os.getenv("P12_EVAL_CALIBRATION_BODY_BYTES", "").strip()
+    if expected_bytes and str(body_bytes) != expected_bytes:
+        raise EvalRequestBlocked(
+            f"calibration_payload_size_mismatch:{body_bytes}!={expected_bytes}"
+        )
+
+    snapshot = _ledger.snapshot()
+    if snapshot.get("stopped") or snapshot.get("pending"):
+        raise EvalRequestBlocked("calibration_run_not_pristine")
+    used = snapshot.get("used") or {}
+    if int(used.get("requests") or 0) != 0:
+        raise EvalRequestBlocked("calibration_requires_first_request")
+
+
 def begin_eval_request(
     *,
     provider: str,
@@ -209,6 +292,8 @@ def begin_eval_request(
         return None
     if mock_transport and os.getenv("P12_EVAL_MOCK_PROVIDER") != "1":
         raise EvalRequestBlocked("mock_transport_requires_mock_provider")
+    if calibration_mode_enabled() and mock_transport:
+        raise EvalRequestBlocked("calibration_requires_real_transport")
     _require_eval_context(
         provider,
         str(model),
@@ -221,6 +306,8 @@ def begin_eval_request(
         else payload.get("max_tokens", payload.get("max_output_tokens", 0)) or 0
     )
     _validate_model_parameters(payload, output_tokens)
+    if calibration_mode_enabled():
+        _validate_calibration_request(payload, output_tokens)
     bound = (
         {"upper_bound": tokenizer_input_token_estimate(payload)}
         if mock_transport
@@ -317,6 +404,11 @@ def settle_eval_response(
         reserved_output_tokens=reservation.output_tokens,
     )
     reservation.settled = True
+    if calibration_mode_enabled():
+        reservation.ledger.stop_run("calibration_single_request_completed")
+        # Calibration is a measurement, not a C7 completion run.  Settlement is
+        # already durable; raise now so no later C7 step or second send starts.
+        raise EvalRequestBlocked("calibration_request_completed_run_stopped")
 
 
 def fail_eval_request(
@@ -326,6 +418,8 @@ def fail_eval_request(
         return
     reservation.ledger.stop_unknown(reservation.request_id, str(error))
     reservation.settled = True
+    if calibration_mode_enabled():
+        reservation.ledger.stop_run("calibration_request_failed")
 
 
 def deny_eval_get(target_url: str) -> None:

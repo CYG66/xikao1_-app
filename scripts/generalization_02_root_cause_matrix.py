@@ -100,8 +100,20 @@ def main() -> int:
             })
             step_ids = [str(step.get("step_id")) for step in steps]
             post_clause = post.get(case_id, {}).get(rid, {})
+            checks = (post_clause.get("binding") or {}).get("checks") or []
+            evidence = [
+                "{predicate}: expected={expected}, actual={actual}, "
+                "status={status}".format(
+                    predicate=item.get("predicate"),
+                    expected=item.get("expected"),
+                    actual=item.get("actual"),
+                    status=item.get("status"),
+                )
+                for item in checks
+            ]
             rows.append({
                 "case_id": case_id,
+                "source_span": f"clause:0:{rid.rsplit(':', 1)[-1]}",
                 "requirement_id": rid,
                 "clause": text,
                 "prior_status": clause.get("status"),
@@ -110,6 +122,7 @@ def main() -> int:
                 "logical_objects": labels,
                 "geometry_ids": geometry_ids,
                 "step_ids": step_ids,
+                "measurement_evidence": evidence,
                 "post_status": post_clause.get("status") or "not_replayed",
                 "post_reason": post_clause.get("reason"),
             })
@@ -148,14 +161,15 @@ def main() -> int:
         f"partial {post_counts.get('partial', 0)}，"
         f"unverified/unbound {len(rows) - post_counts.get('verified', 0) - post_counts.get('partial', 0)}。",
         "",
-        "| 案例 | 条款 ID | 原文 | 原子事实/对象 | 几何 | 诊断 | 重放后 |",
-        "| --- | --- | --- | --- | --- | --- | --- |",
+        "| 案例 | 原文位置 | 条款 ID | 原文 | 原子事实/对象 | 几何/步骤 | 诊断 | 测量证据 | 重放后 |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for row in rows:
         lines.append(
-            f"| {row['case_id']} | {row['requirement_id']} | {row['clause']} | "
-            f"{'、'.join(row['logical_objects'])} | {row['geometry_ids']} | "
-            f"{row['diagnosis']} | {row['post_status']} |"
+            f"| {row['case_id']} | {row['source_span']} | {row['requirement_id']} | {row['clause']} | "
+            f"{'、'.join(row['logical_objects'])} | {row['geometry_ids']} / {row['step_ids']} | "
+            f"{row['diagnosis']} | {'；'.join(row['measurement_evidence']) or '重放无候选'} | "
+            f"{row['post_status']} |"
         )
     (OUTPUT / "root_cause_matrix.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(json.dumps({"rows": len(rows), "diagnosis": counts,

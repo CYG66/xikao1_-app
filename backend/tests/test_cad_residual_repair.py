@@ -219,6 +219,47 @@ def test_source_acceptance_failure_preserves_requirement_id():
     assert records[0]["normalized_residual"] == 499.0
 
 
+def test_atomic_closure_gap_becomes_numeric_repair_target():
+    acceptance = {
+        "coverage_evidence": {
+            "clauses": [{
+                "requirement_id": "clause:0:54",
+                "status": "partial",
+                "binding": {
+                    "objects": [{
+                        "logical_object_id": "outline",
+                        "geometry_ids": [7],
+                        "step_id": "outer",
+                        "output_ref": "outer_ref",
+                    }],
+                    "checks": [{
+                        "predicate": "outline_closure_and_continuity",
+                        "status": "failed",
+                        "detail": {
+                            "endpoint_gap_mm": 95.28941682066456,
+                            "tolerance_mm": 0.5,
+                        },
+                    }],
+                },
+            }],
+        },
+    }
+    records = collect_source_acceptance_residuals(acceptance, _plan())
+    gap = next(r for r in records if r["predicate"] == "closure_gap")
+    assert gap["residual_type"] == NUMERIC
+    assert gap["expected"] == 0.0
+    assert gap["measured"] == 95.28941682066456
+    assert gap["tolerance"] == 0.5
+    assert gap["passed"] is False
+    assert gap["geometry_ids"] == [7]
+    assert gap["plan_step_ids"] == ["outer"]
+    vector = build_residual_vector(source_acceptance=acceptance, plan=_plan())
+    assert vector["failing_numeric_count"] == 1
+    feedback = repair_feedback(vector, _plan())
+    assert feedback["editable_step_ids"] == ["outer"]
+    assert feedback["editable_output_refs"] == ["outer_ref"]
+
+
 def test_source_unknown_requirements_are_unverifiable_not_zero():
     acceptance = {"unknown_requirements": [
         {"requirement_id": "R-LOBES", "reason": "verifier_unavailable"}]}
@@ -464,3 +505,71 @@ def test_failure_disappearing_without_replacement_carries_old_excess():
     assert result["progress"] == "no_improvement"
     assert result["lost_failures"]
     assert result["score_after"] == result["score_before"]
+
+
+# ---------------------------------------------------------------------------
+# P2: measured acceptance failure enters the existing repair gate
+# ---------------------------------------------------------------------------
+
+def test_ready_trial_with_measured_numeric_residual_enters_repair():
+    from app.cad_generation_recovery import should_repair
+    vector = residual_vector([numeric_residual(
+        requirement_id="R-CLOSURE", predicate="closure_gap",
+        expected=0.0, measured=95.3, tolerance=0.5,
+        plan_step_ids=["drop-outline-1"], mandatory=True)])
+    result = {"status": "ready", "provider_attempted": True,
+              "residual_vector": vector,
+              "acceptance_summary": {"status": "review_required"}}
+    assert vector["failing_numeric_count"] == 1
+    assert vector["repair_targets"]
+    assert should_repair(result) is True
+
+
+def test_ready_trial_with_only_unverifiable_evidence_does_not_repair():
+    from app.cad_generation_recovery import should_repair
+    vector = residual_vector([unverifiable_residual(
+        requirement_id="R-LOBES", predicate="lobe_count",
+        reason="verifier_unavailable")])
+    result = {"status": "ready", "provider_attempted": True,
+              "residual_vector": vector,
+              "acceptance_summary": {"status": "review_required"}}
+    assert should_repair(result) is False
+
+
+def test_closure_and_smoothness_failures_are_recorded_independently():
+    acceptance = {
+        "coverage_evidence": {
+            "clauses": [{
+                "requirement_id": "clause:0:54",
+                "status": "partial",
+                "binding": {
+                    "objects": [{
+                        "logical_object_id": "outline",
+                        "geometry_ids": [7],
+                        "step_id": "outer",
+                        "output_ref": "outer_ref",
+                    }],
+                    "checks": [{
+                        "predicate": "outline_closure_and_continuity",
+                        "status": "failed",
+                        "detail": {
+                            "endpoint_gap_mm": 95.0,
+                            "tolerance_mm": 0.5,
+                            "continuity_status": "failed",
+                            "max_smooth_turn_deg": 37.5,
+                            "smooth_angle_tolerance_deg": 12.0,
+                        },
+                    }],
+                },
+            }],
+        },
+    }
+    records = collect_source_acceptance_residuals(acceptance, _plan())
+    predicates = {record["predicate"] for record in records}
+    assert predicates == {"closure_gap", "smoothness_gap"}
+    gap = next(record for record in records if record["predicate"] == "closure_gap")
+    smooth = next(record for record in records
+                  if record["predicate"] == "smoothness_gap")
+    assert gap["measured"] == 95.0 and gap["tolerance"] == 0.5
+    assert smooth["measured"] == 37.5 and smooth["expected"] == 12.0
+    assert smooth["unit"] == "deg"

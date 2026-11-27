@@ -1328,6 +1328,44 @@ class RobotAgentService:
                 return value
         return None
 
+    @staticmethod
+    def _parse_placement_followup(message: str) -> dict[str, Any] | None:
+        """Preserve a source-relative offset supplied in a parameter answer.
+
+        The offset is an independent requirement fact: remembering only the
+        radius would silently drop where the object must be placed.
+        """
+        match = re.search(
+            r"相对\s*(?P<anchor>左上角|左下角|右上角|右下角|中心)\s*"
+            r"(?:偏移|移动|距离)?\s*"
+            r"(?P<first>\d+(?:\.\d+)?)\s*(?P<first_unit>毫米|mm|厘米|cm|米|m)?"
+            r"\s*[、,，和]\s*"
+            r"(?P<second>\d+(?:\.\d+)?)\s*(?P<second_unit>毫米|mm|厘米|cm|米|m)?",
+            message,
+            re.I,
+        )
+        if match is None:
+            return None
+        from .cad_coordinate_requirements import coordinate_scale
+        scale = coordinate_scale(message)
+        default_factor = 1000.0 if scale.get("has_scale") else 1.0
+        factors = {"毫米": 1.0, "mm": 1.0, "厘米": 10.0, "cm": 10.0,
+                   "米": 1000.0, "m": 1000.0}
+
+        def factor(unit: str | None) -> float:
+            if not unit:
+                return default_factor
+            return factors[unit.lower()]
+
+        return {
+            "anchor": match.group("anchor"),
+            "offset_mm": [
+                float(match.group("first")) * factor(match.group("first_unit")),
+                float(match.group("second")) * factor(match.group("second_unit")),
+            ],
+            "source_text": match.group(0),
+        }
+
     def _apply_design_requirement_followup(
         self, message: str, route: dict[str, Any]
     ) -> dict[str, Any] | None:
@@ -1387,6 +1425,9 @@ class RobotAgentService:
         if message.strip() and message.strip() not in followups:
             followups.append(message.strip())
         merged["source_followups"] = followups
+        placement = self._parse_placement_followup(message)
+        if placement is not None:
+            merged["placement"] = placement
         if units is not None:
             merged["units"] = units
         if dimensions:
@@ -1460,6 +1501,10 @@ class RobotAgentService:
             )
         if units is not None:
             remembered.append(f"单位={units}")
+        if placement is not None:
+            remembered.append(
+                f"相对{placement['anchor']}偏移"
+                f"{placement['offset_mm'][0]:g}、{placement['offset_mm'][1]:g}毫米")
         if not remembered and corrections:
             remembered.append(message.strip())
         values_text = "，".join(remembered)
@@ -4007,10 +4052,15 @@ class RobotAgentService:
 
     @staticmethod
     def _project_id_from_route(route: dict[str, Any]) -> str | None:
-        return project_id_from_route(
-            route,
-            fresh_design_request=RobotAgentService._is_fresh_design_request(route),
+        # A confirmation sentence usually contains "新建"/"创建" because it
+        # repeats the action, but it is a continuation of the project named by
+        # the caller, not a fresh design request.  Only an explicit confirmation
+        # without a bound project falls back to the fresh-request path.
+        message = str(route.get("user_message") or "")
+        fresh = RobotAgentService._is_fresh_design_request(route) and not (
+            message and RobotAgentService._is_design_generation_confirmation(message)
         )
+        return project_id_from_route(route, fresh_design_request=fresh)
 
     def _stale_project_guard(self, route: dict[str, Any]) -> str | None:
         """When the conversation memory references a project that no longer
@@ -6997,22 +7047,26 @@ class RobotAgentService:
                 )
                 if (interpretation['construction_error'].get('details') or {}).get('local_repair_scope'):
                     feedback += "\n本次是受保护的局部修复：仅可修改editable_fields_by_ref列出的坐标字段。必须保留全部步骤及其顺序、标识、语义和全局参数；不得增删步骤、重命名或改变其他部件。修复后会逐项比较并校验受保护几何。"
-                if isinstance(interpretation.get('residual_vector'), dict):
-                    from .cad_residual_repair import feedback_text
-                    feedback = feedback_text(
-                        feedback,
-                        interpretation['residual_vector'],
-                        failed_attempt.get('plan') or failed_attempt.get('rejected_plan'),
-                    )
-                expected_feature=(repair_details.get('required_features')
-                    or {k:v for k,v in repair_details.items() if str(k).startswith('expected')})
-                measured_feature=(repair_details.get('measured_features')
-                    or repair_details.get('measurements') or repair_details.get('measured_center_mm'))
-                feedback += "\n修复范围判定：" + json.dumps(
-                    {'repair_class':classification['repair_class'],'requires_structural_replan':structural_replan,
-                     'expected_feature':expected_feature,'measured_feature':measured_feature,
-                     'difference':repair_details.get('failed_features') or []},
-                    ensure_ascii=False)
+            if (isinstance(interpretation.get('residual_vector'), dict)
+                    and (isinstance(interpretation.get("construction_error"), dict)
+                         or interpretation.get('status') == 'ready')):
+                # A ready trial with a measured numeric failure has no
+                # construction_error object; its residual is the repair input.
+                from .cad_residual_repair import feedback_text
+                feedback = feedback_text(
+                    feedback,
+                    interpretation['residual_vector'],
+                    failed_attempt.get('plan') or failed_attempt.get('rejected_plan'),
+                )
+            expected_feature=(repair_details.get('required_features')
+                or {k:v for k,v in repair_details.items() if str(k).startswith('expected')})
+            measured_feature=(repair_details.get('measured_features')
+                or repair_details.get('measurements') or repair_details.get('measured_center_mm'))
+            feedback += "\n修复范围判定：" + json.dumps(
+                {'repair_class':classification['repair_class'],'requires_structural_replan':structural_replan,
+                 'expected_feature':expected_feature,'measured_feature':measured_feature,
+                 'difference':repair_details.get('failed_features') or []},
+                ensure_ascii=False)
             rejected_plan = interpretation.get("plan") or interpretation.get("rejected_plan")
             previous_plan = (
                 "\n前次未通过的计划（仅供修正，禁止当成用户要求）："

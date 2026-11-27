@@ -191,6 +191,51 @@ def test_model_required_retry_consumes_budget_before_the_loop():
     assert ledger["automatic_repairs"] == 2
 
 
+def test_ready_numeric_residual_enters_repair_and_reaches_independent_acceptance():
+    from app.cad_residual_repair import feedback_text as real_feedback_text
+
+    failing = numeric_residual(
+        requirement_id="R-OUTER", predicate="radius", expected=2000,
+        measured=500, tolerance=0.5, mandatory=True, predicate_axis="outer_ref",
+        plan_step_ids=["outer_ref"])
+    ready_failed = _ready_payload()
+    ready_failed["acceptance_summary"] = {
+        "status": "review_required", "review_required": True}
+    ready_failed["residual_vector"] = residual_vector([failing])
+    fixed = _ready_payload()
+    fixed["residual_vector"] = residual_vector([numeric_residual(
+        requirement_id="R-OUTER", predicate="radius", expected=2000,
+        measured=2000, tolerance=0.5, mandatory=True, predicate_axis="outer_ref")])
+    committed = {
+        "schema": "cad.construction-commit.v1",
+        "recommended_candidate_id": "mock-variant",
+        "project": {"id": "mock-project", "status": "draft"},
+        "recommended_variant": {
+            "id": "mock-variant",
+            "preview_paths": [],
+            "geometries": [],
+            "logical_objects": [],
+            "topology": {},
+            "acceptance_summary": {"status": "passed", "review_required": False},
+        },
+        "persisted_candidate_count": 1,
+    }
+    with patch("app.agent_service.commit_construction_interpretation",
+               return_value=committed), \
+         patch("app.cad_residual_repair.feedback_text",
+               wraps=real_feedback_text) as feedback:
+        raw, calls = _run([ready_failed, fixed])
+    interpretation = raw.get("construction_interpretation") or {}
+    ledger = (raw.get("construction_commit") or {}).get(
+        "repair_execution_ledger") or {}
+    assert raw.get("ok") is True, raw
+    assert len(calls) == 2  # initial ready result + one actual repair callback
+    assert ledger.get("automatic_repairs") == 1, (list(raw), ledger)
+    assert feedback.call_count >= 1
+    assert feedback.call_args.kwargs.get("residual_vector") or feedback.call_args.args
+    assert interpretation.get("status", "ready") == "ready"
+
+
 def test_two_legacy_replans_share_the_same_two_repair_budget():
     failed = residual_vector([numeric_residual(
         requirement_id="R-OUTER", predicate="radius", expected=2000,

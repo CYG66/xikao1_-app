@@ -1779,6 +1779,7 @@ def parameterize_design(prompt: str) -> dict[str, Any]:
                     (("圆弧", "arc"), "arc"),
                     (("圆形", "圆", "circle"), "circle"),
                     (("折线", "polyline"), "polyline"),
+                    (("三级台阶", "台阶", "踏步", "楼梯"), "stair_step"),
                     (("椭圆", "ellipse"), "ellipse"),
                 )
                 if any(keyword in normalized for keyword in keywords)
@@ -1933,15 +1934,23 @@ def clarify_requirements(prompt: str) -> dict[str, Any]:
     question_specs = {
         "shape": "需要绘制什么图形或图案？",
         "dimensions": "请提供关键尺寸和单位。",
+        "layout_scope": (
+            "这更像设备布置描述。请确认是要生成可交付的 CAD 平面图，"
+            "还是只需要布局建议；若生成图纸，请提供车间尺寸和设备尺寸。"
+        ),
         "printer": "当前没有唯一可用喷码机，请选择左、中或右喷码机。",
     }
     priority = {
         "shape": 1,
         "dimensions": 2,
+        "layout_scope": 0,
         "printer": 3,
         "unsupported_printer:xline_ws3_only_has_center": 1,
     }
     missing = list(requirements["missing"])
+    if (re.search(r"排两排|布置|布局|摆放|排列|通道", prompt)
+            and not re.search(r"画|图纸|cad|轮廓|平面图", prompt, re.I)):
+        missing.insert(0, "layout_scope")
     missing.sort(key=lambda item: priority.get(item, 99))
     next_key = missing[0] if missing else None
     next_question = question_specs.get(next_key) if next_key else None

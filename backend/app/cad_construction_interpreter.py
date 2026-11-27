@@ -226,7 +226,7 @@ def clarify_construction_request(source_text: str) -> dict[str, Any]:
     shape = next((name for name in (
         "爱心", "心形", "矩形", "长方形", "正方形", "圆", "椭圆",
         "圆弧", "弧线", "样条", "贝塞尔", "多边形", "轮廓", "曲线",
-        "线段", "折线",
+        "线段", "折线", "台阶", "踏步", "楼梯",
     ) if name in lowered), None)
     if shape is None:
         from .cad_creation_intent import local_creation_objects
@@ -279,7 +279,20 @@ def clarify_construction_request(source_text: str) -> dict[str, Any]:
         example='坐标单位为米，使用原文给出的控制点。'
     elif not has_size:
         key = "size"
-        question = f"已识别为“{shape}”，还缺少尺寸。请提供最大宽度和高度，或说明直径/半径。"
+        anchor_match = re.search(
+            r"左上角|右上角|左下角|右下角|左侧|右侧|旁边|附近|边上", text
+        )
+        vague_anchor = bool(
+            anchor_match
+            and re.search(r"附近|旁边|边上|靠", text)
+        )
+        if vague_anchor:
+            question = (
+                f"已识别为“{shape}”，还缺少数值和位置。请提供直径或半径，"
+                f"并说明相对{anchor_match.group(0)}的偏移距离。"
+            )
+        else:
+            question = f"已识别为“{shape}”，还缺少尺寸。请提供最大宽度和高度，或说明直径/半径。"
         example = f"新建 CAD 图纸，生成一个{shape}闭合轮廓，最大宽 5 米、高 5 米。"
     elif curved_shape and not has_curve_rule:
         key = "curve_constraints"
@@ -1123,6 +1136,26 @@ def interpret_construction_request(
             from .cad_source_acceptance import build_requirement_coverage_evidence
             coverage_evidence = build_requirement_coverage_evidence(
                 original_requirement, source_acceptance)
+            # Bind independent atomic facts before the repair decision.  The
+            # commit path rebinds on persisted candidates, but the repair loop
+            # runs earlier; without this call a measured closure or smoothness
+            # failure would not exist yet when should_repair() is evaluated.
+            from .cad_requirement_binding import bind_construction_coverage
+            plan_snapshot = plan.model_dump(mode="json") if hasattr(plan, "model_dump") else {}
+            coverage_evidence = bind_construction_coverage(
+                coverage_evidence,
+                logical_objects=list(result.get("logical_objects") or []),
+                geometries=list(result.get("geometries") or []),
+                plan_steps=list(plan_snapshot.get("steps") or []),
+                symbol_table=(result.get("symbol_table")
+                              if isinstance(result.get("symbol_table"), dict) else {}),
+                source_text=original_requirement,
+                # The trial pass needs the same atomic facts the commit pass
+                # will use.  Keeping these two passes identical prevents a
+                # measurable atomic error from remaining invisible until the
+                # candidate has already left the repair loop.
+                include_atomic=True,
+            )
             source_acceptance['coverage_evidence'] = coverage_evidence
             if coverage_evidence.get('state') == 'complete':
                 source_acceptance['status'] = 'passed'
@@ -4359,6 +4392,7 @@ def _parse_clause(
 ) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
     if not any(marker in clause for marker in _CONSTRUCTION_MARKERS):
         return None
+    coordinate_scale = _coordinate_scale(clause)
     base = {
         "step_id": f"step-{index}",
         "output_ref": f"shape-{index}",
@@ -4372,8 +4406,8 @@ def _parse_clause(
     if line:
         return ({
             **base, "op": "add_line", "semantic": semantic,
-            "start": _point(line.group(1), line.group(2)),
-            "end": _point(line.group(3), line.group(4)),
+            "start": _point(line.group(1), line.group(2), coordinate_scale),
+            "end": _point(line.group(3), line.group(4), coordinate_scale),
         }, assertions)
 
     rectangle = (
@@ -4392,7 +4426,8 @@ def _parse_clause(
         width = _to_m(rectangle.group(1), rectangle.group(2))
         height = _to_m(rectangle.group(3), rectangle.group(4))
         rotation = _angle(clause, "旋转") or 0.0
-        center = _first_point_after(clause, ("几何中心", "中心点", "中心"))
+        center = _first_point_after(clause, ("几何中心", "中心点", "中心"),
+                                    coordinate_scale)
         if center is not None:
             step = {
                 **base, "op": "add_centered_rectangle", "semantic": semantic,
@@ -4401,7 +4436,7 @@ def _parse_clause(
             }
         else:
             origin = _first_point_after(
-                clause, ("左下角", "原点", "起点")
+                clause, ("左下角", "原点", "起点"), coordinate_scale
             ) or {"x": 0.0, "y": 0.0}
             step = {
                 **base, "op": "add_rectangle", "semantic": semantic,
@@ -4428,7 +4463,7 @@ def _parse_clause(
     if arc:
         return ({
             **base, "op": "add_arc", "semantic": semantic,
-            "center": _point(arc.group(1), arc.group(2)),
+            "center": _point(arc.group(1), arc.group(2), coordinate_scale),
             "radius": _to_m(arc.group(3), arc.group(4)),
             "start_angle": float(arc.group(5)), "end_angle": float(arc.group(6)),
         }, assertions)
@@ -4444,14 +4479,15 @@ def _parse_clause(
     if circle:
         return ({
             **base, "op": "add_circle", "semantic": semantic,
-            "center": _point(circle.group(1), circle.group(2)),
+            "center": _point(circle.group(1), circle.group(2), coordinate_scale),
             "radius": _to_m(circle.group(3), circle.group(4)),
         }, [{"kind": "closed", "assertion_id": f"closed-{index}",
              "target_ref": base["output_ref"]}])
     if circle_reversed:
         return ({
             **base, "op": "add_circle", "semantic": semantic,
-            "center": _point(circle_reversed.group(3), circle_reversed.group(4)),
+            "center": _point(circle_reversed.group(3), circle_reversed.group(4),
+                             coordinate_scale),
             "radius": _to_m(circle_reversed.group(1), circle_reversed.group(2)),
         }, [{"kind": "closed", "assertion_id": f"closed-{index}",
              "target_ref": base["output_ref"]}])
@@ -4464,7 +4500,7 @@ def _parse_clause(
     if ellipse:
         return ({
             **base, "op": "add_ellipse", "semantic": semantic,
-            "center": _point(ellipse.group(1), ellipse.group(2)),
+            "center": _point(ellipse.group(1), ellipse.group(2), coordinate_scale),
             "major_radius": _to_m(ellipse.group(3), ellipse.group(4)),
             "minor_radius": _to_m(ellipse.group(5), ellipse.group(6)),
             "rotation_deg": _angle(clause, "旋转") or 0.0,
@@ -4473,7 +4509,7 @@ def _parse_clause(
 
     if any(value in clause for value in ("多段线", "折线", "轮廓")):
         points = [
-            _point(x, y) for x, y in re.findall(_POINT, clause)
+            _point(x, y, coordinate_scale) for x, y in re.findall(_POINT, clause)
         ]
         if len(points) < 2:
             return None
@@ -4507,15 +4543,26 @@ def _rotated_rectangle_bounds(
     )
 
 
-def _point(x: str, y: str) -> dict[str, float]:
-    return {"x": float(x), "y": float(y)}
+def _coordinate_scale(text: str) -> float:
+    """Metres per coordinate unit declared by the source clause."""
+    lowered = text.lower()
+    if "毫米" in lowered or re.search(r"\bmm\b", lowered):
+        return 0.001
+    if "厘米" in lowered or re.search(r"\bcm\b", lowered):
+        return 0.01
+    return 1.0
 
 
-def _first_point_after(text: str, markers: tuple[str, ...]) -> dict[str, float] | None:
+def _point(x: str, y: str, scale: float = 1.0) -> dict[str, float]:
+    return {"x": float(x) * scale, "y": float(y) * scale}
+
+
+def _first_point_after(text: str, markers: tuple[str, ...],
+                       scale: float = 1.0) -> dict[str, float] | None:
     for marker in markers:
         match = re.search(rf"{marker}\s*(?:在|为|是)?\s*{_POINT}", text)
         if match:
-            return _point(match.group(1), match.group(2))
+            return _point(match.group(1), match.group(2), scale)
     return None
 
 

@@ -437,6 +437,7 @@ def collect_source_acceptance_residuals(
     # measured object/step scope so a failed numeric measurement can enter the
     # existing repair loop instead of being stranded as an unscoped failure.
     clause_context: dict[int, dict[str, Any]] = {}
+    measurement_checks: list[dict[str, Any]] = []
     coverage = source_acceptance.get("coverage_evidence") or {}
     for clause in coverage.get("clauses") or []:
         if not isinstance(clause, dict):
@@ -454,7 +455,31 @@ def collect_source_acceptance_residuals(
         }
         for check in _walk_checks(binding):
             clause_context[id(check)] = context
-    for check in _walk_checks(source_acceptance):
+        # First-pass measured evidence is stored as an evidence item whose
+        # payload is under ``measurement`` rather than ``checks``.  It is still
+        # an actual backend measurement and must reach the same residual path.
+        for evidence in clause.get("evidence") or []:
+            if not isinstance(evidence, dict):
+                continue
+            status = str(evidence.get("status") or "")
+            measurement = evidence.get("measurement")
+            if status not in {"passed", "failed", "unverified",
+                              "review_required", "partial"}:
+                continue
+            if not isinstance(measurement, dict):
+                continue
+            check = {
+                **deepcopy(measurement),
+                "status": status,
+                "requirement_id": evidence.get("requirement_id"),
+                "verifier": evidence.get("verifier"),
+                "detail": evidence.get("detail"),
+            }
+            if context.get("output_ref"):
+                check.setdefault("output_ref", context["output_ref"])
+            clause_context[id(check)] = context
+            measurement_checks.append(check)
+    for check in measurement_checks + list(_walk_checks(source_acceptance)):
         status = str(check.get("status") or "")
         if status not in {"passed", "failed", "unverified", "review_required", "partial"}:
             continue

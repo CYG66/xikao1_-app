@@ -1150,11 +1150,11 @@ def interpret_construction_request(
                 symbol_table=(result.get("symbol_table")
                               if isinstance(result.get("symbol_table"), dict) else {}),
                 source_text=original_requirement,
-                # The trial pass only needs first-pass measured predicates to
-                # expose numeric residuals before the repair decision.  Atomic
-                # source-wide facts are bound again at commit time, where the
-                # persisted project evidence exists.
-                include_atomic=False,
+                # The trial pass needs the same atomic facts the commit pass
+                # will use.  Keeping these two passes identical prevents a
+                # measurable atomic error from remaining invisible until the
+                # candidate has already left the repair loop.
+                include_atomic=True,
             )
             source_acceptance['coverage_evidence'] = coverage_evidence
             if coverage_evidence.get('state') == 'complete':

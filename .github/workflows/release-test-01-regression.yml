@@ -256,6 +256,7 @@ jobs:
           tests/test_cad_residual_repair.py
           tests/test_cad_residual_repair_offline_scenarios.py
           tests/test_cad_p3_live_ready_r01.py
+          tests/test_cad_merge_gate_05.py
           tests/test_cad_p3_source_facts.py
           tests/test_cad_shape_invariance_layout.py
           tests/manual/test_p01_admission.py

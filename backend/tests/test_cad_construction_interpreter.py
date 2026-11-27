@@ -99,7 +99,10 @@ def test_circle_radius_before_center_is_parseable_without_model_guessing():
     )
     assert result["status"] == "ready"
     assert result["plan"]["steps"][0]["op"] == "add_circle"
-    assert result["acceptance_summary"]["status"] == "review_required"
+    # The trial pass now binds the same atomic facts as commit; an explicit
+    # numeric circle center is independently measurable, so this is verified
+    # without asking the model to guess.
+    assert result["acceptance_summary"]["status"] == "passed"
 
 
 def test_explicit_control_points_only_need_coordinate_units_before_model():

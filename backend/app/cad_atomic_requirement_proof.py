@@ -39,6 +39,13 @@ _KIND_WORDS = (
     ("outline", re.compile(r"轮廓|外形|外廓|外框|基础")),
 )
 
+# A label made only of a generic shape noun does not identify one member of a
+# same-kind set.  Labels such as "外圆", "内孔" or a part name do.
+_GENERIC_LABEL_CORES = {
+    "矩形", "正方形", "长方形", "圆", "圆形", "孔", "圆孔", "轮廓",
+    "线", "线段", "弧", "圆弧", "板", "隔板",
+}
+
 
 def _number(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -483,6 +490,7 @@ def _select(requirement: str, inventory: list[dict[str, Any]], *,
                 and not universal):
             return []
         if (len(selected) == 1
+                and _exact_label_core(selected[0]["label"]) in _GENERIC_LABEL_CORES
                 and sum(1 for item in inventory
                         if item["kind"] == selected[0]["kind"]) > 1
                 and not _source_declares_collection(requirement)
@@ -511,10 +519,26 @@ def _select(requirement: str, inventory: list[dict[str, Any]], *,
                        for anchor in _object_anchor_points(item))
             ]
             if len(hits) != 1:
+                # A single source centre may be shared by concentric circles
+                # (a flange's outer and inner boundary).  That is measured
+                # coincidence, not a label guess: every hit must have its
+                # measured centre exactly on the same source point.
+                if hits and len({item["kind"] for item in hits}) == 1 and all(
+                        item["geometries"]
+                        and _object_anchor_points(item)
+                        and any(math.dist(anchor, point) <= tolerance
+                                for anchor in _object_anchor_points(item))
+                        for item in hits):
+                    for item in hits:
+                        if item not in matched:
+                            matched.append(item)
+                    continue
                 return []
             if hits[0] not in matched:
                 matched.append(hits[0])
         if len(matched) == len(points):
+            return matched
+        if len(points) == 1 and matched and len({item["kind"] for item in matched}) == 1:
             return matched
         if len(matched) == 1 and len(points) > 1:
             # Several source points can describe one object (a line's two
@@ -529,6 +553,12 @@ def _select(requirement: str, inventory: list[dict[str, Any]], *,
     selected = [item for item in inventory if item["kind"] in kinds]
     if not selected and "圆" in requirement:
         selected = [item for item in inventory if item["kind"] == "circle"]
+    if (re.search(r"回字形|内外轮廓|内外边界", requirement)
+            and len(selected) == 2
+            and all(item["kind"] == "outline" for item in selected)):
+        # A ring/closed-frame source names both boundaries of one topology.
+        # The ring predicate still has to prove nesting by full containment.
+        return selected
     if (len(selected) > 1 and not _same_named_assembly(requirement, selected)
             and not _source_declares_collection(requirement)
             and not universal):
@@ -658,8 +688,19 @@ def _mandatory_facts(requirement: str, clause: dict[str, Any]) -> dict[str, dict
         (("半径",), "dimension:radius"),
         (("直径",), "dimension:diameter"),
     ]
+    bolt_pitch = re.search(
+        rf"半径\s*({_NUMBER})\s*({_UNIT})[^，。；;]{{0,12}}圆周", requirement)
+    bolt_hole = re.search(
+        rf"圆周[^，。；;]{{0,25}}?半径\s*({_NUMBER})\s*({_UNIT})", requirement)
+    if bolt_pitch and bolt_hole:
+        need("dimension:bolt_circle_radius", "measured",
+             expected=_mm(bolt_pitch.group(1), bolt_pitch.group(2)))
+        need("dimension:bolt_hole_radius", "measured",
+             expected=_mm(bolt_hole.group(1), bolt_hole.group(2)))
     for keywords, fact_id in dimension_specs:
         if not any(keyword in requirement for keyword in keywords):
+            continue
+        if fact_id == "dimension:radius" and bolt_pitch and bolt_hole:
             continue
         value = _length(requirement, *keywords)
         if value is not None:
@@ -797,9 +838,28 @@ def _measurement_values(selected: list[dict[str, Any]],
     return [value for value in values if math.isfinite(value)]
 
 
+def _numeric_values(payload: Any) -> list[float]:
+    """Collect finite numbers from measured check payloads."""
+    values: list[float] = []
+    if isinstance(payload, bool):
+        return values
+    if isinstance(payload, (int, float)):
+        value = float(payload)
+        if math.isfinite(value):
+            values.append(value)
+    elif isinstance(payload, dict):
+        for value in payload.values():
+            values.extend(_numeric_values(value))
+    elif isinstance(payload, (list, tuple)):
+        for value in payload:
+            values.extend(_numeric_values(value))
+    return values
+
+
 def _unit_conversion_evidence(requirement: str,
                               selected: list[dict[str, Any]],
-                              tolerance: float) -> dict[str, Any]:
+                              tolerance: float,
+                              extra_values: list[float] | None = None) -> dict[str, Any]:
     conversions = [
         {
             "raw": float(match.group(1)),
@@ -811,6 +871,8 @@ def _unit_conversion_evidence(requirement: str,
                                  re.IGNORECASE)
     ]
     actual = _measurement_values(selected, tolerance)
+    if extra_values:
+        actual.extend(value for value in extra_values if math.isfinite(value))
     for conversion in conversions:
         conversion["matched_measurement_mm"] = next(
             (value for value in actual
@@ -866,8 +928,11 @@ _PREDICATE_FACT_COVERAGE: dict[str, set[str]] = {
                                       "point:3", "point:4", "point:5"},
     "radius_matches_source": {"dimension:radius"},
     "common_radius": {"dimension:radius"},
+    "bolt_circle_radius": {"dimension:bolt_circle_radius"},
+    "bolt_hole_radius": {"dimension:bolt_hole_radius"},
+    "bolt_hole_count": {"count"},
     "outer_radius": {"dimension:outer_radius", "dimension:radius"},
-    "inner_radius": {"dimension:inner_radius"},
+    "inner_radius": {"dimension:inner_radius", "dimension:radius"},
     "ring_topology": {"ring_topology"},
     "holes_inside_outline": {"holes_inside"},
     "one_circle_per_source_point": {"count:per_point"},
@@ -1100,7 +1165,8 @@ def _prove_outline(requirement: str, selected: list[dict[str, Any]],
     polygon = [tuple(point) for point in measured["points_mm"]]
     bounds = measured["bounds"]
 
-    if re.search(r"总宽|整体宽|包围盒|外轮廓|外框宽|外框高", requirement):
+    if re.search(r"总宽|整体宽|包围盒|外轮廓|外框宽|外框高|内轮廓|内边界",
+                 requirement):
         width = _length(requirement, "总宽", "整体宽", "外框宽")
         height = _length(requirement, "总高", "整体高", "外框高")
         if "外框" in requirement:
@@ -1296,6 +1362,15 @@ def _prove_pattern(requirement: str, selected: list[dict[str, Any]],
     radii = [item["geometries"][0]["radius_mm"] for item in circles]
 
     bolt_radius = _length(requirement, "半径")
+    hole_match = re.search(
+        rf"圆周[^，。；;]{{0,25}}?半径\s*({_NUMBER})\s*({_UNIT})", requirement)
+    if hole_match and radii:
+        hole_radius = _mm(hole_match.group(1), hole_match.group(2))
+        checks.append(_check(
+            "bolt_hole_radius",
+            all(abs(value - hole_radius) <= tolerance for value in radii),
+            expected=hole_radius, actual=radii,
+        ))
     if bolt_radius is not None and re.search(r"圆周|均布", requirement):
         distances = [math.dist(centre, center) for centre in centres]
         checks.append(_check(
@@ -1526,13 +1601,22 @@ def prove_general_requirement_clause(
     # "内外轮廓都闭合" names two objects in one clause.
     if "内外轮廓" in requirement and "闭合" in requirement:
         outlines = [item for item in inventory if item["kind"] == "outline"]
+        nested = False
+        if len(outlines) >= 2:
+            outer_points = [tuple(point) for point in outlines[0]["geometries"][0]["points_mm"]]
+            inner_points = [tuple(point) for point in outlines[1]["geometries"][0]["points_mm"]]
+            nested = _polygon_contains(outer_points, inner_points, tolerance_mm)
         checks.append(_check("all_named_outlines_closed",
                              len(outlines) >= 2
                              and all(item["geometries"][0].get("closed") is True
-                                     for item in outlines),
+                                     for item in outlines)
+                             and nested,
                              actual=[{"object_id": item["object_id"],
                                       "closed": item["geometries"][0].get("closed")}
-                                     for item in outlines]))
+                                     for item in outlines],
+                             detail={"nested": nested,
+                                     "method": "full_boundary_containment"},
+                             covers={"closure", "ring_topology"}))
 
     # "回字形" is a two-boundary topology, not a specific size.
     if "回字形" in requirement:
@@ -1541,7 +1625,7 @@ def prove_general_requirement_clause(
         if len(outlines) >= 2:
             outer_points = [tuple(point) for point in outlines[0]["geometries"][0]["points_mm"]]
             inner_points = [tuple(point) for point in outlines[1]["geometries"][0]["points_mm"]]
-            nested = _polygon_contains(outer_points, inner_points, tolerance)
+            nested = _polygon_contains(outer_points, inner_points, tolerance_mm)
         checks.append(_check("ring_topology",
                              len(outlines) == 2
                              and all(item["geometries"][0].get("closed") is True
@@ -1555,14 +1639,14 @@ def prove_general_requirement_clause(
     if re.search(r"孔|管口", requirement) and "半径" in requirement:
         circles = [item for item in selected if item["kind"] == "circle"]
         outlines = [item for item in inventory if item["kind"] == "outline"]
-        if circles and outlines and ("安装孔" in requirement or "管口" in requirement):
+        if circles and outlines and ("孔" in requirement or "管口" in requirement):
             polygon = [tuple(point) for point in outlines[0]["geometries"][0]["points_mm"]]
             points_inside = [
                 _circle_inside_polygon(
                     tuple(item["geometries"][0]["center_mm"]),
                     float(item["geometries"][0]["radius_mm"]),
                     polygon,
-                    tolerance,
+                    tolerance_mm,
                 )
                 for item in circles
             ]
@@ -1570,6 +1654,32 @@ def prove_general_requirement_clause(
                                  all(points_inside),
                                  actual=points_inside,
                                  detail={"method": "full_circle_boundary"}))
+        elif circles and not outlines and ("孔" in requirement or "管口" in requirement):
+            # A circular flange has no polygonal outline; containment is a
+            # radial predicate against the largest measured circle.
+            outer_candidates = [
+                item for item in inventory
+                if item["kind"] == "circle" and item not in circles
+            ]
+            if outer_candidates:
+                outer = max(outer_candidates,
+                            key=lambda item: float(item["geometries"][0].get("radius_mm") or 0.0))
+                outer_geo = outer["geometries"][0]
+                outer_center = tuple(outer_geo["center_mm"])
+                outer_radius = float(outer_geo["radius_mm"])
+                clearances = [
+                    outer_radius - math.dist(
+                        tuple(item["geometries"][0]["center_mm"]), outer_center)
+                    - float(item["geometries"][0]["radius_mm"])
+                    for item in circles
+                ]
+                checks.append(_check(
+                    "holes_inside_outline",
+                    all(value >= -tolerance_mm for value in clearances),
+                    actual=clearances,
+                    detail={"method": "radial_clearance",
+                            "outer_radius_mm": outer_radius},
+                ))
 
     if "各放一个" in requirement or "各画一个" in requirement:
         circles = [item for item in selected if item["kind"] == "circle"]
@@ -1580,7 +1690,9 @@ def prove_general_requirement_clause(
 
     facts = _mandatory_facts(requirement, clause)
     if "unit" in facts:
-        unit_evidence = _unit_conversion_evidence(requirement, selected, tolerance_mm)
+        unit_evidence = _unit_conversion_evidence(
+            requirement, selected, tolerance_mm,
+            extra_values=_numeric_values([check.get("actual") for check in checks]))
         checks.append(_check(
             "source_unit_honoured",
             unit_evidence["verified"],
@@ -1759,6 +1871,7 @@ def bind_atomic_coverage(
                         "category": category,
                         "quantity": check.get("expected"),
                         "actual": check.get("actual"),
+                        "source_requirement": requirement_text,
                         "object_ids": [item["logical_object_id"] for item in proof["objects"]],
                         "geometry_ids": [ref for item in proof["objects"]
                                          for ref in item["geometry_ids"]],
@@ -1775,6 +1888,16 @@ def bind_atomic_coverage(
             failed.append(str(clause.get("requirement_id")))
 
     result.setdefault("binding", {})
+    unique_proofs: list[dict[str, Any]] = []
+    seen_proofs: set[tuple[Any, ...]] = set()
+    for proof in count_proofs:
+        key = (proof.get("source_requirement_id"), proof.get("category"),
+               proof.get("quantity"), tuple(proof.get("object_ids") or []))
+        if key in seen_proofs:
+            continue
+        seen_proofs.add(key)
+        unique_proofs.append(proof)
+    count_proofs = unique_proofs
     result["binding"] = {
         **result["binding"],
         "atomic_promoted_clause_ids": promoted,

@@ -199,6 +199,35 @@ def test_composite_arm_clause_does_not_pass_with_wrong_height():
     assert clause(bound_bad, "竖直臂高2200毫米")["status"] != "verified"
 
 
+def test_ring_outline_shared_centre_and_wall_thickness_are_proven():
+    text = ("画一个回字形设备基础平面。外轮廓6000毫米乘4000毫米，"
+            "内轮廓5400毫米乘3400毫米。中心在原点。"
+            "四周壁厚都是300毫米。内外轮廓都闭合。")
+    outer = [(-3000, -2000), (3000, -2000), (3000, 2000), (-3000, 2000)]
+    inner = [(-2700, -1700), (2700, -1700), (2700, 1700), (-2700, 1700)]
+    geoms = [polyline(1, outer, closed=True), polyline(2, inner, closed=True)]
+    objects = [obj("foundation_outer", 1, "外轮廓 6m×4m"),
+               obj("foundation_inner", 2, "内轮廓 5.4m×3.4m")]
+    bound = bind(text, geoms, objects)
+    assert bound["state"] == "complete", bound["blocking_requirements"]
+    assert clause(bound, "外轮廓6000毫米")["status"] == "verified"
+    assert clause(bound, "中心在原点")["status"] == "verified"
+    assert clause(bound, "四周壁厚都是300毫米")["status"] == "verified"
+    assert clause(bound, "内外轮廓都闭合")["status"] == "verified"
+
+
+def test_ring_outline_wrong_wall_thickness_is_not_proven():
+    text = "画一个回字形设备基础。四周壁厚都是300毫米。内外轮廓都闭合。"
+    outer = [(-3000, -2000), (3000, -2000), (3000, 2000), (-3000, 2000)]
+    inner = [(-2800, -1800), (2800, -1800), (2800, 1800), (-2800, 1800)]
+    geoms = [polyline(1, outer, closed=True), polyline(2, inner, closed=True)]
+    objects = [obj("foundation_outer", 1, "外轮廓 6m×4m"),
+               obj("foundation_inner", 2, "内轮廓 5.6m×3.6m")]
+    bound = bind(text, geoms, objects)
+    assert bound["state"] != "complete"
+    assert clause(bound, "四周壁厚都是300毫米")["status"] != "verified"
+
+
 @pytest.mark.parametrize("order", [(0, 1, 2), (2, 0, 1), (1, 2, 0)])
 def test_circle_order_does_not_change_the_proof(order):
     text = ("画三个独立的圆形柱础，圆心分别在(-1800,0)、(0,0)、(1800,0)，"

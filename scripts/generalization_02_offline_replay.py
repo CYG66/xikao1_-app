@@ -14,9 +14,9 @@ import os
 import sys
 from pathlib import Path
 
-WORKTREE = Path(r"C:\Users\29924\Codes\worktrees\core-generalization-02")
+WORKTREE = Path(__file__).resolve().parents[1]
 SOURCE = Path(r"C:\Users\29924\Codes\xikao\cad_e2e_generalization_live_01")
-OUTPUT = Path(r"C:\Users\29924\Codes\xikao\cad_core_generalization_02")
+OUTPUT = Path(r"C:\Users\29924\Codes\xikao\cad_core_generalization_close_04")
 sys.path.insert(0, str(WORKTREE / "backend"))
 
 from app.cad_construction_commit import _rebind_source_acceptance  # noqa: E402

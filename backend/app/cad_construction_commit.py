@@ -480,6 +480,23 @@ def _inventory_proof_matches(entry: Any, proof: dict[str, Any]) -> bool:
     text = entry if isinstance(entry, str) else json.dumps(entry, ensure_ascii=False)
     if requirement_id and requirement_id in text:
         return True
+    # A generic "quantity phrase was not parsed" inventory warning has no
+    # clause id and no member entries.  It may be resolved only by a proof
+    # whose own source clause declares that category and that count.
+    if isinstance(entry, dict) and not entry.get("entries") \
+            and not entry.get("requirement_id"):
+        source_requirement = str(proof.get("source_requirement") or "")
+        quantity = int(proof.get("quantity") or 0)
+        count_words = {1: "一个", 2: "两个", 3: "三个", 4: "四个",
+                       5: "五个", 6: "六个", 7: "七个", 8: "八个", 9: "九个",
+                       10: "十个"}
+        declared = count_words.get(quantity)
+        return bool(
+            source_requirement
+            and any(term and term in source_requirement for term in category_terms)
+            and (str(quantity) in source_requirement
+                 or (declared and declared in source_requirement))
+        )
     return any(term and term in text for term in category_terms)
 
 

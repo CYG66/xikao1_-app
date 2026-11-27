@@ -23,7 +23,7 @@ from app.creative_projects import CreativeProjectStore  # noqa: E402
 from app.schemas import AgentChatRequest  # noqa: E402
 
 SOURCE = Path(r"C:\Users\29924\Codes\xikao\cad_e2e_live_retest_02\cases")
-OUT = Path(r"C:\Users\29924\Codes\xikao\cad_core_generalization_integration_03\five_case_http.json")
+OUT = Path(r"C:\Users\29924\Codes\xikao\cad_core_generalization_close_04\five_case_http.json")
 CASES = ["L01-A2", "L02-C7", "L03-A9", "L04-C31", "L05-C6"]
 
 

@@ -22,7 +22,7 @@ from app.creative_projects import CreativeProjectStore  # noqa: E402
 from app.schemas import AgentChatRequest  # noqa: E402
 
 RUNS = Path(r"C:\Users\29924\Codes\xikao\cad_e2e_generalization_live_01\runs\GENERALIZATION-01")
-OUT = Path(r"C:\Users\29924\Codes\xikao\cad_core_generalization_integration_03")
+OUT = Path(r"C:\Users\29924\Codes\xikao\cad_core_generalization_close_04")
 OUT.mkdir(parents=True, exist_ok=True)
 
 CASES = ["B04", "M01", "M02", "M03", "M04", "F01", "T01", "T04"]

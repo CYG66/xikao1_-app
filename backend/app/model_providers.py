@@ -96,10 +96,11 @@ class ModelProviderAdapter:
                 payload.get("max_tokens", payload.get("max_output_tokens", 0)) or 0
             ),
         )
+        status: int | None = None
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
-                raw = response.read().decode("utf-8")
                 status = int(getattr(response, "status", 200))
+                raw = response.read().decode("utf-8")
             result = json.loads(raw)
             settle_eval_response(reservation, result, http_status=status)
             return result
@@ -110,13 +111,14 @@ class ModelProviderAdapter:
                 f"{self.name} API 请求失败（{error.code}）：{detail}"
             ) from error
         except (urllib.error.URLError, TimeoutError, OSError) as error:
-            fail_eval_request(reservation, error)
+            fail_eval_request(reservation, error, http_status=status)
             raise RuntimeError(f"无法连接 {self.name}：{error}") from error
-        except json.JSONDecodeError as error:
-            fail_eval_request(
-                reservation, error, http_status=locals().get("status")
-            )
+        except (json.JSONDecodeError, UnicodeDecodeError) as error:
+            fail_eval_request(reservation, error, http_status=status)
             raise RuntimeError(f"{self.name} API 返回了无效 JSON。") from error
+        except Exception as error:
+            fail_eval_request(reservation, error, http_status=status)
+            raise
 
 
 

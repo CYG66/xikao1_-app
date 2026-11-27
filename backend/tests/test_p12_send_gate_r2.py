@@ -8,6 +8,7 @@ provider request is sent.
 from __future__ import annotations
 
 import json
+import urllib.request
 
 import pytest
 
@@ -19,6 +20,8 @@ from app.eval_request_guard import (
     configure_eval_guard,
     reset_eval_guard,
 )
+from app.model_providers import ModelProviderAdapter
+from app.model_request_gateway import request_openai_responses_json
 from tests.manual.eval_budget_store import BudgetLedger, EvaluationBudgetStop
 
 
@@ -379,6 +382,88 @@ def test_r2_restart_after_stream_failure_remains_blocked(service, monkeypatch, t
             payload=body(),
             max_output_tokens=10,
         )
+
+
+class _FakeHTTPResponse:
+    status = 200
+
+    def __init__(self, body: bytes = b"", failure: BaseException | None = None):
+        self._body = body
+        self._failure = failure
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return None
+
+    def read(self):
+        if self._failure is not None:
+            raise self._failure
+        return self._body
+
+
+class _EchoProvider(ModelProviderAdapter):
+    name = "deepseek"
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        b"not-json",
+        UnicodeDecodeError("utf-8", b"x", 0, 1, "bad"),
+        TimeoutError("read timed out"),
+    ],
+)
+def test_r2_provider_body_failure_preserves_known_status(
+    failure, service, monkeypatch, tmp_path
+):
+    ledger = eval_env(monkeypatch, tmp_path)
+    if isinstance(failure, bytes):
+        response = _FakeHTTPResponse(body=failure)
+    else:
+        response = _FakeHTTPResponse(failure=failure)
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: response)
+    request = urllib.request.Request(
+        "https://api.deepseek.com/chat/completions",
+        data=json.dumps(body()).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with pytest.raises(RuntimeError):
+        _EchoProvider().send_json(request, timeout=1)
+    snapshot = assert_stopped(ledger, "settle_unknown_stop")
+    event = next(item for item in snapshot["events"] if item["event"] == "settle_unknown_stop")
+    assert event["http_status"] == 200
+    assert event["http_status_status"] == "known"
+    assert event["unconfirmed_cost_upper_bound_usd"] > 0
+
+
+def test_r2_gateway_json_error_preserves_known_status(service, monkeypatch, tmp_path):
+    ledger = eval_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("P12_EXPECTED_PROVIDER", "openai")
+    monkeypatch.setenv("P12_EXPECTED_MODEL", "gpt-5")
+    from app import eval_request_guard
+
+    monkeypatch.setitem(
+        eval_request_guard.AUTHORIZED_TARGETS,
+        "openai",
+        "https://api.openai.com/v1/responses",
+    )
+    monkeypatch.setattr(
+        urllib.request, "urlopen", lambda *a, **k: _FakeHTTPResponse(body=b"not-json")
+    )
+    with pytest.raises(RuntimeError):
+        request_openai_responses_json(
+            api_key="test-key",
+            payload={"model": "gpt-5", "max_output_tokens": 10},
+            timeout=1,
+        )
+    snapshot = assert_stopped(ledger, "settle_unknown_stop")
+    event = next(item for item in snapshot["events"] if item["event"] == "settle_unknown_stop")
+    assert event["http_status"] == 200
+    assert event["http_status_status"] == "known"
+    assert event["unconfirmed_cost_upper_bound_usd"] > 0
 
 
 def teardown_function():

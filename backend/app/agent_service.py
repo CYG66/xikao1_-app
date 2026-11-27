@@ -4007,10 +4007,15 @@ class RobotAgentService:
 
     @staticmethod
     def _project_id_from_route(route: dict[str, Any]) -> str | None:
-        return project_id_from_route(
-            route,
-            fresh_design_request=RobotAgentService._is_fresh_design_request(route),
+        # A confirmation sentence usually contains "新建"/"创建" because it
+        # repeats the action, but it is a continuation of the project named by
+        # the caller, not a fresh design request.  Only an explicit confirmation
+        # without a bound project falls back to the fresh-request path.
+        message = str(route.get("user_message") or "")
+        fresh = RobotAgentService._is_fresh_design_request(route) and not (
+            message and RobotAgentService._is_design_generation_confirmation(message)
         )
+        return project_id_from_route(route, fresh_design_request=fresh)
 
     def _stale_project_guard(self, route: dict[str, Any]) -> str | None:
         """When the conversation memory references a project that no longer

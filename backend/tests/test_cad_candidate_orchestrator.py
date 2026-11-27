@@ -67,6 +67,39 @@ def test_explicit_confirmation_without_project_returns_actionable_error() -> Non
     assert "选择" in result["error"]
 
 
+def test_creation_confirmation_keeps_bound_project_despite_new_wording() -> None:
+    from app.agent_service import RobotAgentService
+
+    route = {
+        "name": "drawing_design",
+        "tool_family": "cad",
+        "operation": "create",
+        "stage": "requirements",
+        "decision_source": "model_route",
+        "selected_project_id": "project-1",
+        "user_message": "确认新建 CAD 图纸并生成候选方案。",
+    }
+
+    assert RobotAgentService._is_fresh_design_request(route) is True
+    assert RobotAgentService._project_id_from_route(route) == "project-1"
+
+
+def test_brand_new_brief_still_ignores_selected_project() -> None:
+    from app.agent_service import RobotAgentService
+
+    route = {
+        "name": "drawing_design",
+        "tool_family": "cad",
+        "operation": "create",
+        "stage": "requirements",
+        "decision_source": "model_route",
+        "selected_project_id": "project-1",
+        "user_message": "再做一个边长600毫米的正方形，左下角在原点。",
+    }
+
+    assert RobotAgentService._project_id_from_route(route) is None
+
+
 def test_candidate_preflight_formats_layout_conflict() -> None:
     result = candidate_preflight(
         {"missing_parameters": []},

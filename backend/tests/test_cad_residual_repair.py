@@ -219,6 +219,47 @@ def test_source_acceptance_failure_preserves_requirement_id():
     assert records[0]["normalized_residual"] == 499.0
 
 
+def test_atomic_closure_gap_becomes_numeric_repair_target():
+    acceptance = {
+        "coverage_evidence": {
+            "clauses": [{
+                "requirement_id": "clause:0:54",
+                "status": "partial",
+                "binding": {
+                    "objects": [{
+                        "logical_object_id": "outline",
+                        "geometry_ids": [7],
+                        "step_id": "outer",
+                        "output_ref": "outer_ref",
+                    }],
+                    "checks": [{
+                        "predicate": "outline_closure_and_continuity",
+                        "status": "failed",
+                        "detail": {
+                            "endpoint_gap_mm": 95.28941682066456,
+                            "tolerance_mm": 0.5,
+                        },
+                    }],
+                },
+            }],
+        },
+    }
+    records = collect_source_acceptance_residuals(acceptance, _plan())
+    gap = next(r for r in records if r["predicate"] == "closure_gap")
+    assert gap["residual_type"] == NUMERIC
+    assert gap["expected"] == 0.0
+    assert gap["measured"] == 95.28941682066456
+    assert gap["tolerance"] == 0.5
+    assert gap["passed"] is False
+    assert gap["geometry_ids"] == [7]
+    assert gap["plan_step_ids"] == ["outer"]
+    vector = build_residual_vector(source_acceptance=acceptance, plan=_plan())
+    assert vector["failing_numeric_count"] == 1
+    feedback = repair_feedback(vector, _plan())
+    assert feedback["editable_step_ids"] == ["outer"]
+    assert feedback["editable_output_refs"] == ["outer_ref"]
+
+
 def test_source_unknown_requirements_are_unverifiable_not_zero():
     acceptance = {"unknown_requirements": [
         {"requirement_id": "R-LOBES", "reason": "verifier_unavailable"}]}

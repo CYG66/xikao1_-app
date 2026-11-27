@@ -386,6 +386,7 @@ def _construction_record(
         "composition_validation": deepcopy(interpretation.get("composition_validation")),
         "source_acceptance": deepcopy(interpretation.get("source_acceptance")),
         "acceptance_summary": deepcopy(acceptance),
+        "residual_vector": deepcopy(interpretation.get("residual_vector")),
         "write_receipt": deepcopy(write_receipt) if isinstance(write_receipt, dict) else None,
         "local_repair_validation": deepcopy(interpretation.get("local_repair_validation")),
         "repair_changes": deepcopy(
@@ -658,6 +659,7 @@ def _rebind_source_acceptance(
             trial_result=trial,
             source=source_text,
         )
+        _refresh_residual_vector(interpretation, plan)
         return
     interpretation["source_acceptance"] = source_acceptance
     summary = interpretation.get("acceptance_summary")
@@ -675,6 +677,24 @@ def _rebind_source_acceptance(
         summary["requirement_coverage"] = "unknown"
         summary["unknown_requirements"] = deepcopy(bound.get("blocking_requirements") or [])
         interpretation["acceptance_summary"] = summary
+    _refresh_residual_vector(interpretation, plan)
+
+
+def _refresh_residual_vector(
+    interpretation: dict[str, Any], plan: dict[str, Any],
+) -> None:
+    """Rebuild residuals after final coverage binding.
+
+    The interpreter emits an early vector before the atomic requirement pass.
+    Once the final source acceptance is bound, measured failures such as a
+    closure gap must be re-collected so the existing repair loop can consume
+    them; no new verifier or tolerance is introduced here.
+    """
+    from .cad_residual_repair import build_residual_vector
+    interpretation["residual_vector"] = build_residual_vector(
+        source_acceptance=interpretation.get("source_acceptance"),
+        plan=plan,
+    )
 
 
 def _single_candidate_title(trial: dict[str, Any]) -> str:

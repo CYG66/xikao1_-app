@@ -68,6 +68,25 @@ UUID_PATTERN = re.compile(
 )
 
 
+def is_explicit_new_creation(message: str) -> bool:
+    """True when the turn itself specifies a complete object to create."""
+    text = message.strip()
+    if not re.match(r"^(?:请|帮我|麻烦)?\s*(?:画|做|生成|新建|创建|绘制)", text):
+        return False
+    has_object = any(
+        word in text
+        for word in (
+            "圆", "矩形", "正方形", "长方形", "椭圆", "弧", "线", "轮廓",
+            "钢板", "平台", "基座", "井盖", "导轨", "台阶", "采光顶", "法兰",
+        )
+    )
+    has_measure = bool(
+        re.search(r"\d", text)
+        and re.search(r"毫米|厘米|米|mm|cm|m\b|[（(]\s*-?\d", text, re.IGNORECASE)
+    )
+    return has_object and has_measure
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -243,6 +262,17 @@ class ConversationMemoryStore:
                 "memory": context,
                 "retrieved": self.retrieve(conversation_id, message),
             }
+        if is_explicit_new_creation(message):
+            # Demonstratives such as "这一圈" or "这个圆" inside a complete
+            # create request describe the object being created, not a
+            # reference to an earlier drawing.
+            return {
+                "message": message,
+                "resolved": False,
+                "required": False,
+                "memory": context,
+                "retrieved": self.retrieve(conversation_id, message),
+            }
         lowered = message.lower()
         local_plural = has_local_plural_reference(message)
         reference_text = lowered.replace("它们", "") if local_plural else lowered
@@ -297,12 +327,19 @@ class ConversationMemoryStore:
                 f"{item.get('label') or item['id']}（{item['type']}）"
                 for item in candidates[:4]
             ) or "无可用对象"
+            if not candidates and re.search(r"镜像", message):
+                question = (
+                    "请说明要镜像的图纸或对象，并确认镜像轴是左右还是上下、"
+                    "原有标注是否随图形一起镜像。"
+                )
+            else:
+                question = f"请明确你指的是哪个对象。当前候选：{labels}。"
             return {
                 "message": message,
                 "resolved": False,
                 "required": True,
                 "ambiguous": True,
-                "question": f"请明确你指的是哪个对象。当前候选：{labels}。",
+                "question": question,
                 "candidates": candidates,
                 "memory": context,
                 "retrieved": self.retrieve(conversation_id, message),

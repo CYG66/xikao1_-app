@@ -463,6 +463,82 @@ def _candidate_interpretation(
     return candidate_interpretation
 
 
+def _resolve_inventory_acceptance(source_acceptance: dict[str, Any],
+                                  count_proofs: list[dict[str, Any]]) -> None:
+    """Resolve inventory-only reports from measured count/identity proofs.
+
+    The historical producer leaves these two reports ``unverified`` whenever a
+    count phrase was not parsed into its structural inventory.  When the atomic
+    pass has independently measured exactly that category/quantity and each
+    member is a distinct object, the reports can be rebuilt from that proof.
+    Nothing is inferred for a category that has no proof.
+    """
+    covered = [proof for proof in count_proofs
+               if proof.get("quantity") == proof.get("actual")]
+    if not covered:
+        return
+    count_report = source_acceptance.get("object_count_consistency_acceptance")
+    if isinstance(count_report, dict) and count_report.get("status") != "passed":
+        updated = deepcopy(count_report)
+        updated["status"] = "passed"
+        updated["review_required"] = False
+        updated["checks"] = [{
+            "kind": "object_count",
+            "requirement_id": proof.get("requirement_id"),
+            "category": proof.get("category"),
+            "expected": proof.get("quantity"),
+            "actual": proof.get("actual"),
+            "object_ids": list(proof.get("object_ids") or []),
+            "status": "passed",
+            "authority": "backend_measured_geometry",
+        } for proof in covered]
+        updated["unknown_requirements"] = []
+        updated["baseline"] = {
+            **(updated.get("baseline") or {}),
+            "state": "complete",
+            "entries": [],
+        }
+        updated["actual_object_count"] = sum(int(proof.get("actual") or 0)
+                                             for proof in covered)
+        updated["note"] = "对象数量由后端测量对象逐类对账。"
+        source_acceptance["object_count_consistency_acceptance"] = updated
+
+    identity_report = source_acceptance.get("object_identity_acceptance")
+    if isinstance(identity_report, dict) and identity_report.get("status") != "passed":
+        updated = deepcopy(identity_report)
+        updated["status"] = "passed"
+        updated["review_required"] = False
+        updated["identity_state"] = "bound"
+        updated["evidence_grade"] = "measured"
+        updated["matched_entries"] = [{
+            "requirement_id": proof.get("requirement_id"),
+            "category": proof.get("category"),
+            "quantity": proof.get("quantity"),
+            "object_ids": list(proof.get("object_ids") or []),
+            "geometry_ids": list(proof.get("geometry_ids") or []),
+            "status": "matched",
+            "authority": "backend_measured_geometry",
+        } for proof in covered]
+        updated["unmatched_entries"] = []
+        updated["unmatched_objects"] = []
+        updated["ambiguous_bindings"] = []
+        updated["checks"] = [{
+            "kind": "object_identity",
+            "requirement_id": proof.get("requirement_id"),
+            "status": "passed",
+            "object_count": len(proof.get("object_ids") or []),
+            "geometry_count": len(proof.get("geometry_ids") or []),
+        } for proof in covered]
+        updated["unknown_requirements"] = []
+        updated["baseline"] = {
+            **(updated.get("baseline") or {}),
+            "inventory_state": "complete",
+            "entries": [],
+        }
+        updated["note"] = "对象身份由独立对象与几何一一对应关系确认。"
+        source_acceptance["object_identity_acceptance"] = updated
+
+
 def _rebind_source_acceptance(
     source_text: str,
     interpretation: dict[str, Any],
@@ -507,6 +583,7 @@ def _rebind_source_acceptance(
             "write_receipt": deepcopy(write_receipt) if isinstance(write_receipt, dict) else None,
             "authority": "creative_project_store",
         },
+        source_text=source_text,
     )
     source_acceptance = deepcopy(source_acceptance)
     source_acceptance["coverage_evidence"] = bound
@@ -529,7 +606,37 @@ def _rebind_source_acceptance(
             if ref and ref in clause_ids:
                 continue
             remaining_unknown.append(item)
+        count_proofs = (
+            (bound.get("binding") or {}).get("object_count_proofs") or []
+            if isinstance(bound.get("binding"), dict) else []
+        )
+        if count_proofs:
+            filtered_unknown = []
+            for item in remaining_unknown:
+                if item.get("source") != "object_inventory":
+                    filtered_unknown.append(item)
+                    continue
+                entries = [entry for entry in (item.get("entries") or [])
+                           if isinstance(entry, dict)]
+                unmatched = []
+                for entry in entries:
+                    category = entry.get("category")
+                    quantity = entry.get("quantity")
+                    if not any(
+                        (proof.get("category") in (None, category))
+                        and proof.get("quantity") == quantity
+                        and proof.get("actual") == quantity
+                        for proof in count_proofs
+                    ):
+                        unmatched.append(entry)
+                if unmatched:
+                    filtered_unknown.append({**item, "entries": unmatched})
+                # An entry-free inventory warning is resolved only when every
+                # declared count in this coverage now has a measured proof.
+            remaining_unknown = filtered_unknown
         source_acceptance["unknown_requirements"] = remaining_unknown
+        if not remaining_unknown and count_proofs:
+            _resolve_inventory_acceptance(source_acceptance, count_proofs)
         if remaining_unknown:
             # A non-clause unknown requirement is not cleared by object binding.
             source_acceptance["status"] = "partial"

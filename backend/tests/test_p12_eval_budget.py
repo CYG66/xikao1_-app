@@ -12,10 +12,10 @@ def reserve(ledger, request_id, **extra):
                           expected_model='deepseek-flash',provider='deepseek',
                           target_url='https://api.deepseek.com/chat/completions',**extra)
 
-def settle(ledger, prompt_tokens=1, completion_tokens=1, model='deepseek-flash'):
+def settle(ledger, prompt_tokens=1, completion_tokens=1, model='deepseek-flash', http_status=200):
     ledger.settle(response={'model':model,'choices':[{'finish_reason':'stop'}],
         'usage':{'prompt_tokens':prompt_tokens,'completion_tokens':completion_tokens}},
-        expected_model='deepseek-flash')
+        http_status=http_status, expected_model='deepseek-flash')
 
 def test_input_token_bound_is_a_byte_bound():
     bound=input_token_upper_bound(payload())

@@ -342,7 +342,10 @@ def _response_model(response: dict[str, Any] | None) -> str:
 
 
 def validate_response_model(
-    reservation: EvalReservation | None, response: dict[str, Any] | None
+    reservation: EvalReservation | None,
+    response: dict[str, Any] | None,
+    *,
+    http_status: int | None = None,
 ) -> None:
     if reservation is None:
         return
@@ -355,6 +358,7 @@ def validate_response_model(
             # atomic write.
             reservation.ledger.settle(
                 response=response,
+                http_status=http_status,
                 expected_model=reservation.model,
                 reserved_input_tokens=reservation.input_upper_bound,
                 reserved_output_tokens=reservation.output_tokens,
@@ -393,7 +397,7 @@ def settle_eval_response(
             reservation.request_id, "duplicate_settlement_attempt"
         )
         raise EvalRequestBlocked("duplicate_settlement_attempt")
-    validate_response_model(reservation, response)
+    validate_response_model(reservation, response, http_status=http_status)
     reservation.ledger.settle(
         response=response if error is None else None,
         http_status=http_status,
@@ -412,11 +416,16 @@ def settle_eval_response(
 
 
 def fail_eval_request(
-    reservation: EvalReservation | None, error: BaseException | str
+    reservation: EvalReservation | None,
+    error: BaseException | str,
+    *,
+    http_status: int | None = None,
 ) -> None:
     if reservation is None or reservation.settled:
         return
-    reservation.ledger.stop_unknown(reservation.request_id, str(error))
+    reservation.ledger.stop_unknown(
+        reservation.request_id, str(error), http_status=http_status
+    )
     reservation.settled = True
     if calibration_mode_enabled():
         reservation.ledger.stop_run("calibration_request_failed")

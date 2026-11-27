@@ -200,6 +200,17 @@ class BudgetLedger:
                 d['used']['output_tokens']+=out
                 d['used']['cost_usd']+=cost
             cost_status='settled' if cost is not None else 'unverifiable'
+            if error is None and http_status is None:
+                # A settled response without an observed HTTP status cannot be
+                # audited.  Fail closed even when usage is present, because the
+                # response may be a transport fallback or an unlabelled retry.
+                d['stopped']=True; d['pending']=None
+                d['events'].append({'event':'missing_http_status_stop','request_id':p['request_id'],
+                                    'http_status':None,'usage':usage,'model':model,
+                                    'usage_status':usage_status,'cost_usd':cost,
+                                    'cost_status':cost_status,'finish_reason':finish,
+                                    'reservation':reservation})
+                self._write(d); raise EvaluationBudgetStop('missing_http_status')
             if expected is not None and model is not None and str(model)!=str(expected):
                 d['stopped']=True
                 d['events'].append({'event':'model_mismatch_stop','request_id':p['request_id'],
@@ -238,8 +249,8 @@ class BudgetLedger:
                 'usage':usage,'cost_usd':cost,'cost_status':cost_status,'retry':retry,
                 'reservation':reservation})
             self._write(d)
-    def stop_unknown(self,request_id,error):
-        try:self.settle(response=None,error=error)
+    def stop_unknown(self,request_id,error,http_status=None):
+        try:self.settle(response=None,http_status=http_status,error=error)
         except EvaluationPersistenceError: raise
         except EvaluationBudgetStop: pass
     def stop_run(self,reason):

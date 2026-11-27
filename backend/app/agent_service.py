@@ -148,6 +148,7 @@ from .integration_profile import (
     require_external_model_calls_permitted,
 )
 from .eval_request_guard import (
+    EvalRequestBlocked,
     deny_eval_get,
     eval_mode_enabled,
     fail_eval_request,
@@ -2423,7 +2424,7 @@ class RobotAgentService:
                     chunk_model = chunk.get("model")
                     if chunk_model:
                         stream_model = str(chunk_model)
-                        validate_response_model(reservation, chunk)
+                        validate_response_model(reservation, chunk, http_status=response.status)
                     if isinstance(chunk.get("usage"), dict):
                         stream_usage = chunk["usage"]
                     if chunk.get("error"):
@@ -2841,9 +2842,15 @@ class RobotAgentService:
             "stream": True,
             "stream_options": {"include_usage": True},
         }
+        if payload["model"] == "deepseek-flash":
+            payload["thinking"] = {"type": "disabled"}
         content_parts: list[str] = []
         streamed_calls: dict[int, dict[str, str]] = {}
         usage = self._empty_usage()
+        raw_usage = None
+        stream_model = None
+        finish_reason = None
+        done_seen = False
         connection = None
         response = None
         reservation = None
@@ -2871,14 +2878,22 @@ class RobotAgentService:
                 if not line.startswith("data:"):
                     continue
                 data = line[5:].strip()
-                if not data or data == "[DONE]":
+                if not data:
+                    continue
+                if data == "[DONE]":
+                    done_seen = True
                     continue
                 event = json.loads(data)
-                if event.get("usage"):
+                if event.get("model"):
+                    stream_model = str(event["model"])
+                if event.get("usage") is not None:
+                    raw_usage = event["usage"]
                     usage = self._chat_usage(event)
                 choices = event.get("choices") or []
                 if not choices:
                     continue
+                if choices[0].get("finish_reason"):
+                    finish_reason = str(choices[0]["finish_reason"])
                 delta = choices[0].get("delta") or {}
                 text = str(delta.get("content") or "")
                 if text:
@@ -2894,17 +2909,60 @@ class RobotAgentService:
                     target["name"] += str(function.get("name") or "")
                     target["arguments"] += str(function.get("arguments") or "")
             if reservation is not None:
+                # A truncated or unlabelled stream must never settle as a
+                # successful request.  The streaming path bypasses
+                # _deepseek_request, so these checks are the only evidence that
+                # the provider completed the turn and reported a real usage.
+                if not done_seen or finish_reason not in {"stop", "tool_calls"}:
+                    fail_eval_request(
+                        reservation,
+                        RuntimeError(
+                            "stream_incomplete_or_truncated:"
+                            + str(finish_reason)
+                        ),
+                        http_status=response.status,
+                    )
+                    raise EvalRequestBlocked(
+                        "stream_incomplete_or_truncated:" + str(finish_reason)
+                    )
+                if not stream_model:
+                    fail_eval_request(
+                        reservation,
+                        RuntimeError("stream_missing_response_model"),
+                        http_status=response.status,
+                    )
+                    raise EvalRequestBlocked("stream_missing_response_model")
+                if not isinstance(raw_usage, dict):
+                    fail_eval_request(
+                        reservation,
+                        RuntimeError("stream_missing_usage"),
+                        http_status=response.status,
+                    )
+                    raise EvalRequestBlocked("stream_missing_usage")
                 settle_eval_response(
                     reservation,
-                    {"model": payload["model"], "usage": usage},
+                    {
+                        "model": stream_model,
+                        "usage": raw_usage,
+                        "choices": [{"finish_reason": finish_reason}],
+                    },
+                    http_status=response.status,
                 )
         except (TimeoutError, socket.timeout) as error:
             if reservation is not None:
-                fail_eval_request(reservation, error)
+                fail_eval_request(
+                    reservation,
+                    error,
+                    http_status=getattr(response, "status", None),
+                )
             raise RuntimeError("DeepSeek 流式请求超时，请稍后重试。") from error
         except Exception as error:
             if reservation is not None:
-                fail_eval_request(reservation, error)
+                fail_eval_request(
+                    reservation,
+                    error,
+                    http_status=getattr(response, "status", None),
+                )
             raise
         finally:
             self._close_deepseek_response(connection, response)

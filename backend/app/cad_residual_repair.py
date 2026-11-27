@@ -433,13 +433,36 @@ def collect_source_acceptance_residuals(
         return []
     records: list[dict[str, Any]] = []
     seen: set[tuple] = set()
+    # Atomic proof checks live inside a clause binding.  Keep the clause's
+    # measured object/step scope so a failed numeric measurement can enter the
+    # existing repair loop instead of being stranded as an unscoped failure.
+    clause_context: dict[int, dict[str, Any]] = {}
+    coverage = source_acceptance.get("coverage_evidence") or {}
+    for clause in coverage.get("clauses") or []:
+        if not isinstance(clause, dict):
+            continue
+        binding = clause.get("binding") or {}
+        objects = [item for item in binding.get("objects") or [] if isinstance(item, dict)]
+        context = {
+            "requirement_id": clause.get("requirement_id"),
+            "object_ids": [str(item.get("logical_object_id")) for item in objects
+                           if item.get("logical_object_id")],
+            "geometry_ids": [ref for item in objects for ref in (item.get("geometry_ids") or [])],
+            "plan_step_ids": [str(item.get("step_id")) for item in objects if item.get("step_id")],
+            "output_ref": next((str(item.get("output_ref")) for item in objects
+                                if item.get("output_ref")), None),
+        }
+        for check in _walk_checks(binding):
+            clause_context[id(check)] = context
     for check in _walk_checks(source_acceptance):
         status = str(check.get("status") or "")
         if status not in {"passed", "failed", "unverified", "review_required", "partial"}:
             continue
+        context = clause_context.get(id(check)) or {}
         requirement_id = str(check.get("source_requirement_id")
                              or check.get("requirement_id")
                              or check.get("name")
+                             or context.get("requirement_id")
                              or "source:unknown")
         predicate = str(check.get("field") or check.get("name")
                         or check.get("predicate") or "source_requirement")
@@ -454,20 +477,35 @@ def collect_source_acceptance_residuals(
             "count" if "expected_count" in check
             else "mm" if "expected_mm" in check or "actual_mm" in check
             else None)
-        target = check.get("target_ref") or check.get("output_ref")
+        target = check.get("target_ref") or check.get("output_ref") or context.get("output_ref")
         axis = str(check.get("object_id") or target or ",".join(
-            str(v) for v in (check.get("geometry_ids") or [])))
+            str(v) for v in (check.get("geometry_ids") or context.get("geometry_ids") or [])))
         key = (requirement_id, predicate, str(unit or ""), axis)
         if key in seen:
             continue
         seen.add(key)
         common = {
-            "geometry_ids": check.get("geometry_ids") or [],
-            "plan_step_ids": _step_ids_for_ref(plan, target),
+            "geometry_ids": check.get("geometry_ids") or context.get("geometry_ids") or [],
+            "plan_step_ids": _step_ids_for_ref(plan, target) or context.get("plan_step_ids") or [],
+            "object_ids": context.get("object_ids") or [],
             "source": "source_acceptance",
             "mandatory": bool(check.get("mandatory", True)),
             "predicate_axis": axis,
         }
+        detail = check.get("detail") if isinstance(check.get("detail"), dict) else {}
+        if status == "failed" and context and detail:
+            # A measured closure deviation is already a numeric failure.  Feed
+            # the measured gap and its existing tolerance into the same
+            # residual path used by other measured dimensions.
+            gap = _finite(detail.get("endpoint_gap_mm"))
+            gap_tolerance = _finite(detail.get("tolerance_mm"))
+            if gap is not None and gap_tolerance is not None:
+                records.append(numeric_residual(
+                    requirement_id=requirement_id, predicate="closure_gap",
+                    expected=0.0, measured=gap, tolerance=gap_tolerance,
+                    unit="mm", reason=str(check.get("reason") or "closure_gap_exceeds_tolerance"),
+                    **common))
+                continue
         if status in {"unverified", "review_required", "partial"}:
             records.append(unverifiable_residual(
                 requirement_id=requirement_id, predicate=predicate,

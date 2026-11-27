@@ -69,6 +69,56 @@ def measure_geometry(geometry: dict[str, Any]) -> dict[str, Any] | None:
                 "max_y": center[1] + radius,
             },
         }
+    if kind == "arc":
+        center = _point(geometry.get("center"))
+        radius = _number(geometry.get("radius"))
+        start = _number(geometry.get("start_angle"))
+        end = _number(geometry.get("end_angle"))
+        if center is None or radius is None or radius <= 0:
+            return None
+        sweep = ((end - start) % 360.0) if start is not None and end is not None else None
+        if sweep is not None and sweep <= 1e-9 and end is not None and start is not None \
+                and end > start:
+            sweep = 360.0
+        angles = []
+        if sweep is not None:
+            count = max(2, int(abs(sweep) / 2.0) + 1)
+            angles = [math.radians((start or 0.0) + sweep * index / (count - 1))
+                      for index in range(count)]
+        coordinates = [(center[0] + radius * math.cos(angle),
+                        center[1] + radius * math.sin(angle)) for angle in angles]
+        xs = [point[0] for point in coordinates] or [center[0] - radius, center[0] + radius]
+        ys = [point[1] for point in coordinates] or [center[1] - radius, center[1] + radius]
+        return {
+            "kind": "arc",
+            "geometry_id": geometry.get("id"),
+            "center_mm": list(center),
+            "radius_mm": radius,
+            "diameter_mm": radius * 2.0,
+            "start_angle_deg": start,
+            "end_angle_deg": end,
+            "sweep_deg": sweep,
+            "bounds": {
+                "min_x": min(xs), "min_y": min(ys),
+                "max_x": max(xs), "max_y": max(ys),
+            },
+        }
+    if kind == "line":
+        start = _point(geometry.get("start"))
+        end = _point(geometry.get("end"))
+        if start is None or end is None:
+            return None
+        return {
+            "kind": "line",
+            "geometry_id": geometry.get("id"),
+            "start_mm": list(start),
+            "end_mm": list(end),
+            "length_mm": math.dist(start, end),
+            "bounds": {
+                "min_x": min(start[0], end[0]), "min_y": min(start[1], end[1]),
+                "max_x": max(start[0], end[0]), "max_y": max(start[1], end[1]),
+            },
+        }
     points = outline_points(geometry)
     if kind == "polyline" and len(points) >= 2:
         xs = [point[0] for point in points]
@@ -218,7 +268,8 @@ def closure_measure(points: Iterable[tuple[float, float]], *,
                     require_smooth: bool = False,
                     allowed_cusp_source: str | None = None,
                     allowed_cusp_limit: int = 0,
-                    allowed_cusp_points: Iterable[tuple[float, float]] | None = None) -> dict[str, Any]:
+                    allowed_cusp_points: Iterable[tuple[float, float]] | None = None,
+                    smooth_closure_gap: bool = False) -> dict[str, Any]:
     """Measure closure and continuity as independent geometric predicates.
 
     ``closed`` is the executor's actual implicit closing edge (last -> first).
@@ -229,12 +280,33 @@ def closure_measure(points: Iterable[tuple[float, float]], *,
     A sharp reversal is accepted only when the caller supplies both a source
     label and the source's measured cusp coordinates.  Being on the vertical
     centre line is not a source: a centre-line heuristic is not accepted.
+
+    When ``smooth_closure_gap`` is true, a source that requires a smooth closed
+    contour also requires the sampled first/last points to meet.  Otherwise
+    the implicit closing edge is a long straight chord inserted into an
+    otherwise smooth curve, which is a real geometric defect even though the
+    executor's boolean ``closed`` flag is true.  Ordinary polygonal outlines
+    leave this off because their closing edge is an intended segment.
     """
     points = list(points)
     if len(points) < 3:
         return {"status": "unverified", "reason": "outline_has_too_few_points",
                 "point_count": len(points)}
     gap = math.dist(points[-1], points[0])
+    edges = [math.dist(points[index], points[(index + 1) % len(points)])
+             for index in range(len(points))]
+    typical_edge = sorted(edges)[len(edges) // 2] if edges else 0.0
+    # A dense sampled curve legitimately ends less than one sample step from
+    # its start.  Half a median edge is a conservative allowance: F03's
+    # 95.289 mm gap is 1.32 median edges and is a real chord; A9's 3.03 mm gap
+    # is 0.04 median edges and is only the last sampling step.
+    long_smooth_gap = bool(
+        smooth_closure_gap and require_smooth
+        and not closed
+    ) or bool(
+        smooth_closure_gap and require_smooth
+        and gap > max(tolerance_mm, 0.5 * typical_edge)
+    )
     joins = []
     for index in range(len(points)):
         prev, current, nxt = points[index - 1], points[index], points[(index + 1) % len(points)]
@@ -274,12 +346,16 @@ def closure_measure(points: Iterable[tuple[float, float]], *,
     max_smooth_turn = max((join["turn_deg"] for join in remaining), default=None)
     over_limit = [join for join in remaining
                   if join["turn_deg"] > smooth_angle_tolerance_deg]
-    closure_failed = not closed
+    closure_failed = not closed or long_smooth_gap
     continuity_failed = bool(require_smooth and over_limit)
     failed = closure_failed or continuity_failed
     return {
         "status": "failed" if failed else "verified",
         "closure_status": "failed" if closure_failed else "verified",
+        "closure_gap_status": (
+            "failed" if long_smooth_gap else "verified"
+            if smooth_closure_gap and require_smooth else "not_required"
+        ),
         "continuity_status": ("failed" if continuity_failed
                               else "verified" if require_smooth
                               else "not_required"),

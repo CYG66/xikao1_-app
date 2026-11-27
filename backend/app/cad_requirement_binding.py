@@ -41,7 +41,7 @@ _DIMENSION_WORDS = re.compile(
 )
 _OPERATION_WORDS = re.compile(r"新建|创建|生成.*图纸|画.*图纸")
 _DRAWING_WORDS = re.compile(r"图纸")
-_NEGATED_OR_EDIT = re.compile(r"不要|不需要|无需|禁止|别|取消|删除|移除|去掉|修改|编辑|移动|旋转|缩放")
+_NEGATED_OR_EDIT = re.compile(r"不要|不需要|无需|禁止|(?<!分)别|取消|删除|移除|去掉|修改|编辑|移动|旋转|缩放")
 _CORNER_PLACEMENT = re.compile(r"(?:四个|4\s*个|四)\s*(?:个)?\s*(?:角|角点)|四角|各个角")
 _UNSUPPORTED_OUTLINE_PROPERTY = re.compile(
     r"花瓣|齿轮|齿形|齿|开孔|孔洞|镂空|内孔|阵列|网格"
@@ -87,6 +87,7 @@ def bind_construction_coverage(
     symbol_table: dict[str, list[int]] | None = None,
     project_evidence: dict[str, Any] | None = None,
     tolerance_mm: float = _TOLERANCE_MM,
+    source_text: str = "",
 ) -> dict[str, Any]:
     """Return coverage with only independently provable clauses promoted.
 
@@ -264,6 +265,21 @@ def bind_construction_coverage(
         "tolerance_mm": float(tolerance_mm),
         "authority": "backend_measured_geometry",
     }
+    # Second pass: source-wide atomic facts (centres, collections, relations,
+    # path constraints) that cannot be proved from a single shape word.
+    from .cad_atomic_requirement_proof import bind_atomic_coverage
+    result = bind_atomic_coverage(
+        result,
+        source_text or "；".join(
+            str(item.get("requirement") or "")
+            for item in result.get("clauses") or []
+            if isinstance(item, dict)
+        ),
+        logical_objects=objects,
+        geometries=geoms,
+        plan_steps=steps,
+        tolerance_mm=float(tolerance_mm),
+    )
     # Recompute after the new binding is visible.  The previous order read the
     # pre-binding fact list, leaving resolved facts in the unresolved ledger.
     _recompute(result)
@@ -601,6 +617,7 @@ def _bind_outline_clause(
             allowed_cusp_points=(
                 heart_cusp_points(geometry) if heart_verified else None
             ),
+            smooth_closure_gap=wants_smooth,
         )
         checks.append({"predicate": "closure", **closure})
         if closure.get("status") != "verified":

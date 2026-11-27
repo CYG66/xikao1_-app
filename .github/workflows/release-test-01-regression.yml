@@ -172,6 +172,7 @@ jobs:
           tests/test_p12_eval_budget.py
           tests/test_p12_eval_close02.py
           tests/test_p12_eval_final03.py
+          tests/test_p12_send_gate_r2.py
           -m "not manual_field"
           --junitxml=${{ runner.temp }}/junit/security.xml
 

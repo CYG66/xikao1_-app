@@ -399,7 +399,8 @@ def settle_eval_response(
         raise EvalRequestBlocked("duplicate_settlement_attempt")
     validate_response_model(reservation, response, http_status=http_status)
     reservation.ledger.settle(
-        response=response if error is None else None,
+        # Preserve whatever usage/model evidence exists even on an error.
+        response=response,
         http_status=http_status,
         error=error,
         retry=retry,
@@ -420,11 +421,15 @@ def fail_eval_request(
     error: BaseException | str,
     *,
     http_status: int | None = None,
+    response: dict[str, Any] | None = None,
 ) -> None:
     if reservation is None or reservation.settled:
         return
     reservation.ledger.stop_unknown(
-        reservation.request_id, str(error), http_status=http_status
+        reservation.request_id,
+        str(error),
+        http_status=http_status,
+        response=response,
     )
     reservation.settled = True
     if calibration_mode_enabled():

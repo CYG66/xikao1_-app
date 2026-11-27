@@ -114,8 +114,10 @@ def test_t03_missing_usage_is_not_recorded_as_zero_cost(tmp_path, monkeypatch):
         settle_eval_response(reservation, {"model": "deepseek-flash"}, http_status=200)
     snapshot = ledger.snapshot()
     event = next(e for e in snapshot["events"] if e["event"] == "settle_unknown_stop")
-    assert event["cost_usd"] is None
+    assert event["cost_usd"] == pytest.approx(event["unconfirmed_cost_upper_bound_usd"])
+    assert event["cost_usd"] > 0
     assert event["cost_status"] == "unverifiable"
+    assert event["cost_class"] == "unconfirmed_upper_bound"
     assert event["usage"] is None
 
 
@@ -151,6 +153,9 @@ def test_t09_model_mismatch_keeps_request_usage_and_cost(tmp_path, monkeypatch):
     assert snapshot["used"]["cost_usd"] > 0
     event = next(e for e in snapshot["events"] if e["event"] == "model_mismatch_stop")
     assert event["cost_status"] == "settled"
+    assert event["cost_class"] == "unauthorized_model_upper_bound"
+    assert event["http_status_status"] == "known"
+    assert event["supplier_invoice_verified"] is False
     assert event["reservation"]["input_tokens"] > 0
 
 

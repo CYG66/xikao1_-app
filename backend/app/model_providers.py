@@ -104,7 +104,7 @@ class ModelProviderAdapter:
             settle_eval_response(reservation, result, http_status=status)
             return result
         except urllib.error.HTTPError as error:
-            fail_eval_request(reservation, error)
+            fail_eval_request(reservation, error, http_status=error.code)
             detail = error.read().decode("utf-8", errors="replace")[:300]
             raise RuntimeError(
                 f"{self.name} API 请求失败（{error.code}）：{detail}"
@@ -113,7 +113,9 @@ class ModelProviderAdapter:
             fail_eval_request(reservation, error)
             raise RuntimeError(f"无法连接 {self.name}：{error}") from error
         except json.JSONDecodeError as error:
-            fail_eval_request(reservation, error)
+            fail_eval_request(
+                reservation, error, http_status=locals().get("status")
+            )
             raise RuntimeError(f"{self.name} API 返回了无效 JSON。") from error
 
 

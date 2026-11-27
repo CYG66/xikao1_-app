@@ -86,7 +86,7 @@ def request_openai_responses_json(
         settle_eval_response(reservation, result, http_status=status)
         return result
     except urllib.error.HTTPError as error:
-        fail_eval_request(reservation, error)
+        fail_eval_request(reservation, error, http_status=error.code)
         detail = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(
             f"OpenAI API 请求失败 ({error.code}): {detail[:300]}"
@@ -98,7 +98,7 @@ def request_openai_responses_json(
         fail_eval_request(reservation, error)
         raise RuntimeError(f"无法连接 OpenAI API: {error.reason}") from error
     except json.JSONDecodeError as error:
-        fail_eval_request(reservation, error)
+        fail_eval_request(reservation, error, http_status=locals().get("status"))
         raise RuntimeError("OpenAI API 返回了无效 JSON。") from error
     finally:
         lease.__exit__(None, None, None)

@@ -1779,6 +1779,7 @@ def parameterize_design(prompt: str) -> dict[str, Any]:
                     (("圆弧", "arc"), "arc"),
                     (("圆形", "圆", "circle"), "circle"),
                     (("折线", "polyline"), "polyline"),
+                    (("三级台阶", "台阶", "踏步", "楼梯"), "stair_step"),
                     (("椭圆", "ellipse"), "ellipse"),
                 )
                 if any(keyword in normalized for keyword in keywords)

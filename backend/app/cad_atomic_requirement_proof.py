@@ -69,11 +69,33 @@ def _length(text: str, *keywords: str) -> float | None:
     return None
 
 
-def _points(text: str) -> list[tuple[float, float]]:
-    points = [(float(x), float(y)) for x, y in _POINT.findall(text)]
+def _coordinate_factor(*texts: str) -> float:
+    """Millimetres per source coordinate unit.
+
+    A coordinate pair has no unit of its own; it inherits the unit declared in
+    the same source or the surrounding request.  Millimetre is checked before
+    metre so ``mm`` is not read as ``m``.
+    """
+    joined = " ".join(text for text in texts if text)
+    if re.search(r"毫米|\bmm\b", joined, re.IGNORECASE):
+        return 1.0
+    if re.search(r"厘米|\bcm\b", joined, re.IGNORECASE):
+        return 10.0
+    if re.search(r"米|\bm\b", joined, re.IGNORECASE):
+        return 1000.0
+    return 1.0
+
+
+def _points(text: str, scale: float = 1.0) -> list[tuple[float, float]]:
+    points = [(float(x) * scale, float(y) * scale)
+              for x, y in _POINT.findall(text)]
     if not points and "原点" in text:
         return [(0.0, 0.0)]
     return points
+
+
+def _raw_points(text: str) -> list[tuple[float, float]]:
+    return [(float(x), float(y)) for x, y in _POINT.findall(text)]
 
 
 def _count(text: str, kind: str) -> int | None:
@@ -134,12 +156,156 @@ def _section_values(polygon: list[tuple[float, float]], axis: str,
     return sorted(values)
 
 
+def _section_spans(polygon: list[tuple[float, float]], axis: str,
+                   coordinate: float) -> list[float]:
+    """Interior spans on one scan line, not the distance across a concavity."""
+    values = _section_values(polygon, axis, coordinate)
+    return [values[index + 1] - values[index]
+            for index in range(0, len(values) - 1, 2)
+            if values[index + 1] - values[index] > 1e-9]
+
+
 def _section_thickness(polygon: list[tuple[float, float]], axis: str,
                        coordinate: float) -> float | None:
-    values = _section_values(polygon, axis, coordinate)
-    if len(values) < 2:
+    spans = _section_spans(polygon, axis, coordinate)
+    return max(spans) if spans else None
+
+
+def _dominant_section_thickness(
+    polygon: list[tuple[float, float]], axis: str, tolerance: float,
+    samples: int = 257,
+) -> dict[str, float] | None:
+    """Measure a stable section thickness without a case-specific position.
+
+    Arm widths are the thickness of the arm away from its junction.  Sampling
+    the whole bounding interval and taking the largest consistent thickness
+    cluster finds that arm generically for L, T and cross outlines, and returns
+    ``None`` when the profile has no stable band instead of guessing a point.
+    """
+    bounds = _bounds(polygon)
+    low, high = ((bounds["min_x"], bounds["max_x"]) if axis == "x"
+                 else (bounds["min_y"], bounds["max_y"]))
+    if high <= low:
         return None
-    return max(values) - min(values)
+    values: list[float] = []
+    for index in range(samples):
+        coordinate = low + (high - low) * index / (samples - 1)
+        span = _section_thickness(polygon, axis, coordinate)
+        if span is not None:
+            values.append(span)
+    if not values:
+        return None
+    values.sort()
+    cluster_tolerance = max(float(tolerance), 0.5)
+    clusters: list[list[float]] = []
+    for value in values:
+        if not clusters or value - clusters[-1][-1] > cluster_tolerance:
+            clusters.append([value])
+        else:
+            clusters[-1].append(value)
+    cluster = max(clusters, key=len)
+    coverage = len(cluster) / len(values)
+    if len(cluster) < 3 or coverage < 0.2:
+        return None
+    if cluster[-1] - cluster[0] > max(2.0 * cluster_tolerance, 1.0):
+        return None
+    ordered = sorted(cluster)
+    return {
+        "value": ordered[len(ordered) // 2],
+        "coverage": coverage,
+        "sample_count": float(len(values)),
+        "cluster_count": float(len(cluster)),
+        "minimum": ordered[0],
+        "maximum": ordered[-1],
+    }
+
+
+def _distance_point_segment(point: tuple[float, float],
+                            start: tuple[float, float],
+                            end: tuple[float, float]) -> float:
+    px, py = point
+    x1, y1 = start
+    x2, y2 = end
+    dx, dy = x2 - x1, y2 - y1
+    length_sq = dx * dx + dy * dy
+    if length_sq <= 1e-18:
+        return math.dist(point, start)
+    t = max(0.0, min(1.0, ((px - x1) * dx + (py - y1) * dy) / length_sq))
+    return math.hypot(px - (x1 + t * dx), py - (y1 + t * dy))
+
+
+def _distance_to_polygon(point: tuple[float, float],
+                         polygon: list[tuple[float, float]]) -> float:
+    return min(_distance_point_segment(point, polygon[index],
+                                       polygon[(index + 1) % len(polygon)])
+               for index in range(len(polygon)))
+
+
+def _segments_cross(first_start: tuple[float, float],
+                    first_end: tuple[float, float],
+                    second_start: tuple[float, float],
+                    second_end: tuple[float, float],
+                    tolerance: float) -> bool:
+    """True only for a proper crossing; touching endpoints do not count."""
+    def orientation(a, b, c):
+        value = ((b[0] - a[0]) * (c[1] - a[1])
+                 - (b[1] - a[1]) * (c[0] - a[0]))
+        if abs(value) <= tolerance * max(1.0, math.dist(a, b)):
+            return 0
+        return 1 if value > 0 else -1
+
+    o1 = orientation(first_start, first_end, second_start)
+    o2 = orientation(first_start, first_end, second_end)
+    o3 = orientation(second_start, second_end, first_start)
+    o4 = orientation(second_start, second_end, first_end)
+    return o1 * o2 < 0 and o3 * o4 < 0
+
+
+def _polygon_contains(outer: list[tuple[float, float]],
+                      inner: list[tuple[float, float]],
+                      tolerance: float, *,
+                      allow_boundary: bool = True) -> bool:
+    """Prove that the whole inner boundary lies inside the outer boundary.
+
+    A single vertex is not enough: every vertex must be inside or on the
+    boundary, no two boundaries may properly cross, and at least one vertex
+    must be strictly inside.  Boundary contact is allowed only when the caller
+    explicitly permits it.
+    """
+    if len(outer) < 3 or len(inner) < 3:
+        return False
+    strictly_inside = False
+    for point in inner:
+        if _point_in_polygon(point, outer):
+            strictly_inside = True
+            continue
+        if not allow_boundary or _distance_to_polygon(point, outer) > tolerance:
+            return False
+    for index in range(len(inner)):
+        inner_start = inner[index]
+        inner_end = inner[(index + 1) % len(inner)]
+        for edge in range(len(outer)):
+            if _segments_cross(inner_start, inner_end, outer[edge],
+                               outer[(edge + 1) % len(outer)], tolerance):
+                return False
+    return strictly_inside
+
+
+def _circle_inside_polygon(center: tuple[float, float], radius: float,
+                           polygon: list[tuple[float, float]],
+                           tolerance: float, samples: int = 32) -> bool:
+    """A hole is inside only when its whole boundary is inside."""
+    if not _point_in_polygon(center, polygon) \
+            and _distance_to_polygon(center, polygon) > tolerance:
+        return False
+    for index in range(samples):
+        angle = 2.0 * math.pi * index / samples
+        point = (center[0] + radius * math.cos(angle),
+                 center[1] + radius * math.sin(angle))
+        if not _point_in_polygon(point, polygon) \
+                and _distance_to_polygon(point, polygon) > tolerance:
+            return False
+    return True
 
 
 def _max_width_y(polygon: list[tuple[float, float]], samples: int = 1001
@@ -190,16 +356,42 @@ def _extrema_count(points: list[tuple[float, float]]) -> int:
     return count
 
 
-def _longest_common(a: str, b: str) -> int:
-    """Longest common contiguous substring length (small source strings)."""
-    best = 0
-    for i in range(len(a)):
-        for j in range(i + best + 1, len(a) + 1):
-            if a[i:j] in b:
-                best = j - i
-            else:
-                break
-    return best
+def _object_anchor_points(item: dict[str, Any]) -> list[tuple[float, float]]:
+    """Measured anchors that can bind a source point to one object."""
+    anchors: list[tuple[float, float]] = []
+    for measured in item.get("geometries") or []:
+        if not isinstance(measured, dict):
+            continue
+        if measured.get("kind") in {"circle", "arc"}:
+            center = tuple(measured.get("center_mm") or ())
+            if len(center) == 2:
+                anchors.append(center)
+        elif measured.get("kind") == "line":
+            for key in ("start_mm", "end_mm"):
+                point = tuple(measured.get(key) or ())
+                if len(point) == 2:
+                    anchors.append(point)
+        else:
+            anchors.extend(tuple(point) for point in measured.get("points_mm") or []
+                           if len(point) == 2)
+            # An outline's measured centre is also a source-identifying
+            # anchor: a "中心在(x,y)" clause names the object by that point.
+            center = tuple(measured.get("center_mm") or ())
+            if len(center) == 2:
+                anchors.append(center)
+    return anchors
+
+
+def _exact_label_core(label: str) -> str:
+    return re.split(r"[\d（(]", label, maxsplit=1)[0].strip()
+
+
+def _source_declares_collection(requirement: str) -> bool:
+    return bool(re.search(
+        r"各|分别|每个|均布|每|三个|四个|两个|多个|数量|独立的|"
+        r"半径都是|半径均为|一组|若干",
+        requirement,
+    ))
 
 
 def _step_for_object(obj: dict[str, Any], steps: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -268,72 +460,449 @@ def _same_named_assembly(requirement: str,
     return bool(label and label in requirement)
 
 
-def _select(requirement: str, inventory: list[dict[str, Any]],
-            *, outermost: bool = False) -> list[dict[str, Any]]:
-    """Select objects by source identity first, then by measured kind."""
-    # Exact source identity: a label or its head noun (before a per-part
-    # ordinal) appears verbatim in the clause.  This is stronger than a shared
-    # two-character fragment and prevents "外圆" from also selecting "螺栓孔".
+def _select(requirement: str, inventory: list[dict[str, Any]], *,
+            points: list[tuple[float, float]] | None = None,
+            tolerance: float = DEFAULT_TOLERANCE_MM) -> list[dict[str, Any]]:
+    """Select only by source identity, measured anchor or unique kind.
+
+    Fuzzy substring scores and largest-radius convenience are deliberately not
+    authorities.  They may help a human reviewer, but cannot decide which
+    physical object a source fact names.
+    """
+    universal = bool(re.search(r"都|均|各|分别|全部|所有", requirement))
     exact: list[tuple[int, dict[str, Any]]] = []
     for item in inventory:
-        core = re.split(r"[\d（(]", item["label"], maxsplit=1)[0].strip()
+        core = _exact_label_core(item["label"])
         if len(core) >= 2 and core in requirement:
             exact.append((len(core), item))
     if exact:
         longest = max(score for score, _ in exact)
         selected = [item for score, item in exact if score == longest]
         if (len(selected) > 1 and not _same_named_assembly(requirement, selected)
-                and re.search(r"一(?:个|条|块|张|座|根|段)", requirement)
-                and not re.search(r"各|分别|每个|均布|三个|四个|两个|多个",
-                                  requirement)):
+                and not _source_declares_collection(requirement)
+                and not universal):
+            return []
+        if (len(selected) == 1
+                and sum(1 for item in inventory
+                        if item["kind"] == selected[0]["kind"]) > 1
+                and not _source_declares_collection(requirement)
+                and not universal):
+            # A singular clause that names one member while another object of
+            # the same kind exists has not identified its target.  A label
+            # match alone cannot make that choice.
             return []
         return selected
 
-    scores = [(_longest_common(requirement, item["label"]), item) for item in inventory]
-    best = max((score for score, _ in scores), default=0)
-    if best >= 3:
-        return [item for score, item in scores if score == best]
-
+    # A source coordinate or endpoint can identify one measured object without
+    # guessing from a label.  It is authoritative only when exactly one object
+    # of the source-named kind owns each anchor; coincident candidates stay
+    # ambiguous.
     kinds: list[str] = []
     for kind, pattern in _KIND_WORDS:
         if pattern.search(requirement) and kind not in kinds:
             kinds.append(kind)
+    point_pool = [item for item in inventory if item["kind"] in kinds] if kinds else inventory
+    if points:
+        matched: list[dict[str, Any]] = []
+        for point in points:
+            hits = [
+                item for item in point_pool
+                if any(math.dist(anchor, point) <= tolerance
+                       for anchor in _object_anchor_points(item))
+            ]
+            if len(hits) != 1:
+                return []
+            if hits[0] not in matched:
+                matched.append(hits[0])
+        if len(matched) == len(points):
+            return matched
+        if len(matched) == 1 and len(points) > 1:
+            # Several source points can describe one object (a line's two
+            # endpoints, an arc's centre and endpoints).  That is still one
+            # authoritative object unless the source asks for a collection.
+            count = (_count(requirement, "circle") or _count(requirement, "arc")
+                     or _count(requirement, "outline"))
+            if count in (None, 1):
+                return matched
+        return []
+
     selected = [item for item in inventory if item["kind"] in kinds]
     if not selected and "圆" in requirement:
         selected = [item for item in inventory if item["kind"] == "circle"]
     if (len(selected) > 1 and not _same_named_assembly(requirement, selected)
-            and re.search(r"一(?:个|条|块|张|座|根|段)", requirement)
-            and not re.search(r"各|分别|每个|均布|三个|四个|两个|多个", requirement)):
+            and not _source_declares_collection(requirement)
+            and not universal):
         # A singular source request cannot select one of several same-kind
         # objects by convenience.  Without a source identity this is ambiguous.
         return []
-    if not selected and re.search(
+    if selected:
+        return selected
+
+    if re.search(
             r"跨度|振幅|周期|平滑|不闭合|闭合|壁厚|中心|左下角|宽度|高度|包围盒|"
-            r"半径|圆心|开始|从|到|端点|单位|臂|总宽|总高|外框",
+            r"半径|圆心|开始|从|到|端点|单位|臂|总宽|总高|外框|宽|高",
             requirement):
         # A property clause may omit the object noun.  It is still bindable only
         # when one measured kind is unique; multiple kinds remain ambiguous.
         measured_kinds = {item["kind"] for item in inventory}
-        if len(measured_kinds) == 1:
-            selected = list(inventory)
-    if outermost and selected and all(item["kind"] == "circle" for item in selected):
-        return [max(selected, key=lambda item: item["geometries"][0]["radius_mm"])]
-    return selected
+        universal = bool(re.search(r"都|均|各|分别|全部|所有", requirement))
+        if (len(measured_kinds) == 1
+                and (len(inventory) == 1 or universal)):
+            return list(inventory)
+    return []
+
+
+def _identity_evidence(requirement: str, inventory: list[dict[str, Any]],
+                       selected: list[dict[str, Any]],
+                       points: list[tuple[float, float]],
+                       tolerance: float) -> dict[str, Any]:
+    """Describe why the selected objects are, or are not, authoritative."""
+    labels = [item["label"] for item in selected]
+    exact = [item for item in selected
+             if len(_exact_label_core(item["label"])) >= 2
+             and _exact_label_core(item["label"]) in requirement]
+    if not selected:
+        mode = "ambiguous_or_unbound"
+    elif len(exact) == len(selected):
+        mode = ("source_declared_collection"
+                if _source_declares_collection(requirement)
+                else "exact_source_label")
+    elif points and len(points) == len(selected):
+        mode = "measured_source_anchor"
+    elif len({item["kind"] for item in selected}) == 1:
+        mode = ("source_declared_collection"
+                if _source_declares_collection(requirement)
+                else "unique_measured_kind")
+    else:
+        mode = "unique_inventory_kind"
+    return {
+        "mode": mode,
+        "authoritative": bool(selected) and mode != "ambiguous_or_unbound",
+        "candidate_count": len(inventory),
+        "selected_count": len(selected),
+        "selected_labels": labels,
+        "selected_object_ids": [item.get("object_id") for item in selected],
+        "source_anchors": [list(point) for point in points],
+        "tolerance_mm": tolerance,
+    }
+
+
+def _canonical_contract_fact(name: str, requirement: str) -> str:
+    lowered = name.lower()
+    if ("width" in lowered or "宽" in name) and "臂" in requirement:
+        return "dimension:arm_width"
+    if "width" in lowered or "宽" in name:
+        return "dimension:width"
+    if "height" in lowered or "高" in name:
+        return "dimension:height"
+    if "radius" in lowered or "半径" in name:
+        return "dimension:radius"
+    if "count" in lowered or "数量" in name or "count" in name:
+        return "count"
+    return f"contract:{name}"
+
+
+def _mandatory_facts(requirement: str, clause: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Build the complete fact list implied by one source clause.
+
+    Checks alone are not a fact list: a clause can omit a fact from every
+    generated check.  This function derives facts from the source text and from
+    the contract evidence carried by the clause, then requires an explicit
+    verified check for each of them.
+    """
+    facts: dict[str, dict[str, Any]] = {}
+
+    def need(fact_id: str, status: str, *, expected: Any = None,
+             actual: Any = None, detail: Any = None) -> None:
+        existing = facts.get(fact_id)
+        if existing is not None:
+            if existing.get("status") == "measured" or status != "measured":
+                return
+        facts[fact_id] = {
+            "fact": fact_id,
+            "status": status,
+            "expected": expected,
+            "actual": actual,
+            "detail": detail,
+        }
+
+    for evidence in clause.get("unsupported_evidence") or []:
+        if isinstance(evidence, str):
+            name = evidence
+            payload: dict[str, Any] = {}
+        elif isinstance(evidence, dict):
+            name = str(evidence.get("fact") or evidence.get("name")
+                       or evidence.get("key") or evidence.get("predicate") or "")
+            payload = evidence
+        else:
+            continue
+        if not name:
+            continue
+        fact_id = _canonical_contract_fact(name, requirement)
+        need(fact_id, "contract_required",
+             expected=payload.get("expected"), actual=payload.get("actual"),
+             detail={"source": "contract", "name": name, "raw": payload})
+
+    dimension_specs: list[tuple[tuple[str, ...], str]] = [
+        (("总宽", "整体宽", "外框宽"), "dimension:width"),
+        (("总高", "整体高", "外框高"), "dimension:height"),
+        (("水平臂长",), "dimension:horizontal_arm_length"),
+        (("竖直臂高",), "dimension:vertical_arm_height"),
+        (("壁厚",), "dimension:wall_thickness"),
+        (("跨度",), "dimension:span"),
+        (("振幅",), "dimension:amplitude"),
+        (("外圆半径",), "dimension:outer_radius"),
+        (("外半径",), "dimension:outer_radius"),
+        (("内孔半径",), "dimension:inner_radius"),
+        (("内半径",), "dimension:inner_radius"),
+        (("半径",), "dimension:radius"),
+        (("直径",), "dimension:diameter"),
+    ]
+    for keywords, fact_id in dimension_specs:
+        if not any(keyword in requirement for keyword in keywords):
+            continue
+        value = _length(requirement, *keywords)
+        if value is not None:
+            need(fact_id, "measured", expected=value)
+
+    for keyword, fact_id in (
+            ("水平臂[^，。；;]{0,20}宽", "dimension:horizontal_arm_width"),
+            ("竖直臂[^，。；;]{0,20}宽", "dimension:vertical_arm_width"),
+    ):
+        value = _length(requirement, keyword)
+        if value is not None:
+            need(fact_id, "measured", expected=value, detail={"source_keyword": keyword})
+
+    if "臂" in requirement and "宽" in requirement \
+            and not re.search(r"水平臂|竖直臂|横臂|竖臂|总宽|外框", requirement):
+        value = _length(requirement, "宽")
+        if value is not None:
+            need("dimension:arm_width", "measured", expected=value)
+
+    bbox = re.search(
+        rf"({_NUMBER})\s*({_UNIT})\s*(?:乘|×|x|\*)\s*"
+        rf"({_NUMBER})\s*({_UNIT})", requirement, re.IGNORECASE,
+    )
+    if bbox:
+        need("dimension:width", "measured",
+             expected=_mm(bbox.group(1), bbox.group(2)),
+             detail={"bbox": True})
+        need("dimension:height", "measured",
+             expected=_mm(bbox.group(3), bbox.group(4)),
+             detail={"bbox": True})
+
+    for index, point in enumerate(_raw_points(requirement)):
+        need(f"point:{index}", "measured", expected=list(point))
+
+    point_scale = _coordinate_factor(requirement, str(clause.get("source_text") or ""))
+    if point_scale != 1.0:
+        need("unit", "measured", expected="source_coordinate_unit",
+             actual=point_scale,
+             detail={"kind": "coordinate_scale", "factor": point_scale})
+
+    conversions = [
+        {
+            "raw": float(match.group(1)),
+            "unit": match.group(2),
+            "factor": _mm(1.0, match.group(2)),
+        }
+        for match in re.finditer(rf"({_NUMBER})\s*({_UNIT})", requirement,
+                                 re.IGNORECASE)
+    ]
+    if conversions:
+        need("unit", "measured", expected="source_declared_unit",
+             detail={"conversions": conversions})
+
+    if re.search(r"各放一个|各画一个|分别放|分别画", requirement):
+        need("count:per_point", "measured",
+             expected=len(_raw_points(requirement)))
+
+    if "闭合" in requirement and "不闭合" not in requirement:
+        need("closure", "measured", expected="closed")
+    if re.search(r"不闭合|断开|开口", requirement):
+        need("open", "measured", expected="open")
+    if re.search(r"平滑|光滑|连续", requirement):
+        need("continuity", "measured", expected="continuous")
+    if "左右对称" in requirement:
+        need("symmetry", "measured", expected="mirror")
+    if re.search(r"回字形|内外轮廓|内外边界", requirement):
+        need("ring_topology", "measured")
+    if re.search(r"孔|管口", requirement) and "半径" in requirement:
+        need("holes_inside", "measured")
+    if "半径都是" in requirement or "半径均为" in requirement:
+        need("common_radius", "measured")
+    if "最宽处" in requirement and "正中" in requirement:
+        need("widest_at_mid", "measured")
+    if "一个完整周期" in requirement:
+        need("period", "measured")
+    if "只画" in requirement or "只保留" in requirement:
+        need("only_requested", "measured")
+    if re.search(r"不能粘|分开|独立|不同对象|分别成对象", requirement):
+        need("distinct_objects", "measured")
+        need("not_merged", "measured")
+    if "同心" in requirement:
+        need("concentric", "measured")
+
+    count = _count(requirement, "circle")
+    if count is None and re.search(r"圆弧|弧", requirement):
+        count = _count(requirement, "arc")
+    if count is None and re.search(r"轮廓|外形|外框", requirement):
+        count = _count(requirement, "outline")
+    if count is not None:
+        need("count", "measured", expected=count)
+    elif re.search(r"画|绘制|创建|生成|添加|构造|放|加", requirement):
+        need("object_exists", "measured")
+
+    identity_required = bool(
+        _raw_points(requirement)
+        or any(value.get("status") == "measured"
+               for key, value in facts.items()
+               if key.startswith("dimension:") or key in {
+                   "closure", "open", "continuity", "symmetry", "ring_topology",
+                   "holes_inside", "common_radius", "period", "distinct_objects",
+                   "not_merged", "concentric", "count",
+               })
+    )
+    if identity_required:
+        need("object_identity", "measured")
+    return facts
+
+
+def _measurement_values(selected: list[dict[str, Any]],
+                        tolerance: float) -> list[float]:
+    values: list[float] = []
+    for item in selected:
+        for measured in item.get("geometries") or []:
+            if not isinstance(measured, dict):
+                continue
+            if measured.get("kind") in {"circle", "arc"}:
+                values.append(float(measured.get("radius_mm") or 0.0))
+                values.extend(float(value) for value in measured.get("center_mm") or [])
+            elif measured.get("kind") == "line":
+                values.extend(float(value) for value in measured.get("start_mm") or [])
+                values.extend(float(value) for value in measured.get("end_mm") or [])
+            else:
+                polygon = [tuple(point) for point in measured.get("points_mm") or []]
+                if not polygon:
+                    continue
+                bounds = measured.get("bounds") or _bounds(polygon)
+                values.extend([bounds["min_x"], bounds["max_x"],
+                               bounds["min_y"], bounds["max_y"],
+                               measured.get("width_mm") or 0.0,
+                               measured.get("height_mm") or 0.0])
+                for axis in ("x", "y"):
+                    dominant = _dominant_section_thickness(polygon, axis, tolerance)
+                    if dominant:
+                        values.append(dominant["value"])
+    return [value for value in values if math.isfinite(value)]
+
+
+def _unit_conversion_evidence(requirement: str,
+                              selected: list[dict[str, Any]],
+                              tolerance: float) -> dict[str, Any]:
+    conversions = [
+        {
+            "raw": float(match.group(1)),
+            "unit": match.group(2),
+            "declared_factor": _mm(1.0, match.group(2)),
+            "internal_mm": float(match.group(1)) * _mm(1.0, match.group(2)),
+        }
+        for match in re.finditer(rf"({_NUMBER})\s*({_UNIT})", requirement,
+                                 re.IGNORECASE)
+    ]
+    actual = _measurement_values(selected, tolerance)
+    for conversion in conversions:
+        conversion["matched_measurement_mm"] = next(
+            (value for value in actual
+             if abs(value - conversion["internal_mm"]) <= tolerance),
+            None,
+        )
+    return {
+        "conversions": conversions,
+        "measurement_values_mm": actual,
+        "verified": bool(conversions)
+        and all(item["declared_factor"] > 0 for item in conversions)
+        and any(item["matched_measurement_mm"] is not None
+                for item in conversions),
+    }
+
+
+_PREDICATE_FACT_COVERAGE: dict[str, set[str]] = {
+    "source_object_exists": {"object_exists"},
+    "object_identity_binding": {"object_identity"},
+    "outline_width": {"dimension:width"},
+    "outline_height": {"dimension:height"},
+    "horizontal_arm_length": {"dimension:horizontal_arm_length"},
+    "horizontal_arm_width": {"dimension:horizontal_arm_width",
+                             "dimension:arm_width"},
+    "vertical_arm_height": {"dimension:vertical_arm_height"},
+    "vertical_arm_width": {"dimension:vertical_arm_width",
+                           "dimension:arm_width"},
+    "cross_arm_widths": {"dimension:horizontal_arm_width",
+                         "dimension:vertical_arm_width",
+                         "dimension:arm_width"},
+    "wall_thickness": {"dimension:wall_thickness"},
+    "outline_closure_and_continuity": {"closure", "continuity", "open"},
+    "all_named_outlines_closed": {"closure"},
+    "left_right_symmetry": {"symmetry"},
+    "widest_point_at_mid_height": {"widest_at_mid"},
+    "widest_at_mid_height": {"widest_at_mid"},
+    "horizontal_span": {"dimension:span"},
+    "amplitude": {"dimension:amplitude"},
+    "one_complete_period": {"period"},
+    "circle_radius": {"dimension:radius"},
+    "source_unit_honoured": {"unit"},
+    "source_unit_conversion": {"unit"},
+    "inner_concentric_with_outer": {"concentric"},
+    "line_endpoints_match_source": {"point:0", "point:1"},
+    "line_length": {"dimension:line_length"},
+    "circle_count": {"count"},
+    "source_object_count": {"count"},
+    "distinct_objects": {"distinct_objects"},
+    "not_merged": {"not_merged"},
+    "circle_centres_match_source": {"point:0", "point:1", "point:2",
+                                    "point:3", "point:4", "point:5"},
+    "multiple_centres_match_source": {"point:0", "point:1", "point:2",
+                                      "point:3", "point:4", "point:5"},
+    "radius_matches_source": {"dimension:radius"},
+    "common_radius": {"dimension:radius"},
+    "outer_radius": {"dimension:outer_radius", "dimension:radius"},
+    "inner_radius": {"dimension:inner_radius"},
+    "ring_topology": {"ring_topology"},
+    "holes_inside_outline": {"holes_inside"},
+    "one_circle_per_source_point": {"count:per_point"},
+    "inner_concentric": {"concentric"},
+    "arc_radius": {"dimension:radius"},
+    "arc_angular_span": {"arc_angles"},
+    "only_requested_primitive": {"only_requested"},
+    "line_start_matches_source": {"point:0"},
+    "line_end_matches_source": {"point:1"},
+    "line_length": {"dimension:line_length"},
+    "lower_left_matches_source": {"point:0"},
+    "centre_matches_source": {"point:0"},
+    "bottom_tip_matches_source": {"point:0"},
+    "start_point_matches_source": {"point:0"},
+    "source_unit_conversion": {"unit"},
+}
 
 
 def _check(name: str, passed: bool, *, expected: Any = None, actual: Any = None,
-           detail: Any = None) -> dict[str, Any]:
+           detail: Any = None,
+           covers: set[str] | list[str] | tuple[str, ...] | None = None
+           ) -> dict[str, Any]:
     return {
         "predicate": name,
         "status": "verified" if passed else "failed",
         "expected": expected,
         "actual": actual,
         "detail": detail,
+        "covers": sorted(set(covers or _PREDICATE_FACT_COVERAGE.get(name, set()))),
     }
 
 
 def _point_check(name: str, actual: tuple[float, float] | None,
-                 expected: tuple[float, float], tolerance: float) -> dict[str, Any]:
+                 expected: tuple[float, float], tolerance: float,
+                 covers: set[str] | None = None) -> dict[str, Any]:
     distance = math.dist(actual, expected) if actual is not None else None
     return _check(
         name,
@@ -341,6 +910,7 @@ def _point_check(name: str, actual: tuple[float, float] | None,
         expected=list(expected),
         actual=list(actual) if actual is not None else None,
         detail={"distance_mm": distance, "tolerance_mm": tolerance},
+        covers=covers,
     )
 
 
@@ -365,11 +935,13 @@ def _match_point_set(actual: list[tuple[float, float]],
 
 
 def _prove_points(requirement: str, selected: list[dict[str, Any]],
-                  tolerance: float) -> list[dict[str, Any]]:
+                  tolerance: float, source_text: str = "") -> list[dict[str, Any]]:
     checks: list[dict[str, Any]] = []
-    points = _points(requirement)
+    points = _points(requirement,
+                     _coordinate_factor(requirement, source_text))
     if not points:
         return checks
+    all_point_facts = {f"point:{index}" for index in range(len(points))}
     text = requirement
 
     if "圆心分别" in text or ("各" in text and "圆心" in text):
@@ -379,7 +951,8 @@ def _prove_points(requirement: str, selected: list[dict[str, Any]],
         checks.append(_check("circle_centres_match_source", passed,
                              expected=[list(point) for point in points],
                              actual=[list(point) for point in actual],
-                             detail={"distances_mm": distances}))
+                             detail={"distances_mm": distances},
+                             covers=all_point_facts))
         return checks
     if ("各放一个" in text or "各画一个" in text
             or ("和" in text and len(points) > 1 and "中心" in text)):
@@ -392,7 +965,8 @@ def _prove_points(requirement: str, selected: list[dict[str, Any]],
         checks.append(_check("multiple_centres_match_source", passed,
                              expected=[list(point) for point in points],
                              actual=[list(point) for point in actual],
-                             detail={"distances_mm": distances}))
+                             detail={"distances_mm": distances},
+                             covers=all_point_facts))
         return checks
     if "从" in text and "到" in text and len(points) >= 2:
         endpoints = []
@@ -407,7 +981,19 @@ def _prove_points(requirement: str, selected: list[dict[str, Any]],
         )
         checks.append(_check("line_endpoints_match_source", passed,
                              expected=[list(point) for point in points],
-                             actual=[[list(start), list(end)] for start, end in endpoints]))
+                             actual=[[list(start), list(end)] for start, end in endpoints],
+                             covers={f"point:{index}" for index in range(len(points))}))
+        if len(points) == 2:
+            expected_length = math.dist(points[0], points[1])
+            actual_lengths = [math.dist(start, end) for start, end in endpoints]
+            checks.append(_check(
+                "line_length",
+                bool(actual_lengths)
+                and all(abs(length - expected_length) <= tolerance
+                        for length in actual_lengths),
+                expected=expected_length,
+                actual=actual_lengths,
+            ))
         return checks
     if "开始" in text:
         outlines = [item for item in selected if item["kind"] == "outline"]
@@ -455,7 +1041,8 @@ def _prove_line(requirement: str, selected: list[dict[str, Any]],
                 tolerance: float, source_text: str = "") -> list[dict[str, Any]]:
     checks: list[dict[str, Any]] = []
     lines = [item for item in selected if item["kind"] == "line"]
-    points = _points(requirement) or _points(source_text)
+    points = _points(requirement, _coordinate_factor(requirement)) \
+        or _points(source_text, _coordinate_factor(requirement, source_text))
     if not lines or len(points) < 2:
         return checks
     line = lines[0]["geometries"][0]
@@ -556,35 +1143,44 @@ def _prove_outline(requirement: str, selected: list[dict[str, Any]],
                              expected=value, actual=measured["height_mm"]))
 
     arm_width = _length(requirement, "臂宽")
-    horizontal_width = _length(requirement, "水平臂[^，。；;]{0,6}宽")
-    vertical_width = _length(requirement, "竖直臂[^，。；;]{0,6}宽")
+    horizontal_width = _length(requirement, "水平臂[^，。；;]{0,20}宽")
+    vertical_width = _length(requirement, "竖直臂[^，。；;]{0,20}宽")
+    horizontal = _dominant_section_thickness(polygon, "x", tolerance)
+    vertical = _dominant_section_thickness(polygon, "y", tolerance)
     if horizontal_width is not None:
-        coordinate = bounds["min_x"] + 0.84 * (bounds["max_x"] - bounds["min_x"])
-        actual = _section_thickness(polygon, "x", coordinate)
-        checks.append(_check("horizontal_arm_width",
-                             actual is not None and abs(actual - horizontal_width) <= tolerance,
-                             expected=horizontal_width, actual=actual))
+        checks.append(_check(
+            "horizontal_arm_width",
+            horizontal is not None
+            and abs(horizontal["value"] - horizontal_width) <= tolerance,
+            expected=horizontal_width,
+            actual=horizontal["value"] if horizontal else None,
+            detail={"measurement": horizontal, "method": "dominant_stable_section"},
+        ))
     if vertical_width is not None:
-        coordinate = bounds["min_y"] + 0.68 * (bounds["max_y"] - bounds["min_y"])
-        actual = _section_thickness(polygon, "y", coordinate)
-        checks.append(_check("vertical_arm_width",
-                             actual is not None and abs(actual - vertical_width) <= tolerance,
-                             expected=vertical_width, actual=actual))
+        checks.append(_check(
+            "vertical_arm_width",
+            vertical is not None
+            and abs(vertical["value"] - vertical_width) <= tolerance,
+            expected=vertical_width,
+            actual=vertical["value"] if vertical else None,
+            detail={"measurement": vertical, "method": "dominant_stable_section"},
+        ))
 
     if "横臂和竖臂宽度" in requirement or "横竖臂宽" in requirement:
         value = _length(requirement, "宽度", "宽")
         if value is not None:
-            x_scan = bounds["min_x"] + 0.84 * (bounds["max_x"] - bounds["min_x"])
-            y_scan = bounds["min_y"] + 0.84 * (bounds["max_y"] - bounds["min_y"])
-            horizontal = _section_thickness(polygon, "x", x_scan)
-            vertical = _section_thickness(polygon, "y", y_scan)
             checks.append(_check(
                 "cross_arm_widths",
                 horizontal is not None and vertical is not None
-                and abs(horizontal - value) <= tolerance
-                and abs(vertical - value) <= tolerance,
+                and abs(horizontal["value"] - value) <= tolerance
+                and abs(vertical["value"] - value) <= tolerance,
                 expected=value,
-                actual={"horizontal_arm_mm": horizontal, "vertical_arm_mm": vertical},
+                actual={
+                    "horizontal_arm_mm": horizontal["value"] if horizontal else None,
+                    "vertical_arm_mm": vertical["value"] if vertical else None,
+                },
+                detail={"horizontal": horizontal, "vertical": vertical,
+                        "method": "dominant_stable_section"},
             ))
 
     if "壁厚" in requirement:
@@ -753,8 +1349,10 @@ def _prove_collection(requirement: str, selected: list[dict[str, Any]],
     expected_count = _count(requirement, "circle")
     if expected_count is not None and circles:
         checks.append(_check("circle_count", len(circles) == expected_count,
-                             expected=expected_count, actual=len(circles)))
-    if "分别成对象" in requirement or "独立的" in requirement:
+                             expected=expected_count, actual=len(circles),
+                             covers={"count"}))
+    if ("分别成对象" in requirement or "独立的" in requirement
+            or "不能粘" in requirement or "分开" in requirement):
         unique_objects = len({item["object_id"] for item in circles})
         unique_geometry = len({ref for item in circles for ref in item["geometry_ids"]})
         checks.append(_check(
@@ -762,6 +1360,7 @@ def _prove_collection(requirement: str, selected: list[dict[str, Any]],
             bool(circles) and unique_objects == len(circles) == unique_geometry,
             expected={"objects": len(circles), "one_geometry_each": True},
             actual={"objects": unique_objects, "geometries": unique_geometry},
+            covers={"distinct_objects", "not_merged"},
         ))
     if "不能粘成一条轮廓" in requirement:
         circle_refs = {ref for item in circles for ref in item["geometry_ids"]}
@@ -777,6 +1376,7 @@ def _prove_collection(requirement: str, selected: list[dict[str, Any]],
                         item["object_id"] for item in circles
                         if len(item["geometry_ids"]) != 1
                     ]},
+            covers={"not_merged"},
         ))
     return checks
 
@@ -794,26 +1394,36 @@ def prove_general_requirement_clause(
     if re.search(r"不要|不需要|无需|禁止|(?<!分)别|取消|删除|移除|去掉|修改|编辑|移动|旋转|缩放",
                  requirement):
         return None
+    # "新建图纸" is an operation, not a geometric object.  It is proved only by
+    # the project/write receipt path, never by finding an unrelated object.
+    if (re.search(r"新建|创建|生成", requirement)
+            and "图纸" in requirement
+            and not re.search(r"矩形|圆|弧|线|轮廓|外形|支架|板|孔", requirement)):
+        return None
 
-    selected = _select(requirement, inventory)
-    if "圆心" in requirement and "分别" not in requirement:
-        circles = [item for item in selected if item["kind"] == "circle"]
-        if len(circles) > 1:
-            selected = [max(circles, key=lambda item: item["geometries"][0]["radius_mm"])]
+    source_points = _points(requirement, _coordinate_factor(requirement, source_text))
+    selected = _select(requirement, inventory, points=source_points,
+                       tolerance=tolerance_mm)
     if re.search(r"每\s*" + _NUMBER + r"\s*度|第一个孔", requirement):
         bolts = _label_item(inventory, "螺栓孔")
         if bolts:
             selected = bolts
     if ("粘成" in requirement or "分别成对象" in requirement) and not selected:
         selected = [item for item in inventory if item["kind"] == "circle"]
-    if "左下角" in requirement or "壁厚" in requirement or "臂" in requirement:
+    if "壁厚" in requirement:
         outlines = [item for item in inventory if item["kind"] == "outline"]
-        if outlines:
+        if len(outlines) >= 2:
+            selected = outlines
+    elif "左下角" in requirement or "臂" in requirement:
+        outlines = [item for item in inventory if item["kind"] == "outline"]
+        if len(outlines) == 1:
             selected = outlines
     if not selected:
         return None
     if "左下角" in requirement and all(item["kind"] != "outline" for item in selected):
         selected = [item for item in inventory if item["kind"] == "outline"]
+    identity = _identity_evidence(requirement, inventory, selected,
+                                  source_points, tolerance_mm)
     checks: list[dict[str, Any]] = []
 
     # Object existence and source count are themselves atomic facts.  They are
@@ -830,12 +1440,23 @@ def prove_general_requirement_clause(
         else:
             checks.append(_check("source_object_exists", bool(selected), actual=len(selected)))
 
-    if re.search(r"单位\s*(?:为|是)?\s*(?:毫米|厘米|米|mm|cm|m)", requirement,
-                 re.IGNORECASE) and selected:
-        checks.append(_check("source_unit_honoured", True,
-                             expected="source unit", actual="internal_mm"))
-
-    checks.extend(_prove_points(requirement, selected, tolerance_mm))
+    if not identity["authoritative"]:
+        # A measurement against an ambiguously bound object is not evidence.
+        checks.append(_check(
+            "object_identity_binding", False,
+            expected="one source-authoritative object set",
+            actual=identity,
+            detail="对象身份存在歧义，不能作为强制事实证明",
+            covers={"object_identity"},
+        ))
+    else:
+        checks.append(_check(
+            "object_identity_binding", True,
+            expected="one source-authoritative object set",
+            actual=identity,
+            covers={"object_identity"},
+        ))
+    checks.extend(_prove_points(requirement, selected, tolerance_mm, source_text))
     checks.extend(_prove_line(requirement, selected, tolerance_mm, source_text))
     checks.extend(_prove_arc(requirement, selected, tolerance_mm))
     checks.extend(_prove_outline(requirement, selected, inventory, tolerance_mm))
@@ -885,7 +1506,8 @@ def prove_general_requirement_clause(
             checks.append(_check("common_radius",
                                  all(abs(radius - value) <= tolerance_mm
                                      for radius in radii),
-                                 expected=value, actual=radii))
+                                 expected=value, actual=radii,
+                                 covers={"dimension:radius", "common_radius"}))
 
     # "只画这段弧" means the delivered inventory contains no extra primitives.
     if "只画" in requirement:
@@ -919,13 +1541,15 @@ def prove_general_requirement_clause(
         if len(outlines) >= 2:
             outer_points = [tuple(point) for point in outlines[0]["geometries"][0]["points_mm"]]
             inner_points = [tuple(point) for point in outlines[1]["geometries"][0]["points_mm"]]
-            nested = _point_in_polygon(inner_points[0], outer_points)
+            nested = _polygon_contains(outer_points, inner_points, tolerance)
         checks.append(_check("ring_topology",
                              len(outlines) == 2
                              and all(item["geometries"][0].get("closed") is True
                                      for item in outlines)
                              and nested,
-                             actual={"outline_count": len(outlines), "nested": nested}))
+                             actual={"outline_count": len(outlines),
+                                     "nested": nested,
+                                     "method": "full_boundary_containment"}))
 
     # "安装孔/圆管口" must lie inside the named outline.
     if re.search(r"孔|管口", requirement) and "半径" in requirement:
@@ -934,12 +1558,18 @@ def prove_general_requirement_clause(
         if circles and outlines and ("安装孔" in requirement or "管口" in requirement):
             polygon = [tuple(point) for point in outlines[0]["geometries"][0]["points_mm"]]
             points_inside = [
-                _point_in_polygon(tuple(item["geometries"][0]["center_mm"]), polygon)
+                _circle_inside_polygon(
+                    tuple(item["geometries"][0]["center_mm"]),
+                    float(item["geometries"][0]["radius_mm"]),
+                    polygon,
+                    tolerance,
+                )
                 for item in circles
             ]
             checks.append(_check("holes_inside_outline",
                                  all(points_inside),
-                                 actual=points_inside))
+                                 actual=points_inside,
+                                 detail={"method": "full_circle_boundary"}))
 
     if "各放一个" in requirement or "各画一个" in requirement:
         circles = [item for item in selected if item["kind"] == "circle"]
@@ -948,8 +1578,33 @@ def prove_general_requirement_clause(
                                  len(circles) == len(_points(requirement)),
                                  expected=len(_points(requirement)), actual=len(circles)))
 
+    facts = _mandatory_facts(requirement, clause)
+    if "unit" in facts:
+        unit_evidence = _unit_conversion_evidence(requirement, selected, tolerance_mm)
+        checks.append(_check(
+            "source_unit_honoured",
+            unit_evidence["verified"],
+            expected="source value multiplied by its declared unit factor",
+            actual=unit_evidence["conversions"],
+            detail=unit_evidence,
+            covers={"unit"},
+        ))
+
     if not checks:
         return None
+    covered = {fact for check in checks for fact in check.get("covers") or []}
+    uncovered = sorted(fact for fact in facts if fact not in covered)
+    unmeasured = sorted(fact for fact, value in facts.items()
+                        if value.get("status") != "measured")
+    checks.append(_check(
+        "mandatory_fact_coverage",
+        not uncovered and not unmeasured,
+        expected=sorted(facts),
+        actual={"uncovered": uncovered, "unmeasured": unmeasured,
+                "covered": sorted(covered & set(facts))},
+        detail={"facts": facts},
+        covers=set(),
+    ))
     passed = all(check["status"] == "verified" for check in checks)
     objects = []
     seen = set()
@@ -1010,6 +1665,32 @@ def bind_atomic_coverage(
             continue
         requirement_text = str(clause.get("requirement") or "")
         predicates = {check["predicate"] for check in proof["checks"]}
+        # A count is an inventory proof only when every counted member is one
+        # unique object with one unique geometry.  A duplicated object or a
+        # shared geometry cannot clear an inventory unknown.
+        for check in proof["checks"]:
+            if check["predicate"] not in {"source_object_count", "circle_count"} \
+                    or check["status"] != "verified":
+                continue
+            object_ids = [item["logical_object_id"] for item in proof["objects"]]
+            geometry_ids = [ref for item in proof["objects"]
+                            for ref in item["geometry_ids"]]
+            unique = (
+                bool(object_ids)
+                and len(object_ids) == len(set(object_ids)) == check.get("actual")
+                and len(geometry_ids) == len(set(geometry_ids)) == check.get("actual")
+            )
+            if not unique:
+                check["status"] = "failed"
+                check["detail"] = {
+                    "reason": "count_proof_requires_unique_objects_and_geometries",
+                    "object_ids": object_ids,
+                    "geometry_ids": geometry_ids,
+                    "expected": check.get("actual"),
+                }
+        if any(check["predicate"] in {"source_object_count", "circle_count"}
+               and check["status"] != "verified" for check in proof["checks"]):
+            proof["status"] = "failed"
         if proof["status"] == "verified" and predicates <= {"source_object_exists"}:
             if (re.search(r"各|分别|每个|均布|每|三个|四个|两个|多个|数量",
                           requirement_text)
@@ -1020,6 +1701,13 @@ def bind_atomic_coverage(
                 # Existence alone cannot satisfy a quantitative, positional or
                 # collection clause.
                 continue
+        if proof["status"] == "verified" and clause.get("binding_failures"):
+            # The first pass measured this candidate against the same source
+            # fact and found a conflict.  A second, narrower predicate cannot
+            # overrule that conflict; record the atomic evidence but keep the
+            # clause blocked.
+            proof["status"] = "failed"
+            proof["first_pass_conflict"] = deepcopy(clause.get("binding_failures"))
         evidence = {
             "requirement_id": clause.get("requirement_id"),
             "verifier": "atomic_source_fact_binding",
@@ -1043,10 +1731,12 @@ def bind_atomic_coverage(
         previous_status = clause.get("status")
         previous_reason = clause.get("reason")
         previous_evidence = list(clause.get("evidence") or [])
-        if proof["status"] == "failed" and clause.get("status") == "partial":
-            # Keep the first-pass partial state; the failed measurement is
-            # still recorded in evidence and remains blocking.
-            clause["status"] = "partial"
+        if proof["status"] == "failed" and clause.get("status") in {"partial", "unbound"}:
+            # Keep the first-pass blocking state; the failed measurement is
+            # still recorded in evidence and remains blocking.  "unbound"
+            # specifically records that no uniquely typed candidate existed,
+            # which is the correct conclusion for a wrong-shape trial.
+            clause["status"] = clause.get("status")
         else:
             clause["status"] = proof["status"]
         if proof["status"] == "verified":
@@ -1057,14 +1747,23 @@ def bind_atomic_coverage(
             for check in proof["checks"]:
                 if check["predicate"] in {"source_object_count", "circle_count"} \
                         and check["status"] == "verified":
+                    category = (
+                        "circle" if "圆" in requirement_text
+                        else "arc" if re.search(r"圆弧|弧", requirement_text)
+                        else "outline" if re.search(r"轮廓|外形|外框", requirement_text)
+                        else None
+                    )
                     count_proofs.append({
+                        "source_requirement_id": clause.get("requirement_id"),
                         "requirement_id": clause.get("requirement_id"),
-                        "category": "circle" if "圆" in str(clause.get("requirement")) else None,
+                        "category": category,
                         "quantity": check.get("expected"),
                         "actual": check.get("actual"),
                         "object_ids": [item["logical_object_id"] for item in proof["objects"]],
                         "geometry_ids": [ref for item in proof["objects"]
                                          for ref in item["geometry_ids"]],
+                        "unique_objects": True,
+                        "unique_geometries": True,
                     })
             clause["resolved_unsupported_evidence"] = list(
                 clause.get("unsupported_evidence") or []

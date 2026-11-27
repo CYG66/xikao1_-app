@@ -25,7 +25,7 @@ from app.creative_projects import CreativeProjectStore  # noqa: E402
 from app.schemas import AgentChatRequest  # noqa: E402
 
 RUNS = Path(r"C:\Users\29924\Codes\xikao\cad_e2e_generalization_live_01\runs\GENERALIZATION-01")
-OUT = Path(r"C:\Users\29924\Codes\xikao\cad_core_generalization_integration_03\clarification_http.json")
+OUT = Path(r"C:\Users\29924\Codes\xikao\cad_core_generalization_close_04\clarification_http.json")
 
 FOLLOW_UP = {
     "Q01": "半径300毫米，相对左上角偏移500毫米、500毫米。",
@@ -116,6 +116,7 @@ def main() -> int:
     rows = [run(case) for case in ("Q01", "Q02", "Q03", "Q04")]
     payload = {
         "schema": "cad.integration-03.clarification-http.v1",
+        "evidence_level": "PRODUCTION_DETERMINISTIC_CLARIFICATION",
         "real_model_calls": 0,
         "route_injected_cases": ["Q03"],
         "cases": rows,

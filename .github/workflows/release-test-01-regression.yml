@@ -250,6 +250,8 @@ jobs:
           tests/test_cad_requirement_binding.py
           tests/test_cad_requirement_proof.py
           tests/test_cad_requirement_proof_generalization.py
+          tests/test_cad_atomic_requirement_proof.py
+          tests/test_cad_generalization_bridge.py
           tests/test_cad_construction_interpreter.py
           tests/test_cad_residual_repair.py
           tests/test_cad_residual_repair_offline_scenarios.py

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import json
 from typing import Any
 from collections.abc import Callable
 
@@ -464,6 +465,24 @@ def _candidate_interpretation(
     return candidate_interpretation
 
 
+def _inventory_proof_matches(entry: Any, proof: dict[str, Any]) -> bool:
+    """Whether one unknown entry belongs to this measured count proof."""
+    if not isinstance(proof, dict):
+        return False
+    category = str(proof.get("category") or "")
+    category_terms = {
+        "circle": ("圆", "circle", "孔"),
+        "outline": ("轮廓", "外形", "外框", "outline"),
+        "arc": ("弧", "arc"),
+    }.get(category, (category,) if category else ())
+    requirement_id = str(proof.get("source_requirement_id")
+                         or proof.get("requirement_id") or "")
+    text = entry if isinstance(entry, str) else json.dumps(entry, ensure_ascii=False)
+    if requirement_id and requirement_id in text:
+        return True
+    return any(term and term in text for term in category_terms)
+
+
 def _resolve_inventory_acceptance(source_acceptance: dict[str, Any],
                                   count_proofs: list[dict[str, Any]]) -> None:
     """Resolve inventory-only reports from measured count/identity proofs.
@@ -474,8 +493,18 @@ def _resolve_inventory_acceptance(source_acceptance: dict[str, Any],
     member is a distinct object, the reports can be rebuilt from that proof.
     Nothing is inferred for a category that has no proof.
     """
-    covered = [proof for proof in count_proofs
-               if proof.get("quantity") == proof.get("actual")]
+    covered = [
+        proof for proof in count_proofs
+        if proof.get("quantity") == proof.get("actual")
+        and proof.get("category")
+        and (proof.get("source_requirement_id") or proof.get("requirement_id"))
+        and proof.get("unique_objects") is True
+        and proof.get("unique_geometries") is True
+        and len(proof.get("object_ids") or []) == proof.get("actual")
+        and len(set(proof.get("object_ids") or [])) == len(proof.get("object_ids") or [])
+        and len(proof.get("geometry_ids") or []) == proof.get("actual")
+        and len(set(proof.get("geometry_ids") or [])) == len(proof.get("geometry_ids") or [])
+    ]
     if not covered:
         return
     count_report = source_acceptance.get("object_count_consistency_acceptance")
@@ -493,12 +522,22 @@ def _resolve_inventory_acceptance(source_acceptance: dict[str, Any],
             "status": "passed",
             "authority": "backend_measured_geometry",
         } for proof in covered]
-        updated["unknown_requirements"] = []
+        updated["unknown_requirements"] = [
+            entry for entry in updated.get("unknown_requirements") or []
+            if not any(_inventory_proof_matches(entry, proof) for proof in covered)
+        ]
+        remaining_entries = [
+            entry for entry in (updated.get("baseline") or {}).get("entries") or []
+            if not any(_inventory_proof_matches(entry, proof) for proof in covered)
+        ]
         updated["baseline"] = {
             **(updated.get("baseline") or {}),
-            "state": "complete",
-            "entries": [],
+            "state": "complete" if not remaining_entries else "partial",
+            "entries": remaining_entries,
         }
+        if updated["unknown_requirements"] or remaining_entries:
+            updated["status"] = "review_required"
+            updated["review_required"] = True
         updated["actual_object_count"] = sum(int(proof.get("actual") or 0)
                                              for proof in covered)
         updated["note"] = "对象数量由后端测量对象逐类对账。"
@@ -520,9 +559,24 @@ def _resolve_inventory_acceptance(source_acceptance: dict[str, Any],
             "status": "matched",
             "authority": "backend_measured_geometry",
         } for proof in covered]
-        updated["unmatched_entries"] = []
-        updated["unmatched_objects"] = []
-        updated["ambiguous_bindings"] = []
+        matched_object_ids = {
+            object_id for proof in covered for object_id in proof.get("object_ids") or []
+        }
+        updated["unmatched_entries"] = [
+            entry for entry in updated.get("unmatched_entries") or []
+            if not any(_inventory_proof_matches(entry, proof) for proof in covered)
+        ]
+        updated["unmatched_objects"] = [
+            obj for obj in updated.get("unmatched_objects") or []
+            if not (
+                isinstance(obj, dict)
+                and str(obj.get("object_id") or "") in matched_object_ids
+            )
+        ]
+        updated["ambiguous_bindings"] = [
+            entry for entry in updated.get("ambiguous_bindings") or []
+            if not any(_inventory_proof_matches(entry, proof) for proof in covered)
+        ]
         updated["checks"] = [{
             "kind": "object_identity",
             "requirement_id": proof.get("requirement_id"),
@@ -530,12 +584,25 @@ def _resolve_inventory_acceptance(source_acceptance: dict[str, Any],
             "object_count": len(proof.get("object_ids") or []),
             "geometry_count": len(proof.get("geometry_ids") or []),
         } for proof in covered]
-        updated["unknown_requirements"] = []
+        updated["unknown_requirements"] = [
+            entry for entry in updated.get("unknown_requirements") or []
+            if not any(_inventory_proof_matches(entry, proof) for proof in covered)
+        ]
+        remaining_entries = [
+            entry for entry in (updated.get("baseline") or {}).get("entries") or []
+            if not any(_inventory_proof_matches(entry, proof) for proof in covered)
+        ]
         updated["baseline"] = {
             **(updated.get("baseline") or {}),
-            "inventory_state": "complete",
-            "entries": [],
+            "inventory_state": "complete" if not remaining_entries else "partial",
+            "entries": remaining_entries,
         }
+        if (updated["unknown_requirements"] or remaining_entries
+                or updated["unmatched_entries"] or updated["unmatched_objects"]
+                or updated["ambiguous_bindings"]):
+            updated["status"] = "review_required"
+            updated["review_required"] = True
+            updated["identity_state"] = "partial"
         updated["note"] = "对象身份由独立对象与几何一一对应关系确认。"
         source_acceptance["object_identity_acceptance"] = updated
 
@@ -564,6 +631,28 @@ def _rebind_source_acceptance(
     coverage = source_acceptance.get("coverage_evidence")
     if not isinstance(coverage, dict):
         return
+    # Bindings are candidate-specific.  A base interpretation may already carry
+    # the recommended candidate's verified clauses; reusing them would lend one
+    # candidate's acceptance to another.  Reset only the proof state, keeping
+    # the source facts, and re-measure this candidate from scratch.
+    coverage = deepcopy(coverage)
+    coverage.pop("binding", None)
+    coverage["unresolved_fact_ids"] = []
+    for clause in coverage.get("clauses") or []:
+        if not isinstance(clause, dict):
+            continue
+        if clause.get("resolved_unsupported_evidence"):
+            clause["unsupported_evidence"] = deepcopy(
+                clause["resolved_unsupported_evidence"]
+            )
+        for key in ("binding", "evidence", "prior_status", "prior_reason",
+                    "prior_evidence", "resolved_unsupported_evidence",
+                    "binding_failures"):
+            clause.pop(key, None)
+        clause["status"] = "unverified"
+        clause["reason"] = "当前没有可用的独立验证能力"
+    source_acceptance = deepcopy(source_acceptance)
+    source_acceptance["coverage_evidence"] = coverage
     trial = candidate.get("trial_result") if isinstance(candidate, dict) else None
     trial = trial if isinstance(trial, dict) else {}
     plan = trial.get("plan") if isinstance(trial.get("plan"), dict) else interpretation.get("plan")
@@ -594,6 +683,11 @@ def _rebind_source_acceptance(
             for item in bound.get("clauses") or []
             if isinstance(item, dict) and item.get("requirement_id")
         }
+        bound_fact_ids = {
+            str(item)
+            for item in ((bound.get("binding") or {}).get("bound_fact_ids") or [])
+            if item
+        }
         remaining_unknown = []
         for item in source_acceptance.get("unknown_requirements") or []:
             if not isinstance(item, dict):
@@ -604,7 +698,7 @@ def _rebind_source_acceptance(
                 or item.get("requirement_id")
                 or ""
             )
-            if ref and ref in clause_ids:
+            if ref and (ref in clause_ids or ref in bound_fact_ids):
                 continue
             remaining_unknown.append(item)
         count_proofs = (
@@ -627,6 +721,10 @@ def _rebind_source_acceptance(
                         (proof.get("category") in (None, category))
                         and proof.get("quantity") == quantity
                         and proof.get("actual") == quantity
+                        and proof.get("unique_objects") is True
+                        and proof.get("unique_geometries") is True
+                        and (proof.get("source_requirement_id")
+                             or proof.get("requirement_id"))
                         for proof in count_proofs
                     ):
                         unmatched.append(entry)

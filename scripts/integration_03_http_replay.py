@@ -231,7 +231,9 @@ def main() -> int:
         result = run_case(case, use_frozen_plan=record is not None)
         results.append(result)
         print(json.dumps(result, ensure_ascii=False))
-    payload = {"schema": "cad.integration-03.http-replay.v1", "cases": results}
+    payload = {"schema": "cad.integration-03.http-replay.v1",
+               "evidence_level": "PRODUCTION_HANDLER_FROZEN_PLAN_REPLAY_PASS",
+               "real_model_calls": 0, "cases": results}
     (OUT / "http_replay.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
     )

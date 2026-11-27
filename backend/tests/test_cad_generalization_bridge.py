@@ -7,7 +7,25 @@ from app.cad_construction_interpreter import (
     clarify_construction_request,
     parse_rule_construction_plan,
 )
+from app.agent_service import RobotAgentService
 from app.conversation_memory import ConversationMemoryStore, is_explicit_new_creation
+
+
+def test_stair_request_first_question_is_its_missing_dimension() -> None:
+    clarification = clarify_construction_request(
+        "画一个三级台阶，每层都比下面一层往内收一点，整体比例协调就行。")
+    assert clarification["recognized_shape"] == "台阶"
+    assert clarification["question_key"] == "size"
+
+
+def test_relative_offset_followup_keeps_its_source_anchor() -> None:
+    placement = RobotAgentService._parse_placement_followup(
+        "半径300毫米，相对左上角偏移500毫米、500毫米。")
+    assert placement == {
+        "anchor": "左上角",
+        "offset_mm": [500.0, 500.0],
+        "source_text": "相对左上角偏移500毫米、500毫米",
+    }
 
 
 def test_explicit_new_creation_is_not_treated_as_history_reference() -> None:

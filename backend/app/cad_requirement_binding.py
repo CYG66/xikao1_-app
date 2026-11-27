@@ -88,6 +88,7 @@ def bind_construction_coverage(
     project_evidence: dict[str, Any] | None = None,
     tolerance_mm: float = _TOLERANCE_MM,
     source_text: str = "",
+    include_atomic: bool = True,
 ) -> dict[str, Any]:
     """Return coverage with only independently provable clauses promoted.
 
@@ -102,6 +103,9 @@ def bind_construction_coverage(
     geoms = [item for item in (geometries or []) if isinstance(item, dict)]
     steps = [item for item in (plan_steps or []) if isinstance(item, dict)]
     symbols = symbol_table if isinstance(symbol_table, dict) else {}
+    # Re-binding must re-measure every clause against the supplied trial.
+    # Carrying a previous pass's verified clauses over would let a correct
+    # earlier candidate vouch for a later, different candidate.
     bound_clause_ids: list[str] = []
     bound_fact_ids: list[str] = []
 
@@ -109,7 +113,30 @@ def bind_construction_coverage(
         if not isinstance(clause, dict):
             continue
         if clause.get("status") == "verified":
-            continue
+            # A previous pass may have promoted this clause from the same
+            # source facts.  Re-measure it against the current trial instead of
+            # inheriting the old verdict; restore the facts consumed by the
+            # earlier promotion so a changed candidate cannot pass on an empty
+            # fact list.  Facts appended after that promotion are kept too.
+            merged: list[dict[str, Any]] = []
+            seen_fact_ids: set[str] = set()
+            for item in ((clause.get("resolved_unsupported_evidence") or [])
+                         + (clause.get("unsupported_evidence") or [])):
+                if not isinstance(item, dict):
+                    continue
+                fact_id = str(item.get("requirement_id") or item.get("field") or "")
+                if fact_id and fact_id in seen_fact_ids:
+                    continue
+                if fact_id:
+                    seen_fact_ids.add(fact_id)
+                merged.append(deepcopy(item))
+            if merged:
+                clause["unsupported_evidence"] = merged
+            clause.pop("resolved_unsupported_evidence", None)
+            clause.pop("binding", None)
+            clause["evidence"] = []
+            clause["status"] = "unverified"
+            clause["reason"] = "等待按当前构造结果重新测量"
         requirement = str(clause.get("requirement") or "").strip()
         if not requirement:
             continue
@@ -136,8 +163,15 @@ def bind_construction_coverage(
             item for item in objects if _object_kind(item, geoms) == kind
         ]
         if not candidates:
+            _record_unbound(clause, "没有与要求类型一致的构造对象")
             continue
         if kind in {"heart", "outline"}:
+            if "臂" in requirement:
+                # Arm-width facts are section properties, not the overall
+                # bounding-box width.  The atomic pass measures them with the
+                # general section predicate; the first pass must not reject
+                # them against the overall width.
+                continue
             _bind_outline_clause(
                 clause, requirement, candidates, geoms, steps, symbols,
                 bound_clause_ids, bound_fact_ids, tolerance_mm,
@@ -156,19 +190,24 @@ def bind_construction_coverage(
             )
             continue
         if len(candidates) != 1:
+            _record_unbound(clause, "多个同类对象无法唯一绑定")
             continue
         obj = candidates[0]
         refs = [int(value) for value in (obj.get("geometry_refs") or []) if isinstance(value, int)]
         if not refs:
+            _record_unbound(clause, "对象没有可测量的几何引用")
             continue
         measured = [item for item in geoms if item.get("id") in refs]
         if len(measured) != len(refs):
+            _record_unbound(clause, "几何引用未能全部对应到实际测量")
             continue
         measurement = _measure_objects(measured)
         if measurement is None:
+            _record_unbound(clause, "无法测量该对象的几何尺寸")
             continue
         step_binding = _unique_step_binding(refs, steps, symbols, obj)
         if step_binding is None:
+            _record_unbound(clause, "无法唯一绑定构造步骤")
             continue
 
         facts = [item for item in (clause.get("unsupported_evidence") or [])
@@ -267,6 +306,9 @@ def bind_construction_coverage(
     }
     # Second pass: source-wide atomic facts (centres, collections, relations,
     # path constraints) that cannot be proved from a single shape word.
+    if not include_atomic:
+        _recompute(result)
+        return result
     from .cad_atomic_requirement_proof import bind_atomic_coverage
     result = bind_atomic_coverage(
         result,
@@ -340,6 +382,13 @@ def _record_unverified(clause: dict[str, Any], reason: str,
     clause.setdefault("binding_gap", {})
     if measurement:
         clause["binding_gap"] = deepcopy(measurement)
+
+
+def _record_unbound(clause: dict[str, Any], reason: str) -> None:
+    """No unique measured object can carry this clause's facts."""
+    clause["status"] = "unbound"
+    clause["reason"] = reason
+    clause.pop("binding", None)
 
 
 def _step_binding_for_object(obj: dict[str, Any], refs: list[int],
@@ -560,6 +609,13 @@ def _bind_outline_clause(
     if len(points) < 3:
         _record_unverified(clause, "轮廓顶点不足，无法测量整体属性")
         return
+    if re.search(r"矩形", requirement):
+        shape = rectangle_measure(geometry)
+        if shape.get("status") != "verified":
+            # Equal bounding extents do not make a triangle a rectangle.
+            # The clause names a type; a mismatched type cannot be bound.
+            _record_unbound(clause, "实际轮廓不是要求的矩形")
+            return
 
     facts = [item for item in (clause.get("unsupported_evidence") or [])
              if isinstance(item, dict)]

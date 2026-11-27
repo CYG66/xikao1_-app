@@ -71,7 +71,9 @@ def run(case: str, confirmation: str, restatement: str) -> dict:
 
 def main() -> int:
     rows = [run(case, *payload) for case, payload in CASES.items()]
-    OUT.write_text(json.dumps({"schema": "cad.integration03.b01-b02-protocol.v1", "real_model_calls": 0, "cases": rows}, ensure_ascii=False, indent=2), encoding="utf-8")
+    OUT.write_text(json.dumps({"schema": "cad.integration03.b01-b02-protocol.v1",
+        "evidence_level": "PRODUCTION_DETERMINISTIC_PATH_NO_FROZEN_PLAN",
+        "real_model_calls": 0, "cases": rows}, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(rows, ensure_ascii=False, indent=2))
     return 0
 

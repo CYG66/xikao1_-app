@@ -496,7 +496,10 @@ def collect_source_acceptance_residuals(
         if status == "failed" and context and detail:
             # A measured closure deviation is already a numeric failure.  Feed
             # the measured gap and its existing tolerance into the same
-            # residual path used by other measured dimensions.
+            # residual path used by other measured dimensions.  Continuity is
+            # an independent predicate on the same check, so it must be
+            # recorded separately instead of being skipped by an early return.
+            emitted_numeric = False
             gap = _finite(detail.get("endpoint_gap_mm"))
             gap_tolerance = _finite(detail.get("tolerance_mm"))
             if gap is not None and gap_tolerance is not None:
@@ -505,6 +508,19 @@ def collect_source_acceptance_residuals(
                     expected=0.0, measured=gap, tolerance=gap_tolerance,
                     unit="mm", reason=str(check.get("reason") or "closure_gap_exceeds_tolerance"),
                     **common))
+                emitted_numeric = True
+            if detail.get("continuity_status") == "failed":
+                max_turn = _finite(detail.get("max_smooth_turn_deg"))
+                angle_limit = _finite(detail.get("smooth_angle_tolerance_deg"))
+                if max_turn is not None and angle_limit is not None:
+                    records.append(numeric_residual(
+                        requirement_id=requirement_id, predicate="smoothness_gap",
+                        expected=angle_limit, measured=max_turn, tolerance=0.0,
+                        unit="deg",
+                        reason=str(check.get("reason") or "smoothness_exceeds_angle_limit"),
+                        **common))
+                    emitted_numeric = True
+            if emitted_numeric:
                 continue
         if status in {"unverified", "review_required", "partial"}:
             records.append(unverifiable_residual(

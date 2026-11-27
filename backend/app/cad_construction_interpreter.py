@@ -226,7 +226,7 @@ def clarify_construction_request(source_text: str) -> dict[str, Any]:
     shape = next((name for name in (
         "爱心", "心形", "矩形", "长方形", "正方形", "圆", "椭圆",
         "圆弧", "弧线", "样条", "贝塞尔", "多边形", "轮廓", "曲线",
-        "线段", "折线",
+        "线段", "折线", "台阶", "踏步", "楼梯",
     ) if name in lowered), None)
     if shape is None:
         from .cad_creation_intent import local_creation_objects
@@ -1136,6 +1136,26 @@ def interpret_construction_request(
             from .cad_source_acceptance import build_requirement_coverage_evidence
             coverage_evidence = build_requirement_coverage_evidence(
                 original_requirement, source_acceptance)
+            # Bind independent atomic facts before the repair decision.  The
+            # commit path rebinds on persisted candidates, but the repair loop
+            # runs earlier; without this call a measured closure or smoothness
+            # failure would not exist yet when should_repair() is evaluated.
+            from .cad_requirement_binding import bind_construction_coverage
+            plan_snapshot = plan.model_dump(mode="json") if hasattr(plan, "model_dump") else {}
+            coverage_evidence = bind_construction_coverage(
+                coverage_evidence,
+                logical_objects=list(result.get("logical_objects") or []),
+                geometries=list(result.get("geometries") or []),
+                plan_steps=list(plan_snapshot.get("steps") or []),
+                symbol_table=(result.get("symbol_table")
+                              if isinstance(result.get("symbol_table"), dict) else {}),
+                source_text=original_requirement,
+                # The trial pass only needs first-pass measured predicates to
+                # expose numeric residuals before the repair decision.  Atomic
+                # source-wide facts are bound again at commit time, where the
+                # persisted project evidence exists.
+                include_atomic=False,
+            )
             source_acceptance['coverage_evidence'] = coverage_evidence
             if coverage_evidence.get('state') == 'complete':
                 source_acceptance['status'] = 'passed'

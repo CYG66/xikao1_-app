@@ -147,7 +147,9 @@ def run(case: str) -> dict[str, Any]:
 
 def main() -> int:
     rows = [run(case) for case in CASES]
-    OUT.write_text(json.dumps({"schema": "cad.integration03.five-case-http.v1", "real_model_calls": 0, "cases": rows}, ensure_ascii=False, indent=2), encoding="utf-8")
+    OUT.write_text(json.dumps({"schema": "cad.integration03.five-case-http.v1",
+        "evidence_level": "PRODUCTION_HANDLER_FROZEN_PLAN_REPLAY_PASS",
+        "real_model_calls": 0, "cases": rows}, ensure_ascii=False, indent=2), encoding="utf-8")
     for row in rows:
         print(row["case"], row["http_ok"], row["replay_acceptance"], row["stored_acceptance"], row["hash_equal"], row["message"][:60])
     return 0

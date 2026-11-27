@@ -35,8 +35,28 @@ def recovery_category(result):
 
 
 def should_repair(result):
-    return (result.get('status')=='invalid' and bool(result.get('provider_attempted'))
-            and recovery_category(result) in {'model_plan_invalid','constraint_conflict','sampling_budget'})
+    """Whether an executed result has a repairable, source-measured failure.
+
+    A ``ready`` trial can still fail independent acceptance without being a
+    construction error (for example a measured closure gap).  Such a result is
+    repairable only when the residual vector carries a failing numeric residual
+    with an existing repair scope.  Missing parameters, unverifiable claims and
+    transport/persistence errors never enter this gate.
+    """
+    if not bool(result.get('provider_attempted')):
+        return False
+    residual = result.get('residual_vector')
+    numeric_failure = bool(
+        isinstance(residual, dict)
+        and int(residual.get('failing_numeric_count') or 0) > 0
+        and bool(residual.get('repair_targets'))
+    )
+    if result.get('status') == 'ready':
+        acceptance = result.get('acceptance_summary') or {}
+        return numeric_failure and acceptance.get('status') != 'passed'
+    return (result.get('status') == 'invalid'
+            and recovery_category(result) in
+            {'model_plan_invalid', 'constraint_conflict', 'sampling_budget'})
 
 
 def bounded_repair_available(attempts, max_repairs=2):

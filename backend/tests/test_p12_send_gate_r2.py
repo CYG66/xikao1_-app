@@ -24,8 +24,13 @@ from app.eval_request_guard import (
 )
 from app.model_providers import ModelProviderAdapter
 from app.model_request_gateway import request_openai_responses_json
+from tests.manual import eval_budget_store
 from tests.manual.eval_budget_store import BudgetLedger, EvaluationBudgetStop
 from tests.manual.p01_admission import install_baseline_admission
+from tests.manual.retest_02_budget_admission import (
+    profile_values,
+    retest_02_budget_env,
+)
 
 
 ROUTE = {
@@ -673,16 +678,24 @@ def test_r2_2_production_chat_truncation_still_fails(service, monkeypatch, tmp_p
 
 
 def _retest_ledger(monkeypatch, tmp_path, **limits):
-    defaults = {
-        "P12_MAX_REQUESTS": "36",
-        "P12_MAX_INPUT_TOKENS": "600000",
-        "P12_MAX_OUTPUT_TOKENS": "60000",
-        "P12_MAX_COST_USD": "0.55",
-    }
-    defaults.update(limits)
+    defaults = retest_02_budget_env()
+    defaults.update({key: str(value) for key, value in limits.items()})
     for key, value in defaults.items():
         monkeypatch.setenv(key, str(value))
     return BudgetLedger(tmp_path / "budget.json")
+
+
+def test_r2_2_retest_runner_profile_is_canonical():
+    env = retest_02_budget_env()
+    assert env["P12_MAX_INPUT_TOKENS"] == "600000"
+    assert env["P12_BASELINE_REQUEST_INPUT_CAP"] == "1048576"
+    assert env["P12_MAX_COST_USD"] == "0.55"
+    assert env["P12_INPUT_PRICE_PER_M"] == "0.3"
+    assert env["P12_OUTPUT_PRICE_PER_M"] == "1.2"
+    values = profile_values()
+    assert values["theoretical_worst_case_usd"] == pytest.approx(0.5215728)
+    with pytest.raises(ValueError, match="retest_02_budget_profile_mismatch"):
+        retest_02_budget_env(cost_usd=0.56)
 
 
 def test_r2_2_retest_local_cumulative_input_600k_is_enforced(monkeypatch, tmp_path):
@@ -737,6 +750,14 @@ def test_r2_2_retest_cost_cap_055_is_enforced(monkeypatch, tmp_path):
         P12_MAX_INPUT_TOKENS="2000000",
         P12_MAX_COST_USD="0.55",
     )
+    # Exercise the runner's official prices, not the ledger's conservative
+    # defaults.  The single-request reservation is 0.3865728 USD; the already
+    # consumed 0.20 USD pushes the cumulative estimate over the 0.55 cap.
+    monkeypatch.setattr(eval_budget_store, "INPUT_PRICE_PER_M", 0.30)
+    monkeypatch.setattr(eval_budget_store, "OUTPUT_PRICE_PER_M", 1.20)
+    data = budget._read()
+    data["used"]["cost_usd"] = 0.20
+    budget._write(data)
     guarded = install_baseline_admission(
         budget,
         actual_input_stop=0,
@@ -753,7 +774,8 @@ def test_r2_2_retest_cost_cap_055_is_enforced(monkeypatch, tmp_path):
         )
     event = budget.snapshot()["events"][-1]
     assert event["event"] == "reserve_rejected"
-    assert event["requested"]["cost_usd"] > 0.55
+    assert event["requested"]["cost_usd"] == pytest.approx(0.3865728)
+    assert event["used"]["cost_usd"] + event["requested"]["cost_usd"] > 0.55
 
 
 def teardown_function():

@@ -196,6 +196,8 @@ def test_r2_legal_complete_sse_settles(entry, service, monkeypatch, tmp_path):
     assert snapshot["stopped"] is False
     settled = next(item for item in snapshot["events"] if item["event"] == "settled")
     assert settled["cost_class"] == "authorized_model_estimate"
+    assert settled["cost_status"] == "settled"
+    assert settled["usage_final"] is True
     assert settled["http_status"] == 200
 
 
@@ -333,7 +335,13 @@ def test_r2_timeout_after_status_preserves_status_and_usage(entry, service, monk
     event = next(item for item in snapshot["events"] if item["event"] == "settle_unknown_stop")
     assert event["http_status"] == 200
     assert event["usage"] == {"prompt_tokens": 2, "completion_tokens": 1}
-    assert event["cost_class"] == "authorized_model_estimate"
+    # Hotfix: partial usage from an aborted stream is observed evidence, not a
+    # final bill.  The full reservation must remain an unconfirmed upper bound.
+    assert event["cost_class"] == "unconfirmed_upper_bound"
+    assert event["cost_status"] == "observed_not_final"
+    assert event["usage_final"] is False
+    assert event["unconfirmed_cost_upper_bound_usd"] >= event["reservation"]["cost_usd"]
+    assert snapshot["used"]["requests"] == 1
 
 
 @pytest.mark.parametrize("entry", ["structured", "chat"])
@@ -358,7 +366,13 @@ def test_r2_usage_then_eof_preserves_usage(entry, service, monkeypatch, tmp_path
     snapshot = assert_stopped(ledger, "settle_unknown_stop")
     event = next(item for item in snapshot["events"] if item["event"] == "settle_unknown_stop")
     assert event["usage"] == {"prompt_tokens": 2, "completion_tokens": 1}
-    assert event["cost_class"] == "authorized_model_estimate"
+    # Hotfix: EOF before DONE is incomplete; valid-looking usage must not
+    # release the reservation.
+    assert event["cost_class"] == "unconfirmed_upper_bound"
+    assert event["cost_status"] == "observed_not_final"
+    assert event["usage_final"] is False
+    assert event["unconfirmed_cost_upper_bound_usd"] >= event["reservation"]["cost_usd"]
+    assert snapshot["used"]["requests"] == 1
 
 
 @pytest.mark.parametrize("entry", ["structured", "chat"])
@@ -609,8 +623,65 @@ def test_r2_2_audit_writer_failure_settles_and_closes(phase, tmp_path):
     call = reservation.ledger.calls[0]
     assert call["request_id"] == reservation.request_id
     assert call["http_status"] == 200
-    assert call["response"] == {"model": "deepseek-flash"}
+    # Hotfix: the response body was never parsed.  The request model is kept
+    # separately; it must not be inferred as the actual response model.
+    assert call["response"] == {
+        "model": None,
+        "request_model": "deepseek-flash",
+    }
     assert call["error"]
+
+
+def test_r2_3_audit_failure_keeps_response_model_unknown(tmp_path):
+    """The audit failure path must not turn the request model into a response."""
+    audit = _load_raw_http_audit()
+    ledger = BudgetLedger(tmp_path / "budget.json")
+    reservation_data = ledger.reserve(
+        run_id="r",
+        case_id="c",
+        request_id="req-audit-ledger",
+        payload=body(),
+        max_output_tokens=10,
+        expected_model="deepseek-flash",
+        input_token_upper_bound=100,
+    )
+
+    class Reservation:
+        request_id = "req-audit-ledger"
+
+        def __init__(self):
+            self.ledger = ledger
+            self.settled = False
+
+    reservation = Reservation()
+    raw_dir = tmp_path / "raw-http"
+    raw_dir.mkdir()
+    (raw_dir / f"{reservation.request_id}.meta.json").mkdir()
+    response = _AuditResponse(reservation)
+    connection = _AuditConnection()
+
+    wrapper = audit.build_audited_stream_response(
+        lambda *args, **kwargs: (connection, response),
+        raw_dir=raw_dir,
+        root=tmp_path,
+        request={"step": 1},
+    )
+    with pytest.raises(OSError):
+        wrapper({"model": "deepseek-flash"})
+    snapshot = ledger.snapshot()
+    event = next(
+        item for item in snapshot["events"] if item["event"] == "settle_unknown_stop"
+    )
+    assert event["model"] is None
+    assert event["request_model"] == "deepseek-flash"
+    assert event["cost_class"] == "unconfirmed_upper_bound"
+    assert (
+        event["unconfirmed_cost_upper_bound_usd"]
+        >= reservation_data["cost_usd"]
+    )
+    assert snapshot["used"]["requests"] == 1
+    assert response.closed is True
+    assert connection.closed is True
 
 
 def test_r2_2_audit_persistence_failure_stays_fail_closed(tmp_path):

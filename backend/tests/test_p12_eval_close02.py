@@ -143,7 +143,11 @@ def test_t09_model_mismatch_keeps_request_usage_and_cost(tmp_path, monkeypatch):
     with pytest.raises(ModelAuthorizationError):
         settle_eval_response(
             reservation,
-            {"model": "deepseek-chat", "usage": {"prompt_tokens": 100, "completion_tokens": 10}},
+            {
+                "model": "deepseek-chat",
+                "choices": [{"finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 100, "completion_tokens": 10},
+            },
             http_status=200,
         )
     snapshot = ledger.snapshot()
@@ -152,8 +156,11 @@ def test_t09_model_mismatch_keeps_request_usage_and_cost(tmp_path, monkeypatch):
     assert snapshot["used"]["output_tokens"] == 10
     assert snapshot["used"]["cost_usd"] > 0
     event = next(e for e in snapshot["events"] if e["event"] == "model_mismatch_stop")
+    # A complete response from a non-authorized model is still settled, but its
+    # unknown pricing is reserved at no less than the full request reservation.
     assert event["cost_status"] == "settled"
     assert event["cost_class"] == "unauthorized_model_upper_bound"
+    assert event["unconfirmed_cost_upper_bound_usd"] >= event["reservation"]["cost_usd"]
     assert event["http_status_status"] == "known"
     assert event["supplier_invoice_verified"] is False
     assert event["reservation"]["input_tokens"] > 0

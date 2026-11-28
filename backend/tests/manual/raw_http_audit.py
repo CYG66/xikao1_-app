@@ -123,7 +123,13 @@ def build_audited_stream_response(
                     reservation,
                     error,
                     http_status=status,
-                    response={"model": payload.get("model")},
+                    # The response body has not been parsed yet.  Keep the
+                    # request model separately and never infer an actual
+                    # response model from it.
+                    response={
+                        "model": None,
+                        "request_model": payload.get("model"),
+                    },
                 )
             except Exception as exc:  # persistence failure wins
                 settle_error = exc

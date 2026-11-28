@@ -190,13 +190,26 @@ class BudgetLedger:
             if usage_events is None and usage is not None:
                 usage_events=[usage]
             model=response.get('model')
+            request_model=response.get('request_model')
             choices=response.get('choices') or []
             finish=(choices[0].get('finish_reason') if choices and isinstance(choices[0],dict) else None)
+            # A settled, billable response must be complete: no transport or
+            # provider error, an observed HTTP status, valid usage, a response
+            # model, and a terminal finish_reason.  A partial stream can carry
+            # valid-looking usage before it dies; that usage is evidence, not a
+            # final bill.
+            inp,out,usage_status=_usage_tokens(usage)
+            response_complete=bool(
+                error is None
+                and http_status is not None
+                and usage_status=='known'
+                and model is not None
+                and finish is not None
+            )
             # A send attempt always consumes a request slot, including failed
             # or unverifiable attempts.  This prevents retry/failure bypasses.
             d['used'].setdefault('unconfirmed_cost_upper_bound_usd',0.0)
             d['used']['requests']+=1
-            inp,out,usage_status=_usage_tokens(usage)
             reserved_cost=float(reservation.get('cost_usd') or 0.0)
             usage_cost=_price(inp,out) if usage_status=='known' else None
             model_text=str(model) if model is not None else None
@@ -214,23 +227,40 @@ class BudgetLedger:
             # invoice; an unauthorized/unlabelled response is accounted at the
             # full reservation upper bound instead of being treated as a
             # verified actual bill.
-            if usage_status=='known' and model_authorized:
+            if response_complete and model_authorized:
                 cost=usage_cost
                 cost_class='authorized_model_estimate'
             elif usage_status=='known' and model_unauthorized:
+                # A response from a non-authorized model may have unknown
+                # pricing.  Keep at least the full reservation, even if the
+                # response is complete.
                 cost=max(usage_cost or 0.0, reserved_cost)
                 cost_class='unauthorized_model_upper_bound'
+            elif usage_status=='known':
+                # Partial usage from an aborted/incomplete response must not
+                # release the reservation.  Reserve the larger of the original
+                # reservation and the observed usage estimate.
+                cost=max(usage_cost or 0.0, reserved_cost)
+                cost_class='unconfirmed_upper_bound'
             else:
                 cost=reserved_cost
                 cost_class='unconfirmed_upper_bound'
             d['used']['cost_usd']+=cost
             if cost_class!='authorized_model_estimate':
                 d['used']['unconfirmed_cost_upper_bound_usd']+=cost
-            cost_status='settled' if usage_status=='known' else 'unverifiable'
+            if response_complete:
+                cost_status='settled'
+            elif usage_status=='known':
+                cost_status='observed_not_final'
+            else:
+                cost_status='unverifiable'
             cost_evidence={
                 'cost_status':cost_status,
                 'cost_class':cost_class,
                 'cost_basis':'authorized_model_list_price',
+                'observed_cost_usd':usage_cost,
+                'usage_final':response_complete,
+                'request_model':request_model,
                 'unconfirmed_cost_upper_bound_usd':(
                     cost if cost_class!='authorized_model_estimate' else 0.0
                 ),

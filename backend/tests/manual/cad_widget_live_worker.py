@@ -79,7 +79,7 @@ if budget_path:
     # CAD-E2E-LIVE-BASELINE-01 adds the two P01 admission conditions that are
     # not expressible through the ledger's aggregate limit alone:
     #   1) stop before the next send once actual cumulative input reaches the
-    #      authorized 300,000-token stop threshold;
+    #      configured baseline stop threshold;
     #   2) reject any single-send input reservation above 1,048,576 tokens.
     # Both are stricter checks in front of the same BudgetLedger.reserve() and
     # never bypass the guard.  Disabled unless the baseline env is present.
@@ -142,49 +142,16 @@ else:
         # path that does not pass through _deepseek_request.  The worker must
         # retain the exact bytes and request id so a settled ledger event can
         # always be matched to its original provider response.
-        import uuid as _uuid
+        from raw_http_audit import build_audited_stream_response
         raw_dir = root / 'raw-http'
         raw_dir.mkdir(exist_ok=True)
         original_stream_response = service._deepseek_response
-        def audited_stream_response(*args, **kwargs):
-            connection, response = original_stream_response(*args, **kwargs)
-            reservation = getattr(response, '_p12_eval_reservation', None)
-            request_id = getattr(reservation, 'request_id', None) or f'unknown-{_uuid.uuid4()}'
-            raw_path = raw_dir / f'{request_id}.http'
-            meta_path = raw_dir / f'{request_id}.meta.json'
-            class _RawAuditResponse:
-                def __init__(self, inner, path):
-                    self._inner = inner
-                    self._path = path
-                    self.status = getattr(inner, 'status', None)
-                    self._p12_eval_reservation = getattr(inner, '_p12_eval_reservation', None)
-                def readline(self, *a, **kw):
-                    data = self._inner.readline(*a, **kw)
-                    if data:
-                        with self._path.open('ab') as fh: fh.write(data)
-                    return data
-                def read(self, *a, **kw):
-                    data = self._inner.read(*a, **kw)
-                    if data:
-                        with self._path.open('ab') as fh: fh.write(data)
-                    return data
-                def __getattr__(self, name):
-                    return getattr(self._inner, name)
-            meta_path.write_text(json.dumps({
-                'schema': 'cad-e2e-retest-02.raw-http.v1',
-                'request_id': request_id,
-                'case_id': os.getenv('P12_EVAL_CASE_ID'),
-                'step': request.get('step'),
-                'status': getattr(response, 'status', None),
-                'payload_model': ((args[0] if args else kwargs.get('payload') or {}) or {}).get('model'),
-                'path': str(raw_path),
-            }, ensure_ascii=False, indent=2), encoding='utf-8')
-            with (root / 'model-http-index.jsonl').open('a', encoding='utf-8') as fh:
-                fh.write(json.dumps({'request_id': request_id, 'case_id': os.getenv('P12_EVAL_CASE_ID'),
-                                     'step': request.get('step'), 'status': getattr(response, 'status', None),
-                                     'raw_path': str(raw_path)}, ensure_ascii=False) + '\n')
-            return connection, _RawAuditResponse(response, raw_path)
-        service._deepseek_response = audited_stream_response
+        service._deepseek_response = build_audited_stream_response(
+            original_stream_response,
+            raw_dir=raw_dir,
+            root=root,
+            request=request,
+        )
         # Observation-only wrapper for the real baseline evidence.  It never
         # changes the request or response and logs after the guard has already
         # validated the provider-returned model and settled the usage.

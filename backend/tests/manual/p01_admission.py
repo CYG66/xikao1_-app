@@ -20,7 +20,15 @@ def install_baseline_admission(
     disables that individual check, preserving the earlier behaviour.
     """
     from app.eval_token_bound import input_token_upper_bound
-    from eval_budget_store import EvaluationBudgetStop
+    # Use the exception class from the ledger's own module.  The worker loads
+    # ``eval_budget_store`` top-level while pytest loads
+    # ``tests.manual.eval_budget_store``; importing a fixed spelling would
+    # raise a different class that callers cannot catch.
+    import importlib
+
+    stop_cls = importlib.import_module(
+        type(budget).__module__
+    ).EvaluationBudgetStop
 
     original_reserve = budget.reserve
 
@@ -33,7 +41,7 @@ def install_baseline_admission(
                 f"baseline_actual_input_stop_reached:{actual_input}>="
                 f"{actual_input_stop}"
             )
-            raise EvaluationBudgetStop("baseline_actual_input_stop_reached")
+            raise stop_cls("baseline_actual_input_stop_reached")
         reserved_input = kwargs.get("input_token_upper_bound")
         if reserved_input is None:
             reserved_input = input_token_upper_bound(
@@ -45,7 +53,7 @@ def install_baseline_admission(
                 f"baseline_request_input_reservation_exceeds_cap:"
                 f"{reserved_input}>{request_input_cap}"
             )
-            raise EvaluationBudgetStop(
+            raise stop_cls(
                 "baseline_request_input_reservation_exceeds_cap"
             )
         return original_reserve(*args, **kwargs)

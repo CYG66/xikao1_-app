@@ -7,8 +7,10 @@ provider request is sent.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import urllib.request
+from pathlib import Path
 
 import pytest
 
@@ -23,6 +25,7 @@ from app.eval_request_guard import (
 from app.model_providers import ModelProviderAdapter
 from app.model_request_gateway import request_openai_responses_json
 from tests.manual.eval_budget_store import BudgetLedger, EvaluationBudgetStop
+from tests.manual.p01_admission import install_baseline_admission
 
 
 ROUTE = {
@@ -464,6 +467,293 @@ def test_r2_gateway_json_error_preserves_known_status(service, monkeypatch, tmp_
     assert event["http_status"] == 200
     assert event["http_status_status"] == "known"
     assert event["unconfirmed_cost_upper_bound_usd"] > 0
+
+
+@pytest.mark.parametrize("entry", ["structured", "chat"])
+def test_r2_2_prior_usage_survives_unauthorized_model(entry, service, monkeypatch, tmp_path):
+    ledger = eval_env(monkeypatch, tmp_path)
+    install(
+        service,
+        FakeResponse(
+            None,
+            [
+                event_line(usage={"prompt_tokens": 2, "completion_tokens": 1}),
+                event_line(model="deepseek-chat", usage=None),
+                DONE,
+            ],
+        ),
+    )
+    with pytest.raises(ModelAuthorizationError):
+        run_structured(service) if entry == "structured" else run_chat(service)
+    snapshot = assert_stopped(ledger, "model_mismatch_stop")
+    event = next(item for item in snapshot["events"] if item["event"] == "model_mismatch_stop")
+    assert event["actual_model"] == "deepseek-chat"
+    assert event["usage"] == {"prompt_tokens": 2, "completion_tokens": 1}
+    assert event["usage_events"] == [{"prompt_tokens": 2, "completion_tokens": 1}]
+    assert event["usage_events_count"] == 1
+    assert event["cost_class"] == "unauthorized_model_upper_bound"
+    assert event["unconfirmed_cost_upper_bound_usd"] > 0
+
+
+@pytest.mark.parametrize("entry", ["structured", "chat"])
+def test_r2_2_unauthorized_event_usage_is_preserved(entry, service, monkeypatch, tmp_path):
+    ledger = eval_env(monkeypatch, tmp_path)
+    install(
+        service,
+        FakeResponse(
+            None,
+            [
+                event_line(usage={"prompt_tokens": 2, "completion_tokens": 1}),
+                event_line(
+                    model="deepseek-chat",
+                    usage={"prompt_tokens": 7, "completion_tokens": 3},
+                ),
+                DONE,
+            ],
+        ),
+    )
+    with pytest.raises(ModelAuthorizationError):
+        run_structured(service) if entry == "structured" else run_chat(service)
+    snapshot = assert_stopped(ledger, "model_mismatch_stop")
+    event = next(item for item in snapshot["events"] if item["event"] == "model_mismatch_stop")
+    assert event["usage"] == {"prompt_tokens": 7, "completion_tokens": 3}
+    assert event["usage_events"] == [
+        {"prompt_tokens": 2, "completion_tokens": 1},
+        {"prompt_tokens": 7, "completion_tokens": 3},
+    ]
+    assert event["usage_events_count"] == 2
+    assert event["cost_class"] == "unauthorized_model_upper_bound"
+
+
+class _AuditLedger:
+    def __init__(self):
+        self.calls = []
+
+    def stop_unknown(self, request_id, error, http_status=None, response=None):
+        self.calls.append(
+            {
+                "request_id": request_id,
+                "error": str(error),
+                "http_status": http_status,
+                "response": response,
+            }
+        )
+
+
+class _AuditReservation:
+    request_id = "req-audit-write"
+
+    def __init__(self):
+        self.ledger = _AuditLedger()
+        self.settled = False
+
+
+class _AuditResponse:
+    status = 200
+
+    def __init__(self, reservation):
+        self._p12_eval_reservation = reservation
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
+class _AuditConnection:
+    def __init__(self):
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
+def _load_raw_http_audit():
+    path = Path(__file__).resolve().parent / "manual" / "raw_http_audit.py"
+    spec = importlib.util.spec_from_file_location("raw_http_audit_test", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize("phase", ["metadata", "index"])
+def test_r2_2_audit_writer_failure_settles_and_closes(phase, tmp_path):
+    audit = _load_raw_http_audit()
+    raw_dir = tmp_path / "raw-http"
+    raw_dir.mkdir()
+    reservation = _AuditReservation()
+    response = _AuditResponse(reservation)
+    connection = _AuditConnection()
+    if phase == "metadata":
+        (raw_dir / f"{reservation.request_id}.meta.json").mkdir()
+    else:
+        (tmp_path / "model-http-index.jsonl").mkdir()
+    original = lambda *args, **kwargs: (connection, response)
+    wrapper = audit.build_audited_stream_response(
+        original,
+        raw_dir=raw_dir,
+        root=tmp_path,
+        request={"step": 1},
+    )
+    with pytest.raises(OSError):
+        wrapper({"model": "deepseek-flash"})
+    assert reservation.settled is True
+    assert response.closed is True
+    assert connection.closed is True
+    assert len(reservation.ledger.calls) == 1
+    call = reservation.ledger.calls[0]
+    assert call["request_id"] == reservation.request_id
+    assert call["http_status"] == 200
+    assert call["response"] == {"model": "deepseek-flash"}
+    assert call["error"]
+
+
+def test_r2_2_audit_persistence_failure_stays_fail_closed(tmp_path):
+    audit = _load_raw_http_audit()
+    raw_dir = tmp_path / "raw-http"
+    raw_dir.mkdir()
+    reservation = _AuditReservation()
+    response = _AuditResponse(reservation)
+    connection = _AuditConnection()
+    (raw_dir / f"{reservation.request_id}.meta.json").mkdir()
+
+    def fail_eval(*args, **kwargs):
+        reservation.settled = True
+        raise RuntimeError("ledger_persist_failed")
+
+    original = lambda *args, **kwargs: (connection, response)
+    wrapper = audit.build_audited_stream_response(
+        original,
+        raw_dir=raw_dir,
+        root=tmp_path,
+        request={"step": 1},
+        fail_eval=fail_eval,
+    )
+    with pytest.raises(RuntimeError, match="ledger_persist_failed"):
+        wrapper({"model": "deepseek-flash"})
+    assert reservation.settled is True
+    assert response.closed is True
+    assert connection.closed is True
+
+
+def test_r2_2_production_truncation_still_fails(service, monkeypatch, tmp_path):
+    for name in (
+        "P12_EVAL_MODE",
+        "P12_EVAL_FORMAL_HTTP",
+        "P12_EXPECTED_PROVIDER",
+        "P12_EXPECTED_MODEL",
+        "P12_REAL_MODEL_AUTHORIZED",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(
+        "app.eval_request_guard.require_external_model_calls_permitted",
+        lambda: None,
+    )
+    install(service, FakeResponse(None, [event_line(finish=None)]))
+    with pytest.raises(RuntimeError, match="stream_missing_finish_reason"):
+        run_structured(service)
+
+
+def test_r2_2_production_chat_truncation_still_fails(service, monkeypatch, tmp_path):
+    for name in (
+        "P12_EVAL_MODE",
+        "P12_EVAL_FORMAL_HTTP",
+        "P12_EXPECTED_PROVIDER",
+        "P12_EXPECTED_MODEL",
+        "P12_REAL_MODEL_AUTHORIZED",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(
+        "app.eval_request_guard.require_external_model_calls_permitted",
+        lambda: None,
+    )
+    install(service, FakeResponse(None, [event_line(finish=None)]))
+    with pytest.raises(RuntimeError, match="stream_missing_finish_reason"):
+        run_chat(service)
+
+
+def _retest_ledger(monkeypatch, tmp_path, **limits):
+    defaults = {
+        "P12_MAX_REQUESTS": "36",
+        "P12_MAX_INPUT_TOKENS": "600000",
+        "P12_MAX_OUTPUT_TOKENS": "60000",
+        "P12_MAX_COST_USD": "0.55",
+    }
+    defaults.update(limits)
+    for key, value in defaults.items():
+        monkeypatch.setenv(key, str(value))
+    return BudgetLedger(tmp_path / "budget.json")
+
+
+def test_r2_2_retest_local_cumulative_input_600k_is_enforced(monkeypatch, tmp_path):
+    budget = _retest_ledger(monkeypatch, tmp_path)
+    assert budget._read()["limits"]["input_tokens"] == 600000
+    data = budget._read()
+    data["used"]["input_tokens"] = 600000
+    budget._write(data)
+    with pytest.raises(EvaluationBudgetStop, match="budget_would_be_exceeded"):
+        budget.reserve(
+            run_id="r2.2",
+            case_id="Q04",
+            request_id="req-over-local-input",
+            payload={},
+            max_output_tokens=100,
+            input_token_upper_bound=1,
+        )
+    assert budget.snapshot()["events"][-1]["event"] == "reserve_rejected"
+
+
+def test_r2_2_retest_single_request_cap_1048576_is_enforced(monkeypatch, tmp_path):
+    budget = _retest_ledger(
+        monkeypatch,
+        tmp_path,
+        P12_MAX_INPUT_TOKENS="2000000",
+        P12_MAX_COST_USD="2.0",
+    )
+    guarded = install_baseline_admission(
+        budget,
+        actual_input_stop=0,
+        request_input_cap=1048576,
+    )
+    with pytest.raises(
+        EvaluationBudgetStop,
+        match="baseline_request_input_reservation_exceeds_cap",
+    ):
+        guarded(
+            run_id="r2.2",
+            case_id="Q04",
+            request_id="req-over-single-cap",
+            payload={},
+            max_output_tokens=100,
+            input_token_upper_bound=1048577,
+        )
+    assert budget.snapshot()["events"][-1]["event"] == "run_stopped"
+
+
+def test_r2_2_retest_cost_cap_055_is_enforced(monkeypatch, tmp_path):
+    budget = _retest_ledger(
+        monkeypatch,
+        tmp_path,
+        P12_MAX_INPUT_TOKENS="2000000",
+        P12_MAX_COST_USD="0.55",
+    )
+    guarded = install_baseline_admission(
+        budget,
+        actual_input_stop=0,
+        request_input_cap=0,
+    )
+    with pytest.raises(EvaluationBudgetStop, match="budget_would_be_exceeded"):
+        guarded(
+            run_id="r2.2",
+            case_id="Q04",
+            request_id="req-over-cost",
+            payload={},
+            max_output_tokens=60000,
+            input_token_upper_bound=1048576,
+        )
+    event = budget.snapshot()["events"][-1]
+    assert event["event"] == "reserve_rejected"
+    assert event["requested"]["cost_usd"] > 0.55
 
 
 def teardown_function():

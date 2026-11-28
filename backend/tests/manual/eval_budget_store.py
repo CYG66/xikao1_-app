@@ -186,6 +186,9 @@ class BudgetLedger:
             expected=expected_model if expected_model is not None else p.get('expected_model')
             response=response if isinstance(response,dict) else {}
             usage=response.get('usage')
+            usage_events=response.get('usage_events')
+            if usage_events is None and usage is not None:
+                usage_events=[usage]
             model=response.get('model')
             choices=response.get('choices') or []
             finish=(choices[0].get('finish_reason') if choices and isinstance(choices[0],dict) else None)
@@ -232,6 +235,8 @@ class BudgetLedger:
                     cost if cost_class!='authorized_model_estimate' else 0.0
                 ),
                 'supplier_invoice_verified':False,
+                'usage_events':usage_events,
+                'usage_events_count':(len(usage_events) if isinstance(usage_events,list) else None),
             }
             if error is None and http_status is None:
                 # A settled response without an observed HTTP status cannot be

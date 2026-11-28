@@ -534,6 +534,7 @@ class _EvalStreamProtocol:
         self.finish_reason: str | None = None
         self.model: str | None = None
         self.usage: Any = None
+        self.usage_events: list[Any] = []
         self.event_count = 0
         if self.strict:
             try:
@@ -575,22 +576,34 @@ class _EvalStreamProtocol:
         if not isinstance(event, dict):
             self._raise("stream_event_not_object")
         self.event_count += 1
+        raw_usage = event.get("usage")
+        usage_valid = True
+        if raw_usage is not None:
+            # Preserve every raw usage object before any fail-closed check.  An
+            # error or unauthorized-model event may itself carry billable
+            # usage, and an earlier event may already have reported usage;
+            # neither may be discarded by the later settlement.
+            self.usage = raw_usage
+            self.usage_events.append(deepcopy(raw_usage))
+            usage_valid = self._usage_is_valid(raw_usage)
         if event.get("error"):
             self._raise("stream_error_event:" + str(event["error"])[:200])
         if event.get("model"):
             actual = str(event["model"])
             if self.strict:
+                evidence: dict[str, Any] = {"model": actual}
+                if self.usage is not None:
+                    evidence["usage"] = deepcopy(self.usage)
+                    evidence["usage_events"] = deepcopy(self.usage_events)
                 validate_response_model(
-                    self.reservation, {"model": actual}, http_status=self.http_status
+                    self.reservation, evidence, http_status=self.http_status
                 )
             if self.model is None:
                 self.model = actual
             elif self.model != actual:
                 self._raise("stream_model_changed")
-        if event.get("usage") is not None:
-            self.usage = event["usage"]
-            if self.strict and not self._usage_is_valid(self.usage):
-                self._raise("stream_invalid_usage")
+        if raw_usage is not None and self.strict and not usage_valid:
+            self._raise("stream_invalid_usage")
         choices = event.get("choices") or []
         if choices:
             if not isinstance(choices, list) or not isinstance(choices[0], dict):
@@ -618,6 +631,10 @@ class _EvalStreamProtocol:
 
     def finish(self) -> None:
         if not self.strict:
+            # Production streams keep their pre-existing truncation guard even
+            # though evaluation-only terminal/usage checks do not apply.
+            if self.finish_reason is None:
+                raise RuntimeError("stream_missing_finish_reason")
             return
         if not self.done_seen:
             self._raise("stream_missing_done")
@@ -634,7 +651,9 @@ class _EvalStreamProtocol:
     def partial_response(self) -> dict[str, Any]:
         result: dict[str, Any] = {"model": self.model}
         if self.usage is not None:
-            result["usage"] = self.usage
+            result["usage"] = deepcopy(self.usage)
+        if self.usage_events:
+            result["usage_events"] = deepcopy(self.usage_events)
         if self.finish_reason is not None:
             result["choices"] = [{"finish_reason": self.finish_reason}]
         return result
@@ -2574,7 +2593,12 @@ class RobotAgentService:
                     "usage": stream_protocol.usage,
                 }
                 settle_eval_response(
-                    reservation, result, http_status=response.status
+                    reservation,
+                    {
+                        **result,
+                        "usage_events": deepcopy(stream_protocol.usage_events),
+                    },
+                    http_status=response.status,
                 )
                 return result
             data = self._read_deepseek_body(response, connection, deadline)
@@ -3045,10 +3069,11 @@ class RobotAgentService:
                     function = call.get("function") or {}
                     target["name"] += str(function.get("name") or "")
                     target["arguments"] += str(function.get("arguments") or "")
+            # The shared protocol has already checked every model-labelled
+            # event, error event, finish reason, [DONE] ordering and usage.
+            # Production mode still requires a terminal finish_reason.
+            protocol.finish()
             if reservation is not None:
-                # The shared protocol has already checked every model-labelled
-                # event, error event, finish reason, [DONE] ordering and usage.
-                protocol.finish()
                 settle_eval_response(
                     reservation,
                     protocol.partial_response(),

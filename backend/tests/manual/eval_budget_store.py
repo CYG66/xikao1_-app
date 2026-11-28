@@ -91,7 +91,8 @@ class BudgetLedger:
         self.path.parent.mkdir(parents=True,exist_ok=True)
         if not self.path.exists():
             self._write({'schema':'p1.3-eval-budget.v1','limits':deepcopy(self.limits),
-                         'used':{'requests':0,'input_tokens':0,'output_tokens':0,'cost_usd':0.0},
+                         'used':{'requests':0,'input_tokens':0,'output_tokens':0,
+                                 'cost_usd':0.0,'unconfirmed_cost_upper_bound_usd':0.0},
                          'stopped':False,'pending':None,'events':[]})
     @contextmanager
     def _locked(self):
@@ -183,47 +184,101 @@ class BudgetLedger:
             if not p: raise EvaluationBudgetStop('missing_pending_reservation')
             reservation=p.get('reservation') or {}
             expected=expected_model if expected_model is not None else p.get('expected_model')
-            usage=(response or {}).get('usage') if isinstance(response,dict) else None
-            model=(response or {}).get('model') if isinstance(response,dict) else None
-            choices=(response or {}).get('choices') if isinstance(response,dict) else []
+            response=response if isinstance(response,dict) else {}
+            usage=response.get('usage')
+            usage_events=response.get('usage_events')
+            if usage_events is None and usage is not None:
+                usage_events=[usage]
+            model=response.get('model')
+            choices=response.get('choices') or []
             finish=(choices[0].get('finish_reason') if choices and isinstance(choices[0],dict) else None)
             # A send attempt always consumes a request slot, including failed
             # or unverifiable attempts.  This prevents retry/failure bypasses.
+            d['used'].setdefault('unconfirmed_cost_upper_bound_usd',0.0)
             d['used']['requests']+=1
             inp,out,usage_status=_usage_tokens(usage)
-            cost=None
+            reserved_cost=float(reservation.get('cost_usd') or 0.0)
+            usage_cost=_price(inp,out) if usage_status=='known' else None
+            model_text=str(model) if model is not None else None
+            model_authorized=bool(expected is not None and model_text is not None
+                                  and model_text==str(expected))
+            model_unauthorized=bool(expected is not None and model_text is not None
+                                    and model_text!=str(expected))
             if usage_status=='known':
                 # Even a rejected model response may already have been billed.
-                # Record verified usage and known cost before raising.
-                cost=_price(inp,out)
+                # Record verified usage before raising.
                 d['used']['input_tokens']+=inp
                 d['used']['output_tokens']+=out
-                d['used']['cost_usd']+=cost
-            cost_status='settled' if cost is not None else 'unverifiable'
+            # Four distinct cost classes are kept explicit.  A fixed
+            # authorized-model price is always an estimate, never a supplier
+            # invoice; an unauthorized/unlabelled response is accounted at the
+            # full reservation upper bound instead of being treated as a
+            # verified actual bill.
+            if usage_status=='known' and model_authorized:
+                cost=usage_cost
+                cost_class='authorized_model_estimate'
+            elif usage_status=='known' and model_unauthorized:
+                cost=max(usage_cost or 0.0, reserved_cost)
+                cost_class='unauthorized_model_upper_bound'
+            else:
+                cost=reserved_cost
+                cost_class='unconfirmed_upper_bound'
+            d['used']['cost_usd']+=cost
+            if cost_class!='authorized_model_estimate':
+                d['used']['unconfirmed_cost_upper_bound_usd']+=cost
+            cost_status='settled' if usage_status=='known' else 'unverifiable'
+            cost_evidence={
+                'cost_status':cost_status,
+                'cost_class':cost_class,
+                'cost_basis':'authorized_model_list_price',
+                'unconfirmed_cost_upper_bound_usd':(
+                    cost if cost_class!='authorized_model_estimate' else 0.0
+                ),
+                'supplier_invoice_verified':False,
+                'usage_events':usage_events,
+                'usage_events_count':(len(usage_events) if isinstance(usage_events,list) else None),
+            }
+            if error is None and http_status is None:
+                # A settled response without an observed HTTP status cannot be
+                # audited.  Fail closed even when usage is present, because the
+                # response may be a transport fallback or an unlabelled retry.
+                d['stopped']=True; d['pending']=None
+                d['events'].append({'event':'missing_http_status_stop','request_id':p['request_id'],
+                                    'http_status':None,'http_status_status':'unknown',
+                                    'usage':usage,'model':model,
+                                    'usage_status':usage_status,'cost_usd':cost,
+                                    'finish_reason':finish,
+                                    'reservation':reservation,**cost_evidence})
+                self._write(d); raise EvaluationBudgetStop('missing_http_status')
             if expected is not None and model is not None and str(model)!=str(expected):
                 d['stopped']=True
                 d['events'].append({'event':'model_mismatch_stop','request_id':p['request_id'],
                                     'expected_model':expected,'actual_model':model,'usage':usage,
                                     'usage_status':usage_status,'cost_usd':cost,
-                                    'cost_status':cost_status,'http_status':http_status,
-                                    'reservation':reservation})
+                                    'http_status':http_status,
+                                    'http_status_status':('known' if http_status is not None else 'unknown'),
+                                    'reservation':reservation,**cost_evidence})
                 d['pending']=None
                 self._write(d)
                 raise EvaluationBudgetStop('model_not_authorized')
-            if error is not None or not isinstance(usage,dict) or not model:
+            if (error is not None or not isinstance(usage,dict) or not model):
                 d['stopped']=True; d['pending']=None
-                d['events'].append({'event':'settle_unknown_stop','request_id':p['request_id'],'http_status':http_status,
+                d['events'].append({'event':'settle_unknown_stop','request_id':p['request_id'],
+                                    'http_status':http_status,
+                                    'http_status_status':('known' if http_status is not None else 'unknown'),
                                     'error':str(error) if error else None,'usage':usage,
                                     'usage_status':usage_status,'cost_usd':cost,
-                                    'cost_status':cost_status,'model':model,
-                                    'finish_reason':finish,'reservation':reservation})
+                                    'model':model,'finish_reason':finish,
+                                    'reservation':reservation,**cost_evidence})
                 self._write(d); raise EvaluationBudgetStop('unverifiable_usage_or_model')
             if usage_status!='known':
                 d['stopped']=True; d['pending']=None
                 d['events'].append({'event':'invalid_usage_stop','request_id':p['request_id'],
                                     'usage':usage,'usage_status':usage_status,
-                                    'cost_usd':None,'cost_status':'unverifiable',
-                                    'reservation':reservation})
+                                    'http_status':http_status,
+                                    'http_status_status':('known' if http_status is not None else 'unknown'),
+                                    'cost_usd':cost,
+                                    'reservation':reservation,**cost_evidence})
                 self._write(d); raise EvaluationBudgetStop('invalid_usage')
             reserved_in=int(reserved_input_tokens if reserved_input_tokens is not None else reservation.get('input_tokens',0))
             reserved_out=int(reserved_output_tokens if reserved_output_tokens is not None else reservation.get('output_tokens',0))
@@ -231,15 +286,19 @@ class BudgetLedger:
                 d['stopped']=True; d['pending']=None
                 d['events'].append({'event':'usage_exceeded_reservation','request_id':p['request_id'],
                                     'usage':usage,'reserved':{'input_tokens':reserved_in,'output_tokens':reserved_out},
-                                    'cost_usd':cost,'cost_status':cost_status,'reservation':reservation})
+                                    'cost_usd':cost,'http_status':http_status,
+                                    'http_status_status':('known' if http_status is not None else 'unknown'),
+                                    'reservation':reservation,**cost_evidence})
                 self._write(d); raise EvaluationBudgetStop('usage_exceeded_reservation')
             d['pending']=None; d['events'].append({'event':'settled','run_id':p['run_id'],'case_id':p['case_id'],
-                'request_id':p['request_id'],'http_status':http_status,'model':model,'finish_reason':finish,
-                'usage':usage,'cost_usd':cost,'cost_status':cost_status,'retry':retry,
-                'reservation':reservation})
+                'request_id':p['request_id'],'http_status':http_status,
+                'http_status_status':('known' if http_status is not None else 'unknown'),
+                'model':model,'finish_reason':finish,
+                'usage':usage,'cost_usd':cost,'retry':retry,
+                'reservation':reservation,**cost_evidence})
             self._write(d)
-    def stop_unknown(self,request_id,error):
-        try:self.settle(response=None,error=error)
+    def stop_unknown(self,request_id,error,http_status=None,response=None):
+        try:self.settle(response=response,http_status=http_status,error=error)
         except EvaluationPersistenceError: raise
         except EvaluationBudgetStop: pass
     def stop_run(self,reason):

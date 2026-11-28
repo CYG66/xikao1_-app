@@ -95,15 +95,26 @@ def test_response_model_match_settles_exactly_once(tmp_path, monkeypatch):
 def test_missing_usage_stops_and_restart_is_still_stopped(tmp_path, monkeypatch):
     ledger=eval_env(monkeypatch,tmp_path)
     reservation=begin(ledger)
-    with pytest.raises(EvaluationBudgetStop): settle_eval_response(reservation, {'model':'deepseek-flash'})
+    with pytest.raises(EvaluationBudgetStop): settle_eval_response(reservation, {'model':'deepseek-flash'}, http_status=200)
     assert ledger.snapshot()['stopped'] is True
     restarted=BudgetLedger(tmp_path/'budget.json'); configure_eval_guard(restarted)
     with pytest.raises(EvaluationBudgetStop): begin(restarted)
 
+def test_missing_http_status_stops_even_with_usage(tmp_path, monkeypatch):
+    ledger=eval_env(monkeypatch,tmp_path)
+    reservation=begin(ledger)
+    with pytest.raises(EvaluationBudgetStop) as error:
+        settle_eval_response(reservation, {'model':'deepseek-flash','usage':{'prompt_tokens':1,'completion_tokens':1}})
+    assert 'missing_http_status' in str(error.value)
+    snapshot=ledger.snapshot()
+    assert snapshot['stopped'] is True and snapshot['pending'] is None
+    event=next(e for e in snapshot['events'] if e['event']=='missing_http_status_stop')
+    assert event['http_status'] is None and event['cost_usd'] is not None
+
 def test_request_limit_is_fail_closed(tmp_path, monkeypatch):
     ledger=eval_env(monkeypatch,tmp_path,requests=1)
     first=begin(ledger)
-    settle_eval_response(first, {'model':'deepseek-flash','usage':{'prompt_tokens':1,'completion_tokens':1}})
+    settle_eval_response(first, {'model':'deepseek-flash','usage':{'prompt_tokens':1,'completion_tokens':1}}, http_status=200)
     with pytest.raises(EvaluationBudgetStop): begin(ledger)
     assert ledger.snapshot()['used']['requests']==1
 
@@ -173,4 +184,5 @@ def test_openai_gateway_denies_before_network(tmp_path, monkeypatch):
         model_request_gateway.request_openai_responses_json(api_key='synthetic',
             payload={'model':'deepseek-flash','input':[],'max_output_tokens':10},timeout=1.0)
     assert called==[]
+
 

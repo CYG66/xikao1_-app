@@ -79,7 +79,7 @@ if budget_path:
     # CAD-E2E-LIVE-BASELINE-01 adds the two P01 admission conditions that are
     # not expressible through the ledger's aggregate limit alone:
     #   1) stop before the next send once actual cumulative input reaches the
-    #      authorized 300,000-token stop threshold;
+    #      configured baseline stop threshold;
     #   2) reject any single-send input reservation above 1,048,576 tokens.
     # Both are stricter checks in front of the same BudgetLedger.reserve() and
     # never bypass the guard.  Disabled unless the baseline env is present.
@@ -138,6 +138,20 @@ else:
     from app.agent_service import RobotAgentService
     service=RobotAgentService(restore_pending_actions=operation=="confirm")
     if evaluation_mode and os.getenv('P12_EVAL_MOCK_PROVIDER') != '1':
+        # Raw HTTP audit for every response, including the direct streaming
+        # path that does not pass through _deepseek_request.  The worker must
+        # retain the exact bytes and request id so a settled ledger event can
+        # always be matched to its original provider response.
+        from raw_http_audit import build_audited_stream_response
+        raw_dir = root / 'raw-http'
+        raw_dir.mkdir(exist_ok=True)
+        original_stream_response = service._deepseek_response
+        service._deepseek_response = build_audited_stream_response(
+            original_stream_response,
+            raw_dir=raw_dir,
+            root=root,
+            request=request,
+        )
         # Observation-only wrapper for the real baseline evidence.  It never
         # changes the request or response and logs after the guard has already
         # validated the provider-returned model and settled the usage.

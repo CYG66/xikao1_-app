@@ -79,26 +79,31 @@ def request_openai_responses_json(
     )
     lease = user_request_limiter.acquire(current_agent_user_id())
     lease.__enter__()
+    status: int | None = None
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            result = json.loads(response.read().decode("utf-8"))
             status = int(getattr(response, "status", 200))
+            raw = response.read().decode("utf-8")
+        result = json.loads(raw)
         settle_eval_response(reservation, result, http_status=status)
         return result
     except urllib.error.HTTPError as error:
-        fail_eval_request(reservation, error)
+        fail_eval_request(reservation, error, http_status=error.code)
         detail = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(
             f"OpenAI API 请求失败 ({error.code}): {detail[:300]}"
         ) from error
     except (TimeoutError, socket.timeout) as error:
-        fail_eval_request(reservation, error)
+        fail_eval_request(reservation, error, http_status=status)
         raise RuntimeError("OpenAI API 请求超时，请稍后重试。") from error
     except urllib.error.URLError as error:
-        fail_eval_request(reservation, error)
+        fail_eval_request(reservation, error, http_status=status)
         raise RuntimeError(f"无法连接 OpenAI API: {error.reason}") from error
-    except json.JSONDecodeError as error:
-        fail_eval_request(reservation, error)
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        fail_eval_request(reservation, error, http_status=status)
         raise RuntimeError("OpenAI API 返回了无效 JSON。") from error
+    except Exception as error:
+        fail_eval_request(reservation, error, http_status=status)
+        raise
     finally:
         lease.__exit__(None, None, None)
